@@ -1,0 +1,227 @@
+{
+  "files": {
+    "audio/blastExplode.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/blastExplode.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "0f663a7b892a8336e0332029be28a0b4f7c43eeabbdd32a28c16298f750ad9f1"
+    },
+    "audio/blastExplode.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/blastExplode.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "0f663a7b892a8336e0332029be28a0b4f7c43eeabbdd32a28c16298f750ad9f1"
+    },
+    "audio/boltCast.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/boltCast.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "998b3c04a2f025e9914e449165b4dec591528cda965da00df99ae40f6c586e0b"
+    },
+    "audio/boltCast.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/boltCast.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "998b3c04a2f025e9914e449165b4dec591528cda965da00df99ae40f6c586e0b"
+    },
+    "audio/boltHit.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/boltHit.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "1613e1f5dcceac89aa335fbf71d90ec674c911ef508fc454b841e0652e2b4ead"
+    },
+    "audio/boltHit.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/boltHit.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "1613e1f5dcceac89aa335fbf71d90ec674c911ef508fc454b841e0652e2b4ead"
+    },
+    "audio/clash.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/clash.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "d8b3b8e30373e531fafbfccaf9a503082e5c26efe2dafa4300526a317d01459e"
+    },
+    "audio/clash.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/clash.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "d8b3b8e30373e531fafbfccaf9a503082e5c26efe2dafa4300526a317d01459e"
+    },
+    "audio/dodge.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/dodge.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "b3e033754f8ca7ec969fc24834b949dab0c631839201a7568dcf432f36a27c43"
+    },
+    "audio/dodge.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/dodge.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "b3e033754f8ca7ec969fc24834b949dab0c631839201a7568dcf432f36a27c43"
+    },
+    "audio/hurt.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/hurt.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "c64a8afe6f73bdd426c0a0a86cebcfafce3cdadadf4e381bc1836655be712169"
+    },
+    "audio/hurt.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/hurt.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "c64a8afe6f73bdd426c0a0a86cebcfafce3cdadadf4e381bc1836655be712169"
+    },
+    "audio/noMana.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/noMana.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "bada519dd25c3cc7bfb27fff2a8d12538215b6770ad64991316dd2610bcd48d7"
+    },
+    "audio/noMana.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/noMana.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "bada519dd25c3cc7bfb27fff2a8d12538215b6770ad64991316dd2610bcd48d7"
+    },
+    "audio/shieldBlock.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/shieldBlock.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "83cc6cd0095389ef6c429e790d43c67615a29cc84d33e405a0cdc7a54a197eb9"
+    },
+    "audio/shieldBlock.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/shieldBlock.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "83cc6cd0095389ef6c429e790d43c67615a29cc84d33e405a0cdc7a54a197eb9"
+    },
+    "audio/shieldPerfect.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/shieldPerfect.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "41b004a4ea1729ca7c151689e0f0032818a90479328c68d19eb09cf57e91db9a"
+    },
+    "audio/shieldPerfect.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/shieldPerfect.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "41b004a4ea1729ca7c151689e0f0032818a90479328c68d19eb09cf57e91db9a"
+    },
+    "audio/shieldUp.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/shieldUp.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "7f2b9011035476949ece8b83eba07039f9f38363b3776d7f49a1b90ba7264192"
+    },
+    "audio/shieldUp.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/shieldUp.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "7f2b9011035476949ece8b83eba07039f9f38363b3776d7f49a1b90ba7264192"
+    },
+    "audio/uiClick.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/uiClick.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "e118c8c763f48df70790210be68af878a3640756a101f23c1c7989cc1d92d178"
+    },
+    "audio/uiClick.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/uiClick.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "e118c8c763f48df70790210be68af878a3640756a101f23c1c7989cc1d92d178"
+    },
+    "audio/uiHover.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/uiHover.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "891465a88f85bb202fd5335679e77567aca08e932298b6c6cfd8f1c7ad51dccb"
+    },
+    "audio/uiHover.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/uiHover.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "891465a88f85bb202fd5335679e77567aca08e932298b6c6cfd8f1c7ad51dccb"
+    },
+    "models/staffs/staff_fighters_might-lod1.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/staffs/staff_fighters_might-lod1.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "5ddfab2381836e0e54f3c990786a7fc15cdea3d18660ab54782247995091124f"
+    },
+    "models/staffs/staff_fighters_might.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/staffs/staff_fighters_might.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "b183b4f2bd3068b15ba4ba9862bd149ea30055c685395ec79bb99521d5033423"
+    },
+    "models/staffs/staff_momentum-lod1.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/staffs/staff_momentum-lod1.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "c76e41c89d622ce4cac5f4a96700ebe45e77230a15650d9694a0c20ff30d44d4"
+    },
+    "models/staffs/staff_momentum.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/staffs/staff_momentum.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "7addbd1a405d9d434a77d45aa2573abfc42e74f1074ec1e1821d540cbe69183b"
+    },
+    "models/staffs/staff_moonward-lod1.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/staffs/staff_moonward-lod1.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "e6fd7c318049b57e8173a15ef746f253047ef7778a28118e38733356605f254f"
+    },
+    "models/staffs/staff_moonward.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/staffs/staff_moonward.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "8516f77a6a53963a5c2f0a44eb6ff5354aacc402e89b5037399b978a7b663e1f"
+    },
+    "models/staffs/staff_nobu-lod1.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/staffs/staff_nobu-lod1.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "e462b530f41f4935d20562e46b72e23f1a23095301e937db72d804e0cbaf9961"
+    },
+    "models/staffs/staff_nobu.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/staffs/staff_nobu.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "d65f979c5bbd1bc45fa213c680b8e28a716311317b5b10967ef523880e69da9c"
+    },
+    "models/staffs/staff_sproto-lod1.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/staffs/staff_sproto-lod1.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "8516c008361a9410f62938666017f9fb57d5272c4261983b9f94516e1c34a1ef"
+    },
+    "models/staffs/staff_sproto.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/staffs/staff_sproto.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "f96bf474ca03b344defd095b8f6e76c2da8aa48f72236073d54b847b473322e9"
+    },
+    "textures/grove/floor.jpg": {
+      "repo": "sproto-duel",
+      "path": "public/assets/textures/themes/grove/floor.jpg",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "33eb95a64527c2992b73f378e7068725337430ac233d1a627cb457efdb23716a"
+    },
+    "textures/grove/sky.jpg": {
+      "repo": "sproto-duel",
+      "path": "public/assets/textures/themes/grove/sky.jpg",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "9ea296b944d4b19252e23dfcef437ec7315a09d4f63a147faf5be8b9324189fb"
+    },
+    "textures/grove/stone.jpg": {
+      "repo": "sproto-duel",
+      "path": "public/assets/textures/themes/grove/stone.jpg",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "c4a20c2345b94946c3b23d7fc2bde23c817fcfa5f7792b1fc617fe121a23c308"
+    }
+  },
+  "note": "Generated by tools/import-sibling-assets.mjs. Every asset is the owner's own work (plan \u00a77.3)."
+}

@@ -22,18 +22,13 @@ are in `player.melee.json` next to the GLB.
 2. In the Python console: `exec(open('<repo>/art/tools/melee_anim.py').read())`, then `show('attack_light_1')` to preview.
 3. Export with only `Armature`, `char1` and `socket_staff` selected: glTF Binary, Animation mode
    *Actions*, Always Sample Animations on, Include Custom Properties on, to `source/player_raw.glb`.
-4. Compress it. Don't use `gltf-transform optimize`, because it removes the empty `socket_staff` node:
-
-   ```bash
-   G() { npx --prefix ../sproto-duel gltf-transform "$@"; }
-   G resample art/source/player_raw.glb /tmp/p1.glb
-   G webp /tmp/p1.glb /tmp/p2.glb
-   G meshopt /tmp/p2.glb public/assets/models/characters/player.glb
-   ```
-
+4. Build the game file: `node art/tools/build-player-glb.mjs`. It puts `socket_staff` back where
+   the source rig has it (Blender's export moves it 18 m up the hand bone) and compresses with
+   resample → WebP → meshopt. Never use `gltf-transform optimize` here: it removes the socket.
 5. `player.melee.json` is written by the script on every run, from `TIMING` plus each clip's
    last key. Keys snap to whole 24 fps frames, so `end` is the exact clip length. Don't edit the
    JSON by hand.
+6. Run `npm run gen:moves` so the sim's frame data and staff hitboxes match the new clips.
 
 Pose tables use the character's frame: `r` = right, `f` = forward, `u` = up, in metres from the
 centre of the feet. `grip` is where the right fist holds the shaft and `staff` is the direction

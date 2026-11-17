@@ -1,0 +1,67 @@
+#!/usr/bin/env node
+/**
+ * Asset gates (plan §3.5, §7.3): triangle caps by folder tier, the player's clip list and its
+ * staff socket, and that every file under public/assets is tracked (IMPORTED.json or the art
+ * pipeline).
+ */
+import { NodeIO } from '@gltf-transform/core';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { MeshoptDecoder } from 'meshoptimizer';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const ROOT = path.resolve('public/assets');
+/** Triangle caps (plan §3.5, revision 2): 9k standard; 22k elites, bosses, NPCs and the player. */
+const CAPS = [
+  [/^models\/characters\/player\.glb$/, 22000],
+  [/^models\/(bosses|elites|npcs)\//, 22000],
+  [/^models\/enemies\//, 9000],
+  [/^models\/staffs\/.*-lod1\.glb$/, 4000],
+  [/^models\/staffs\//, 12000],
+  [/^models\/props\//, 4000],
+  [/^models\/pickups\//, 1000],
+];
+const PLAYER_CLIPS = ['idle', 'run', 'run_back', 'strafe_l', 'strafe_r', 'jump', 'roll', 'hit', 'stun', 'defeat', 'victory', 'cast', 'cast_big', 'attack_light_1', 'attack_light_2', 'attack_light_3', 'attack_heavy', 'block'];
+/** Files made by this repo's own pipelines (not copied from a sibling). */
+const OWN = new Set(['models/characters/player.glb', 'models/characters/player.melee.json', 'IMPORTED.json']);
+
+await MeshoptDecoder.ready;
+const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+const imported = JSON.parse(fs.readFileSync(path.join(ROOT, 'IMPORTED.json'), 'utf8')).files;
+let failures = 0;
+const fail = (msg) => {
+  console.error(`check-assets: ${msg}`);
+  failures++;
+};
+
+function walk(dir, base = '') {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const rel = base ? `${base}/${e.name}` : e.name;
+    return e.isDirectory() ? walk(path.join(dir, e.name), rel) : e.name.startsWith('.') ? [] : [rel];
+  });
+}
+
+for (const rel of walk(ROOT)) {
+  if (!OWN.has(rel) && !imported[rel]) fail(`${rel} is not tracked in IMPORTED.json`);
+  if (!rel.endsWith('.glb')) continue;
+  const doc = await io.read(path.join(ROOT, rel));
+  let tris = 0;
+  for (const mesh of doc.getRoot().listMeshes()) {
+    for (const prim of mesh.listPrimitives()) {
+      const idx = prim.getIndices();
+      tris += (idx ? idx.getCount() : prim.getAttribute('POSITION').getCount()) / 3;
+    }
+  }
+  const cap = CAPS.find(([re]) => re.test(rel))?.[1];
+  if (cap && tris > cap) fail(`${rel}: ${tris} triangles, cap ${cap}`);
+  if (rel === 'models/characters/player.glb') {
+    const names = new Set(doc.getRoot().listAnimations().map((a) => a.getName()));
+    const missing = PLAYER_CLIPS.filter((c) => !names.has(c));
+    if (missing.length) fail(`player.glb is missing clips: ${missing.join(', ')}`);
+    const socket = doc.getRoot().listNodes().find((n) => n.getName() === 'socket_staff');
+    if (!socket) fail('player.glb has no socket_staff');
+    else if (Math.abs(socket.getTranslation()[1]) > 50) fail('player.glb socket_staff is misplaced (run art/tools/build-player-glb.mjs)');
+  }
+}
+if (failures) process.exit(1);
+console.log('check-assets: all assets within caps and tracked');
