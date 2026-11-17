@@ -3,11 +3,16 @@
 A browser action RPG set in Sproutvale: fight up close with a staff and at range with spells,
 take quests, beat Scrapjaw. Built with Three.js, Rapier (physics), TypeScript and Vite.
 
-**Status: M1a, first combat (the first "is it fun" gate).** Fight training dummies and the
-Thornwood Brute in a greybox yard with the staff: a three-hit light combo, a chargeable heavy, a
-dodge roll with i-frames and perfect dodges, block and parry (including reflecting coins), lock-on
-and ripostes. Keyboard and mouse or a gamepad. Spells, groups and the real world come next. The plan
-is in [docs/plans/2026-11-17-first-area-plan.md](docs/plans/2026-11-17-first-area-plan.md).
+**Status: M1b, spells and groups (the second "is it fun" gate).** Fight with the staff up close
+and four spells at range: Arcane Bolt, Blast (burns), Frost Nova (chills, three stacks freeze) and
+Chain Zap (shocks). A spell cast right after a melee hit is *woven*: faster and stronger. Enemies
+have weaknesses: Sprout Grunts swarm, Coin Slingers keep their distance and shrug off spells,
+Hex Wisps float, shrug off the staff and blink away, and the Thornwood Brute resists magic but
+freezes easily. Groups take turns attacking. The plan is in
+[docs/plans/2026-11-17-first-area-plan.md](docs/plans/2026-11-17-first-area-plan.md).
+
+**Wave runner:** open http://localhost:5180/?sandbox=1 for mixed waves of 5–7 enemies that always
+pair opposite weaknesses. Without `?sandbox=1` you get the training yard (dummies and a Brute).
 
 ## Run it
 
@@ -31,11 +36,12 @@ Then open http://localhost:5180.
 | Dodge roll | C | B |
 | Block (the first moment of a block parries) | Q | LB |
 | Lock on / switch target | Middle mouse or T / flick the mouse | Right stick click / flick the right stick |
+| Spells: Bolt, Blast, Frost Nova, Chain Zap | 1 2 3 4 (or E R Z X) | Hold LT + X / Y / B / A |
 | Pause / back | Esc | Menu / B |
 | Menus | Arrows, Enter, Esc, or the mouse | D-pad or left stick, A, B |
 
-Spell keys (1–4, or hold LT plus a face button) are bound but do nothing until M1b. Everything is
-remappable in Settings → Controls, and the prompts switch to your pad's glyphs when you use it.
+Everything is remappable in Settings → Controls, and the prompts switch to your pad's glyphs when
+you use it.
 
 **The yard:** a passive dummy and a swinging dummy (practise parrying) just ahead to the left, a
 coin-shooting dummy behind you to the right (parry the coin to send it back), and the Brute further

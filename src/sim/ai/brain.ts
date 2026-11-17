@@ -2,45 +2,60 @@ import { ENEMIES, type EnemyDef, type EnemyMoveDef } from '../../content/enemies
 import { DT } from '../../content/tuning';
 import { flatDist, toWorld, yawTo } from '../combat/geometry';
 import type { CombatCtx } from '../combat/playerCombat';
+import { clockTicks, moveScale } from '../combat/statuses';
 import type { Entity } from '../entity';
-import { turnToward } from '../math';
-import { range as rngRange, type RngState, next as rngNext } from '../rng';
+import { turnToward, wrapAngle } from '../math';
+import type { PhysicsWorld } from '../physics/PhysicsWorld';
+import { next as rngNext, range as rngRange, type RngState } from '../rng';
 
-/** Spawns a projectile for an enemy's ranged move (provided by SimWorld). */
-export type SpawnProjectile = (owner: Entity, move: EnemyMoveDef, target: Entity) => void;
+/** Spawns one projectile for an enemy's ranged move (provided by SimWorld). `angle` fans it out. */
+export type SpawnProjectile = (owner: Entity, move: EnemyMoveDef, target: Entity, angle: number) => void;
 
-/** Strafe speed while circling, and how far apart a Brute likes to stand (m). */
+/** Attack tokens per target player (plan §4.8): at most this many melee and ranged wind-ups at once. */
+export const TOKENS = { melee: 2, ranged: 1 } as const;
+
+/** Strafe speed while circling (m/s), and the band a token-less melee enemy circles in (m). */
 const CIRCLE_SPEED = 1.7;
+const WAIT_BAND: [number, number] = [4, 7];
 const MIN_GAP = 0.6;
 
 /**
- * Enemy brains (plan §4.8, M1a subset: no tokens or perception cones yet, since there is one
- * attacker). Dummies run fixed timers; the Brute approaches, picks an attack by distance band and
- * weight (never the same move three times running), sometimes circles after recovering, and
- * leashes home if pulled too far.
+ * Enemy brains (plan §4.8). Dummies run fixed timers. Fighters approach (melee) or hold a distance
+ * band (ranged), take an attack token before winding up so a group never all swings at once,
+ * pick an attack by distance band and weight (never one move three times running), sometimes
+ * circle after recovering, and leash home if pulled too far. Chill slows their clock and feet.
  */
-export function enemyBrains(ctx: CombatCtx, rng: RngState, spawnProjectile: SpawnProjectile): void {
+export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld, spawnProjectile: SpawnProjectile): void {
   for (const e of ctx.entities) {
     const b = e.brain;
     const c = e.combat;
     if (!b || !c) continue;
     const def = ENEMIES[b.def];
     for (const k of Object.keys(b.cooldowns)) if (b.cooldowns[k] > 0) b.cooldowns[k]--;
+    const still = () => ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
     if (ctx.frozen.has(e.id)) {
-      ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
+      still();
       continue;
     }
 
     const a = c.action;
     if (a?.kind === 'dead') {
       a.t++;
-      ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
+      still();
       continue;
     }
-    if (a?.kind === 'hitstun' || a?.kind === 'stagger') {
+    if (a?.kind === 'hitstun' || a?.kind === 'stagger' || a?.kind === 'frozen') {
       a.t++;
       if (a.t >= a.dur) c.action = null;
-      ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
+      still();
+      continue;
+    }
+
+    // The Hex Wisp blinks away after enough melee hits in a row.
+    if (def.blink && b.meleeHitsTaken >= def.blink.hits) {
+      b.meleeHitsTaken = 0;
+      blink(ctx, e, def, physics);
+      still();
       continue;
     }
 
@@ -53,7 +68,14 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, spawnProjectile: Spaw
     }
 
     if (def.dummy) dummyThink(ctx, e, def, target);
-    else bruteThink(ctx, e, def, target, rng);
+    else fighterThink(ctx, e, def, target, rng);
+    // Chill slows movement too.
+    const m = ctx.motion.get(e.id);
+    if (m) {
+      const k = moveScale(e);
+      m.vx *= k;
+      m.vz *= k;
+    }
   }
 }
 
@@ -74,14 +96,38 @@ function pickTarget(ctx: CombatCtx, e: Entity, def: EnemyDef): Entity | null {
   return best;
 }
 
-function startAttack(ctx: CombatCtx, e: Entity, move: EnemyMoveDef): void {
+/** Tokens in use against `target` from one pool: summed over enemies currently attacking it. */
+export function tokensInUse(ctx: CombatCtx, target: Entity, pool: 'melee' | 'ranged', except?: Entity): number {
+  let used = 0;
+  for (const e of ctx.entities) {
+    if (e === except || !e.brain || e.brain.target !== target.id) continue;
+    const a = e.combat?.action;
+    if (a?.kind !== 'attack') continue;
+    const move = ENEMIES[e.brain.def].moves.find((m) => m.id === a.move);
+    if (move?.token?.pool === pool) used += move.token.cost;
+  }
+  return used;
+}
+
+function hasToken(ctx: CombatCtx, e: Entity, def: EnemyDef, move: EnemyMoveDef, target: Entity): boolean {
+  if (!def.usesTokens || !move.token) return true;
+  const used = tokensInUse(ctx, target, move.token.pool, e);
+  // A move that costs the whole pool (a Brute heavy) may still go when nobody else is attacking.
+  return used === 0 || used + move.token.cost <= TOKENS[move.token.pool];
+}
+
+function startAttack(ctx: CombatCtx, e: Entity, move: EnemyMoveDef, target: Entity | null): void {
   const c = e.combat!;
-  c.action = { kind: 'attack', move: move.id, t: 0, clipT: 0, charge: 0, charging: false, charged: false, hit: [], lunge: 0, lungeDir: { x: 0, z: 0 } };
+  const aim = move.area && target ? { ...target.tf.pos } : undefined;
+  c.action = { kind: 'attack', move: move.id, t: 0, clipT: 0, charge: 0, charging: false, charged: false, hit: [], lunge: 0, lungeDir: { x: 0, z: 0 }, fired: 0, aim };
   e.brain!.cooldowns[move.id] = move.cooldown;
   const recent = e.brain!.recent;
   recent.push(move.id);
   if (recent.length > 2) recent.shift();
-  ctx.events.push({ type: 'telegraph', entity: e.id, move: move.id, ticks: move.windup, unblockable: !!move.unblockable, decal: move.decal });
+  ctx.events.push({
+    type: 'telegraph', entity: e.id, move: move.id, ticks: move.windup, unblockable: !!move.unblockable, decal: move.decal,
+    at: aim, radius: move.area?.radius,
+  });
 }
 
 function runAttack(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | null, spawn: SpawnProjectile, rng: RngState): void {
@@ -90,18 +136,30 @@ function runAttack(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | nu
   const move = def.moves.find((m) => m.id === a.move)!;
   // Track the target during the first part of the wind-up, then commit.
   if (target && a.t < move.windup * move.trackUntil) e.tf.yaw = turnToward(e.tf.yaw, yawTo(e.tf.pos, target.tf.pos), def.turnRate * DT);
-  a.t++;
-  if (a.t === move.windup) {
-    ctx.events.push({ type: 'swing', entity: e.id, move: move.id, heavy: !!move.hyperArmor });
-    if (move.projectile && target && !a.fired) {
-      a.fired = true;
-      spawn(e, move, target);
+  const ticks = clockTicks(e); // chill slows the whole attack
+  if (ticks) a.t++;
+  const motion = { vx: 0, vz: 0, inputScale: 0 };
+  if (ticks && a.t === move.windup) ctx.events.push({ type: 'swing', entity: e.id, move: move.id, heavy: !!move.hyperArmor });
+  // Volleys: `count` shots, `interval` ticks apart, fanned out.
+  if (move.projectile && target && ticks) {
+    const count = move.projectile.count ?? 1;
+    const k = a.fired ?? 0;
+    if (k < count && a.t === move.windup + k * (move.projectile.interval ?? 0)) {
+      a.fired = k + 1;
+      const spread = move.projectile.spread ?? 0;
+      spawn(e, move, target, (k - (count - 1) / 2) * spread);
     }
   }
-  ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
+  // Leaps travel during the active ticks.
+  if (move.leap && a.t >= move.windup && a.t < move.windup + move.active) {
+    const speed = (move.leap.distance / (move.active * DT)) * moveScale(e);
+    motion.vx = Math.sin(e.tf.yaw) * speed;
+    motion.vz = Math.cos(e.tf.yaw) * speed;
+  }
+  ctx.motion.set(e.id, motion);
   if (a.t >= move.windup + move.active + move.recovery) {
     e.combat!.action = null;
-    // After a Brute's attack, sometimes back off and circle for a moment.
+    // After an attack, sometimes back off and circle for a moment.
     if (!def.dummy && rngNext(rng) < 0.4) {
       e.brain!.circle = rngRange(rng, 30, 70);
       e.brain!.circleDir = rngNext(rng) < 0.5 ? -1 : 1;
@@ -125,21 +183,32 @@ function dummyThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | n
     return;
   }
   if (flatDist(e.tf.pos, target.tf.pos) <= move.range) {
-    startAttack(ctx, e, move);
+    startAttack(ctx, e, move, target);
     b.timer = move.cooldown;
   }
 }
 
-function bruteThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | null, rng: RngState): void {
+function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | null, rng: RngState): void {
   const b = e.brain!;
   const home = b.home;
   const fromHome = flatDist(e.tf.pos, home);
   const go = (tx: number, tz: number, speed: number) => {
     const dx = tx - e.tf.pos.x, dz = tz - e.tf.pos.z;
     const d = Math.hypot(dx, dz);
-    if (d < 0.2) return ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
+    if (d < 0.2) {
+      ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
+      return;
+    }
     e.tf.yaw = turnToward(e.tf.yaw, Math.atan2(dx, dz), def.turnRate * DT);
     ctx.motion.set(e.id, { vx: (dx / d) * speed, vz: (dz / d) * speed, inputScale: 0 });
+  };
+  const faceTarget = (t: Entity) => (e.tf.yaw = turnToward(e.tf.yaw, yawTo(e.tf.pos, t.tf.pos), def.turnRate * DT));
+  /** Circle `t` (perpendicular to the line between them), plus `radial` m/s toward (+) or away (−). */
+  const strafe = (t: Entity, dir: number, speed: number, radial = 0) => {
+    const yaw = yawTo(e.tf.pos, t.tf.pos);
+    faceTarget(t);
+    const sx = Math.cos(yaw) * dir, sz = -Math.sin(yaw) * dir;
+    ctx.motion.set(e.id, { vx: sx * speed + Math.sin(yaw) * radial, vz: sz * speed + Math.cos(yaw) * radial, inputScale: 0 });
   };
 
   // Leash: pulled too far from home, or the player it was fighting got away: walk back fast,
@@ -168,18 +237,40 @@ function bruteThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | n
 
   if (b.circle > 0) {
     b.circle--;
-    const yaw = yawTo(e.tf.pos, target.tf.pos);
-    e.tf.yaw = turnToward(e.tf.yaw, yaw, def.turnRate * DT);
-    // Strafe around the target (perpendicular to the line between them).
-    const sx = Math.cos(yaw) * b.circleDir, sz = -Math.sin(yaw) * b.circleDir;
-    ctx.motion.set(e.id, { vx: sx * CIRCLE_SPEED, vz: sz * CIRCLE_SPEED, inputScale: 0 });
+    strafe(target, b.circleDir, CIRCLE_SPEED);
     return;
   }
 
-  const ready = (m: EnemyMoveDef) => (b.cooldowns[m.id] ?? 0) <= 0 && !(b.recent.length === 2 && b.recent.every((r) => r === m.id));
-  // Sometimes step in for a shorter-reach move (the kick) instead of always swinging from the
-  // longest reach, so a player who stands still still sees the whole moveset.
-  if (b.stepIn === undefined && def.moves.length > 1) {
+  const offCooldown = (m: EnemyMoveDef) => (b.cooldowns[m.id] ?? 0) <= 0;
+  const inRange = (m: EnemyMoveDef) => gap <= m.range && gap >= (m.minRange ?? 0);
+  const thirdInARow = (m: EnemyMoveDef) => b.recent.length === 2 && b.recent.every((r) => r === m.id);
+  // No move three times running, unless nothing else is usable from here (a Grunt too close to
+  // leap must still swipe).
+  const noRepeat = def.moves.some((m) => offCooldown(m) && inRange(m) && !thirdInARow(m));
+  const ready = (m: EnemyMoveDef) => offCooldown(m) && (!noRepeat || !thirdInARow(m));
+  // Token-less melee enemies hang back in the waiting band and circle, feinting in and out (plan
+  // §4.8), instead of standing in your face waiting for a slot.
+  if (!def.keepRange && def.usesTokens && !def.moves.some((m) => hasToken(ctx, e, def, m, target))) {
+    const [lo, hi] = WAIT_BAND;
+    const radial = gap < lo ? -def.moveSpeed * 0.7 : gap > hi ? def.moveSpeed * 0.7 : Math.sin((ctx.now + e.id * 37) / 25) * 1.2;
+    strafe(target, b.circleDir, CIRCLE_SPEED, radial);
+    return;
+  }
+  // Ranged fighters hold their band: back off when crowded (so melee them!), close in when too far.
+  if (def.keepRange) {
+    const [lo, hi] = def.keepRange;
+    if (gap < lo - 3) {
+      strafe(target, b.circleDir, CIRCLE_SPEED * 0.5, -def.moveSpeed * 0.85);
+      return;
+    }
+    if (gap > hi) {
+      go(target.tf.pos.x, target.tf.pos.z, def.moveSpeed);
+      return;
+    }
+  }
+  // Sometimes step in for a shorter-reach move instead of always swinging from the longest reach,
+  // so a player who stands still still sees the whole moveset.
+  if (!def.keepRange && b.stepIn === undefined && def.moves.length > 1) {
     const shortest = def.moves.reduce((m, x) => (x.range < m.range ? x : m));
     b.stepIn = ready(shortest) && gap > shortest.range && rngNext(rng) < 0.35 ? shortest.range - 0.2 : 0;
   }
@@ -187,31 +278,55 @@ function bruteThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | n
     go(target.tf.pos.x, target.tf.pos.z, def.moveSpeed);
     return;
   }
-  const options = def.moves.filter((m) => gap <= m.range && ready(m));
-  const facing = Math.abs(((yawTo(e.tf.pos, target.tf.pos) - e.tf.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.6;
-  if (options.length && facing) {
+  const options = def.moves.filter((m) => inRange(m) && ready(m));
+  const facing = Math.abs(wrapAngle(yawTo(e.tf.pos, target.tf.pos) - e.tf.yaw)) < 0.6;
+  const allowed = options.filter((m) => hasToken(ctx, e, def, m, target));
+  if (allowed.length && facing) {
     let total = 0;
-    for (const m of options) total += m.weight;
+    for (const m of allowed) total += m.weight;
     let roll = rngNext(rng) * total;
-    let pick = options[options.length - 1];
-    for (const m of options) {
+    let pick = allowed[allowed.length - 1];
+    for (const m of allowed) {
       roll -= m.weight;
       if (roll <= 0) {
         pick = m;
         break;
       }
     }
-    startAttack(ctx, e, pick);
+    startAttack(ctx, e, pick, target);
     b.stepIn = undefined;
     ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
+    return;
+  }
+  if (def.keepRange) {
+    // In the band but nothing to throw yet: drift sideways.
+    strafe(target, b.circleDir, CIRCLE_SPEED * 0.7);
     return;
   }
   // Close in until just inside the shortest reach, then turn to face.
   const want = Math.min(...def.moves.map((m) => m.range)) - MIN_GAP;
   if (gap > want) go(target.tf.pos.x, target.tf.pos.z, def.moveSpeed);
   else {
-    e.tf.yaw = turnToward(e.tf.yaw, yawTo(e.tf.pos, target.tf.pos), def.turnRate * DT);
+    faceTarget(target);
     ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
+  }
+}
+
+/** Teleport away from the target by the blink distance, to the first clear spot. */
+function blink(ctx: CombatCtx, e: Entity, def: EnemyDef, physics: PhysicsWorld): void {
+  const dist = def.blink!.distance;
+  const t = e.brain!.target !== null ? ctx.get(e.brain!.target) : undefined;
+  const away = t ? yawTo(t.tf.pos, e.tf.pos) : e.tf.yaw + Math.PI;
+  const from = { ...e.tf.pos };
+  for (const off of [0, 0.7, -0.7, 1.4, -1.4]) {
+    const yaw = away + off;
+    const dir = { x: Math.sin(yaw), y: 0, z: Math.cos(yaw) };
+    if (physics.raycast({ x: from.x, y: from.y + 1, z: from.z }, dir, dist + 0.6)) continue;
+    e.tf.pos = { x: from.x + dir.x * dist, y: from.y, z: from.z + dir.z * dist };
+    e.tf.prevPos = { ...e.tf.pos };
+    physics.teleport(e.id, e.tf.pos);
+    ctx.events.push({ type: 'blink', entity: e.id, from, to: { ...e.tf.pos } });
+    return;
   }
 }
 

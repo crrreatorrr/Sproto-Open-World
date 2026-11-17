@@ -3,16 +3,29 @@ import type { AssetLoader } from '../../assets/AssetLoader';
 import { ENEMIES, type EnemyDef, type EnemyMoveDef } from '../../content/enemies';
 import type { Entity, EntityId } from '../../sim/entity';
 import type { SimEvent } from '../../sim/events';
+import type { Vec3 } from '../../sim/math';
 import type { ReadonlySimView } from '../../sim/view';
-import { BruteView, CoinView, DummyView, FallbackView, type EntityView } from './EnemyViews';
+import type { HitFx } from '../fx/HitFx';
+import { SpellFx } from '../fx/SpellFx';
+import { BlastOrbView, BoltView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
 
 const DECAL_COLOR: Record<DecalShape, number> = { circle: 0xffa23a, jagged: 0xff2a1a };
+
+/** Seconds between status particles on a burning, shocked or chilled enemy. */
+const EMBER_EVERY = 0.07;
+const SPARK_EVERY = 0.11;
+const FROST_EVERY = 0.22;
 
 interface LiveDecal {
   entity: EntityId;
   move: EnemyMoveDef;
   decal: TelegraphDecal;
+  /** An area attack's circle on the ground (fixed where it was placed), else null: it sits on the hitbox. */
+  at: Vec3 | null;
+  radius: number;
+  /** A leap's landing circle, fixed once the enemy takes off. */
+  landing: { x: number; y: number; z: number; yaw: number } | null;
 }
 
 /** The enemy definition behind an entity, if it has a brain. */
@@ -23,16 +36,25 @@ export function enemyDef(e: Readonly<Entity> | undefined): EnemyDef | undefined 
 
 /**
  * Every drawn non-player entity: a view per enemy and projectile, made when the entity appears and
- * dropped when it leaves the sim, plus the telegraph decals under their attacks. Players have
- * their own PlayerView.
+ * dropped when it leaves the sim, plus the telegraph decals under their attacks, status particles,
+ * and the spell visuals that aren't sparks (SpellFx). Players have their own PlayerView.
  */
 export class WorldViews {
   readonly root = new THREE.Group();
+  readonly spells = new SpellFx();
   private readonly views = new Map<EntityId, EntityView>();
   private readonly decals: LiveDecal[] = [];
   private readonly seen = new Set<EntityId>();
+  /** Per-entity status particle clocks. */
+  private readonly statusClock = new Map<EntityId, { burn: number; shock: number; chill: number }>();
+  private readonly p = { x: 0, y: 0, z: 0 };
 
-  constructor(private readonly assets: AssetLoader) {}
+  constructor(
+    private readonly assets: AssetLoader,
+    private readonly fx: HitFx | null = null,
+  ) {
+    this.root.add(this.spells.root);
+  }
 
   get(id: EntityId): EntityView | undefined {
     return this.views.get(id);
@@ -53,37 +75,135 @@ export class WorldViews {
       }
       this.seen.add(e.id);
       v.update(e, alpha, dt);
+      if (e.statuses) this.statusParticles(e, v, dt);
     }
     for (const [id, v] of this.views) {
       if (this.seen.has(id)) continue;
       v.dispose();
       this.views.delete(id);
+      this.statusClock.delete(id);
     }
     this.updateDecals(view, dt);
+    this.spells.update(dt);
   }
 
-  /** React to a sim event (telegraphs and flinches; sounds and numbers live in the app). */
+  /** React to a sim event (telegraphs, flinches and spell visuals; sounds and numbers live in the app). */
   event(view: ReadonlySimView, e: SimEvent): void {
-    if (e.type === 'telegraph') {
-      const ent = view.get(e.entity);
-      const move = enemyDef(ent)?.moves.find((m) => m.id === e.move);
-      this.views.get(e.entity)?.telegraph?.(move, e.unblockable, e.ticks);
-      const shape: DecalShape | null = e.decal ?? (e.unblockable ? 'jagged' : null);
-      if (shape && move) {
-        const decal = new TelegraphDecal(shape, DECAL_COLOR[shape]);
-        this.root.add(decal.root);
-        this.decals.push({ entity: e.entity, move, decal });
+    switch (e.type) {
+      case 'telegraph': {
+        const ent = view.get(e.entity);
+        const move = enemyDef(ent)?.moves.find((m) => m.id === e.move);
+        this.views.get(e.entity)?.telegraph?.(move, e.unblockable, e.ticks);
+        const shape: DecalShape | null = e.decal ?? move?.decal ?? (e.unblockable ? 'jagged' : null);
+        if (shape && move) {
+          const decal = new TelegraphDecal(shape, DECAL_COLOR[shape]);
+          this.root.add(decal.root);
+          // Area attacks put their circle where they aim (the event's `at`, else the action's `aim`).
+          const a = ent?.combat?.action;
+          const aim = e.at ?? (move.area && a?.kind === 'attack' ? a.aim : undefined);
+          const radius = e.radius ?? move.area?.radius ?? move.hitbox.radius;
+          this.decals.push({ entity: e.entity, move, decal, at: aim ? { ...aim } : null, radius, landing: null });
+        }
+        return;
       }
-    } else if (e.type === 'hit') {
-      const from = view.get(e.attacker)?.tf.pos ?? e.pos;
-      this.views.get(e.target)?.flinch?.(from, e.heavy);
+      case 'hit': {
+        const from = view.get(e.attacker)?.tf.pos ?? e.pos;
+        this.views.get(e.target)?.flinch?.(from, e.heavy);
+        return;
+      }
+      case 'explode':
+        // Blast (plan §4.4): a fireball flash the size of the blast, a ground ring, and fire.
+        this.fx?.flash(e.pos, 0xffb060, e.radius * 1.6, 0.22);
+        this.fx?.flash(e.pos, 0xffffff, e.radius * 0.6, 0.1);
+        // Orbs burst about chest height: the shock ring runs along the ground a metre below.
+        this.fx?.ring({ x: e.pos.x, y: e.pos.y - 1, z: e.pos.z }, 0xff7a2a, 0.3, e.radius, 0.35);
+        this.fx?.emit(e.pos, 'fire', 60, 1.1, 1);
+        return;
+      case 'nova': {
+        // Frost Nova: an icy ring racing out to its radius, a second slower one, and ice thrown off the rim.
+        const ground = { x: e.pos.x, y: e.pos.y, z: e.pos.z };
+        this.fx?.ring(ground, 0xbfeaff, 0.4, e.radius, 0.32);
+        this.fx?.ring(ground, 0x6fb8ff, 0.2, e.radius * 0.8, 0.5);
+        this.fx?.flash({ x: ground.x, y: ground.y + 1, z: ground.z }, 0xdff4ff, 2.4, 0.16);
+        for (let i = 0; i < 10; i++) {
+          const ang = (i / 10) * Math.PI * 2;
+          const r = e.radius * 0.85;
+          this.p.x = ground.x + Math.sin(ang) * r;
+          this.p.y = ground.y + 0.3;
+          this.p.z = ground.z + Math.cos(ang) * r;
+          this.fx?.emit(this.p, 'frost', 4, 0.6, 2);
+        }
+        return;
+      }
+      case 'zap':
+        this.spells.zap(e.points);
+        for (const p of e.points.slice(1)) this.fx?.burst(p, 'shock');
+        return;
+      case 'blink':
+        // The Wisp vanishes in a puff and reappears in another.
+        for (const p of [e.from, e.to]) {
+          this.p.x = p.x;
+          this.p.y = p.y + 1.2;
+          this.p.z = p.z;
+          this.fx?.burst(this.p, 'hex');
+          this.fx?.emit(this.p, 'hex', 18, 0.8, 1);
+        }
+        return;
+      case 'frozen': {
+        const v = this.views.get(e.entity);
+        if (v) this.fx?.burst(this.chest(v), 'frost');
+        return;
+      }
+      default:
+        return;
     }
+  }
+
+  /** Burning enemies shed embers, shocked ones crackle, chilled ones drip frost (plan §4.7). */
+  private statusParticles(e: Readonly<Entity>, v: EntityView, dt: number): void {
+    const s = e.statuses;
+    if (!s || !this.fx || e.combat?.action?.kind === 'dead') return;
+    let c = this.statusClock.get(e.id);
+    if (!c) {
+      c = { burn: 0, shock: 0, chill: 0 };
+      this.statusClock.set(e.id, c);
+    }
+    const r = (e.body?.radius ?? 0.4) * 0.9;
+    const around = (lo: number, hi: number) => {
+      const a = Math.random() * Math.PI * 2;
+      const pos = v.root.position;
+      this.p.x = pos.x + Math.sin(a) * r;
+      this.p.y = pos.y + v.height * (lo + Math.random() * (hi - lo));
+      this.p.z = pos.z + Math.cos(a) * r;
+      return this.p;
+    };
+    if (s.burn && (c.burn += dt) >= EMBER_EVERY) {
+      c.burn = 0;
+      this.fx.emit(around(0.2, 0.8), 'fire', 2, 0.15, 2.8);
+    }
+    if (s.shock && (c.shock += dt) >= SPARK_EVERY) {
+      c.shock = 0;
+      this.fx.emit(around(0.3, 0.95), 'shock', 3, 0.5);
+    }
+    if (s.chill && e.combat?.action?.kind !== 'frozen' && (c.chill += dt) >= FROST_EVERY / Math.max(1, s.chill.stacks)) {
+      c.chill = 0;
+      this.fx.emit(around(0.4, 0.9), 'frost', 1, 0.1);
+    }
+  }
+
+  private chest(v: EntityView): { x: number; y: number; z: number } {
+    const p = v.root.position;
+    this.p.x = p.x;
+    this.p.y = p.y + v.height * 0.6;
+    this.p.z = p.z;
+    return this.p;
   }
 
   /**
    * Decals sit on the move's hitbox (forward / radius from its EnemyDef) and follow the enemy while
-   * it still tracks. They fill with the sim's tick counter, so hit-stop pauses them too, and go
-   * when the active frames end or the attack is interrupted.
+   * it still tracks; an area attack's circle stays where it was placed; a leap's sits where it
+   * will land. They fill with the sim's tick counter, so hit-stop pauses them too, and go when the
+   * active frames end or the attack is interrupted.
    */
   private updateDecals(view: ReadonlySimView, dt: number): void {
     for (let i = this.decals.length - 1; i >= 0; i--) {
@@ -96,23 +216,51 @@ export class WorldViews {
         this.decals.splice(i, 1);
         continue;
       }
+      const progress = a.t / Math.max(1, d.move.windup);
+      if (d.at) {
+        d.decal.update(d.at.x, d.at.y, d.at.z, 0, d.radius, progress, dt);
+        continue;
+      }
       const v = this.views.get(d.entity);
       const p = v?.root.position ?? e.tf.pos;
       const yaw = v?.root.rotation.y ?? e.tf.yaw;
+      if (d.move.leap) {
+        // Lands up to `leap.distance` ahead (short of the target if it's closer); fixed from take-off.
+        if (!d.landing) {
+          const tgt = e.brain?.target != null ? view.get(e.brain.target) : undefined;
+          const far = tgt ? Math.min(d.move.leap.distance, Math.hypot(tgt.tf.pos.x - e.tf.pos.x, tgt.tf.pos.z - e.tf.pos.z)) : d.move.leap.distance;
+          const f = far + d.move.hitbox.forward;
+          const spot = { x: p.x + Math.sin(yaw) * f, y: p.y, z: p.z + Math.cos(yaw) * f, yaw };
+          if (a.t >= d.move.windup) d.landing = spot;
+          d.decal.update(spot.x, spot.y, spot.z, yaw, d.radius, progress, dt);
+        } else d.decal.update(d.landing.x, d.landing.y, d.landing.z, d.landing.yaw, d.radius, progress, dt);
+        continue;
+      }
       const f = d.move.hitbox.forward;
-      d.decal.update(p.x + Math.sin(yaw) * f, p.y, p.z + Math.cos(yaw) * f, yaw, d.move.hitbox.radius, a.t / Math.max(1, d.move.windup), dt);
+      d.decal.update(p.x + Math.sin(yaw) * f, p.y, p.z + Math.cos(yaw) * f, yaw, d.radius, progress, dt);
     }
   }
 
   private make(e: Readonly<Entity>): EntityView | null {
+    const pr = e.projectile;
+    if (e.kind === 'projectile' || pr) {
+      // Spell projectiles by their spell (the sim names the models 'bolt' and 'blastOrb'); enemy
+      // shots by their kind: homing or arcane ones are hexes, the rest coins.
+      if (pr?.spell === 'blast' || e.view.model === 'blastOrb') return new BlastOrbView(this.fx, pr?.radius);
+      if (pr?.spell || e.view.model === 'bolt') return new BoltView();
+      if (pr?.homing || e.view.model === 'hex' || pr?.kind === 'arcane') return new HexView(this.fx);
+      return new CoinView();
+    }
     const def = enemyDef(e);
     switch (e.view.model) {
       case 'brute':
         return def ? new BruteView(this.assets, def) : new FallbackView(e);
       case 'dummy':
         return def ? new DummyView(def) : new FallbackView(e);
-      case 'coin':
-        return new CoinView();
+      case 'grunt':
+      case 'slinger':
+      case 'wisp':
+        return def ? new HumanoidEnemyView(this.assets, def, e.view.model) : new FallbackView(e);
       default:
         return e.kind === 'enemy' || e.kind === 'boss' ? new FallbackView(e) : null;
     }
@@ -122,7 +270,9 @@ export class WorldViews {
   clear(): void {
     for (const v of this.views.values()) v.dispose();
     this.views.clear();
+    this.statusClock.clear();
     for (const d of this.decals) d.decal.dispose();
     this.decals.length = 0;
+    this.spells.clear();
   }
 }

@@ -3,8 +3,11 @@ import type { AssetLoader, ModelInstance } from '../../assets/AssetLoader';
 import type { EnemyDef, EnemyMoveDef } from '../../content/enemies';
 import { TICK_HZ } from '../../content/tuning';
 import type { Entity } from '../../sim/entity';
-import { Animator } from '../anim/Animator';
-import { BodyGlow } from './BodyGlow';
+import { Animator, ENTRY_FADE } from '../anim/Animator';
+import { CAST_PEAKS, LIBRARY_CAST_PEAKS, castClipTime, isCastClip } from '../anim/castTiming';
+import type { HitFx } from '../fx/HitFx';
+import { glowTexture } from '../fx/textures';
+import { BodyGlow, type GlowStatus } from './BodyGlow';
 import { placeEntity, spring } from './interp';
 
 /** One drawn sim entity (an enemy or a projectile); WorldViews makes and drops them. */
@@ -45,8 +48,14 @@ const SINK_TICKS = 70;
 const SINK_DEPTH = 1.6;
 
 /** Fade the body out and down over the sink (shared by the Brute and the fallback capsule). */
-function sinkFor(t: number): number {
-  return Math.min(1, Math.max(0, (t - SINK_DELAY) / SINK_TICKS));
+function sinkFor(t: number, delay = SINK_DELAY): number {
+  return Math.min(1, Math.max(0, (t - delay) / SINK_TICKS));
+}
+
+/** The status tints an entity should show (plan §4.7): its statuses, and Frozen from its action. */
+export function glowStatusOf(e: Readonly<Entity>): GlowStatus {
+  const s = e.statuses;
+  return { burn: !!s?.burn, chill: s?.chill?.stacks ?? 0, frozen: e.combat?.action?.kind === 'frozen', shock: !!s?.shock };
 }
 
 /**
@@ -140,8 +149,10 @@ export class BruteView implements EntityView {
     this.body.position.y = -sink * SINK_DEPTH;
     this.glow.setOpacity(1 - sink);
     this.root.visible = sink < 1;
+    this.glow.setStatus(glowStatusOf(e));
     this.glow.update(dt);
-    anim?.update(dt);
+    // Frozen (plan §4.7): the pose holds wherever the freeze caught it.
+    if (a?.kind !== 'frozen') anim?.update(dt);
   }
 
   dispose(): void {
@@ -296,9 +307,12 @@ export class DummyView implements EntityView {
     if (a?.kind === 'stagger') this.wx.v += Math.sin((a.t / TICK_HZ) * 9) * 6 * dt;
     const dead = a?.kind === 'dead';
     this.tip += ((dead ? 1 : 0) - this.tip) * (1 - Math.exp(-(dead ? 8 : 5) * dt));
-    spring(this.wx, 70, 5, dt);
-    spring(this.wz, 70, 5, dt);
+    if (a?.kind !== 'frozen') {
+      spring(this.wx, 70, 5, dt);
+      spring(this.wz, 70, 5, dt);
+    }
     this.upper.rotation.set(this.wx.x - this.tip * 1.35, 0, this.wz.x);
+    this.glow.setStatus(glowStatusOf(e));
     this.glow.update(dt);
   }
 
@@ -375,12 +389,320 @@ export class FallbackView implements EntityView {
     this.root.position.y -= sink * SINK_DEPTH;
     this.glow.setOpacity(1 - sink);
     this.root.visible = sink < 1;
+    this.glow.setStatus(glowStatusOf(e));
     this.glow.update(dt);
   }
 
   dispose(): void {
     this.geo.dispose();
     this.glow.dispose();
+    this.root.removeFromParent();
+  }
+}
+
+/** The M1b standard enemies' model keys (manifest.ts). */
+export type HumanoidModel = 'grunt' | 'slinger' | 'wisp';
+
+/** Their idle resting glow: the Hex Wisp is a caster spirit, so it glows purple (plan §4.9). */
+const WISP_EMISSIVE = 0x3a1060;
+/** Wisp bob: amplitude (m) and rate (rad/s). */
+const BOB = { amp: 0.07, rate: 2.3 };
+/** Leap arc height per metre of leap (a 5.5 m leap peaks about 0.8 m up). */
+const LEAP_LIFT = 0.15;
+/** Humanoids fall over with `defeat` before they sink, so the sink waits longer than the Brute's. */
+const HUMANOID_SINK_DELAY = 70;
+
+/**
+ * Grunt, Slinger and Hex Wisp (plan §4.9): 24-joint rigs with duel's clip set. Attacks scrub their
+ * move's `cast` / `cast_big` clip so the hand's release lands on the last wind-up tick (the hit or
+ * the shot); the Grunt's leap jumps an arc through its active ticks. Hitstun plays `hit`, a poise
+ * break `stun`, death `defeat`; Frozen holds the pose. The Wisp floats `hover` m up with a soft
+ * bob and a purple glow, and glides on its idle clip instead of running.
+ */
+export class HumanoidEnemyView implements EntityView {
+  readonly root = new THREE.Group();
+  readonly height: number;
+  /** Lean, recoil and hover pivot at the feet. */
+  private readonly body = new THREE.Group();
+  private readonly glow = new BodyGlow();
+  private readonly hover: number;
+  private readonly peaks;
+  private readonly floatGlow: THREE.Sprite | null = null;
+  private model: ModelInstance | null = null;
+  private animator: Animator | null = null;
+  private readonly recoil = { x: 0, v: 0 };
+  private lean = 0;
+  private time = Math.random() * 10;
+  private disposed = false;
+
+  constructor(assets: AssetLoader, readonly def: EnemyDef, readonly kind: HumanoidModel) {
+    this.hover = def.hover ?? 0;
+    this.height = def.body.height + this.hover;
+    this.peaks = CAST_PEAKS[kind] ?? LIBRARY_CAST_PEAKS;
+    this.root.add(this.body, this.glow.glint);
+    this.glow.glint.position.set(0, this.height * 0.88, 0.25);
+    if (kind === 'wisp') {
+      // A soft purple pool of light under it, so the hover gap reads.
+      const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x9a4aff, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending }));
+      g.scale.set(1.4, 0.5, 1);
+      g.position.y = 0.12;
+      this.root.add(g);
+      this.floatGlow = g;
+    }
+    void assets.instance(kind).then((m) => {
+      if (this.disposed) {
+        m.dispose();
+        return;
+      }
+      this.model = m;
+      this.glow.adopt(m.root, kind === 'wisp' ? WISP_EMISSIVE : undefined);
+      this.body.add(m.root);
+      this.animator = new Animator(m.root, m.clips);
+    });
+  }
+
+  get clips(): string[] {
+    return this.animator?.clipNames ?? [];
+  }
+
+  telegraph(_move: EnemyMoveDef | undefined, unblockable: boolean, ticks: number): void {
+    this.glow.telegraph(unblockable, ticks / TICK_HZ);
+  }
+
+  flinch(_from: { x: number; z: number }, heavy: boolean): void {
+    this.glow.hit();
+    this.recoil.v -= heavy ? 3 : 1.6;
+  }
+
+  update(e: Readonly<Entity>, alpha: number, dt: number): void {
+    placeEntity(this.root, e, alpha);
+    const a = e.combat?.action ?? null;
+    const anim = this.animator;
+    const frozen = a?.kind === 'frozen';
+    let lean = 0;
+    let sink = 0;
+    let lift = 0;
+    if (a?.kind === 'attack') {
+      const mv = this.def.moves.find((m) => m.id === a.move);
+      if (mv) {
+        const leaping = !!mv.leap && a.t >= mv.windup && a.t < mv.windup + mv.active;
+        if (leaping) {
+          const u = (a.t - mv.windup + alpha) / Math.max(1, mv.active);
+          lift = Math.sin(Math.min(1, u) * Math.PI) * LEAP_LIFT * mv.leap!.distance;
+          anim?.scrub('jump', Math.min(1, u) * anim.duration('jump'), ENTRY_FADE);
+        } else if (anim && isCastClip(mv.clip) && anim.has(mv.clip)) {
+          anim.scrub(mv.clip, castClipTime(this.peaks, mv.clip, a.t, mv.windup, mv.active + mv.recovery), ENTRY_FADE * 1.5);
+        } else if (anim && mv.clip && anim.has(mv.clip)) {
+          anim.scrub(mv.clip, attackClipTime(mv, a.t, anim.duration(mv.clip), 0.5), ENTRY_FADE * 1.5);
+        }
+        // Melee moves rear back through the wind-up and lunge into the blow.
+        if (!mv.projectile && !mv.area && !mv.leap) lean = a.t < mv.windup ? -0.12 * (a.t / mv.windup) : 0.16 * Math.max(0, 1 - (a.t - mv.windup) / (mv.active + 10));
+        if (a.t >= mv.windup) this.glow.endTelegraph();
+      }
+    } else {
+      this.glow.endTelegraph();
+      if (a?.kind === 'dead') {
+        anim?.scrub('defeat', a.t / TICK_HZ, 0.12);
+        sink = sinkFor(a.t, HUMANOID_SINK_DELAY);
+      } else if (a?.kind === 'stagger') {
+        const d = anim?.duration('stun') ?? 0;
+        anim?.scrub('stun', d > 0 ? (a.t / TICK_HZ) % d : 0, 0.08);
+      } else if (a?.kind === 'hitstun') {
+        anim?.scrub('hit', (Math.min(a.t, a.dur) / Math.max(1, a.dur)) * (anim?.duration('hit') ?? 0), 0.06);
+        // A knockdown (Blast) throws the body back on top of the flinch.
+        if (a.knockdown) lean = -0.55 * Math.sin(Math.min(1, a.t / Math.max(1, a.dur)) * Math.PI);
+      } else if (!frozen && anim) {
+        const speed = Math.hypot(e.tf.vel.x, e.tf.vel.z);
+        if (this.kind === 'wisp') {
+          // Floating casters glide: idle, tipped into the direction of travel.
+          anim.loop('idle');
+          lean = Math.min(0.25, speed * 0.05);
+        } else {
+          // Enemies keep facing their target while they circle and backstep: legs follow velocity vs facing.
+          const sy = Math.sin(e.tf.yaw), cy = Math.cos(e.tf.yaw);
+          const { x: vx, z: vz } = e.tf.vel;
+          anim.locomotion({ grounded: true, speed, sprinting: false, strafe: { x: -cy * vx + sy * vz, z: sy * vx + cy * vz } });
+        }
+      }
+    }
+    if (!frozen) {
+      this.time += dt;
+      this.lean += (lean - this.lean) * (1 - Math.exp(-14 * dt));
+      spring(this.recoil, 160, 14, dt);
+    }
+    const bob = this.hover > 0 && a?.kind !== 'dead' ? Math.sin(this.time * BOB.rate) * BOB.amp : 0;
+    this.body.rotation.x = this.lean + this.recoil.x;
+    this.body.position.y = this.hover + bob + lift - sink * SINK_DEPTH;
+    this.glow.setOpacity(1 - sink);
+    if (this.floatGlow) this.floatGlow.material.opacity = 0.45 * (1 - sink) * (0.85 + 0.15 * Math.sin(this.time * BOB.rate * 2));
+    this.root.visible = sink < 1;
+    this.glow.setStatus(glowStatusOf(e));
+    this.glow.update(dt);
+    // Frozen (plan §4.7): the pose holds wherever the freeze caught it.
+    if (!frozen) anim?.update(dt);
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.animator?.dispose();
+    this.glow.dispose();
+    this.floatGlow?.material.dispose();
+    this.model?.dispose();
+    this.root.removeFromParent();
+  }
+}
+
+/** Shared geometry for spell projectiles. */
+let spellGeo: { streak: THREE.BufferGeometry; core: THREE.BufferGeometry } | null = null;
+function spellGeometry() {
+  if (!spellGeo) {
+    // A cone along -Z from the head (z = 0) back to its tail: the bolt's streak.
+    const streak = new THREE.ConeGeometry(0.09, 1.6, 10, 1, true);
+    streak.rotateX(-Math.PI / 2);
+    streak.translate(0, 0, -0.8);
+    spellGeo = { streak, core: new THREE.SphereGeometry(1, 16, 12) };
+  }
+  return spellGeo;
+}
+
+function additive(color: number, opacity = 1): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending });
+}
+
+function glowSprite(color: number, size: number): THREE.Sprite {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  s.scale.set(size, size, 1);
+  s.renderOrder = 5;
+  return s;
+}
+
+/** Point a projectile view along its velocity (+Z forward). */
+function faceVelocity(root: THREE.Object3D, e: Readonly<Entity>): void {
+  const v = e.tf.vel;
+  if (v.x || v.y || v.z) root.lookAt(root.position.x + v.x, root.position.y + v.y, root.position.z + v.z);
+}
+
+/**
+ * Arcane Bolt (plan §4.4): a bright cyan streak, a white-hot head in a cyan glow. The tail grows in
+ * over its first frames so it never pokes out behind the caster's hand.
+ */
+export class BoltView implements EntityView {
+  readonly root = new THREE.Group();
+  readonly height = 0.3;
+  private readonly streak: THREE.Mesh;
+  private readonly mats: THREE.Material[];
+  private readonly halo: THREE.Sprite;
+  private age = 0;
+
+  constructor() {
+    const g = spellGeometry();
+    const streakMat = additive(0x2fe0ff, 0.9);
+    const coreMat = additive(0xf0ffff);
+    this.streak = new THREE.Mesh(g.streak, streakMat);
+    const core = new THREE.Mesh(g.core, coreMat);
+    core.scale.setScalar(0.11);
+    this.halo = glowSprite(0x6ff6ff, 0.9);
+    this.root.add(this.streak, core, this.halo);
+    this.mats = [streakMat, coreMat, this.halo.material];
+  }
+
+  update(e: Readonly<Entity>, alpha: number, dt: number): void {
+    placeEntity(this.root, e, alpha);
+    faceVelocity(this.root, e);
+    this.age += dt;
+    this.streak.scale.set(1, 1, Math.min(1, 0.15 + this.age * 9));
+    const s = 0.8 + 0.2 * Math.sin(this.age * 60);
+    this.halo.scale.set(s, s, 1);
+  }
+
+  dispose(): void {
+    for (const m of this.mats) m.dispose();
+    this.root.removeFromParent();
+  }
+}
+
+/** Blast (plan §4.4): a slow, big glowing orb, fire around a white core, trailing embers. */
+export class BlastOrbView implements EntityView {
+  readonly root = new THREE.Group();
+  readonly height = 0.7;
+  private readonly shell: THREE.Mesh;
+  private readonly halo: THREE.Sprite;
+  private readonly mats: THREE.Material[];
+  private readonly at = new THREE.Vector3();
+  private age = 0;
+  private trail = 0;
+
+  constructor(private readonly fx: HitFx | null, radius = 0.35) {
+    const g = spellGeometry();
+    const coreMat = additive(0xfff2d0);
+    const shellMat = additive(0xff6a1a, 0.6);
+    const core = new THREE.Mesh(g.core, coreMat);
+    core.scale.setScalar(radius * 0.55);
+    this.shell = new THREE.Mesh(g.core, shellMat);
+    this.shell.scale.setScalar(radius);
+    this.halo = glowSprite(0xff8a3a, radius * 6);
+    this.root.add(core, this.shell, this.halo);
+    this.mats = [coreMat, shellMat, this.halo.material];
+  }
+
+  update(e: Readonly<Entity>, alpha: number, dt: number): void {
+    placeEntity(this.root, e, alpha);
+    this.age += dt;
+    const r = e.projectile?.radius ?? 0.35;
+    const pulse = 1 + 0.12 * Math.sin(this.age * 26) + 0.06 * Math.sin(this.age * 41);
+    this.shell.scale.setScalar(r * pulse);
+    const h = r * 6 * pulse;
+    this.halo.scale.set(h, h, 1);
+    this.trail += dt;
+    if (this.fx && this.trail > 0.03) {
+      this.trail = 0;
+      this.fx.emit(this.root.getWorldPosition(this.at), 'fire', 2, 0.2, 1.5);
+    }
+  }
+
+  dispose(): void {
+    for (const m of this.mats) m.dispose();
+    this.root.removeFromParent();
+  }
+}
+
+/** The Hex Wisp's Homing Hex (plan §4.9): a pulsing purple orb with a faint wake; cyan once parried back. */
+export class HexView implements EntityView {
+  readonly root = new THREE.Group();
+  readonly height = 0.4;
+  private readonly coreMat = additive(0xf0d8ff);
+  private readonly halo: THREE.Sprite;
+  private readonly at = new THREE.Vector3();
+  private age = 0;
+  private trail = 0;
+  private reflected = false;
+
+  constructor(private readonly fx: HitFx | null) {
+    const core = new THREE.Mesh(spellGeometry().core, this.coreMat);
+    core.scale.setScalar(0.16);
+    this.halo = glowSprite(0xa040ff, 1.1);
+    this.root.add(core, this.halo);
+  }
+
+  update(e: Readonly<Entity>, alpha: number, dt: number): void {
+    placeEntity(this.root, e, alpha);
+    this.age += dt;
+    if (e.projectile?.reflected && !this.reflected) {
+      this.reflected = true;
+      this.halo.material.color.setHex(0x5ff0ff);
+    }
+    const s = 1 + 0.25 * Math.sin(this.age * 14);
+    this.halo.scale.set(s, s, 1);
+    this.trail += dt;
+    if (this.fx && this.trail > 0.05) {
+      this.trail = 0;
+      this.fx.emit(this.root.getWorldPosition(this.at), this.reflected ? 'arcane' : 'hex', 1, 0.15);
+    }
+  }
+
+  dispose(): void {
+    this.coreMat.dispose();
+    this.halo.material.dispose();
     this.root.removeFromParent();
   }
 }

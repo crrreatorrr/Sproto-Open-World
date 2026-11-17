@@ -1,4 +1,6 @@
 import type { DamageKind, PlayerMoveId } from '../content/combat';
+import type { SpellId } from '../content/spells';
+import type { StatusId } from '../content/statuses';
 import type { Vec3 } from './math';
 
 export type EntityId = number;
@@ -65,16 +67,29 @@ export type Action =
       /** Lunge left to apply during startup (m), and its direction. */
       lunge: number;
       lungeDir: { x: number; z: number };
-      /** Enemy moves: the projectile was fired. */
-      fired?: boolean;
+      /** Enemy moves: projectiles fired so far. */
+      fired?: number;
+      /** Enemy area moves: where the circle was placed when the wind-up started. */
+      aim?: Vec3;
+    }
+  | {
+      /** Casting a spell (upper body; the player may walk slowly). */
+      kind: 'cast';
+      spell: SpellId;
+      t: number;
+      /** Tick the spell releases (half for a woven cast). */
+      release: number;
+      woven: boolean;
+      released: boolean;
     }
   | { kind: 'dodge'; t: number; dir: { x: number; z: number } }
   | { kind: 'block'; t: number; parryTicks: number }
   | { kind: 'hitstun'; t: number; dur: number; knockdown: boolean }
   | { kind: 'stagger'; t: number; dur: number }
+  | { kind: 'frozen'; t: number; dur: number }
   | { kind: 'dead'; t: number };
 
-export type BufferedAction = 'light' | 'heavy' | 'dodge';
+export type BufferedAction = 'light' | 'heavy' | 'dodge' | 'spell1' | 'spell2' | 'spell3' | 'spell4';
 
 export interface Buffered {
   action: BufferedAction;
@@ -108,8 +123,19 @@ export interface Combat {
   lockLostTicks: number;
   /** Pushback still to apply (m/tick) and ticks left. */
   push: { x: number; z: number; ticks: number } | null;
-  /** Tick of the last melee hit this entity landed (woven spells, M1b). */
+  /** Tick of the last melee hit this entity landed (a spell within WOVEN.window of it is woven). */
   lastHitTick: number;
+  /** Spell cooldowns: ticks left per spell. */
+  cooldowns: Partial<Record<SpellId, number>>;
+}
+
+/** Status effects on an entity (plan §4.7). Absent = not affected. */
+export interface Statuses {
+  burn?: { ticks: number; /** HP per tick. */ perTick: number; source: EntityId };
+  chill?: { ticks: number; stacks: number };
+  shock?: { ticks: number };
+  /** Chill's slow accumulates fractional ticks here (an action only advances on whole ticks). */
+  slowAcc?: number;
 }
 
 /** Enemy brain state (plan §4.8). */
@@ -128,6 +154,8 @@ export interface EnemyBrain {
   circleDir: number;
   /** Generic attack timer (dummies). */
   timer: number;
+  /** Melee hits taken in a row (the Hex Wisp blinks away after enough). */
+  meleeHitsTaken: number;
   /** Close to this gap (m) before attacking, for a short-reach move; 0 = attack from here; unset = not decided yet. */
   stepIn?: number;
 }
@@ -142,6 +170,19 @@ export interface Projectile {
   /** Ticks left before it fizzles. */
   life: number;
   reflected: boolean;
+  /** A player spell (bolt, blast orb) rather than an enemy shot. */
+  spell?: SpellId;
+  /** Explodes on impact (or at the end of its range) with this radius. */
+  explode?: number;
+  /** Turns toward `target` at this rate (rad/s). */
+  homing?: number;
+  target?: EntityId;
+  /** Status applied on hit: id and stacks. */
+  status?: { id: StatusId; stacks: number };
+  /** Interrupts a ranged wind-up it hits. */
+  interrupts?: boolean;
+  knockdown?: boolean;
+  woven?: boolean;
 }
 
 /**
@@ -158,6 +199,7 @@ export interface Entity {
   combat?: Combat;
   brain?: EnemyBrain;
   projectile?: Projectile;
+  statuses?: Statuses;
   owner?: PlayerId;
   /** Presentation hint only: which model to draw. */
   view: { model: string; tint?: number };

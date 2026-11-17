@@ -6,6 +6,7 @@ import * as THREE from 'three';
  */
 let star: THREE.Texture | null = null;
 let glow: THREE.Texture | null = null;
+let rune: THREE.Texture | null = null;
 
 function canvasTexture(size: number, draw: (g: CanvasRenderingContext2D, s: number) => void): THREE.Texture {
   const c = document.createElement('canvas');
@@ -49,4 +50,37 @@ export function glowTexture(): THREE.Texture {
     g.fillRect(0, 0, s, s);
   });
   return glow;
+}
+
+/** A rune circle: two rings, a triangle and tick marks (the woven-cast flash). White, tinted by the sprite. */
+export function runeTexture(): THREE.Texture {
+  rune ??= canvasTexture(128, (g, s) => {
+    const c = s / 2;
+    g.strokeStyle = 'rgba(255,255,255,1)';
+    g.shadowColor = 'rgba(255,255,255,0.9)';
+    g.shadowBlur = 6;
+    g.lineWidth = 4;
+    g.beginPath();
+    g.arc(c, c, c * 0.86, 0, Math.PI * 2);
+    g.stroke();
+    g.lineWidth = 2;
+    g.beginPath();
+    g.arc(c, c, c * 0.68, 0, Math.PI * 2);
+    g.stroke();
+    g.lineWidth = 3;
+    g.beginPath();
+    for (let i = 0; i <= 3; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI * 2) / 3;
+      g.lineTo(c + Math.cos(a) * c * 0.66, c + Math.sin(a) * c * 0.66);
+    }
+    g.stroke();
+    for (let i = 0; i < 12; i++) {
+      const a = (i * Math.PI) / 6;
+      g.beginPath();
+      g.moveTo(c + Math.cos(a) * c * 0.7, c + Math.sin(a) * c * 0.7);
+      g.lineTo(c + Math.cos(a) * c * 0.84, c + Math.sin(a) * c * 0.84);
+      g.stroke();
+    }
+  });
+  return rune;
 }

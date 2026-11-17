@@ -1,13 +1,17 @@
 /**
  * The QA event log for the M1a gate (plan M1a (b)): rendered-frame-stamped entries for a light or
  * heavy press latched, the tick that took it, the attack starting, the first frame its pose shows,
- * and every hit with its spark, sound, number and hit-stop. Read through `__qa.log()` (debug/qa.ts).
+ * and every hit with its spark, sound, number and hit-stop; M1b adds casts and waves. Read through
+ * `__qa.log()` (debug/qa.ts).
  * Recording is on only in dev and QA builds.
  */
 export interface QaEntry {
   /** Rendered frame (App.frame calls). */
   frame: number;
-  kind: 'press' | 'command' | 'attackStart' | 'pose' | 'hit' | 'hitstop' | 'spark' | 'sound' | 'number';
+  kind:
+    | 'press' | 'command' | 'attackStart' | 'pose' | 'hit' | 'hitstop' | 'spark' | 'sound' | 'number'
+    // M1b: spell and wave events (the smoke test's sandbox run reads them).
+    | 'castStart' | 'cast' | 'castPose' | 'noMana' | 'cooldown' | 'explode' | 'nova' | 'zap' | 'status' | 'wave' | 'waveClear';
   /** Sim tick, where one applies. */
   tick?: number;
   /** Hit number (pairs reactions with their hit), or the button / move. */

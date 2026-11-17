@@ -39,6 +39,10 @@ const FILES = [
   [DUEL, 'public/assets/textures/themes/grove/sky.jpg', 'textures/grove/sky.jpg'],
   // M1a: the Thornwood Brute (punch, kick, idle, walk, run clips; elite tier, 19.5k triangles).
   [SHOOTER, 'public/assets/models/characters/sproto_monster.glb', 'models/elites/brute.glb'],
+  // M1b: the standard enemies (24-joint rigs with duel's clip set: idle, run, cast, cast_big, hit, stun, defeat…).
+  [SHOOTER, 'public/assets/models/characters/midget_stage1.glb', 'models/enemies/grunt.glb'],
+  [SHOOTER, 'public/assets/models/characters/obama_stage1.glb', 'models/enemies/slinger.glb'],
+  [DUEL, 'public/assets/models/rigged/sahil_stage1.glb', 'models/enemies/wisp.glb'],
   // Sounds used from M0/M1: menus, movement, hits, guards, swings, lock-on and telegraphs.
   ...['uiClick', 'uiHover', 'dodge', 'clash', 'hurt', 'shieldBlock', 'shieldPerfect', 'shieldUp', 'boltCast', 'boltHit', 'blastExplode', 'noMana',
     'rugWhoosh', 'carpetWhoosh', 'lockBeep', 'stunCharge', 'bossSlam', 'pillarHit', 'roundLose'].map(

@@ -3,7 +3,8 @@ import { AssetLoader } from '../assets/AssetLoader';
 import { AudioManager } from '../audio/AudioManager';
 import { CameraRig } from '../camera/CameraRig';
 import { SANDBOX } from '../content/sandbox';
-import { frameDataLines } from '../debug/frameData';
+import { SPELLS, WOVEN, type SpellId } from '../content/spells';
+import { frameDataLines, targetLines } from '../debug/frameData';
 import { Overlay } from '../debug/Overlay';
 import { QA_LOG_ENABLED, qaLog } from '../debug/qaLog';
 import { GAMEPAD, KEYS, PAD } from '../input/bindings';
@@ -22,10 +23,11 @@ import { initPhysics } from '../sim/physics/PhysicsWorld';
 import { SimWorld } from '../sim/SimWorld';
 import type { ReadonlySimView } from '../sim/view';
 import { DamageNumbers, type NumberStyle, type Projector } from '../ui/DamageNumbers';
-import { Hud, type HudCombat } from '../ui/Hud';
+import { Hud, type HudCombat, type HudStatus } from '../ui/Hud';
 import { MenuNav } from '../ui/MenuNav';
 import { Menus } from '../ui/menus';
 import { Panels } from '../ui/panels';
+import { Reveals, affinityToast } from '../ui/Reveals';
 import { loadSettings, saveSettings, type Settings } from '../ui/settings';
 import { FixedLoop } from './loop';
 
@@ -37,7 +39,14 @@ const CONTEXT_RESTORE_TIMEOUT_MS = 10_000;
 /** The enemy bar stays on the enemy you hit last for this long (ms) when nothing is locked. */
 const ENEMY_BAR_MS = 6000;
 /** Combat sounds, loaded when play starts so the first hit isn't the one that waits on a file. */
-const COMBAT_SOUNDS = ['clash', 'hurt', 'dodge', 'shieldBlock', 'shieldPerfect', 'shieldUp', 'rugWhoosh', 'carpetWhoosh', 'pillarHit', 'lockBeep', 'stunCharge', 'bossSlam', 'boltCast', 'noMana', 'roundLose'] as const;
+const COMBAT_SOUNDS = [
+  'clash', 'hurt', 'dodge', 'shieldBlock', 'shieldPerfect', 'shieldUp', 'rugWhoosh', 'carpetWhoosh', 'pillarHit', 'lockBeep', 'stunCharge', 'bossSlam',
+  'boltCast', 'boltHit', 'blastExplode', 'noMana', 'roundLose',
+] as const;
+/** `?sandbox=1`: the M1b wave runner instead of the training yard (plan §9 M1b). */
+const WAVE_SANDBOX = new URLSearchParams(location.search).get('sandbox') === '1';
+/** Blast shakes the camera less the further it is from you (m at which it stops). */
+const BLAST_SHAKE_RANGE = 16;
 
 /**
  * The game shell: app state machine, the fixed-step loop, and the wiring between devices, sim,
@@ -60,6 +69,8 @@ export class App {
   readonly world: WorldViews;
   readonly fx = new HitFx();
   readonly numbers: DamageNumbers;
+  /** Weakness and resistance reveals and their toasts: remembered for the session (plan §4.6). */
+  readonly reveals = new Reveals();
   sim: SimWorld | null = null;
   player: PlayerView | null = null;
   /** The local player's entity id. */
@@ -70,6 +81,7 @@ export class App {
   /** QA: hits counted so far, and the attack whose first pose was logged. */
   private hitCount = 0;
   private posedAction: object | null = null;
+  private castPosed: object | null = null;
   private readonly lockPos = new THREE.Vector3();
   private readonly v3 = new THREE.Vector3();
   private settings: Settings;
@@ -89,7 +101,7 @@ export class App {
     host.appendChild(canvas);
     this.input = new Input(canvas);
     this.renderer = new Renderer(canvas, this.assets);
-    this.world = new WorldViews(this.assets);
+    this.world = new WorldViews(this.assets, this.fx);
     this.renderer.scene.add(this.world.root, this.fx.root);
     this.rig = new CameraRig(this.renderer.camera);
     this.commands = new CommandBuilder(this.input);
@@ -146,6 +158,7 @@ export class App {
     void this.assets.template('player');
     void this.assets.template('staff_sproto');
     void this.assets.template('brute');
+    if (WAVE_SANDBOX) for (const k of ['grunt', 'slinger', 'wisp'] as const) void this.assets.template(k);
     requestAnimationFrame((t) => this.frame(t));
   }
 
@@ -218,8 +231,9 @@ export class App {
     try {
       const sim = new SimWorld(SANDBOX, 1);
       const entity = sim.spawnPlayer(LOCAL_PLAYER);
-      // The sandbox's dummies and Brute (bare test worlds stay empty).
-      sim.populate();
+      // The sandbox's dummies and Brute (bare test worlds stay empty), or the wave runner.
+      if (WAVE_SANDBOX) sim.startWaves();
+      else sim.populate();
       const view = new PlayerView(this.assets);
       await view.load('staff_sproto');
       this.renderer.scene.add(view.root);
@@ -322,7 +336,7 @@ export class App {
       grounded: p?.loco?.grounded ?? false,
       speed: p?.loco?.speed ?? 0,
       clip: this.clipName || '(locomotion)',
-      combat: this.overlay.open ? frameDataLines(p) : [],
+      combat: this.overlay.open ? [...frameDataLines(p, this.sim?.now ?? 0), '', ...targetLines(p?.combat?.lock != null ? this.sim?.get(p.combat.lock) : undefined)] : [],
     });
     this.input.endFrame();
   }
@@ -363,6 +377,10 @@ export class App {
     if (QA_LOG_ENABLED && a?.kind === 'attack' && view.attackShown && a !== this.posedAction) {
       this.posedAction = a;
       qaLog.add({ kind: 'pose', tick: sim.now, what: a.move });
+    }
+    if (QA_LOG_ENABLED && a?.kind === 'cast' && view.castShown && a !== this.castPosed) {
+      this.castPosed = a;
+      qaLog.add({ kind: 'castPose', tick: sim.now, what: a.spell });
     }
     this.world.sync(simView, this.loop.alpha, dt);
     this.fx.update(dt);
@@ -459,9 +477,13 @@ export class App {
         this.world.event(view, e);
         if (e.unblockable) this.audio.play('stunCharge');
         return;
-      case 'fire':
-        this.audio.play('boltCast', 1.6, 0.6);
+      case 'fire': {
+        // Spells sound on their `cast` event; enemy shots here (a hex lower and softer than a coin).
+        const pr = view.get(e.projectile)?.projectile;
+        if (pr?.spell) return;
+        this.audio.play('boltCast', pr?.kind === 'arcane' ? 0.85 : 1.6, 0.6);
         return;
+      }
       case 'death':
         if (e.entity === me) {
           this.audio.play('roundLose');
@@ -487,6 +509,114 @@ export class App {
         if (e.entity === me && e.target !== null) this.audio.play('lockBeep');
         return;
       default:
+        this.presentSpell(view, e);
+        return;
+    }
+  }
+
+  /**
+   * Spells, statuses and waves (M1b): sounds, rumble and trauma here; their world visuals in
+   * WorldViews; the spell bar, banners and toasts in the HUD.
+   */
+  private presentSpell(view: ReadonlySimView, e: SimEvent): void {
+    const me = this.playerId;
+    const pad = this.input.pad;
+    const qa = (kind: Parameters<typeof qaLog.add>[0]['kind'], what?: string) => QA_LOG_ENABLED && qaLog.add({ kind, tick: view.now, what });
+    switch (e.type) {
+      case 'castStart':
+        qa('castStart', e.spell);
+        if (e.entity === me && e.woven) {
+          // Woven (plan §1): a cyan rune at the hands and a bright chime.
+          const p = this.player?.root;
+          if (p) this.world.spells.rune({ x: p.position.x + Math.sin(p.rotation.y) * 0.5, y: p.position.y + 1.3, z: p.position.z + Math.cos(p.rotation.y) * 0.5 });
+          this.audio.play('shieldUp', 1.7, 0.7);
+        }
+        return;
+      case 'cast':
+        qa('cast', e.spell);
+        if (e.spell === 'bolt') this.audio.play('boltCast', e.woven ? 1.15 : 1);
+        else if (e.spell === 'blast') this.audio.play('boltCast', 0.62, 1.2);
+        if (e.entity === me) pad.rumble(RUMBLE.cast);
+        return;
+      case 'noMana':
+        qa('noMana', e.spell);
+        if (e.entity === me) {
+          this.hud.flashSpell(e.spell, 'mana');
+          this.audio.play('noMana');
+        }
+        return;
+      case 'cooldown':
+        qa('cooldown', e.spell);
+        if (e.entity === me) {
+          this.hud.flashSpell(e.spell, 'cooldown');
+          this.audio.play('uiHover', 0.7, 0.8);
+        }
+        return;
+      case 'explode': {
+        qa('explode', e.spell ?? undefined);
+        this.world.event(view, e);
+        this.audio.play('blastExplode', 0.95 + Math.random() * 0.1);
+        const p = this.player?.root.position;
+        const d = p ? Math.hypot(p.x - e.pos.x, p.z - e.pos.z) : BLAST_SHAKE_RANGE;
+        this.shake(TRAUMA.blast * Math.max(0.25, 1 - d / BLAST_SHAKE_RANGE));
+        if (e.entity === me) pad.rumble(RUMBLE.blast);
+        return;
+      }
+      case 'nova':
+        qa('nova');
+        this.world.event(view, e);
+        this.audio.play('shieldPerfect', 0.6);
+        this.audio.play('shieldBlock', 1.5, 0.6);
+        if (e.entity === me) {
+          this.shake(TRAUMA.nova);
+          pad.rumble(RUMBLE.nova);
+        }
+        return;
+      case 'zap':
+        qa('zap');
+        this.world.event(view, e);
+        this.audio.play('boltHit', 1.5);
+        this.audio.play('boltCast', 1.9, 0.6);
+        if (e.entity === me) pad.rumble(RUMBLE.zap);
+        return;
+      case 'status': {
+        qa('status', `${e.status}x${e.stacks}`);
+        // A status landing reveals the type's affinity to it (plan §4.6).
+        const def = enemyDef(view.get(e.entity));
+        if (def) this.reveals.reveal(def.id, e.status, e.affinity);
+        return;
+      }
+      case 'frozen':
+        this.world.event(view, e);
+        this.audio.play('shieldBlock', 0.55);
+        return;
+      case 'interrupt': {
+        // A ranged wind-up cut short (a Bolt, or Shock): a bright crack on the caster.
+        const t = view.get(e.entity);
+        const v = this.world.get(e.entity);
+        if (t) {
+          const pos = v?.root.position ?? t.tf.pos;
+          this.fx.burst({ x: pos.x, y: pos.y + (v?.height ?? 1.8) * 0.7, z: pos.z }, 'shock');
+        }
+        this.audio.play('clash', 1.35, 0.8);
+        return;
+      }
+      case 'blink':
+        this.world.event(view, e);
+        this.audio.play('shieldUp', 1.6, 0.6);
+        return;
+      case 'wave':
+        qa('wave', String(e.wave));
+        // `wave` counts on through the loops (1, 2, 3, 4…).
+        this.hud.waveBanner(`Wave ${e.wave}`, `${e.enemies} enemies`);
+        this.audio.play('shieldUp', 0.8);
+        return;
+      case 'waveClear':
+        qa('waveClear', String(e.wave));
+        this.hud.waveBanner('Wave cleared');
+        this.audio.play('shieldPerfect', 1.2);
+        return;
+      default:
         return;
     }
   }
@@ -500,14 +630,19 @@ export class App {
     const mine = e.attacker === me || view.get(e.attacker)?.projectile?.owner === me;
     const hurt = e.target === me;
     const n = ++this.hitCount;
-    const qa = (kind: 'hit' | 'spark' | 'sound' | 'number' | 'hitstop') => QA_LOG_ENABLED && qaLog.add({ kind, tick: view.now, hit: n });
+    const qa = (kind: 'hit' | 'spark' | 'sound' | 'number' | 'hitstop') => QA_LOG_ENABLED && qaLog.add({ kind, tick: view.now, hit: n, what: kind === 'hit' ? e.move : undefined });
     qa('hit');
+    // Damage numbers and sparks take their style from the hit's affinity (plan §4.6): Weak! and Resisted.
     const style: NumberStyle = hurt ? 'hurt' : e.affinity === 'weak' ? 'weak' : e.affinity === 'resist' ? 'resist' : e.crit ? 'crit' : 'normal';
-    const spark: SparkStyle = style === 'normal' ? (e.heavy ? 'heavy' : 'normal') : style;
+    // Spell hits (the sim names the move after the spell) spark in the spell's colour.
+    const spell = e.move in SPELLS ? (e.move as SpellId) : null;
+    const spellSpark: SparkStyle | null = spell === 'blast' ? 'fire' : spell === 'chainZap' ? 'shock' : spell === 'frostNova' ? 'frost' : spell ? 'arcane' : null;
+    const spark: SparkStyle = style === 'normal' ? (spellSpark ?? (e.heavy ? 'heavy' : 'normal')) : style === 'weak' || style === 'resist' || !spellSpark ? style : spellSpark;
     if (this.fx.burst(e.pos, spark) > 0) qa('spark');
     // Resisted hits sound dull (plan §4.6), weak and critical ones bright.
     const rate = e.affinity === 'resist' ? 0.7 : e.affinity === 'weak' ? 1.12 : e.crit ? 1.2 : 0.95 + Math.random() * 0.1;
-    if (this.audio.play(hurt ? 'hurt' : e.heavy ? 'pillarHit' : 'clash', hurt ? 1 : rate)) qa('sound');
+    if (this.audio.play(hurt ? 'hurt' : spell ? 'boltHit' : e.heavy ? 'pillarHit' : 'clash', hurt ? 1 : rate)) qa('sound');
+    if (!hurt) this.revealHit(view, e);
     this.numbers.spawn(e.pos, e.damage, style);
     qa('number');
     const hs = Math.max(view.get(e.attacker)?.combat?.hitstop ?? 0, view.get(e.target)?.combat?.hitstop ?? 0);
@@ -523,6 +658,17 @@ export class App {
       this.shake(TRAUMA.hurt);
       this.input.pad.rumble(RUMBLE.hurt);
     }
+  }
+
+  /**
+   * The first hit of each damage kind on an enemy type reveals its icon (plan §4.6), and the first
+   * Weak! and the first Resisted of the session each get a toast explaining them.
+   */
+  private revealHit(view: ReadonlySimView, e: Extract<SimEvent, { type: 'hit' }>): void {
+    const def = enemyDef(view.get(e.target));
+    if (!def) return;
+    this.reveals.reveal(def.id, e.kind, e.affinity);
+    if (e.affinity !== 'normal' && this.reveals.firstToast(e.affinity)) this.hud.toast(affinityToast(def, e.kind, e.affinity));
   }
 
   private shake(amount: number): void {
@@ -569,13 +715,18 @@ export class App {
       const pos = tv?.root.position ?? t.tf.pos;
       const h = tv?.height ?? t.body?.height ?? 1.8;
       const s = this.project({ x: pos.x, y: pos.y + h + 0.35, z: pos.z });
-      enemy = { ...s, name: enemyDef(t)?.name ?? 'Enemy', hp: t.vitals.hp, hpMax: t.vitals.hpMax };
+      const def = enemyDef(t);
+      enemy = { ...s, name: def?.name ?? 'Enemy', hp: t.vitals.hp, hpMax: t.vitals.hpMax, affinities: def ? this.reveals.list(def.id) : [], statuses: hudStatuses(t) };
     }
     const lp = this.lockPoint(view, p);
+    const c = p.combat;
+    const a = c?.action;
     return {
       player: v ? { hp: v.hp, hpMax: v.hpMax, stamina: v.stamina, staminaMax: v.staminaMax, mana: v.mana, manaMax: v.manaMax } : null,
       enemy,
       reticle: lp ? this.project(lp) : null,
+      spells: v && c ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window } : null,
+      wave: view.wave ? { ...view.wave } : null,
     };
   }
 
@@ -623,20 +774,44 @@ export class App {
             grounded: p.loco?.grounded ?? false,
             speed: p.loco?.speed ?? 0,
             action: p.combat?.action?.kind ?? null,
+            cast: p.combat?.action?.kind === 'cast' ? { ...p.combat.action } : null,
             hp: p.vitals?.hp ?? null,
+            mana: p.vitals?.mana ?? null,
+            manaMax: p.vitals?.manaMax ?? null,
+            cooldowns: { ...(p.combat?.cooldowns ?? {}) },
             lock: p.combat?.lock ?? null,
           }
         : null,
+      sandbox: WAVE_SANDBOX,
+      wave: this.sim?.view().wave ?? null,
+      projectiles: (this.sim?.entities ?? [])
+        .filter((e) => e.projectile)
+        .map((e) => ({ id: e.id, model: e.view.model, spell: e.projectile!.spell ?? null, owner: e.projectile!.owner, pos: { ...e.tf.pos }, viewShown: !!this.world.get(e.id) })),
+      toast: this.hud.toastText,
       camYaw: this.rig.yaw,
       enemies: (this.sim?.entities ?? [])
         .filter((e) => e.kind === 'enemy' || e.kind === 'boss')
-        .map((e) => ({ id: e.id, def: e.brain?.def ?? null, model: e.view.model, pos: { ...e.tf.pos }, hp: e.vitals?.hp ?? null, action: e.combat?.action?.kind ?? null, viewShown: !!this.world.get(e.id) })),
+        .map((e) => ({
+          id: e.id, def: e.brain?.def ?? null, model: e.view.model, pos: { ...e.tf.pos }, hp: e.vitals?.hp ?? null, action: e.combat?.action?.kind ?? null,
+          statuses: Object.keys(e.statuses ?? {}).filter((k) => k !== 'slowAcc'), viewShown: !!this.world.get(e.id),
+        })),
       staffMounted: this.player?.staffMounted ?? false,
       clips: this.player?.animator?.clipNames ?? [],
       errorOpen: this.panels.errorOpen,
       drawCalls: this.renderer.renderer.info.render.calls,
     };
   }
+}
+
+/** The statuses under an enemy's health bar: Frozen replaces Chill while it lasts. */
+function hudStatuses(t: Readonly<Entity>): HudStatus[] {
+  const s = t.statuses;
+  const out: HudStatus[] = [];
+  if (s?.burn) out.push({ id: 'burn', stacks: 1 });
+  if (t.combat?.action?.kind === 'frozen') out.push({ id: 'frozen', stacks: 1 });
+  else if (s?.chill) out.push({ id: 'chill', stacks: s.chill.stacks });
+  if (s?.shock) out.push({ id: 'shock', stacks: 1 });
+  return out;
 }
 
 /** Kick off physics while the shell loads; exported for main.ts. */

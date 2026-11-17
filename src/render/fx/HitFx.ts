@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { glowTexture } from './textures';
 
-export type SparkStyle = 'normal' | 'heavy' | 'crit' | 'weak' | 'resist' | 'hurt' | 'block' | 'parry';
+export type SparkStyle =
+  | 'normal' | 'heavy' | 'crit' | 'weak' | 'resist' | 'hurt' | 'block' | 'parry'
+  // M1b spells and statuses: an arcane hit, Blast's fire, Frost Nova's ice, Chain Zap's sparks, the Wisp's hex.
+  | 'arcane' | 'fire' | 'frost' | 'shock' | 'hex';
 
 /** Count, speed (m/s), life (s) and colour of each burst style. */
 const STYLES: Record<SparkStyle, { n: number; speed: number; life: number; color: number; flash: number; flashSize: number }> = {
@@ -13,9 +16,14 @@ const STYLES: Record<SparkStyle, { n: number; speed: number; life: number; color
   hurt: { n: 16, speed: 5, life: 0.3, color: 0xff6a5a, flash: 0xff8070, flashSize: 0.8 },
   block: { n: 12, speed: 4, life: 0.25, color: 0x9fd0ff, flash: 0xc0e0ff, flashSize: 0.7 },
   parry: { n: 48, speed: 9, life: 0.5, color: 0xd8f4ff, flash: 0xffffff, flashSize: 2.4 },
+  arcane: { n: 16, speed: 5, life: 0.3, color: 0x7ff4ff, flash: 0xb8fbff, flashSize: 0.9 },
+  fire: { n: 40, speed: 8, life: 0.5, color: 0xff8a2a, flash: 0xffc070, flashSize: 2.2 },
+  frost: { n: 22, speed: 5, life: 0.45, color: 0xbfe8ff, flash: 0xdff4ff, flashSize: 1 },
+  shock: { n: 14, speed: 7, life: 0.2, color: 0xfff27a, flash: 0xfff8c0, flashSize: 0.8 },
+  hex: { n: 16, speed: 4, life: 0.35, color: 0xc070ff, flash: 0xd8a0ff, flashSize: 1 },
 };
 
-const MAX_SPARKS = 512;
+const MAX_SPARKS = 1024;
 const MAX_SPRITES = 16;
 const MAX_RINGS = 8;
 const GRAVITY = 12;
@@ -77,16 +85,27 @@ export class HitFx {
   /** A burst of sparks and a flash at `p`. Returns the number of sparks spawned. */
   burst(p: { x: number; y: number; z: number }, style: SparkStyle): number {
     const s = STYLES[style];
+    this.emit(p, style, s.n);
+    this.flash(p, s.flash, s.flashSize, style === 'parry' ? 0.22 : 0.12);
+    return s.n;
+  }
+
+  /**
+   * `n` sparks of a style at `p` with no flash (status embers and crackle). `speed` scales the
+   * style's speed; `lift` (m/s) is added upward so embers rise instead of arcing out.
+   */
+  emit(p: { x: number; y: number; z: number }, style: SparkStyle, n: number, speed = 1, lift = 0): void {
+    const s = STYLES[style];
     const c = this.tmp.setHex(s.color);
-    for (let k = 0; k < s.n; k++) {
+    for (let k = 0; k < n; k++) {
       const i = this.next;
       this.next = (this.next + 1) % MAX_SPARKS;
       // A random direction, biased upward so sparks arc out instead of into the ground.
       const u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2;
       const r = Math.sqrt(1 - u * u);
-      const sp = s.speed * (0.4 + Math.random() * 0.8);
+      const sp = s.speed * speed * (0.4 + Math.random() * 0.8);
       this.vel[i * 3] = r * Math.cos(th) * sp;
-      this.vel[i * 3 + 1] = (Math.abs(u) * 0.8 + 0.3) * sp;
+      this.vel[i * 3 + 1] = (Math.abs(u) * 0.8 + 0.3) * sp + lift;
       this.vel[i * 3 + 2] = r * Math.sin(th) * sp;
       this.pos[i * 3] = p.x;
       this.pos[i * 3 + 1] = p.y;
@@ -98,8 +117,6 @@ export class HitFx {
       this.life[i] = s.life * (0.6 + Math.random() * 0.6);
     }
     this.live = MAX_SPARKS;
-    this.flash(p, s.flash, s.flashSize, style === 'parry' ? 0.22 : 0.12);
-    return s.n;
   }
 
   /** A soft additive flash sprite. */

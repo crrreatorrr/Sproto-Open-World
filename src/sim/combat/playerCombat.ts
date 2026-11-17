@@ -1,12 +1,15 @@
 import {
   BLOCK, BUFFER, CHARGE, LUNGE, PLAYER_MOVES, PLAYER_STATS, ROLL, SOFT_TARGET, clipReach, clipTiming, type PlayerMoveId,
 } from '../../content/combat';
+import { CAST_WALK_SCALE, SPELL_BY_SLOT } from '../../content/spells';
 import { DT } from '../../content/tuning';
 import { BTN, idleInput, type CommandMap, type InputCommand } from '../commands';
 import type { Action, Buffered, BufferedAction, Entity } from '../entity';
 import type { SimEvent } from '../events';
 import { turnToward } from '../math';
+import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { angleTo, flatDist, yawTo } from './geometry';
+import { advanceCast, castFacing, startCast, type SpawnSpellProjectile } from './spells';
 
 /** Per-tick motion an action asks for: planar velocity (m/s), and whether input steers it. */
 export interface Motion {
@@ -42,7 +45,7 @@ export function wishDir(cmd: InputCommand): { x: number; z: number; mag: number 
 }
 
 export function inHitstopOrStun(a: Action | null): boolean {
-  return a?.kind === 'hitstun' || a?.kind === 'stagger' || a?.kind === 'dead';
+  return a?.kind === 'hitstun' || a?.kind === 'stagger' || a?.kind === 'frozen' || a?.kind === 'dead';
 }
 
 /** Is the entity invulnerable this tick (roll i-frames)? */
@@ -50,8 +53,12 @@ export function iframes(a: Action | null): boolean {
   return a?.kind === 'dodge' && a.t >= ROLL.iframeStart && a.t <= ROLL.iframeEnd;
 }
 
-/** Player moves: buffer presses, advance the current action, start the next one (plan §4.2–4.3). */
-export function playerCombat(ctx: CombatCtx, commands: CommandMap): void {
+/** Light attacks a spell may cancel from activeEnd (plan §4.4: never a heavy). */
+const LIGHTS = new Set<string>(['light1', 'light2', 'light3', 'rollAttack']);
+const SPELL_BUTTONS = [BTN.spell1, BTN.spell2, BTN.spell3, BTN.spell4] as const;
+
+/** Player moves: buffer presses, advance the current action, start the next one (plan §4.2–4.4). */
+export function playerCombat(ctx: CombatCtx, commands: CommandMap, physics: PhysicsWorld, spawn: SpawnSpellProjectile): void {
   for (const p of ctx.entities) {
     const c = p.combat;
     const v = p.vitals;
@@ -71,7 +78,9 @@ export function playerCombat(ctx: CombatCtx, commands: CommandMap): void {
       continue;
     }
 
-    advance(p, cmd, ctx);
+    for (const k of Object.keys(c.cooldowns) as (keyof typeof c.cooldowns)[]) if (c.cooldowns[k]! > 0) c.cooldowns[k]!--;
+    if (c.action?.kind === 'cast') advanceCast(ctx, p, cmd, physics, spawn);
+    else advance(p, cmd, ctx);
     tryConsume(p, cmd, ctx);
     updateBlock(p, cmd, ctx);
     tickBuffer(c);
@@ -87,6 +96,10 @@ function bufferPresses(p: Entity, cmd: InputCommand, frozen: boolean): void {
   if (cmd.pressed & BTN.dodge) pressed = 'dodge';
   else if (cmd.pressed & BTN.heavy) pressed = 'heavy';
   else if (cmd.pressed & BTN.light) pressed = 'light';
+  else {
+    const i = SPELL_BUTTONS.findIndex((b) => (cmd.pressed & b) !== 0);
+    if (i >= 0) pressed = `spell${i + 1}` as BufferedAction;
+  }
   if (!pressed) return;
   const a = c.action;
   let untilCancel = false;
@@ -165,6 +178,14 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
       return;
     }
     startRoll(p, cmd, ctx);
+    return;
+  }
+  if (b.action.startsWith('spell')) {
+    // Spells: from free, from a block, or cancelling a light's recovery from activeEnd.
+    const legal = !a || a.kind === 'block' || (a.kind === 'attack' && LIGHTS.has(a.move as string) && a.clipT >= clipTiming(PLAYER_MOVES[a.move as PlayerMoveId].clip).activeEnd);
+    if (!legal) return;
+    c.buffer = null;
+    startCast(ctx, p, SPELL_BY_SLOT[Number(b.action.slice(5)) as 1 | 2 | 3 | 4]);
     return;
   }
   // Light or heavy.
@@ -308,6 +329,10 @@ function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
     }
     case 'block':
       ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: BLOCK.walkScale, faceYaw: faceLock ?? p.tf.yaw });
+      return;
+    case 'cast':
+      // Spells are upper body: walk slowly, facing the spell's target while it winds up.
+      ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: CAST_WALK_SCALE, faceYaw: castFacing(ctx, p, cmd) ?? faceLock ?? p.tf.yaw });
       return;
     default:
       ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: 0 });

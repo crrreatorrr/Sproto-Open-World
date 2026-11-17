@@ -6,12 +6,26 @@ const HIT_FLASH_SEC = 0.09;
 const WHITE = new THREE.Color(1, 1, 1);
 const GLINT = new THREE.Color(1, 0.92, 0.6);
 const RED = new THREE.Color(1, 0.06, 0.02);
+const BURN = new THREE.Color(1, 0.38, 0.05);
+const CHILL = new THREE.Color(0.15, 0.45, 1);
+const ICE = new THREE.Color(0.62, 0.88, 1);
+const SHOCK = new THREE.Color(1, 0.92, 0.25);
+
+/** Status tints (plan §4.7), drawn under the telegraph colours so a wind-up always reads. */
+export interface GlowStatus {
+  burn: boolean;
+  /** Chill stacks (0 = none). */
+  chill: number;
+  frozen: boolean;
+  shock: boolean;
+}
 
 /**
  * Per-enemy emissive feedback (plan §1, telegraphs): a white glint when a wind-up starts, a red
  * pulse through an unblockable's wind-up, and a short white flash when hit. It owns cloned
  * materials so one enemy lighting up never lights up every enemy that shares a model, plus a
- * star sprite at the eyes for the glint.
+ * star sprite at the eyes for the glint. Status tints (burning, chilled, frozen, shocked) sit
+ * under the telegraph colours.
  */
 export class BodyGlow {
   readonly glint: THREE.Sprite;
@@ -27,6 +41,7 @@ export class BodyGlow {
   private redLeft = 0;
   private time = 0;
   private opacity = 1;
+  private status: GlowStatus = { burn: false, chill: 0, frozen: false, shock: false };
 
   constructor() {
     this.glint = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTexture(), color: GLINT, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
@@ -34,8 +49,11 @@ export class BodyGlow {
     this.glint.renderOrder = 10;
   }
 
-  /** Give every mesh under `root` its own copy of its material, and track the lit ones. */
-  adopt(root: THREE.Object3D): void {
+  /**
+   * Give every mesh under `root` its own copy of its material, and track the lit ones. `emissive`
+   * replaces the materials' own glow as the resting colour (the Wisp's purple).
+   */
+  adopt(root: THREE.Object3D, emissive?: number): void {
     root.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
@@ -44,6 +62,7 @@ export class BodyGlow {
         this.owned.push(c);
         this.ownTransparent.push(c.transparent);
         if ((c as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
+          if (emissive !== undefined) (c as THREE.MeshStandardMaterial).emissive.setHex(emissive);
           this.mats.push(c as THREE.MeshStandardMaterial);
           this.base.push((c as THREE.MeshStandardMaterial).emissive.clone());
         }
@@ -69,6 +88,10 @@ export class BodyGlow {
     this.hitT = HIT_FLASH_SEC;
   }
 
+  setStatus(s: GlowStatus): void {
+    this.status = s;
+  }
+
   /** Fade the whole body (death). 1 = opaque. */
   setOpacity(o: number): void {
     if (o === this.opacity) return;
@@ -92,8 +115,18 @@ export class BodyGlow {
     // Red pulses (~5 Hz, faster near the end of the wind-up) up to 80%, so the body's shape still reads.
     const red = this.redLeft > 0 ? 0.3 + 0.5 * Math.abs(Math.sin(this.time * (this.redLeft < 0.25 ? 26 : 16))) : 0;
     const white = Math.max(this.hitT / HIT_FLASH_SEC, (this.glintT / GLINT_SEC) * 0.6);
+    const st = this.status;
+    const t = this.time;
+    // Burning flickers like a fire (two beating sines); shock snaps on and off; chill deepens per stack.
+    const burn = st.burn ? 0.28 + 0.14 * (Math.sin(t * 23) + Math.sin(t * 37.3)) : 0;
+    const shock = st.shock && Math.sin(t * 61) + Math.sin(t * 17) > 0.6 ? 0.55 : 0;
+    const chill = st.frozen ? 0 : Math.min(3, st.chill) * 0.11;
     for (let i = 0; i < this.mats.length; i++) {
       const c = this.tmp.copy(this.base[i]);
+      if (st.frozen) c.lerp(ICE, 0.6);
+      if (chill > 0) c.lerp(CHILL, chill);
+      if (burn > 0) c.lerp(BURN, burn);
+      if (shock > 0) c.lerp(SHOCK, shock);
       if (white > 0) c.lerp(WHITE, white * 0.85);
       if (red > 0) c.lerp(RED, red);
       this.mats[i].emissive.copy(c);

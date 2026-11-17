@@ -2,7 +2,7 @@
 /**
  * Byte budgets on the production build (plan §3.5). Run after `npm run build`.
  *   - Title shell (index.html + CSS + entry JS, gzip): ≤ 150 KiB.
- *   - Critical transfer to playable (all JS, the player, its staff, the Brute, the yard textures), as served
+ *   - Critical transfer to playable (all JS, the player, its staff, every enemy model the yard or the wave runner loads, the yard textures), as served
  *     (JS gzip; GLB/JPG/WebM already compressed): ≤ 8 MiB.
  * Prints the Rapier chunk size, which the plan asked M0 to measure.
  */
@@ -21,7 +21,7 @@ const entry = [...html.matchAll(/(?:src|href)="\.\/build\/([^"]+)"/g)].map((m) =
 const shell = gz(path.join(DIST, 'index.html')) + entry.reduce((n, f) => n + gz(path.join(build, f)), 0);
 const allJs = files.filter((f) => f.endsWith('.js')).reduce((n, f) => n + gz(path.join(build, f)), 0);
 const rapier = files.filter((f) => f.startsWith('rapier') && f.endsWith('.js')).reduce((n, f) => n + gz(path.join(build, f)), 0);
-const critical = ['assets/models/characters/player.glb', 'assets/models/staffs/staff_sproto.glb', 'assets/models/elites/brute.glb', 'assets/textures/grove/floor.jpg', 'assets/textures/grove/stone.jpg', 'assets/textures/grove/sky.jpg'];
+const critical = ['assets/models/characters/player.glb', 'assets/models/staffs/staff_sproto.glb', 'assets/models/elites/brute.glb', 'assets/models/enemies/grunt.glb', 'assets/models/enemies/slinger.glb', 'assets/models/enemies/wisp.glb', 'assets/textures/grove/floor.jpg', 'assets/textures/grove/stone.jpg', 'assets/textures/grove/sky.jpg'];
 const criticalBytes = allJs + critical.reduce((n, f) => n + size(path.join(DIST, f)), 0);
 
 const rows = [
