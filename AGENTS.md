@@ -35,7 +35,9 @@ npm run test:e2e
 ```
 
 `test:e2e` needs Playwright's Chromium (`npx playwright install chromium`). It boots the game in
-headless Chromium and drives it with a simulated gamepad only.
+headless Chromium and drives it with a simulated gamepad only. Headless Chromium (and CI) renders
+on a software GPU, so long tasks during gameplay are reported there, not asserted. On a machine
+with a GPU, `SMOKE_STRICT_LONGTASKS=1 npm run test:e2e` opens a visible window and asserts them.
 
 ## Working with other agents
 

@@ -7,11 +7,12 @@
  *   → WebGL context lost and restored
  *
  * It asserts the player model, its 18 clips and the staff on socket_staff, that the stick moves
- * the player and A jumps, that there are no console errors, and that long tasks stay under 50 ms
- * once playing. Frame time is not asserted (headless renders on a software GPU).
+ * the player and A jumps, and that there are no console errors. Long tasks once playing are
+ * asserted on a real GPU and only reported on a software one (CI), where they measure frame time.
  *
  *   npm run test:e2e                 # headless
  *   npm run test:e2e -- --shots DIR  # also save screenshots
+ *   SMOKE_STRICT_LONGTASKS=1 npm run test:e2e   # real GPU, long tasks asserted
  */
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
@@ -23,7 +24,10 @@ const server = await createServer({ server: { port: 5199, strictPort: false }, l
 await server.listen();
 const url = server.resolvedUrls.local[0];
 
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+// SMOKE_STRICT_LONGTASKS=1: use the machine's real GPU and assert long tasks (run it on the target laptop).
+const strictLongTasks = process.env.SMOKE_STRICT_LONGTASKS === '1';
+// Headless Chromium never gets a GPU, so strict mode opens a visible window.
+const browser = await chromium.launch(strictLongTasks ? { headless: false } : { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 page.on('console', (m) => {
@@ -139,6 +143,22 @@ try {
   await frames(30);
   await shot('04-heavy-clip');
 
+  // Long tasks only mean something on a real GPU. On a software rasterizer (CI runners have no
+  // GPU, so Chromium draws with SwiftShader on the CPU) every rendered frame is a long task, which
+  // is frame time, and frame time is measured by hand on the target laptop (plan §8). There the
+  // count is reported, not asserted. SMOKE_STRICT_LONGTASKS=1 asserts it anyway.
+  // Measured over gameplay only: the context-loss step below rebuilds every shader on purpose.
+  const long = await page.evaluate(() => window.__long.splice(0));
+  const worst = long.length ? Math.max(...long) : 0;
+  const gpu = await page.evaluate(() => {
+    const gl = document.querySelector('canvas.game-canvas').getContext('webgl2');
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    return info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : String(gl.getParameter(gl.RENDERER));
+  });
+  const software = /swiftshader|llvmpipe|software|lavapipe/i.test(gpu);
+  const longDetail = `${long.length} tasks, worst ${worst.toFixed(0)} ms on ${gpu}`;
+  if (software && !strictLongTasks) console.log(`  info long tasks during gameplay (software GPU, not asserted): ${longDetail}`);
+  else check(worst <= 50 || long.length <= 2, 'no repeated long tasks during gameplay', longDetail);
   await press('start');
   s = await state();
   check(s.state === 'paused' && s.screen === 'screen-pause', 'Start pauses', `${s.state} ${s.screen}`);
@@ -172,9 +192,6 @@ try {
     check((await state()).state === 'playing', 'play resumes after a context restore');
   } else console.log('  skip WebGL context loss (WEBGL_lose_context not available)');
 
-  const long = await page.evaluate(() => window.__long);
-  const worst = long.length ? Math.max(...long) : 0;
-  check(worst <= 50 || long.length <= 2, 'no repeated long tasks while playing', `${long.length} tasks, worst ${worst.toFixed(0)} ms`);
   check(errors.length === 0, 'no console errors', errors.join('\n'));
 } catch (err) {
   failures++;
