@@ -4,6 +4,7 @@
  * server and drives it with a simulated gamepad only:
  *
  *   title → Settings → Controls → back → back → Play → move, jump → pause → Settings → back → Resume
+ *   → WebGL context lost and restored
  *
  * It asserts the player model, its 18 clips and the staff on socket_staff, that the stick moves
  * the player and A jumps, that there are no console errors, and that long tasks stay under 50 ms
@@ -150,6 +151,26 @@ try {
   await press('a');
   s = await state();
   check(s.state === 'playing', 'Resume from the pause menu', s.state);
+
+  // WebGL context loss (plan §2.9): pause behind a veil, recover when the context returns.
+  const lost = await page.evaluate(async () => {
+    const gl = document.querySelector('canvas.game-canvas').getContext('webgl2');
+    const ext = gl.getExtension('WEBGL_lose_context');
+    if (!ext) return null;
+    ext.loseContext();
+    await new Promise((r) => setTimeout(r, 200));
+    const during = { state: window.__qa.state().state, veil: document.querySelector('.veil').classList.contains('active') };
+    ext.restoreContext();
+    await new Promise((r) => setTimeout(r, 500));
+    return { during, veilAfter: document.querySelector('.veil').classList.contains('active') };
+  });
+  if (lost) {
+    check(lost.during.state === 'paused' && lost.during.veil, 'a lost WebGL context pauses behind the veil', JSON.stringify(lost.during));
+    check(!lost.veilAfter, 'the veil clears when the context is restored');
+    await page.evaluate(() => window.__qa.app.resume());
+    await frames(10);
+    check((await state()).state === 'playing', 'play resumes after a context restore');
+  } else console.log('  skip WebGL context loss (WEBGL_lose_context not available)');
 
   const long = await page.evaluate(() => window.__long);
   const worst = long.length ? Math.max(...long) : 0;
