@@ -1,0 +1,49 @@
+{
+  "source": "art/tools/melee_anim.py (generated, do not edit by hand)",
+  "units": "seconds",
+  "weapon": "staff (right hand, socket_staff)",
+  "notes": "active = hitbox window; cancel = earliest time the next combo step may start; charge = heavy hold window (freeze or loop here while the button is held); end = clip duration. attack_light_2 starts from attack_light_1's follow-through pose and attack_light_3 from attack_light_2's, so chain them at or after cancel.",
+  "clips": {
+    "attack_light_1": {
+      "active": [
+        0.14,
+        0.26
+      ],
+      "cancel": 0.34,
+      "end": 0.625
+    },
+    "attack_light_2": {
+      "active": [
+        0.12,
+        0.24
+      ],
+      "cancel": 0.32,
+      "end": 0.625
+    },
+    "attack_light_3": {
+      "active": [
+        0.3,
+        0.4
+      ],
+      "cancel": 0.6,
+      "end": 0.9167
+    },
+    "attack_heavy": {
+      "charge": [
+        0.3,
+        0.48
+      ],
+      "active": [
+        0.52,
+        0.64
+      ],
+      "cancel": 0.8,
+      "end": 1.1667
+    },
+    "block": {
+      "raise_done": 0.12,
+      "hold_from": 0.12,
+      "end": 0.5
+    }
+  }
+}
