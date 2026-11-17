@@ -37,7 +37,11 @@ export interface LevelDef {
   spawn: { pos: [number, number, number]; yaw: number };
   /** Enemies placed by SimWorld.populate(). */
   enemies?: EnemySpawn[];
-  ground: { size: number; color: number };
+  /**
+   * A flat square ground plane (the yard). Absent in a streamed world, where the ground comes
+   * from cell heightfields loaded through SimWorld.loadCell.
+   */
+  ground?: { size: number; color: number };
   shapes: ShapeDef[];
 }
 

@@ -20,6 +20,7 @@ async function boot(): Promise<void> {
         state: () => app.qaState(),
         clips: () => app.player?.animator?.clipNames ?? [],
         playClip: (name) => app.player?.animator?.playOnce(name) ?? false,
+        teleport: (x, z) => app.qaTeleport(x, z),
         app,
       });
     }

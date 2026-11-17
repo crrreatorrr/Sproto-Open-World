@@ -265,7 +265,7 @@ Credits`, plus `Error`.
   NPC spawns; trigger volumes).
 - `region.json`: bounds, the cell list with sizes, and the prop table
   (`key → {path, lod1Path, collider, landmark, **capacity**}`). `capacity` is the **baked maximum
-  number of instances of that prop in any 5×5 cell window**, so instanced meshes are sized once and
+  number of instances of that prop in any 7×7 cell window** (the hysteresis ring; was 5×5 before M2), so instanced meshes are sized once and
   never resized. It also lists shrines, the player start and the horizon mesh.
 - Each cell is **≤ 120 KB**. Prop GLBs load once per region.
 

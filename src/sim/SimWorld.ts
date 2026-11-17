@@ -2,6 +2,7 @@ import { PLAYER_STATS } from '../content/combat';
 import { ENEMIES, type EnemyMoveDef } from '../content/enemies';
 import type { LevelDef } from '../content/sandbox';
 import { WAVE_CENTRE, WAVE_GAP, WAVES } from '../content/waves';
+import { cellKey, cellOf, type CellColliders } from '../content/world/format';
 import { DT, MOVE, PLAYER_BODY } from '../content/tuning';
 import { enemyBrains, muzzle } from './ai/brain';
 import type { CommandMap } from './commands';
@@ -44,6 +45,16 @@ export interface SimSnapshot {
 
 /** Ticks a dead wave enemy lies there before it's removed (wave enemies don't respawn). */
 const WAVE_CORPSE_TICKS = 150;
+/** Most colliders created per tick when cells stream in (plan §3.2); a heightfield counts as one. */
+export const CELL_COLLIDERS_PER_TICK = 96;
+
+interface QueuedCell {
+  key: string;
+  cells: CellColliders;
+  bodyMade: boolean;
+  /** Next prop shape to add. */
+  next: number;
+}
 
 /**
  * The whole gameplay simulation (plan §2.2). `tick()` advances exactly one 60 Hz step from the
@@ -59,6 +70,9 @@ export class SimWorld {
   private nextId = 1;
   /** Wave runner state, or null outside the wave runner. */
   wave: WaveState | null = null;
+  /** Streamed cells whose colliders are fully built, and the ones still being built. */
+  private readonly readyCells = new Set<string>();
+  private cellQueue: QueuedCell[] = [];
   private readonly byId = new Map<EntityId, Entity>();
   private readonly players = new Map<PlayerId, EntityId>();
   private readonly roView: ReadonlySimView;
@@ -85,6 +99,11 @@ export class SimWorld {
       hash: () => this.hash(),
       get wave() {
         return get().wave;
+      },
+      cellAnchors: () => this.cellAnchors(),
+      cellReady: (cx, cz) => this.cellReady(cx, cz),
+      get waitingForGround() {
+        return get().waitingForGround();
       },
     };
   }
@@ -179,6 +198,103 @@ export class SimWorld {
     return e;
   }
 
+  // ---------------------------------------------------------------- streamed cells (plan §3.2)
+
+  /** A level without a ground plane takes its ground from streamed cells. */
+  get streamed(): boolean {
+    return !this.level.ground;
+  }
+
+  /**
+   * Queue a cell's colliders. They're built at the top of coming ticks, at most
+   * CELL_COLLIDERS_PER_TICK a tick, the player's own 3 × 3 first.
+   */
+  loadCell(c: CellColliders): void {
+    const key = cellKey(c.cx, c.cz);
+    if (this.readyCells.has(key) || this.cellQueue.some((q) => q.key === key)) return;
+    this.cellQueue.push({ key, cells: c, bodyMade: false, next: 0 });
+  }
+
+  /** Drop a cell's colliders. Refused (false) for an anchored cell: someone stands on it. */
+  unloadCell(cx: number, cz: number): boolean {
+    if (this.cellAnchors().some(([x, z]) => x === cx && z === cz)) return false;
+    const key = cellKey(cx, cz);
+    this.cellQueue = this.cellQueue.filter((q) => q.key !== key);
+    this.readyCells.delete(key);
+    this.physics.removeCell(key);
+    return true;
+  }
+
+  cellReady(cx: number, cz: number): boolean {
+    return !this.streamed || this.readyCells.has(cellKey(cx, cz));
+  }
+
+  /**
+   * Cells that must keep their colliders: every player's 3 × 3, plus the cell of any enemy that is
+   * fighting or leashing home, so a fight or a leash never runs onto unloaded ground.
+   */
+  cellAnchors(): [number, number][] {
+    if (!this.streamed) return [];
+    const out = new Map<string, [number, number]>();
+    for (const e of this.entities) {
+      const busyEnemy = e.brain && (e.brain.state === 'engage' || e.brain.state === 'leash');
+      if (e.kind !== 'player' && !busyEnemy) continue;
+      const [cx, cz] = cellOf(e.tf.pos.x, e.tf.pos.z);
+      const r = e.kind === 'player' ? 1 : 0;
+      for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) out.set(cellKey(cx + dx, cz + dz), [cx + dx, cz + dz]);
+    }
+    return [...out.values()].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  }
+
+  /** The player stands over a cell whose colliders aren't built yet: it is held still (veil). */
+  waitingForGround(): boolean {
+    const p = this.entities.find((e) => e.kind === 'player');
+    if (!p) return false;
+    const [cx, cz] = cellOf(p.tf.pos.x, p.tf.pos.z);
+    return !this.cellReady(cx, cz);
+  }
+
+  /** Build queued cells within the per-tick collider budget, player cells first. */
+  private applyCellQueue(): void {
+    if (!this.cellQueue.length) return;
+    const near = new Set(this.entities.filter((e) => e.kind === 'player').flatMap((e) => {
+      const [cx, cz] = cellOf(e.tf.pos.x, e.tf.pos.z);
+      const keys: string[] = [];
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) keys.push(cellKey(cx + dx, cz + dz));
+      return keys;
+    }));
+    this.cellQueue.sort((a, b) => Number(near.has(b.key)) - Number(near.has(a.key)));
+    let budget = CELL_COLLIDERS_PER_TICK;
+    while (budget > 0 && this.cellQueue.length) {
+      const q = this.cellQueue[0];
+      if (!q.bodyMade) {
+        this.physics.addCellBody(q.key, q.cells);
+        q.bodyMade = true;
+        budget--;
+      }
+      while (budget > 0 && q.next < q.cells.shapes.length) {
+        this.physics.addCellShape(q.key, q.cells.shapes[q.next++]);
+        budget--;
+      }
+      if (q.next >= q.cells.shapes.length) {
+        this.readyCells.add(q.key);
+        this.cellQueue.shift();
+      }
+    }
+  }
+
+  /** Bodies standing over a cell without colliders don't move or fall. */
+  private groundless(): Set<number> {
+    const out = new Set<number>();
+    if (!this.streamed) return out;
+    for (const e of this.entities) {
+      if (!e.body) continue;
+      const [cx, cz] = cellOf(e.tf.pos.x, e.tf.pos.z);
+      if (!this.readyCells.has(cellKey(cx, cz))) out.add(e.id);
+    }
+    return out;
+  }
+
   /** Start the wave runner (`?sandbox=1`): mixed waves around the arena, one after another. */
   startWaves(): void {
     this.wave = { index: 0, loop: 0, enemiesLeft: 0, nextIn: 90, ids: [] };
@@ -251,6 +367,7 @@ export class SimWorld {
       e.tf.prevPos.z = e.tf.pos.z;
       e.tf.prevYaw = e.tf.yaw;
     }
+    this.applyCellQueue();
     // Hit-stop: frozen entities skip this tick entirely (their clocks don't run).
     const frozen = new Set<number>();
     for (const e of this.entities) {
@@ -264,7 +381,8 @@ export class SimWorld {
     lockOn(ctx, commands, this.physics);
     playerCombat(ctx, commands, this.physics, (e) => this.spawnSpellProjectile(e));
     enemyBrains(ctx, this.rng.stream('ai'), this.physics, (o, m, t, a) => this.spawnProjectile(o, m, t, a));
-    locomotion(this.entities, commands, this.physics, this.events, motion, frozen);
+    const noGround = this.groundless();
+    locomotion(this.entities, commands, this.physics, this.events, motion, noGround.size ? new Set([...frozen, ...noGround]) : frozen);
     this.physics.step();
     resolveAttacks(ctx, this.physics);
     for (const id of stepProjectiles(ctx, this.physics)) this.remove(id);
@@ -346,6 +464,20 @@ export class SimWorld {
     delete e.statuses;
   }
 
+  /**
+   * Move a player instantly (respawn points, debug teleports, later fast travel), stopping its
+   * momentum and any pushback. The position is the feet.
+   */
+  teleportPlayer(player: PlayerId, pos: Vec3): void {
+    const e = this.playerEntity(player);
+    if (!e) return;
+    e.tf.pos = { ...pos };
+    e.tf.prevPos = { ...pos };
+    e.tf.vel = { x: 0, y: 0, z: 0 };
+    if (e.combat) e.combat.push = null;
+    this.physics.teleport(e.id, e.tf.pos);
+  }
+
   /** Anything that falls out of the world goes back to the spawn point. */
   private fallGuard(): void {
     for (const e of this.entities) {
@@ -360,7 +492,7 @@ export class SimWorld {
 
   /** Hash of the sim state (entities, players, rng streams, tick). Not Rapier's internals. */
   hash(): number {
-    return hashValue({ now: this.now, entities: this.entities, players: [...this.players], rng: this.rng.streams, wave: this.wave });
+    return hashValue({ now: this.now, entities: this.entities, players: [...this.players], rng: this.rng.streams, wave: this.wave, cells: [...this.readyCells].sort() });
   }
 
   snapshot(): SimSnapshot {

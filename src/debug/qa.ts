@@ -16,6 +16,8 @@ export interface QaApi {
   log?(clear?: boolean): QaEntry[];
   /** Rendered frames so far. */
   frame?(): number;
+  /** World mode: put the player at (x, z) on the terrain (app/App.ts qaTeleport). */
+  teleport?(x: number, z: number): boolean;
 }
 
 export function installQa(api: QaApi): void {

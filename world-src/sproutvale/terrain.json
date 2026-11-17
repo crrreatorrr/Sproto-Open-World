@@ -1,0 +1,56 @@
+{
+  "_doc": "Sproutvale terrain source (plan §3.6, §6.1). World metres: x east, z north, cell (cx, cz) covers [cx*64, cx*64+64). Baked by `npm run bake:world -- sproutvale`. Phases run in a fixed order whatever the file order: base fBm -> noise stamps -> raise -> flatten (file order) -> paths (file order) -> carve/bowl (deepest wins) -> border. Shapes: {rect:[x0,z0,x1,z1]} or {circle:[x,z,r]}, plus falloff metres (smoothstep). Flatten height 'auto' = the height at the shape's centre before the flatten phase.",
+  "id": "sproutvale",
+  "version": 1,
+  "seed": 20261117,
+  "origin": [0, 0],
+  "size": [8, 8],
+  "base": { "height": 10, "noise": { "amplitude": 2.5, "scale": 150, "octaves": 4, "persistence": 0.5, "lacunarity": 2 } },
+  "noise": [
+    { "id": "thornwood_rolling", "shape": { "rect": [72, 268, 392, 448] }, "falloff": 32, "amplitude": 3.5, "scale": 64, "octaves": 2, "persistence": 0.5, "lacunarity": 2 },
+    { "id": "orchard_soft", "shape": { "rect": [24, 64, 184, 252] }, "falloff": 24, "amplitude": 0.6, "scale": 48, "octaves": 2, "persistence": 0.5, "lacunarity": 2 }
+  ],
+  "raise": [
+    { "id": "watchtower_hill", "shape": { "circle": [256, 256, 86] }, "plateau": 16, "height": 22 },
+    { "id": "east_ridge", "shape": { "circle": [470, 330, 46] }, "plateau": 0, "height": 6 }
+  ],
+  "flatten": [
+    { "id": "orchard_fields", "shape": { "rect": [28, 72, 180, 248] }, "falloff": 28, "height": 9.5, "strength": 0.75 },
+    { "id": "sprout_hollow", "shape": { "rect": [204, 28, 316, 124] }, "falloff": 24, "height": 13.5, "strength": 1 },
+    { "id": "thornwood_clearing", "shape": { "circle": [222, 384, 20] }, "falloff": 14, "height": "auto", "strength": 1 },
+    { "id": "bridge_banks", "shape": { "circle": [404, 140, 14] }, "falloff": 12, "height": "auto", "strength": 1 },
+    { "id": "mill_yard", "shape": { "circle": [436, 252, 14] }, "falloff": 12, "height": "auto", "strength": 1 },
+    { "id": "beanstalk_base", "shape": { "circle": [96, 412, 10] }, "falloff": 10, "height": "auto", "strength": 1 }
+  ],
+  "paths": [
+    { "id": "village_orchard", "points": [[238, 72], [204, 90], [166, 116], [126, 146], [84, 170], [56, 176]], "halfWidth": 2.5, "flatten": 3.5, "falloff": 5, "strength": 0.8 },
+    { "id": "village_bridge", "points": [[300, 84], [334, 108], [366, 128], [391, 138]], "halfWidth": 2.5, "flatten": 3.5, "falloff": 5, "strength": 0.8 },
+    { "id": "bridge_mill", "points": [[417, 142], [430, 168], [438, 204], [436, 240]], "halfWidth": 2.2, "flatten": 3.5, "falloff": 5, "strength": 0.8 },
+    { "id": "village_quarry", "points": [[256, 124], [258, 168], [250, 212], [242, 248], [240, 290], [232, 338], [222, 384], [262, 396], [304, 398], [338, 410], [372, 428], [404, 444], [432, 452]], "halfWidth": 2.5, "flatten": 3.5, "falloff": 5, "strength": 0.8 },
+    { "id": "clearing_beanstalk", "points": [[222, 384], [182, 394], [142, 402], [104, 410]], "halfWidth": 2, "flatten": 3, "falloff": 4, "strength": 0.8 }
+  ],
+  "carve": [
+    { "id": "river", "points": [[424, 352, 0], [414, 304, 2.5], [400, 252, 2.5], [410, 196, 2.5], [404, 140, 2.5], [394, 96, 2.5], [400, 48, 2.5], [404, -16, 2.5]], "bedHalfWidth": 3, "bankWidth": 7 },
+    { "id": "quarry_ravine", "points": [[296, 398, 0], [330, 406, 3], [352, 414, 5.5], [380, 430, 8.5], [408, 444, 11], [432, 452, 12]], "bedHalfWidth": 6, "bankWidth": 18 }
+  ],
+  "bowl": [
+    { "id": "old_quarry", "center": [440, 452], "flatRadius": 26, "radius": 56, "depth": 12 }
+  ],
+  "border": { "cliffWidth": 8, "cliffHeight": 24, "softWidth": 16, "softHeight": 3 },
+  "splat": {
+    "_doc": "Layers grass, dirt, rock, path. Path paints its halfWidth fully and fades over pathFade metres. Rock follows slope (degrees, smoothstep) and the zones below; dirt follows zones. A zone is a shape (with falloff) or a spline id with a 'within' distance; patch adds value-noise patchiness (scale metres).",
+    "pathFade": 1.5,
+    "rockSlope": [32, 44],
+    "zones": [
+      { "layer": "dirt", "shape": { "rect": [204, 28, 316, 124] }, "falloff": 10, "weight": 0.35, "patch": 18 },
+      { "layer": "dirt", "shape": { "rect": [28, 72, 180, 248] }, "falloff": 16, "weight": 0.55, "patch": 14 },
+      { "layer": "dirt", "spline": "river", "within": 11, "fade": 3, "weight": 0.8 },
+      { "layer": "dirt", "spline": "quarry_ravine", "within": 10, "fade": 6, "weight": 0.7 },
+      { "layer": "rock", "spline": "quarry_ravine", "within": 22, "fade": 6, "weight": 0.35 },
+      { "layer": "rock", "shape": { "circle": [440, 452, 56] }, "falloff": 10, "weight": 0.45, "patch": 12 },
+      { "layer": "dirt", "shape": { "circle": [440, 452, 30] }, "falloff": 8, "weight": 0.6 },
+      { "layer": "dirt", "shape": { "rect": [72, 268, 392, 448] }, "falloff": 24, "weight": 0.25, "patch": 10 },
+      { "layer": "rock", "shape": { "circle": [256, 256, 18] }, "falloff": 6, "weight": 0.3, "patch": 8 }
+    ]
+  }
+}

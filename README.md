@@ -3,16 +3,24 @@
 A browser action RPG set in Sproutvale: fight up close with a staff and at range with spells,
 take quests, beat Scrapjaw. Built with Three.js, Rapier (physics), TypeScript and Vite.
 
-**Status: M1b, spells and groups (the second "is it fun" gate).** Fight with the staff up close
-and four spells at range: Arcane Bolt, Blast (burns), Frost Nova (chills, three stacks freeze) and
-Chain Zap (shocks). A spell cast right after a melee hit is *woven*: faster and stronger. Enemies
-have weaknesses: Sprout Grunts swarm, Coin Slingers keep their distance and shrug off spells,
-Hex Wisps float, shrug off the staff and blink away, and the Thornwood Brute resists magic but
-freezes easily. Groups take turns attacking. The plan is in
+**Status: M2, the streaming world.** Play drops you into a greybox **Sproutvale**: a 512 × 512 m
+valley streamed in 64 m cells as you move. It has a village plateau, Watchtower Hill, the Millrun
+river and its bridge, the orchard, Thornwood and the quarry ravine. You can explore it on foot.
+Camps, quests and NPCs come in M3 and M4. Combat from M1a and M1b works on its slopes. The plan is in
 [docs/plans/2026-11-17-first-area-plan.md](docs/plans/2026-11-17-first-area-plan.md).
 
-**Wave runner:** open http://localhost:5180/?sandbox=1 for mixed waves of 5–7 enemies that always
-pair opposite weaknesses. Without `?sandbox=1` you get the training yard (dummies and a Brute).
+| URL | What you get |
+|---|---|
+| http://localhost:5180/ | Sproutvale (the streamed world) |
+| http://localhost:5180/?yard=1 | The training yard: dummies and the Thornwood Brute |
+| http://localhost:5180/?sandbox=1 | The wave runner: mixed waves of 5–7 enemies |
+
+**In the yard and the wave runner** you fight with the staff (three-hit combo, chargeable heavy,
+dodge roll, block and parry) and four spells: Arcane Bolt, Blast (burns), Frost Nova (chills; three
+stacks freeze) and Chain Zap (shocks). A spell cast right after a melee hit is *woven*: faster and
+stronger. Each enemy type has weaknesses: Sprout Grunts swarm, Coin Slingers keep their distance and
+resist magic, Hex Wisps float, resist the staff and blink away, and the Brute resists magic but
+freezes easily.
 
 ## Run it
 
@@ -43,7 +51,7 @@ Then open http://localhost:5180.
 Everything is remappable in Settings → Controls, and the prompts switch to your pad's glyphs when
 you use it.
 
-**The yard:** a passive dummy and a swinging dummy (practise parrying) just ahead to the left, a
+**The yard (`?yard=1`):** a passive dummy and a swinging dummy (practise parrying) just ahead to the left, a
 coin-shooting dummy behind you to the right (parry the coin to send it back), and the Brute further
 behind you. Its slam is unblockable: red, a jagged ring on the ground and its own sound, so dodge
 it. If you die you're back at the start after two seconds, and the yard resets.
@@ -61,6 +69,8 @@ clips.
 | `src/app` | The game shell: loop, states, wiring |
 | `src/input`, `src/camera`, `src/render`, `src/ui`, `src/audio` | Presentation and devices |
 | `art/` | Blender sources and the player's melee clip pipeline (`art/README.md`) |
+| `world-src/`, `public/world/` | World sources (terrain stamps, placements) and the baked cells (`npm run bake:world -- sproutvale`) |
+| `src/world`, `src/workers` | The client-side streamer, terrain meshes, prop instancing and the horizon |
 | `tools/` | Asset import and the move-data generator |
 | `scripts/` | Asset, budget and production-build checks |
 | `tests/` | Vitest suites, and `e2e/smoke.mjs` (Playwright, gamepad-only) |

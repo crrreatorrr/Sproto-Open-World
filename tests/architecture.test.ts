@@ -36,7 +36,8 @@ describe('architecture', () => {
   });
 
   it('the sim never imports render, ui, world, app, audio, input, camera or debug', () => {
-    const outside = /(^|\/)(render|ui|world|app|audio|input|camera|debug|assets)\//;
+    // Top-level client folders only: src/content/world (the shared pure format) is fine.
+    const outside = /^(render|ui|world|app|audio|input|camera|debug|assets|workers)\//;
     for (const f of pure) {
       for (const imp of imports(code(f))) {
         if (!imp.startsWith('.')) continue;

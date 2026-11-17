@@ -252,6 +252,328 @@
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "4db33e1e34aa721c4ab1b62f972dada406afefc6de5d5709958d23fbd508ac84"
     },
+    "models/props/frost_beacon-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/frost_beacon.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "edbfe49e4c63358af188734dd2145f55c738678b2eaa5b388cd58a8bff0242d9",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/frost_beacon.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/frost_beacon.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "edbfe49e4c63358af188734dd2145f55c738678b2eaa5b388cd58a8bff0242d9",
+      "derived": "meshopt"
+    },
+    "models/props/frost_gate-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/frost_gate.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "342695bc616f46ddc6ab00493dbeafbad45636fe6cbb8e000dcd3529a3734e6f",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/frost_gate.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/frost_gate.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "342695bc616f46ddc6ab00493dbeafbad45636fe6cbb8e000dcd3529a3734e6f",
+      "derived": "meshopt"
+    },
+    "models/props/grove_barn_roof-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_barn_roof.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "d5e5ed0773a93e7fe7b731423c76d40011252d7461d28029c3e71bfe324f2d3b",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_barn_roof.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_barn_roof.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "d5e5ed0773a93e7fe7b731423c76d40011252d7461d28029c3e71bfe324f2d3b",
+      "derived": "meshopt"
+    },
+    "models/props/grove_beanstalk-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_beanstalk.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "10ce08ad04a9258342c97898e1bca9dc4cba320baf07b5a2ab9d428663822060",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_beanstalk.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_beanstalk.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "10ce08ad04a9258342c97898e1bca9dc4cba320baf07b5a2ab9d428663822060",
+      "derived": "meshopt"
+    },
+    "models/props/grove_boulder-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_boulder.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "8205da808cb238a337514d85fd77b21b843bebc703d89103c3f030b9336a57a5",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_boulder.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_boulder.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "8205da808cb238a337514d85fd77b21b843bebc703d89103c3f030b9336a57a5",
+      "derived": "meshopt"
+    },
+    "models/props/grove_bridge-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_bridge.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "8b4dcf39bcffab88a7537b6022caf99fb6349f11e48be35153cd96a1a17c690e",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_bridge.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_bridge.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "8b4dcf39bcffab88a7537b6022caf99fb6349f11e48be35153cd96a1a17c690e",
+      "derived": "meshopt"
+    },
+    "models/props/grove_crops-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_crops.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "073785ff18ba31d5a8a7f8d4f0721cd1a61f8edd186c471517e4df481051148f",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_crops.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_crops.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "073785ff18ba31d5a8a7f8d4f0721cd1a61f8edd186c471517e4df481051148f",
+      "derived": "meshopt"
+    },
+    "models/props/grove_hay-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_hay.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "8f74fbafcc5a270701b753409fdf6c7220ce822d03194b4505f16590665ec960",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_hay.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_hay.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "8f74fbafcc5a270701b753409fdf6c7220ce822d03194b4505f16590665ec960",
+      "derived": "meshopt"
+    },
+    "models/props/grove_hedge-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_hedge.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "8f608591cb179c3ffaa36f4a65ad89890ef6a5a96927e423ea515bad9cad68f3",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_hedge.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_hedge.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "8f608591cb179c3ffaa36f4a65ad89890ef6a5a96927e423ea515bad9cad68f3",
+      "derived": "meshopt"
+    },
+    "models/props/grove_pines-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_pines.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "b2744cbe5a83faf127602765a49972d014c7299bfab151656fdfd0c45384e115",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_pines.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_pines.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "b2744cbe5a83faf127602765a49972d014c7299bfab151656fdfd0c45384e115",
+      "derived": "meshopt"
+    },
+    "models/props/grove_pumpkin-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_pumpkin.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "c921989de66751d738305c083558725e19d793feb9c77bd014fb6119abf24bd7",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_pumpkin.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_pumpkin.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "c921989de66751d738305c083558725e19d793feb9c77bd014fb6119abf24bd7",
+      "derived": "meshopt"
+    },
+    "models/props/grove_reeds-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_reeds.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "5f409fd3ba0b543d56eb1737664d274f4d4980fa06164ff344c2adb744dd1f46",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_reeds.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_reeds.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "5f409fd3ba0b543d56eb1737664d274f4d4980fa06164ff344c2adb744dd1f46",
+      "derived": "meshopt"
+    },
+    "models/props/grove_root_wall-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_root_wall.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "0a6ee82bb5c5322ca96047b19fe1e12c488d3b2b2dfcf978e328cebd568f1877",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_root_wall.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_root_wall.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "0a6ee82bb5c5322ca96047b19fe1e12c488d3b2b2dfcf978e328cebd568f1877",
+      "derived": "meshopt"
+    },
+    "models/props/grove_scarecrow-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_scarecrow.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "5881150a94467e531348e5c1d107a87b105f0a08de104246f6f5a93cd3c5763a",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_scarecrow.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_scarecrow.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "5881150a94467e531348e5c1d107a87b105f0a08de104246f6f5a93cd3c5763a",
+      "derived": "meshopt"
+    },
+    "models/props/grove_shed-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_shed.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "75911e1d690b8dedabb7e117240cf2e36b1a63b3c84c74266a845e33753d25c7",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_shed.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_shed.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "75911e1d690b8dedabb7e117240cf2e36b1a63b3c84c74266a845e33753d25c7",
+      "derived": "meshopt"
+    },
+    "models/props/grove_silo-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_silo.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "5e9a3ca707dafbe4b3221d6658dc8aa55b550b585b4e71d4954cafc1307b110c",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_silo.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_silo.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "5e9a3ca707dafbe4b3221d6658dc8aa55b550b585b4e71d4954cafc1307b110c",
+      "derived": "meshopt"
+    },
+    "models/props/grove_stones-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_stones.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "d3a30df431ad670766d2a1bd0ad4bfff5e0d7c5bd2ba08094c9c416a20523eba",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_stones.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_stones.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "d3a30df431ad670766d2a1bd0ad4bfff5e0d7c5bd2ba08094c9c416a20523eba",
+      "derived": "meshopt"
+    },
+    "models/props/grove_tower-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_tower.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "63016c594a077d7968487896aa04e0dca0f8d64249553d5fbbd599451a0dce2b",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_tower.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_tower.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "63016c594a077d7968487896aa04e0dca0f8d64249553d5fbbd599451a0dce2b",
+      "derived": "meshopt"
+    },
+    "models/props/grove_tree-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_tree.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "b0ea18089894b18e109f98da5eac7b00b3ea6994468cb5ffaa57907ea7f94c3e",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_tree.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_tree.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "b0ea18089894b18e109f98da5eac7b00b3ea6994468cb5ffaa57907ea7f94c3e",
+      "derived": "meshopt"
+    },
+    "models/props/grove_water_tower-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_water_tower.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "faf1b29d38e95aac7b3599c4dc3336fa7bc85e6e77f53ac961a201f53ae6d055",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/grove_water_tower.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/grove_water_tower.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "faf1b29d38e95aac7b3599c4dc3336fa7bc85e6e77f53ac961a201f53ae6d055",
+      "derived": "meshopt"
+    },
+    "models/props/skyline_crane-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/skyline_crane.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "89e0ccbd4fbf0029b54191866bcdb12fe1b69291edeabd6d840a1b9a1988e214",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/skyline_crane.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/skyline_crane.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "89e0ccbd4fbf0029b54191866bcdb12fe1b69291edeabd6d840a1b9a1988e214",
+      "derived": "meshopt"
+    },
+    "models/props/underworks_hoist-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/underworks_hoist.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "8c60c99a4ffa0fd7f51f95240432d75c1ae3d46440abe9d0238affcac3bfa2b2",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/underworks_hoist.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/underworks_hoist.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "8c60c99a4ffa0fd7f51f95240432d75c1ae3d46440abe9d0238affcac3bfa2b2",
+      "derived": "meshopt"
+    },
+    "models/props/well-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/well.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "12f7c69cfd30349a734854e01bce07dbbb2a4d28f6394c70c6c2b18efc30eec7",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/well.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/well.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "12f7c69cfd30349a734854e01bce07dbbb2a4d28f6394c70c6c2b18efc30eec7",
+      "derived": "meshopt"
+    },
     "models/staffs/staff_fighters_might-lod1.glb": {
       "repo": "sproto-duel",
       "path": "public/assets/models/staffs/staff_fighters_might-lod1.glb",

@@ -3,6 +3,7 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { MODELS, type ModelEntry, type ModelKey } from './manifest';
+import { RequestQueue, type Priority } from './RequestQueue';
 import { prepareRig } from './rig';
 
 /** Requests in flight at once (the shooter's loader; plan §3.3). */
@@ -28,15 +29,15 @@ export interface ModelInstance {
  * so a missing file never stops the game.
  */
 export class AssetLoader {
-  private readonly gltf = new GLTFLoader();
+  private readonly gltfLoader = new GLTFLoader();
   private readonly templates = new Map<ModelKey, Promise<ModelTemplate>>();
   private readonly refs = new Map<ModelKey, number>();
-  private readonly queue: (() => void)[] = [];
-  private active = 0;
+  /** Shared with the world streamer's cell fetches (plan §3.3: one NOW/LATER queue, 4 in flight). */
+  readonly queue = new RequestQueue(PARALLEL);
   private readonly textures = new THREE.TextureLoader();
 
   constructor(private readonly base = import.meta.env.BASE_URL + 'assets/') {
-    this.gltf.setMeshoptDecoder(MeshoptDecoder);
+    this.gltfLoader.setMeshoptDecoder(MeshoptDecoder);
   }
 
   /** Load (once) and return the template for a model key. */
@@ -73,27 +74,23 @@ export class AssetLoader {
     return tex;
   }
 
+  /**
+   * Load any GLB under public/assets (world props, the horizon) through the shared queue. Not
+   * cached here: the caller owns the result and its refcount (world/PropInstancer.ts).
+   */
+  gltf(path: string, priority: Priority = 'later'): Promise<GLTF> {
+    return this.queue.run(() => this.gltfLoader.loadAsync(import.meta.env.BASE_URL + path), priority).promise;
+  }
+
   private schedule<T>(job: () => Promise<T>): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      const run = () => {
-        this.active++;
-        job()
-          .then(resolve, reject)
-          .finally(() => {
-            this.active--;
-            this.queue.shift()?.();
-          });
-      };
-      if (this.active < PARALLEL) run();
-      else this.queue.push(run);
-    });
+    return this.queue.run(job, 'now').promise;
   }
 
   private async loadTemplate(key: ModelKey): Promise<ModelTemplate> {
     const entry = MODELS[key];
     let gltf: GLTF;
     try {
-      gltf = await this.gltf.loadAsync(this.base + entry.path);
+      gltf = await this.gltfLoader.loadAsync(this.base + entry.path);
     } catch (err) {
       console.warn(`[assets] ${entry.path} failed to load, using a placeholder`, err);
       return { key, scene: placeholder(key), clips: [], real: false };

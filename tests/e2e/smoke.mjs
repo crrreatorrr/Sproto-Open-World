@@ -3,6 +3,7 @@
  * Smoke test (plan §8; M0 and M1a acceptance): boots the game in headless Chromium against the Vite
  * dev server and drives it with a simulated gamepad only:
  *
+ *   on the training yard (`?yard=1`; plain `/` is Sproutvale, covered by world.mjs):
  *   title → Settings → Controls → back → back → Play → move, jump → pause → Settings → back → Resume
  *   → WebGL context lost and restored → walk to a training dummy → RB (light attack)
  *   then, on a fresh page with `?sandbox=1` (the M1b wave runner): Play → the first wave spawns →
@@ -100,7 +101,8 @@ async function shot(name) {
 }
 
 try {
-  await page.goto(url);
+  // The M1 checks run in the training yard (`?yard=1`); Sproutvale has its own test (world.mjs).
+  await page.goto(`${url}?yard=1`);
   await page.waitForFunction(() => window.__qa?.ready && window.__qa.state().screen === 'screen-title', null, { timeout: 30000 });
   check(true, 'boots to the title screen');
   await shot('01-title');
@@ -323,25 +325,35 @@ try {
     check(s.player.lock !== null, 'R3 locks on to a wave enemy', JSON.stringify(s.player.lock));
     await frames(5);
 
-    const before = (await state()).player.mana;
-    await page.evaluate(() => window.__qa.log(true));
-    await page.evaluate(() => window.__pad.set('lt', true));
-    await frames(3);
-    await press('x');
-    await page.evaluate(() => window.__pad.set('lt', false));
-    // Watch for the bolt in flight (or its hit) for up to ~2 s of frames.
-    let inFlight = false, castMana = before;
-    for (let i = 0; i < 40; i++) {
-      const st = await state();
-      castMana = Math.min(castMana, st.player.mana ?? Infinity);
-      if (st.projectiles.some((p) => p.spell === 'bolt')) inFlight = true;
-      const lg = await page.evaluate(() => window.__qa.log());
-      if (inFlight && lg.some((e) => e.kind === 'cast')) break;
-      if (lg.some((e) => e.kind === 'hit' && e.what === 'bolt')) break;
-      await frames(2);
+    // A Grunt's hit cancels a cast (hitstun replaces it), and in a live wave they reach you, so
+    // try a few casts and judge the first that gets through (or the last one, if none does).
+    let before = null, inFlight = false, castMana = null, log = [];
+    for (let attempt = 0; attempt < 5; attempt++) {
+      // Wait until the player is free (not in hitstun or mid-action) before pressing.
+      for (let i = 0; i < 60 && (await state()).player.action; i++) await frames(2);
+      before = (await state()).player.mana;
+      castMana = before;
+      inFlight = false;
+      await page.evaluate(() => window.__qa.log(true));
+      await page.evaluate(() => window.__pad.set('lt', true));
+      await frames(3);
+      await press('x');
+      await page.evaluate(() => window.__pad.set('lt', false));
+      // Watch for the bolt in flight (or its hit) for up to ~2 s of frames.
+      for (let i = 0; i < 40; i++) {
+        const st = await state();
+        castMana = Math.min(castMana, st.player.mana ?? Infinity);
+        if (st.projectiles.some((p) => p.spell === 'bolt')) inFlight = true;
+        const lg = await page.evaluate(() => window.__qa.log());
+        if (inFlight && lg.some((e) => e.kind === 'cast')) break;
+        if (lg.some((e) => e.kind === 'hit' && e.what === 'bolt')) break;
+        await frames(2);
+      }
+      log = await page.evaluate(() => window.__qa.log());
+      if (log.some((e) => e.kind === 'cast' && e.what === 'bolt')) break;
+      console.log(`  info cast attempt ${attempt + 1} was cut off (${log.filter((e) => e.kind === 'hit').length} hits on the way); retrying`);
     }
     await shot('08-bolt');
-    const log = await page.evaluate(() => window.__qa.log());
     const started = log.find((e) => e.kind === 'castStart' && e.what === 'bolt');
     check(!!started, 'LT + X starts an Arcane Bolt cast', JSON.stringify(log.filter((e) => ['castStart', 'noMana', 'cooldown'].includes(e.kind))));
     check(log.some((e) => e.kind === 'castPose' && e.what === 'bolt'), 'the cast shows on the upper body');
