@@ -30,10 +30,12 @@ export interface InputCommand {
   camYaw: number;
   held: number;
   pressed: number;
+  /** Switch the hard lock to the next target left (-1) or right (+1) of the current one. */
+  lockSwitch: number;
 }
 
 export type Command = InputCommand;
 
 export type CommandMap = ReadonlyMap<PlayerId, Command>;
 
-export const idleInput = (camYaw = 0): InputCommand => ({ kind: 'input', move: { x: 0, y: 0 }, camYaw, held: 0, pressed: 0 });
+export const idleInput = (camYaw = 0): InputCommand => ({ kind: 'input', move: { x: 0, y: 0 }, camYaw, held: 0, pressed: 0, lockSwitch: 0 });

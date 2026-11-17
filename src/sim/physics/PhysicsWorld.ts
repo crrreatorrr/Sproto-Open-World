@@ -107,7 +107,7 @@ export class PhysicsWorld {
     const collider = this.world.createCollider(
       RAPIER.ColliderDesc.capsule(half, body.radius)
         .setTranslation(feet.x, feet.y + centerOffset, feet.z)
-        .setCollisionGroups(groups(GROUP.CHARACTER, GROUP.WORLD)),
+        .setCollisionGroups(groups(GROUP.CHARACTER, GROUP.WORLD | GROUP.CHARACTER)),
     );
     this.characters.set(id, { collider, centerOffset });
   }
@@ -132,7 +132,8 @@ export class PhysicsWorld {
     if (!c) return { moved: { x: delta.x, y: delta.y, z: delta.z }, grounded: false };
     // Start from the sim's position (it is the authority; Rapier state is derived from it).
     c.collider.setTranslation({ x: feet.x, y: feet.y + c.centerOffset, z: feet.z });
-    this.controller.computeColliderMovement(c.collider, delta, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, groups(GROUP.CHARACTER, GROUP.WORLD));
+    // Characters slide against the world and against each other (no walking through the Brute).
+    this.controller.computeColliderMovement(c.collider, delta, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, groups(GROUP.CHARACTER, GROUP.WORLD | GROUP.CHARACTER));
     const m = this.controller.computedMovement();
     const moved = { x: m.x, y: m.y, z: m.z };
     c.collider.setTranslation({ x: feet.x + moved.x, y: feet.y + moved.y + c.centerOffset, z: feet.z + moved.z });

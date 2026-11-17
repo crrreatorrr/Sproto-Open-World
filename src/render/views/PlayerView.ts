@@ -1,15 +1,17 @@
 import * as THREE from 'three';
 import type { AssetLoader, ModelInstance } from '../../assets/AssetLoader';
 import { STAFF_SOCKET, type ModelKey } from '../../assets/manifest';
+import { PLAYER_MOVES, ROLL, type PlayerMoveId } from '../../content/combat';
+import { PLAYER_MOVE_TIMING } from '../../content/generated/playerMoveTiming';
+import { TICK_HZ } from '../../content/tuning';
 import type { Entity } from '../../sim/entity';
-import { Animator } from '../anim/Animator';
+import { Animator, ENTRY_FADE } from '../anim/Animator';
+import { placeEntity } from './interp';
 
-const lerpAngle = (a: number, b: number, t: number) => {
-  let d = (b - a) % (Math.PI * 2);
-  if (d > Math.PI) d -= Math.PI * 2;
-  if (d < -Math.PI) d += Math.PI * 2;
-  return a + d * t;
-};
+/** The block clip holds on this clip tick while the guard is up (plan §4.3). */
+const BLOCK_HOLD = PLAYER_MOVE_TIMING.block.holdFrom;
+/** Falling over is slower to blend into than a combat entry. */
+const DEATH_FADE = 0.12;
 
 /** Draws one player entity: the rigged model, its staff on `socket_staff`, and its animation. */
 export class PlayerView {
@@ -19,6 +21,8 @@ export class PlayerView {
   private staff: ModelInstance | null = null;
   /** The staff attached to the socket (false: no socket, or no staff model). */
   staffMounted = false;
+  /** The last update showed an attack clip at the sim's clip tick (QA: command → pose). */
+  attackShown = false;
 
   constructor(private readonly assets: AssetLoader) {}
 
@@ -43,13 +47,63 @@ export class PlayerView {
     this.staffMounted = true;
   }
 
-  /** Interpolate between the last two ticks and advance the animation. */
+  /** Interpolate between the last two ticks and pose the model from the sim's state. */
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
-    const { pos, prevPos, yaw, prevYaw } = e.tf;
-    this.root.position.set(prevPos.x + (pos.x - prevPos.x) * alpha, prevPos.y + (pos.y - prevPos.y) * alpha, prevPos.z + (pos.z - prevPos.z) * alpha);
-    this.root.rotation.y = lerpAngle(prevYaw, yaw, alpha);
-    const loco = e.loco;
-    this.animator?.update(dt, { grounded: loco?.grounded ?? true, speed: loco?.speed ?? 0, sprinting: loco?.sprinting ?? false });
+    placeEntity(this.root, e, alpha);
+    const anim = this.animator;
+    if (!anim) return;
+    this.attackShown = false;
+    if (!this.pose(e, anim)) {
+      const loco = e.loco;
+      const speed = loco?.speed ?? 0;
+      // Locked on (and not sprinting) the body faces the target: legs follow velocity vs facing.
+      const locked = e.combat?.lock != null && !(loco?.sprinting ?? false);
+      let strafe: { x: number; z: number } | undefined;
+      if (locked) {
+        const s = Math.sin(e.tf.yaw), c = Math.cos(e.tf.yaw);
+        const { x: vx, z: vz } = e.tf.vel;
+        strafe = { x: -c * vx + s * vz, z: s * vx + c * vz };
+      }
+      anim.locomotion({ grounded: loco?.grounded ?? true, speed, sprinting: loco?.sprinting ?? false, strafe });
+    }
+    anim.update(dt);
+  }
+
+  /**
+   * Combat actions are scrubbed from the sim's tick counters (plan §4.2), never free-run, so the
+   * pose always is the frame data and hit-stop freezes it. Returns false in free locomotion.
+   */
+  private pose(e: Readonly<Entity>, anim: Animator): boolean {
+    const a = e.combat?.action;
+    if (!a) return false;
+    switch (a.kind) {
+      case 'attack': {
+        const def = PLAYER_MOVES[a.move as PlayerMoveId];
+        if (!def) return false;
+        this.attackShown = anim.scrub(def.clip, a.clipT / TICK_HZ, ENTRY_FADE);
+        return true;
+      }
+      case 'dodge':
+        anim.scrub(ROLL.clip, (Math.min(a.t, ROLL.ticks) / ROLL.ticks) * anim.duration(ROLL.clip));
+        return true;
+      case 'block':
+        // Raise, then hold on the hold marker while the button stays down.
+        anim.scrub('block', Math.min(a.t, BLOCK_HOLD) / TICK_HZ);
+        return true;
+      case 'hitstun':
+        anim.scrub('hit', (Math.min(a.t, a.dur) / Math.max(1, a.dur)) * anim.duration('hit'));
+        return true;
+      case 'stagger': {
+        const d = anim.duration('stun');
+        anim.scrub('stun', d > 0 ? (a.t / TICK_HZ) % d : 0);
+        return true;
+      }
+      case 'dead':
+        anim.scrub('defeat', a.t / TICK_HZ, DEATH_FADE);
+        return true;
+      default:
+        return false;
+    }
   }
 
   dispose(): void {

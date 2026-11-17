@@ -19,9 +19,28 @@ export const CAM = {
   closeRise: 0.6,
   jumpRiseSharpness: 5,
   jumpMaxLag: 0.6,
+  /** Hard lock (plan §4.1): the pivot sits this far from the player toward the target (0.3 = 70% toward the player). */
+  lockPivot: 0.3,
+  /**
+   * …but never more than this (m). The 30% is for melee range; locking a target 15 m away would
+   * otherwise slide the pivot 4.5 m out and put the camera inside the player.
+   */
+  lockPivotMax: 1.6,
+  /** How fast yaw turns to face the target (exponential sharpness). */
+  lockYawSharpness: 7,
+  /** Pitch clamp while locked: −35° to +20°. */
+  lockMinPitch: (-35 * Math.PI) / 180,
+  lockMaxPitch: (20 * Math.PI) / 180,
 } as const;
 
 const damp = (a: number, b: number, sharpness: number, dt: number) => a + (b - a) * (1 - Math.exp(-sharpness * dt));
+/** Damp an angle along the short way round. */
+const dampAngle = (a: number, b: number, sharpness: number, dt: number) => {
+  let d = (b - a) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return a + d * (1 - Math.exp(-sharpness * dt));
+};
 
 /**
  * Third-person camera, ported from sproto-duel `src/camera/CameraRig.ts`: raw mouse rotation (no
@@ -90,10 +109,24 @@ export class CameraRig {
     this.trauma = Math.min(1, this.trauma + amount);
   }
 
-  update(dt: number, target: THREE.Vector3, view: ReadonlySimView, sprinting: boolean): void {
+  /**
+   * Follow `target` (the player's feet). With `lockOn` (the locked enemy's chest), the pivot moves
+   * part of the way toward it and yaw eases round to face it; the player keeps pitch control
+   * within the lock clamp, and App stops feeding horizontal look into yaw.
+   */
+  update(dt: number, target: THREE.Vector3, view: ReadonlySimView, sprinting: boolean, lockOn: THREE.Vector3 | null = null): void {
     this.time += dt;
     this.trauma = Math.max(0, this.trauma - CAM.shakeDecay * dt);
     this.tmp.set(target.x, target.y + CAM.height, target.z);
+    if (lockOn) {
+      const dx = lockOn.x - target.x, dz = lockOn.z - target.z;
+      const shift = Math.min(CAM.lockPivot, CAM.lockPivotMax / Math.max(1e-3, Math.hypot(dx, dz)));
+      this.tmp.x += dx * shift;
+      this.tmp.z += dz * shift;
+      if (dx * dx + dz * dz > 0.04) this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), CAM.lockYawSharpness, dt);
+      // Ease into the lock's pitch range rather than snapping when the lock starts.
+      this.pitch = damp(this.pitch, Math.min(CAM.lockMaxPitch, Math.max(CAM.lockMinPitch, this.pitch)), 12, dt);
+    }
     if (!this.hasPivot) {
       this.pivot.copy(this.tmp);
       this.hasPivot = true;

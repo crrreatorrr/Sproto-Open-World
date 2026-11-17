@@ -23,7 +23,7 @@ const OUT = path.join(ROOT, 'public', 'assets');
 const force = process.argv.includes('--force');
 
 const DUEL = 'sproto-duel';
-// sproto-shooter (enemies, props: `*.glb.gz`) joins the list in M1a/M2.
+const SHOOTER = 'sproto-shooter';
 
 /** [repo, source path under the repo, destination under public/assets]. */
 const FILES = [
@@ -37,8 +37,11 @@ const FILES = [
   [DUEL, 'public/assets/textures/themes/grove/floor.jpg', 'textures/grove/floor.jpg'],
   [DUEL, 'public/assets/textures/themes/grove/stone.jpg', 'textures/grove/stone.jpg'],
   [DUEL, 'public/assets/textures/themes/grove/sky.jpg', 'textures/grove/sky.jpg'],
-  // Sounds used from M0/M1: menus, movement, hits and guards.
-  ...['uiClick', 'uiHover', 'dodge', 'clash', 'hurt', 'shieldBlock', 'shieldPerfect', 'shieldUp', 'boltCast', 'boltHit', 'blastExplode', 'noMana'].map(
+  // M1a: the Thornwood Brute (punch, kick, idle, walk, run clips; elite tier, 19.5k triangles).
+  [SHOOTER, 'public/assets/models/characters/sproto_monster.glb', 'models/elites/brute.glb'],
+  // Sounds used from M0/M1: menus, movement, hits, guards, swings, lock-on and telegraphs.
+  ...['uiClick', 'uiHover', 'dodge', 'clash', 'hurt', 'shieldBlock', 'shieldPerfect', 'shieldUp', 'boltCast', 'boltHit', 'blastExplode', 'noMana',
+    'rugWhoosh', 'carpetWhoosh', 'lockBeep', 'stunCharge', 'bossSlam', 'pillarHit', 'roundLose'].map(
     (id) => [DUEL, `public/assets/audio/placeholder/${id}.wav`, `audio/${id}.wav`],
   ),
 ];

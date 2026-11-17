@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { MODELS, type ModelKey } from './manifest';
+import { MODELS, type ModelEntry, type ModelKey } from './manifest';
 import { prepareRig } from './rig';
 
 /** Requests in flight at once (the shooter's loader; plan §3.3). */
@@ -106,14 +106,38 @@ export class AssetLoader {
         mesh.receiveShadow = true;
       }
     });
-    if ('rigged' in entry && entry.rigged) prepareRig(scene, gltf.animations);
+    const e: ModelEntry = entry;
+    // In-place clips keep their root motion: only the culling half of prepareRig applies.
+    if (e.rigged) prepareRig(scene, e.inPlace ? [] : gltf.animations);
     if ('clips' in entry && entry.clips) {
       const have = new Set(gltf.animations.map((c) => c.name));
       const missing = entry.clips.filter((c) => !have.has(c));
       if (missing.length) console.warn(`[assets] ${key} is missing clips: ${missing.join(', ')}`);
     }
-    return { key, scene, clips: gltf.animations, real: true };
+    return { key, scene: e.fitHeight ? fitModel(scene, e.fitHeight, e.rotationY ?? 0) : scene, clips: gltf.animations, real: true };
   }
+}
+
+/**
+ * Wrap a model in a holder so it stands `height` m tall with its feet on y = 0, turned by
+ * `rotationY`. Measured on the skinned vertices in the rest pose (a skinned mesh's own bounds are
+ * the bind geometry's, which can sit anywhere). The holder is the template: instances clone it, and
+ * the animation mixer binds to the bones by name underneath it.
+ */
+function fitModel(scene: THREE.Group, height: number, rotationY: number): THREE.Group {
+  const holder = new THREE.Group();
+  holder.name = `fit:${scene.name}`;
+  scene.rotation.y = rotationY;
+  holder.add(scene);
+  holder.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(holder, true);
+  const h = box.max.y - box.min.y;
+  if (!(h > 1e-3)) return holder;
+  const s = height / h;
+  scene.scale.multiplyScalar(s);
+  scene.position.y -= box.min.y * s;
+  holder.updateMatrixWorld(true);
+  return holder;
 }
 
 function placeholder(key: ModelKey): THREE.Group {
@@ -129,6 +153,9 @@ function placeholder(key: ModelKey): THREE.Group {
     body.position.y = 0.9;
     body.castShadow = true;
     g.add(body);
+    // The capsule is 1.8 m: stretch it to a fitted model's height (the Brute's stand-in is 2.4 m).
+    const fit = (MODELS[key] as ModelEntry).fitHeight;
+    if (fit) g.scale.setScalar(fit / 1.8);
   }
   return g;
 }
