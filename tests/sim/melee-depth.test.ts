@@ -99,6 +99,32 @@ describe('sprint attacks', () => {
     w.dispose();
   });
 
+  it('a free drive stops dead on whatever it connects with', async () => {
+    const { w, p } = await combatWorld();
+    sprintUp(w, p);
+    step(w, press(BTN.light, SPRINT));
+    // Set down after the press, so the swing has no target to close on: it is only driving.
+    const d = w.spawnEnemy('dummy_passive', { x: 0, y: 0, z: p.tf.pos.z + 2.5 }, Math.PI);
+    let at = -1;
+    for (let i = 0; i < 12 && at < 0; i++) if (hitsOn(stepN(w, 1), d.id).length) at = p.tf.pos.z;
+    expect(at).toBeGreaterThan(0);
+    expect(attack(p)!.clipT).toBeLessThan(clipTiming('attack_light_1').activeEnd);
+    stepN(w, 12);
+    expect(p.tf.pos.z).toBe(at);
+    w.dispose();
+  });
+
+  it('the stick can not turn a driving strike once it is active', async () => {
+    const { w, p } = await combatWorld();
+    sprintUp(w, p);
+    step(w, press(BTN.light, SPRINT));
+    stepN(w, clipTiming('attack_light_1').activeStart);
+    const dir = { ...attack(p)!.lungeDir };
+    stepN(w, 4, () => cmd({ move: { x: 1, y: 0 } }));
+    expect(attack(p)!.lungeDir).toEqual(dir);
+    w.dispose();
+  });
+
   it('a walk or a run is not a sprint: the normal opener comes out', async () => {
     const { w, p } = await combatWorld();
     stepN(w, 20, () => cmd(FORWARD));
