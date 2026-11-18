@@ -242,6 +242,20 @@
       "sourceSha256": "2029b8ea482fa238d7f9dbf9d11daed2a5a3260612fe5c6be1a1ed89fa9604fa",
       "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
     },
+    "models/elites/robot_laser.glb": {
+      "repo": "sproto-shooter-bosses",
+      "path": "dist/assets/models/characters/robot_laser.glb",
+      "commit": "18a3420397146dafa6fdb675f81770d902148862",
+      "sourceSha256": "7375849e5272442987e915317de31b74ca4145263ad6f8e2cedb44564eac635d",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "models/elites/robot_shooter.glb": {
+      "repo": "sproto-shooter-bosses",
+      "path": "dist/assets/models/characters/robot_shooter.glb",
+      "commit": "18a3420397146dafa6fdb675f81770d902148862",
+      "sourceSha256": "1a982afd77ee309e6f900b3c414ed5f356a964e1b3adb949db34d1b0e3a92ffb",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
     "models/enemies/grunt_vet.glb": {
       "repo": "sproto-shooter",
       "path": "public/assets/models/characters/midget_stage2.glb",
