@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Entity } from '../../src/sim/entity';
-import { CORPSE_TICKS, VIEW_DROP_RANGE, VIEW_MAKE_RANGE, wantsView } from '../../src/render/views/viewCull';
+import { CORPSE_TICKS, SHADOW_OFF_RANGE, SHADOW_ON_RANGE, VIEW_DROP_RANGE, VIEW_MAKE_RANGE, castsShadow, wantsView } from '../../src/render/views/viewCull';
 
 const at = (x: number, extra: Partial<Entity> = {}): Entity => ({
   id: 1, kind: 'enemy', view: { model: 'grunt' },
@@ -35,5 +35,18 @@ describe('wantsView', () => {
     const dead = (t: number) => ({ ...brain, combat: { action: { kind: 'dead', t } } }) as unknown as Partial<Entity>;
     expect(wantsView(at(1, dead(CORPSE_TICKS)), player, true)).toBe(true);
     expect(wantsView(at(1, dead(CORPSE_TICKS + 1)), player, true)).toBe(false);
+  });
+});
+
+describe('enemy shadows', () => {
+  it('near enemies cast one, far ones do not, with a gap so nothing flickers', () => {
+    expect(castsShadow(at(SHADOW_ON_RANGE - 1, brain), player, false)).toBe(true);
+    expect(castsShadow(at(SHADOW_ON_RANGE + 1, brain), player, false)).toBe(false);
+    expect(castsShadow(at(SHADOW_ON_RANGE + 1, brain), player, true)).toBe(true);
+    expect(castsShadow(at(SHADOW_OFF_RANGE + 1, brain), player, true)).toBe(false);
+  });
+
+  it('a boss always casts one', () => {
+    expect(castsShadow(at(100, { ...brain, boss: {} } as Partial<Entity>), player, false)).toBe(true);
   });
 });

@@ -546,20 +546,19 @@ try {
     };
     const NE = /cells\/c_[67]_[67]\./;
     await blockCells(NE);
-    // The 15 s clock starts on the teleport's first frame. Wait for the veil itself, not a frame
-    // count: on a CI runner's software GPU one frame can take seconds, and ten of them outlast the
-    // timeout.
-    const t0 = Date.now();
+    // The 15 s clock starts on the first frame that finds no ground, so time it from the veil going
+    // up: on a CI runner's software GPU the frames before that can take many seconds on their own.
     await page.evaluate(() => window.__qa.teleport(470, 470));
-    await page.waitForFunction(() => window.__qa.state().groundWait, null, { timeout: 30000, polling: 'raf' });
+    await page.waitForFunction(() => window.__qa.state().groundWait, null, { timeout: 60000, polling: 'raf' });
+    const t0 = Date.now();
     s = await state();
     const veil = await page.evaluate(() => document.querySelector('.veil').classList.contains('active'));
     check(s.groundWait && veil, 'a teleport onto missing cells shows the loading veil', `groundWait ${s.groundWait}, veil ${veil}, error ${s.errorOpen}`);
     await page.waitForFunction(() => window.__qa.state().errorOpen, null, { timeout: 40000, polling: 250 });
     const waited = (Date.now() - t0) / 1000;
     s = await state();
-    // No earlier than the timeout; later by at most a few slow frames.
-    check(waited >= 14 && waited <= 26, 'the Retry / Return panel appears after the 15 s veil timeout', `${waited.toFixed(1)} s`);
+    // About 15 s, give or take a few slow frames at either end (a frame can take over 3 s on CI).
+    check(waited >= 10 && waited <= 26, 'the Retry / Return panel appears after the 15 s veil timeout', `${waited.toFixed(1)} s`);
     check(s.world.counters.retries >= 3 && s.world.counters.failed > 0, 'each failing cell was retried 3 times first', `retries ${s.world.counters.retries}, failed ${s.world.counters.failed}`);
     check(s.waitingForGround, 'the player is held still meanwhile');
     check(s.errorAction === 'Retry', 'Retry has the focus', s.errorAction);

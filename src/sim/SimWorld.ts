@@ -33,7 +33,7 @@ import { PhysicsWorld } from './physics/PhysicsWorld';
 import { Rng, type RngState } from './rng';
 import { applyAffix, rollCampAffix } from './systems/affixes';
 import { stepHazards } from './combat/hazards';
-import { bossArena, newBossState, type BossHost } from './systems/boss';
+import { bossArena, bossEngaged, newBossState, type BossHost } from './systems/boss';
 import { locomotion } from './systems/locomotion';
 import { gearLocked, markTargeted } from './systems/loadout';
 import { followRiders, ridingMotion } from './systems/riding';
@@ -847,6 +847,13 @@ export class SimWorld {
     e.tf.vel = { x: 0, y: 0, z: 0 };
     if (e.combat) e.combat.push = null;
     this.physics.teleport(e.id, e.tf.pos);
+    // Leaving a sealed arena this way abandons the fight, as falling in it does: otherwise the
+    // arena's wall would drag the player straight back.
+    const left = this.entities.some((b) => {
+      const arena = b.boss && b.brain && bossEngaged(b) ? ENEMIES[b.brain.def].boss?.arenaRadius : undefined;
+      return arena !== undefined && Math.hypot(pos.x - b.brain!.home.x, pos.z - b.brain!.home.z) > arena;
+    });
+    if (left) this.resetBossFights();
   }
 
   /** Anything that falls out of the world goes back to the spawn point. */

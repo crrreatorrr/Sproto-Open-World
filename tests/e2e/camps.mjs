@@ -105,7 +105,8 @@ try {
     await frames(30);
     s = await state();
     check(s.player.action !== 'dead' && Math.hypot(s.player.pos.x - x, s.player.pos.z - z) < 40, `${id}: the player is at the camp`, `${s.player.pos.x.toFixed(0)}, ${s.player.pos.z.toFixed(0)}`);
-    const near = s.enemies.filter((e) => Math.hypot(e.pos.x - x, e.pos.z - z) < 50 && e.def !== 'dummy_straw' && e.def !== 'dummy_swing');
+    // The Skyfire Drake waits unseen high above the Orchard until its bait is set.
+    const near = s.enemies.filter((e) => Math.hypot(e.pos.x - x, e.pos.z - z) < 50 && e.def !== 'dummy_straw' && e.def !== 'dummy_swing' && e.def !== 'skyfire_drake');
     const heights = await page.evaluate((list) => list.map((e) => window.__qa.app.stream.heightAt(e.pos.x, e.pos.z)), near);
     const off = near.filter((e, i) => heights[i] === null || Math.abs(e.pos.y - heights[i]) > GROUND_SLACK + (e.def === 'wisp' ? 1 : 0));
     check(near.length >= count, `${id}: its ${count} enemies are there`, `${near.length} within 50 m`);
