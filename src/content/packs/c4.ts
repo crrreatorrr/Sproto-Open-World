@@ -361,7 +361,7 @@ export const C4_QUESTS: Record<string, QuestDef> = {
       { id: 'seeds', text: 'Collect 4 Thorn Seeds from Hex Wisps in the Thornwood.', objectives: [{ kind: 'collect', item: 'thorn_seed', count: 4, consume: true }], marker: 'thornwood_clearing' },
       { id: 'return', text: 'Bring the seeds to Tansy.', objectives: [{ kind: 'talk', npc: 'weaver_tansy', node: 'a7_done' }], marker: 'weaver_tansy' },
     ],
-    rewards: [{ learnSpell: spell('brambleWall') }, { xp: 450 }, { currency: 90 }],
+    rewards: [{ learnSpell: spell('brambleWall') }, { xp: 1100 }, { currency: 90 }],
   },
 };
 
