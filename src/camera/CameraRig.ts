@@ -57,6 +57,9 @@ export class CameraRig {
   /** 0..1; shake = trauma². Decays on its own. */
   trauma = 0;
   distance: number = CAM.distance;
+  /** Giants pull the camera back (EnemyDef.cameraScale): the follow distance's multiplier, eased. */
+  distanceScale = 1;
+  private scaleNow = 1;
   private shoulder: number = CAM.shoulder;
   private rise = 0;
   private fovBoost = 0;
@@ -151,9 +154,11 @@ export class CameraRig {
     this.shoulder = allowedShoulder < this.shoulder ? allowedShoulder : damp(this.shoulder, allowedShoulder, 8, dt);
     const shoulder = this.tmp.copy(this.pivot).addScaledVector(this.right, this.shoulder);
 
-    this.desired.copy(this.forward).multiplyScalar(-CAM.distance);
+    this.scaleNow = damp(this.scaleNow, this.distanceScale, 3, dt);
+    const reach = CAM.distance * this.scaleNow;
+    this.desired.copy(this.forward).multiplyScalar(-reach);
     const backHit = view.sphereCast(shoulder, this.desired, r);
-    const maxDist = backHit ? Math.max(0, backHit.distance - 0.02) : CAM.distance;
+    const maxDist = backHit ? Math.max(0, backHit.distance - 0.02) : reach;
     // Pull in instantly when blocked, ease back out.
     this.distance = maxDist < this.distance ? maxDist : damp(this.distance, maxDist, 6, dt);
 

@@ -162,15 +162,16 @@ export function addScrapjawContent(c: RegionContent): void {
   const [x, z] = QUARRY_CENTRE;
   c.enemies.push({ id: 'scrapjaw', def: 'scrapjaw', pos: [x, FLOOR_Y, z], yaw: Math.PI });
   (c.objects ??= []).push({ id: 'quarry_gate_lock', pos: [347.6, GATE_Y, 411.7], yaw: GATE_YAW });
-  (c.obstacles ??= []).push({
+  const obstacles = (c.obstacles ??= []);
+  obstacles.push({
     id: 'gate_quarry', model: 'gate_barrier', pos: [GATE_AT[0], GATE_Y, GATE_AT[1]], yaw: GATE_YAW,
     shape: { kind: 'box', half: [10, 7, 1.2], yaw: GATE_YAW }, openFlag: 'gate:quarry',
   });
   for (let i = 0; i < 4; i++) {
     const a = Math.PI / 4 + (i * Math.PI) / 2;
-    c.obstacles.push({
+    obstacles.push({
       id: `quarry_pillar_${i}`, model: 'quarry_pillar', pos: [x + Math.sin(a) * PILLAR_RING, FLOOR_Y, z + Math.cos(a) * PILLAR_RING], yaw: a,
-      shape: { kind: 'cylinder', radius: 2.3, height: 8 }, breakable: true,
+      shape: { kind: 'cylinder', radius: 3, height: 8 }, breakable: true,
     });
   }
   c.triggers.push(

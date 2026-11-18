@@ -250,7 +250,9 @@ export class SimWorld {
       const o = e.obstacle;
       if (!o) continue;
       live.add(e.id);
-      const stands = !e.settle && !o.broken && !(o.openFlag && this.world.flags[o.openFlag]);
+      // An opened gate reads as broken for good (its view fades, and a fight's reset can't shut it).
+      if (o.openFlag && this.world.flags[o.openFlag]) o.broken = true;
+      const stands = !e.settle && !o.broken;
       if (stands && !this.physics.hasObstacle(e.id)) this.physics.addObstacle(e.id, e.tf.pos, o.shape);
       else if (!stands) this.physics.removeObstacle(e.id);
     }
