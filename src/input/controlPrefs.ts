@@ -35,7 +35,7 @@ export const ACTION_LABELS: Record<ControlAction, string> = {
   interact: 'Interact',
   potion: 'Potion',
   questLog: 'Quest log',
-  inventory: 'Character',
+  inventory: 'Gear',
   pause: 'Pause',
 };
 

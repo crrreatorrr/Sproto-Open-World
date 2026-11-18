@@ -1,14 +1,12 @@
 import { DIALOGUE, type DialogueNode } from '../content/dialogue';
-import { ITEMS } from '../content/items';
 import { NPCS } from '../content/npcs';
-import { SKILLS, SKILL_IDS, SKILL_MAX_RANK } from '../content/progression';
-import { SPELLS, type SpellId } from '../content/spells';
 import type { UiAction } from '../sim/commands';
 import type { Entity, Progress } from '../sim/entity';
 import type { SimEvent } from '../sim/events';
 import type { ReadonlySimView } from '../sim/view';
 import type { MenuNav, Screen } from './MenuNav';
-import { KIND_NAMES, skillGain, inventoryGroups, itemStats, levelProgress, questLog, shopStock } from './rpgText';
+import type { MenuTab } from './gameMenu';
+import { itemStats, shopStock } from './rpgText';
 
 /** What the RPG menus read and how they act: the sim's view, the local player, and the command queue. */
 export interface RpgSource {
@@ -20,8 +18,8 @@ export interface RpgSource {
   send(action: UiAction): void;
   /** The prompt glyph for the interact action on the active device ("F", "Y", "△"). */
   interactGlyph(): string;
-  /** Leave a menu opened straight from play (J, I): back to the game. */
-  resume(): void;
+  /** Open the tabbed menu over this one, on a tab (the shrine's Skills and Powers). */
+  openMenu(tab: MenuTab): void;
 }
 
 /** Typewriter speed (characters per second). */
@@ -51,18 +49,15 @@ function shrineFallbackName(id: string): string {
 }
 
 /**
- * The RPG menus (plan §5): dialogue, the merchant's shop and the shrine (Rest, Level up), which the
- * sim opens by setting `progress.dialogue`, `.shop` or `.atShrine`; and the Character and Quest log
- * screens reached from pause (or I and J). Every one works by pad: MenuNav moves the focus, A
- * confirms, B backs out. They act only by queueing UiActions; the sim validates and applies them.
+ * The RPG menus the sim opens (plan §5): dialogue, the merchant's shop and the shrine (Rest, Skills,
+ * Powers), by setting `progress.dialogue`, `.shop` or `.atShrine`. The player's own screens are the
+ * tabbed GameMenu. Every one works by pad: MenuNav moves the focus, A confirms, B backs out. They
+ * act only by queueing UiActions; the sim validates and applies them.
  */
 export class RpgMenus {
   readonly dialogue: Screen;
   readonly shop: Screen;
   readonly shrine: Screen;
-  readonly levelUp: Screen;
-  readonly character: Screen;
-  readonly quests: Screen;
   private readonly root: HTMLElement;
   /** The dialogue on screen: its node key, full text, and how much has typed out. */
   private talk = { key: '', text: '', shown: 0, typing: false };
@@ -80,14 +75,6 @@ export class RpgMenus {
     this.dialogue = this.makeDialogue();
     this.shop = this.makeShop();
     this.shrine = this.makeShrine();
-    this.levelUp = this.makeLevelUp();
-    this.character = this.makeCharacter();
-    this.quests = this.makeQuests();
-  }
-
-  /** The screens the sim opens (as opposed to the ones the player opens from pause). */
-  isSimScreen(s: Screen | undefined): boolean {
-    return s === this.dialogue || s === this.shop || s === this.shrine || s === this.levelUp;
   }
 
   /** The sim menu the player's progress asks for: dialogue first, then the shop, then the shrine. */
@@ -168,14 +155,7 @@ export class RpgMenus {
         return `${p.shop}|${p.sprouts}|${JSON.stringify(flags)}|${JSON.stringify(p.inventory)}`;
       }
       case this.shrine:
-      case this.levelUp:
-        return `${p.atShrine}|${p.points}|${JSON.stringify(p.skills)}|${this.shrineNote}`;
-      case this.character: {
-        const v = this.src.player()?.vitals;
-        return `${JSON.stringify(p.equipment)}|${JSON.stringify(p.inventory)}|${p.level}|${p.xp}|${JSON.stringify(p.skills)}|${v?.hpMax}|${v?.staminaMax}|${v?.manaMax}`;
-      }
-      case this.quests:
-        return `${p.tracked}|${JSON.stringify(p.quests)}`;
+        return `${p.atShrine}|${p.points}|${this.shrineNote}`;
       default:
         return null;
     }
@@ -280,131 +260,12 @@ export class RpgMenus {
       const points = p?.points ?? 0;
       list.append(
         button('Rest', () => this.src.send({ kind: 'rest' })),
-        button(points > 0 ? `Level up (${points} ${points === 1 ? 'point' : 'points'})` : 'Level up', () => this.nav.push(this.levelUp)),
+        button(points > 0 ? `Skills (${points} ${points === 1 ? 'point' : 'points'})` : 'Skills', () => this.src.openMenu('skills')),
+        button('Powers (free swaps here)', () => this.src.openMenu('powers')),
         button('Leave', () => this.src.send({ kind: 'closeMenu' })),
       );
       s.append(list);
     };
     return { el: s, render, onBack: () => this.src.send({ kind: 'closeMenu' }) };
-  }
-
-  private makeLevelUp(): Screen {
-    const s = this.screen('screen-levelup', 'rpg');
-    const render = () => {
-      const p = this.progress();
-      const points = p?.points ?? 0;
-      s.replaceChildren(el('h2', '', 'Level up'), el('p', 'note', points > 0 ? `${points} ${points === 1 ? 'point' : 'points'} to spend` : 'No points to spend. Level up to earn one.'));
-      const list = el('div', 'list wide');
-      for (const a of SKILL_IDS) {
-        const v = p?.skills[a] ?? 0;
-        const b = button('', () => this.src.send({ kind: 'spendSkill', skill: a }), 'btn item-row');
-        b.innerHTML = `<span class="name">${SKILLS[a].name}</span><span class="price">${v}${points > 0 && v < SKILL_MAX_RANK ? ` → ${v + 1}` : ''}</span><span class="blurb">${skillGain(a)}</span>`;
-        b.dataset.skill = a;
-        if (points <= 0 || v >= SKILL_MAX_RANK) b.disabled = true;
-        list.append(b);
-      }
-      list.append(button('Back', () => this.nav.pop()));
-      s.append(list);
-    };
-    return { el: s, render };
-  }
-
-  // --- Character (inventory) --------------------------------------------------------------------
-
-  private makeCharacter(): Screen {
-    const s = this.screen('screen-character', 'rpg');
-    const render = () => {
-      const e = this.src.player();
-      const p = e?.progress;
-      s.replaceChildren(el('h2', '', 'Character'));
-      if (!p) {
-        s.append(el('p', 'note', 'Nothing to show here yet.'), button('Back', () => this.back()));
-        return;
-      }
-      const cols = el('div', 'columns');
-      const stats = el('div', 'stats');
-      const lp = levelProgress(p.level, p.xp);
-      const v = e.vitals;
-      const def = e.combat?.defense;
-      const row = (k: string, val: string) => {
-        const r = el('div', 'stat');
-        r.append(el('span', 'k', k), el('span', 'v', val));
-        return r;
-      };
-      stats.append(
-        row('Level', String(p.level)),
-        row('XP', lp.capped ? `${p.xp} (max level)` : `${lp.into} / ${lp.need}`),
-        ...(p.points > 0 ? [row('Skill points', String(p.points))] : []),
-        ...SKILL_IDS.map((a) => row(SKILLS[a].name, String(p.skills[a]))),
-        row('Health', String(v?.hpMax ?? '—')),
-        row('Stamina', String(v?.staminaMax ?? '—')),
-        row('Mana', String(v?.manaMax ?? '—')),
-        row('Defense', def ? `${def.physical} physical · ${def.arcane} arcane` : '—'),
-        row('Tonics', `${p.tonics.charges} / ${p.tonics.max}`),
-        row('Sprouts', String(p.sprouts)),
-        row('Spells', p.spells.map((id: SpellId) => SPELLS[id]?.name ?? id).join(', ') || 'none'),
-      );
-      const gear = el('div', 'gear');
-      const slot = (label: string, id: string | null) => row(label, id ? (ITEMS[id]?.name ?? id) : 'empty');
-      gear.append(el('h3', '', 'Equipped'), slot('Staff', p.equipment.staff), slot('Robe', p.equipment.robe), slot('Charm', p.equipment.charm));
-      for (const g of inventoryGroups(p)) {
-        gear.append(el('h3', '', KIND_NAMES[g.kind]));
-        for (const it of g.items) {
-          const equippable = g.kind === 'staff' || g.kind === 'robe' || g.kind === 'charm';
-          const st = itemStats(it.item);
-          const html = `<span class="name">${it.item.name}${it.count > 1 ? ` ×${it.count}` : ''}</span><span class="price">${it.equipped ? 'Equipped' : equippable ? 'Equip' : ''}</span><span class="blurb">${it.item.blurb}${st ? ` · ${st}` : ''}</span>`;
-          if (equippable && !it.equipped) {
-            const b = button('', () => this.src.send({ kind: 'equip', item: it.item.id }), `btn item-row ${it.item.rarity}`);
-            b.innerHTML = html;
-            b.dataset.item = it.item.id;
-            gear.append(b);
-          } else {
-            const d = el('div', `item-row static ${it.item.rarity}${it.equipped ? ' equipped' : ''}`);
-            d.innerHTML = html;
-            gear.append(d);
-          }
-        }
-      }
-      cols.append(stats, gear);
-      s.append(cols, button('Back', () => this.back()));
-    };
-    return { el: s, render, onBack: () => this.back() };
-  }
-
-  // --- Quest log --------------------------------------------------------------------------------
-
-  private makeQuests(): Screen {
-    const s = this.screen('screen-quests', 'rpg');
-    const render = () => {
-      const p = this.progress();
-      s.replaceChildren(el('h2', '', 'Quests'));
-      const list = el('div', 'list wide');
-      const quests = p ? questLog(p) : [];
-      if (!quests.length) list.append(el('p', 'note', 'No quests yet. Villagers may have work for you.'));
-      for (const q of quests) {
-        const tracked = q.status === 'active' && p?.tracked === q.id;
-        const lines = q.lines.map((l) => `<span class="obj${l.done ? ' done' : ''}">${l.text}</span>`).join('');
-        const html = `<span class="name">${q.title}</span><span class="price">${q.status === 'complete' ? 'Complete' : tracked ? 'Tracked' : 'Track'}</span><span class="blurb">${q.step}</span>${lines}`;
-        if (q.status === 'active') {
-          const b = button('', () => this.src.send({ kind: 'track', quest: q.id }), `btn item-row quest${tracked ? ' tracked' : ''}`);
-          b.innerHTML = html;
-          b.dataset.quest = q.id;
-          list.append(b);
-        } else {
-          const d = el('div', 'item-row static quest complete');
-          d.innerHTML = html;
-          list.append(d);
-        }
-      }
-      list.append(button('Back', () => this.back()));
-      s.append(list);
-    };
-    return { el: s, render, onBack: () => this.back() };
-  }
-
-  /** Back from Character or Quests: to the pause menu, or to play when opened straight from it. */
-  private back(): void {
-    if (this.nav.depth > 1) this.nav.pop();
-    else this.src.resume();
   }
 }
