@@ -36,6 +36,30 @@
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "1613e1f5dcceac89aa335fbf71d90ec674c911ef508fc454b841e0652e2b4ead"
     },
+    "audio/bossRise.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/bossRise.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "d7d743d0ee913bd22f58ba6d69ecc1438ead99e7e53742ccd8beb3a271b42aa6"
+    },
+    "audio/bossRise.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/bossRise.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "d7d743d0ee913bd22f58ba6d69ecc1438ead99e7e53742ccd8beb3a271b42aa6"
+    },
+    "audio/bossRoar.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/bossRoar.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "3e8afb990c15c204a083f208f4995cddafa43b4ffc540ed13a7816e3dc00c551"
+    },
+    "audio/bossRoar.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/bossRoar.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "3e8afb990c15c204a083f208f4995cddafa43b4ffc540ed13a7816e3dc00c551"
+    },
     "audio/bossSlam.m4a": {
       "repo": "sproto-duel",
       "path": "public/assets/audio/placeholder/bossSlam.wav",
@@ -72,6 +96,18 @@
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "d8b3b8e30373e531fafbfccaf9a503082e5c26efe2dafa4300526a317d01459e"
     },
+    "audio/defeat.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/defeat.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "94feda576dcf175db8c1890386dd06505b897ab36ec4da8c795b5df13bbf2866"
+    },
+    "audio/defeat.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/defeat.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "94feda576dcf175db8c1890386dd06505b897ab36ec4da8c795b5df13bbf2866"
+    },
     "audio/dodge.m4a": {
       "repo": "sproto-duel",
       "path": "public/assets/audio/placeholder/dodge.wav",
@@ -83,6 +119,30 @@
       "path": "public/assets/audio/placeholder/dodge.wav",
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "b3e033754f8ca7ec969fc24834b949dab0c631839201a7568dcf432f36a27c43"
+    },
+    "audio/fireBurn.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/fireBurn.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "6247a9d70b3bcc205866888c3ab864b68a0f1077c0c91419d6de8d4ee867e900"
+    },
+    "audio/fireBurn.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/fireBurn.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "6247a9d70b3bcc205866888c3ab864b68a0f1077c0c91419d6de8d4ee867e900"
+    },
+    "audio/fizzle.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/fizzle.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "497738e9bdd35e6f8dba061f2dcb38620146110ad87676d3d0b96f723dfd53dd"
+    },
+    "audio/fizzle.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/fizzle.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "497738e9bdd35e6f8dba061f2dcb38620146110ad87676d3d0b96f723dfd53dd"
     },
     "audio/hurt.m4a": {
       "repo": "sproto-duel",
@@ -96,6 +156,18 @@
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "c64a8afe6f73bdd426c0a0a86cebcfafce3cdadadf4e381bc1836655be712169"
     },
+    "audio/lifePackPickup.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/lifePackPickup.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "5ddee54de87ae6f294671993782acb624a3f25b1f1577f5bdfbffbc2f08c8aa2"
+    },
+    "audio/lifePackPickup.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/lifePackPickup.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "5ddee54de87ae6f294671993782acb624a3f25b1f1577f5bdfbffbc2f08c8aa2"
+    },
     "audio/lockBeep.m4a": {
       "repo": "sproto-duel",
       "path": "public/assets/audio/placeholder/lockBeep.wav",
@@ -108,6 +180,18 @@
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "b06c65ccda71abe83493157222435c5fd9388ccb5b348766de87561cb136d13d"
     },
+    "audio/musicBattle.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/musicBattle.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "dcd0fb6629defd8b1872acc72550d7e00dbc812487785983df83d5a975c420fa"
+    },
+    "audio/musicBattle.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/musicBattle.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "dcd0fb6629defd8b1872acc72550d7e00dbc812487785983df83d5a975c420fa"
+    },
     "audio/noMana.m4a": {
       "repo": "sproto-duel",
       "path": "public/assets/audio/placeholder/noMana.wav",
@@ -119,6 +203,18 @@
       "path": "public/assets/audio/placeholder/noMana.wav",
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "bada519dd25c3cc7bfb27fff2a8d12538215b6770ad64991316dd2610bcd48d7"
+    },
+    "audio/pillarCrumble.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/pillarCrumble.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "7a2c91315e767f8a4ae2a0af426f45cf95fec5ecdbf6a6c90376e5824666e9af"
+    },
+    "audio/pillarCrumble.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/pillarCrumble.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "7a2c91315e767f8a4ae2a0af426f45cf95fec5ecdbf6a6c90376e5824666e9af"
     },
     "audio/pillarHit.m4a": {
       "repo": "sproto-duel",
@@ -143,6 +239,18 @@
       "path": "public/assets/audio/placeholder/roundLose.wav",
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "91d194b9e4b524801930e29f969df356c39d354d5e2a2a1bbee56c145ddc0373"
+    },
+    "audio/roundWin.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/roundWin.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "a63686d9fd79bbb746796f48f0ffc05cbef6f4c478298afe7cbc9a9ff0d3bcec"
+    },
+    "audio/roundWin.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/roundWin.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "a63686d9fd79bbb746796f48f0ffc05cbef6f4c478298afe7cbc9a9ff0d3bcec"
     },
     "audio/rugWhoosh.m4a": {
       "repo": "sproto-duel",
@@ -192,6 +300,18 @@
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "7f2b9011035476949ece8b83eba07039f9f38363b3776d7f49a1b90ba7264192"
     },
+    "audio/spellLearned.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/spellLearned.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "45706926a7af141f611e09a38656570e734e378ef1b5d4519da589a3b406dff6"
+    },
+    "audio/spellLearned.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/spellLearned.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "45706926a7af141f611e09a38656570e734e378ef1b5d4519da589a3b406dff6"
+    },
     "audio/stunCharge.m4a": {
       "repo": "sproto-duel",
       "path": "public/assets/audio/placeholder/stunCharge.wav",
@@ -203,6 +323,30 @@
       "path": "public/assets/audio/placeholder/stunCharge.wav",
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "8573f3ce0bf17619a28df39b81c3d7fc523ce88ad6a977192293859b93a46ca0"
+    },
+    "audio/stunHit.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/stunHit.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "20920a93f2f099365f781c580dc1ae608d0f798d065619c5e5741e8e43ab3656"
+    },
+    "audio/stunHit.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/stunHit.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "20920a93f2f099365f781c580dc1ae608d0f798d065619c5e5741e8e43ab3656"
+    },
+    "audio/ticketPickup.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/ticketPickup.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "65dbf1a3d02c6140dc14296e36c14cd1278dff883edd843610af41df2f2dd71e"
+    },
+    "audio/ticketPickup.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/ticketPickup.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "65dbf1a3d02c6140dc14296e36c14cd1278dff883edd843610af41df2f2dd71e"
     },
     "audio/uiClick.m4a": {
       "repo": "sproto-duel",
@@ -248,6 +392,30 @@
       "commit": "18a3420397146dafa6fdb675f81770d902148862",
       "sourceSha256": "11703697ef4fe8064a0c8b4afb292ada8cf690c6d325a3d29cbaac42bedd5b64",
       "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "audio/ultReady.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/ultReady.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "4ebd099505ad458d45e2bf41a5f4142f23b82b8effe0b01ab8b5537a28a50654"
+    },
+    "audio/ultReady.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/ultReady.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "4ebd099505ad458d45e2bf41a5f4142f23b82b8effe0b01ab8b5537a28a50654"
+    },
+    "audio/victory.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/victory.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "7f9e57ee69031d20e43305322d4ce3ccab53d6e03be32e107f59b5d8773fb22a"
+    },
+    "audio/victory.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/victory.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "7f9e57ee69031d20e43305322d4ce3ccab53d6e03be32e107f59b5d8773fb22a"
     },
     "models/bosses/scrapjaw.glb": {
       "repo": "sproto-shooter-bosses",

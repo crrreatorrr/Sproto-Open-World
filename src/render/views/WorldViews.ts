@@ -9,6 +9,8 @@ import type { ReadonlySimView } from '../../sim/view';
 import type { HitFx } from '../fx/HitFx';
 import { PowerFx } from '../fx/powers';
 import { SpellFx } from '../fx/SpellFx';
+import { StatusFx } from '../fx/StatusFx';
+import { BodyGlow } from './BodyGlow';
 import { makeBossView } from './BossViews';
 import { makeBurrowmotherView } from './BurrowmotherView';
 import { DrakeFlyover, makeDrakeView } from './DrakeViews';
@@ -61,6 +63,10 @@ export class WorldViews {
   readonly powers: PowerFx;
   /** The Skyfire Drake's far passes over the valley before its fight (C6). */
   readonly flyover: DrakeFlyover;
+  /** What statuses look like on a body (M6). */
+  readonly status = new StatusFx(this.spells);
+  /** The local player's drawn body (PlayerView's root), so statuses show on it too. */
+  playerBody: THREE.Object3D | null = null;
   private readonly views = new Map<EntityId, EntityView>();
   private readonly decals: LiveDecal[] = [];
   private readonly seen = new Set<EntityId>();
@@ -82,7 +88,8 @@ export class WorldViews {
   ) {
     this.powers = new PowerFx(assets, fx);
     this.flyover = new DrakeFlyover(assets);
-    this.root.add(this.spells.root, this.powers.root, this.flyover.root);
+    this.root.add(this.spells.root, this.powers.root, this.flyover.root, this.status.root);
+    if (fx) BodyGlow.ash = (p) => fx.emit(p, 'ash', 1, 1, 1.2);
   }
 
   get(id: EntityId): EntityView | undefined {
@@ -92,12 +99,14 @@ export class WorldViews {
   /** Make, update and drop views to match the sim. Call once per rendered frame. */
   sync(view: ReadonlySimView, alpha: number, dt: number): void {
     this.seen.clear();
+    this.status.begin(dt);
     const me = view.playerEntity(0);
     for (const e of view.entities) {
       if (e.kind === 'player') {
         // Single player for now: the one player's progress lights the shrines.
         const found = e.progress?.discoveredShrines;
         if (found && found.length !== this.discovered.size) for (const id of found) this.discovered.add(id);
+        if (this.playerBody) this.status.track(e, this.playerBody, e.body?.height ?? 1.8, e.body?.radius ?? 0.4, dt);
         continue;
       }
       let v = this.views.get(e.id);
@@ -119,12 +128,15 @@ export class WorldViews {
       this.seen.add(e.id);
       v.update(e, alpha, dt);
       if (e.statuses) this.statusParticles(e, v, dt);
+      if (e.combat) this.status.track(e, v.root, v.height, e.body?.radius ?? 0.4, dt);
     }
+    this.status.end((id) => this.views.get(id)?.root);
     for (const [id, v] of this.views) {
       if (this.seen.has(id)) continue;
       v.dispose();
       this.views.delete(id);
       this.statusClock.delete(id);
+      this.status.drop(id);
       this.viewScale.delete(id);
       for (const [k, sv] of this.shrines) if (sv === v) this.shrines.delete(k);
     }
@@ -159,6 +171,9 @@ export class WorldViews {
         this.views.get(e.target)?.flinch?.(from, e.heavy);
         return;
       }
+      case 'stagger':
+        this.views.get(e.entity)?.reel?.();
+        return;
       case 'explode':
         // Blast (plan §4.4): a fireball flash the size of the blast, a ground ring, and fire.
         this.fx?.flash(e.pos, 0xffb060, e.radius * 1.6, 0.22);
@@ -369,5 +384,6 @@ export class WorldViews {
     this.spells.clear();
     this.powers.clear();
     this.flyover.clear();
+    this.status.clear();
   }
 }

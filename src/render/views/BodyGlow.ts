@@ -1,6 +1,10 @@
 import * as THREE from 'three';
+import { makeDissolvable } from '../fx/dissolve';
 import { starTexture } from '../fx/textures';
 
+/** Ash shed per second per metre of body while it dissolves. */
+const ASH_RATE = 26;
+const ASH_AT = { x: 0, y: 0, z: 0 };
 const GLINT_SEC = 0.28;
 const HIT_FLASH_SEC = 0.09;
 const WHITE = new THREE.Color(1, 1, 1);
@@ -25,14 +29,21 @@ export interface GlowStatus {
  * pulse through an unblockable's wind-up, and a short white flash when hit. It owns cloned
  * materials so one enemy lighting up never lights up every enemy that shares a model, plus a
  * star sprite at the eyes for the glint. Status tints (burning, chilled, frozen, shocked) sit
- * under the telegraph colours.
+ * under the telegraph colours. A dying body burns away through the same materials (fx/dissolve.ts).
  */
 export class BodyGlow {
+  /** Where a dissolving body's ash goes (WorldViews points it at the sparks). */
+  static ash: ((p: { x: number; y: number; z: number }) => void) | null = null;
+  /** Strength of the white flash on a struck body (the screen flashes setting). */
+  static flashScale = 1;
   readonly glint: THREE.Sprite;
-  /** Every cloned material (opacity, disposal), and the lit ones among them. */
+  /** Every cloned material (disposal), and the lit ones among them. */
   private readonly owned: THREE.Material[] = [];
-  /** Their own transparency, restored when a fade ends (respawn). */
-  private readonly ownTransparent: boolean[] = [];
+  /** The burn on each material, and the meshes whose shadows go with the body. */
+  private readonly burns: { value: number }[] = [];
+  private readonly meshes: THREE.Mesh[] = [];
+  private readonly casts: boolean[] = [];
+  private ashOwed = 0;
   private readonly mats: THREE.MeshStandardMaterial[] = [];
   private readonly base: THREE.Color[] = [];
   private readonly tmp = new THREE.Color();
@@ -57,10 +68,14 @@ export class BodyGlow {
     root.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
+      this.meshes.push(mesh);
+      this.casts.push(mesh.castShadow);
       const one = (m: THREE.Material) => {
         const c = m.clone();
         this.owned.push(c);
-        this.ownTransparent.push(c.transparent);
+        const burn = makeDissolvable(c);
+        burn.value = 1 - this.opacity;
+        this.burns.push(burn);
         if ((c as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
           if (emissive !== undefined) (c as THREE.MeshStandardMaterial).emissive.setHex(emissive);
           this.mats.push(c as THREE.MeshStandardMaterial);
@@ -92,29 +107,40 @@ export class BodyGlow {
     this.status = s;
   }
 
-  /** Fade the whole body (death). 1 = opaque. */
+  /** Burn the whole body away (death). 1 = whole, 0 = gone. */
   setOpacity(o: number): void {
     if (o === this.opacity) return;
     const fading = o < 1;
-    if (fading !== this.opacity < 1) {
-      this.owned.forEach((m, i) => {
-        m.transparent = fading || this.ownTransparent[i];
-        m.depthWrite = !m.transparent;
-        m.needsUpdate = true;
-      });
-    }
+    if (fading !== this.opacity < 1) this.meshes.forEach((m, i) => (m.castShadow = !fading && this.casts[i]));
     this.opacity = o;
-    for (const m of this.owned) m.opacity = o;
+    for (const b of this.burns) b.value = 1 - o;
+  }
+
+  /** While the body burns away it sheds glowing ash from all over. */
+  private shedAsh(dt: number): void {
+    const body = this.glint.parent;
+    if (!BodyGlow.ash || !body || this.opacity >= 1 || this.opacity <= 0) return;
+    const h = Math.max(1, this.glint.position.y);
+    this.ashOwed += ASH_RATE * h * dt;
+    for (; this.ashOwed >= 1; this.ashOwed--) {
+      const a = Math.random() * Math.PI * 2;
+      const r = h * 0.22 * Math.random();
+      ASH_AT.x = body.position.x + Math.sin(a) * r;
+      ASH_AT.y = body.position.y + h * Math.random();
+      ASH_AT.z = body.position.z + Math.cos(a) * r;
+      BodyGlow.ash(ASH_AT);
+    }
   }
 
   update(dt: number): void {
+    this.shedAsh(dt);
     this.time += dt;
     this.glintT = Math.max(0, this.glintT - dt);
     this.hitT = Math.max(0, this.hitT - dt);
     this.redLeft = Math.max(0, this.redLeft - dt);
     // Red pulses (~5 Hz, faster near the end of the wind-up) up to 80%, so the body's shape still reads.
     const red = this.redLeft > 0 ? 0.3 + 0.5 * Math.abs(Math.sin(this.time * (this.redLeft < 0.25 ? 26 : 16))) : 0;
-    const white = Math.max(this.hitT / HIT_FLASH_SEC, (this.glintT / GLINT_SEC) * 0.6);
+    const white = Math.max((this.hitT / HIT_FLASH_SEC) * BodyGlow.flashScale, (this.glintT / GLINT_SEC) * 0.6);
     const st = this.status;
     const t = this.time;
     // Burning flickers like a fire (two beating sines); shock snaps on and off; chill deepens per stack.

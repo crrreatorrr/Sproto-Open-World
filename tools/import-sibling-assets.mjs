@@ -144,6 +144,11 @@ const FILES = [
     'rugWhoosh', 'carpetWhoosh', 'lockBeep', 'stunCharge', 'bossSlam', 'pillarHit', 'roundLose'].map(
     (id) => [DUEL, `public/assets/audio/placeholder/${id}.wav`, `audio/${id}.wav`],
   ),
+  // M6: boss cues and music, level-up and pickup stings, status and stagger hits.
+  ...['musicBattle', 'bossRoar', 'bossRise', 'victory', 'defeat', 'roundWin', 'spellLearned', 'ultReady', 'ticketPickup', 'lifePackPickup',
+    'fireBurn', 'stunHit', 'fizzle', 'pillarCrumble'].map(
+    (id) => [DUEL, `public/assets/audio/placeholder/${id}.wav`, `audio/${id}.wav`],
+  ),
 ];
 
 function commitOf(repo) {

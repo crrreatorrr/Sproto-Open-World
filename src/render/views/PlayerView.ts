@@ -9,6 +9,9 @@ import { TICK_HZ } from '../../content/tuning';
 import type { Entity } from '../../sim/entity';
 import { Animator, ENTRY_FADE } from '../anim/Animator';
 import { CAST_PEAKS, castClipTime } from '../anim/castTiming';
+import { HitReaction } from '../fx/HitReaction';
+import { BodyGlow } from './BodyGlow';
+import { glowStatusOf } from './EnemyViews';
 import { placeEntity } from './interp';
 
 /** The block clip holds on this clip tick while the guard is up (plan §4.3). */
@@ -18,10 +21,16 @@ const DEATH_FADE = 0.12;
 /** The arms blend into a cast fast (a woven bolt releases 5 ticks in) and back out more gently. */
 const CAST_IN_FADE = 0.06;
 const CAST_OUT_FADE = 0.15;
+/** How much of a flinch a raised guard lets through. */
+const GUARD_RECOIL = 0.55;
 
 /** Draws one player entity: the rigged model, its staff on `socket_staff`, and its animation. */
 export class PlayerView {
   readonly root = new THREE.Group();
+  /** The flinch's pivot, between the placed root and the animated model. */
+  private readonly pivot = new THREE.Group();
+  private readonly reaction = new HitReaction();
+  private readonly glow = new BodyGlow();
   animator: Animator | null = null;
   private model: ModelInstance | null = null;
   private staff: ModelInstance | null = null;
@@ -34,13 +43,32 @@ export class PlayerView {
   /** The last update showed a cast on the upper body (QA). */
   castShown = false;
 
-  constructor(private readonly assets: AssetLoader) {}
+  constructor(private readonly assets: AssetLoader) {
+    this.root.add(this.pivot);
+  }
 
   async load(staffKey: ModelKey = 'staff_sproto'): Promise<void> {
     this.model = await this.assets.instance('player');
-    this.root.add(this.model.root);
+    this.pivot.add(this.model.root);
+    this.glow.adopt(this.model.root);
     this.animator = new Animator(this.model.root, this.model.clips);
     await this.setStaff(staffKey);
+  }
+
+  /** Struck from `from`: the body flashes and is knocked away from the blow. */
+  flinch(from: { x: number; z: number }, heavy: boolean): void {
+    this.glow.hit();
+    this.reaction.hit(from, this.root.position, this.root.rotation.y, heavy);
+  }
+
+  /** A blow landed on the raised guard: the arms take it and the feet slide. */
+  guardRecoil(from: { x: number; z: number }, broke: boolean): void {
+    this.reaction.hit(from, this.root.position, this.root.rotation.y, broke, GUARD_RECOIL);
+  }
+
+  /** Poise broke: reel back. */
+  reel(): void {
+    this.reaction.lurch();
   }
 
   /**
@@ -100,6 +128,10 @@ export class PlayerView {
       anim.locomotion({ grounded: loco?.grounded ?? true, speed, sprinting: loco?.sprinting ?? false, strafe });
     }
     anim.update(dt);
+    this.reaction.update(dt);
+    this.reaction.apply(this.pivot);
+    this.glow.setStatus(glowStatusOf(e));
+    this.glow.update(dt);
   }
 
   /**
@@ -153,6 +185,7 @@ export class PlayerView {
   dispose(): void {
     this.staffRequest++;
     this.animator?.dispose();
+    this.glow.dispose();
     this.staff?.dispose();
     this.model?.dispose();
     this.root.removeFromParent();
