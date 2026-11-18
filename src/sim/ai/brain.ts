@@ -105,7 +105,8 @@ function inDuel(p: Entity, duels: readonly Entity[]): boolean {
 
 function pickTarget(ctx: CombatCtx, e: Entity, def: EnemyDef, duels: readonly Entity[]): Entity | null {
   let best: Entity | null = null;
-  let bestD = def.aggroRange;
+  // Hurt by someone beyond its sight: it comes for them, anywhere inside its leash.
+  let bestD = !def.dummy && e.vitals!.hp < e.vitals!.hpMax ? Infinity : def.aggroRange;
   const outsider = !e.boss && !e.brain!.summoned;
   for (const p of ctx.entities) {
     if (p.kind !== 'player' || p.combat?.action?.kind === 'dead') continue;
