@@ -11,6 +11,10 @@ import { next as rngNext, type RngState } from '../rng';
 export interface BossHost {
   spawnAdd(def: string, pos: Vec3, yaw: number): Entity;
   spawnHazard(pos: Vec3, hazard: Hazard): void;
+  /** Is this world flag set? */
+  flag(name: string): boolean;
+  /** The ground's height at (x, z), looking around height `near`. */
+  groundY(x: number, z: number, near: number): number;
 }
 
 /** Starts one of the boss's moves (the brain's `startAttack`). */
@@ -67,7 +71,16 @@ export function bossThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Enti
   ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
   const face = (t: Entity) => (e.tf.yaw = turnToward(e.tf.yaw, yawTo(e.tf.pos, t.tf.pos), def.turnRate * DT));
 
+  // Free to act but still under: whatever it was coming up for has gone (its target died mid-burrow).
+  if (boss.under && boss.state !== 'idle') delete boss.under;
   if (boss.state === 'idle') {
+    // Dormant: asleep under the ground until its quest wakes it, and nobody's enemy until then.
+    if (cfg.wakeFlag && !host.flag(cfg.wakeFlag)) {
+      boss.under = true;
+      b.target = null;
+      return;
+    }
+    delete boss.under;
     if (!target || flatDist(target.tf.pos, b.home) > cfg.arenaRadius) return;
     boss.state = 'intro';
     boss.t = 0;
@@ -177,6 +190,8 @@ export function bossAttackTick(ctx: CombatCtx, e: Entity, def: EnemyDef, host: B
   // The moment the wind-up ends (`fired` keeps a chilled boss's slow clock from doing it twice).
   if (a.t === move.windup && !move.projectile && !a.fired) {
     a.fired = 1;
+    if (move.burrow === 'sink') e.boss!.under = true;
+    if (move.burrow === 'rise' && a.aim) surface(e, a.aim, def, host);
     if (move.shove) shove(ctx, e, move.shove);
     if (move.burnPatch && e.boss?.phase === 3) {
       const { radius, ticks } = cfg.burnPatch;
@@ -184,6 +199,20 @@ export function bossAttackTick(ctx: CombatCtx, e: Entity, def: EnemyDef, host: B
     }
   }
   if (move.charge && a.t >= move.windup && a.t < move.windup + move.active) chargeImpact(ctx, e, def);
+}
+
+/** Up out of the ground on the telegraphed circle (kept inside the arena), and solid again. */
+function surface(e: Entity, at: Vec3, def: EnemyDef, host: BossHost): void {
+  const home = e.brain!.home;
+  const room = def.boss!.arenaRadius - (e.body?.radius ?? 1);
+  const dx = at.x - home.x, dz = at.z - home.z;
+  const d = Math.hypot(dx, dz);
+  const k = d > room ? room / d : 1;
+  const x = home.x + dx * k, z = home.z + dz * k;
+  e.tf.pos = { x, y: host.groundY(x, z, at.y), z };
+  e.tf.prevPos = { ...e.tf.pos };
+  e.tf.vel = { x: 0, y: 0, z: 0 };
+  delete e.boss!.under;
 }
 
 function shove(ctx: CombatCtx, e: Entity, s: NonNullable<EnemyMoveDef['shove']>): void {

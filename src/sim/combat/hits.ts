@@ -110,8 +110,8 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   const ta = tc.action;
   const chest = { x: target.tf.pos.x, y: target.tf.pos.y + (target.body?.height ?? 1.8) * 0.6, z: target.tf.pos.z };
 
-  // The Momentum staff's blink can't be touched.
-  if (ta?.kind === 'blink') return 'dodged';
+  // The Momentum staff's blink can't be touched, and neither can a boss underground.
+  if (ta?.kind === 'blink' || target.boss?.under) return 'dodged';
 
   // Roll and backstep i-frames; a hit early in them is a perfect dodge.
   if (ta?.kind === 'dodge' && ta.t >= dodgeFrames(ta).iframeStart && ta.t <= dodgeFrames(ta).iframeEnd) {

@@ -3,6 +3,7 @@
  * against the active step's objectives and applies effects in the sim. Pure data.
  */
 import { C4_QUESTS } from './packs/c4';
+import { C5_QUESTS } from './packs/c5';
 import { registerScrapjawQuest } from './packs/m5';
 import type { SpellId } from './spells';
 
@@ -183,4 +184,5 @@ export const QUESTS: Record<string, QuestDef> = {
 };
 
 Object.assign(QUESTS, C4_QUESTS);
+Object.assign(QUESTS, C5_QUESTS);
 registerScrapjawQuest(QUESTS);

@@ -40,6 +40,8 @@ export const ROBOT_SHOOTER_CLIPS = ['idle', 'run', 'cast', 'cast_big', 'stun'] a
 export const ROBOT_LASER_CLIPS = ['idle', 'run', 'cast', 'stun'] as const;
 /** Scrapjaw (sproto-shooter-bosses' `car_monster`): every boss action has its own clip. */
 export const SCRAPJAW_CLIPS = ['idle', 'walk', 'smash', 'slam', 'charge_start', 'charge', 'stunned', 'roar', 'throw_start', 'throw_loop'] as const;
+/** The Burrowmother (sproto-shooter-bosses' `mole_monster`): no burrow clip, her view sinks her instead. */
+export const BURROWMOTHER_CLIPS = ['idle', 'walk', 'smash', 'slam', 'charge_start', 'charge', 'stunned', 'roar', 'shoot_start', 'shoot_loop'] as const;
 
 /** Villagers keep only their idle (the importer drops the rest). */
 export const NPC_CLIPS = ['idle'] as const;
@@ -80,6 +82,8 @@ export const MODELS = {
   robot_laser: { path: 'models/elites/robot_laser.glb', rigged: true, clips: ROBOT_LASER_CLIPS, fitHeight: 2.1, rotationY: 0, inPlace: true },
   /** M5: the boss (faces +Z, in-place clips), lazy-loaded. Fitted to its 5.4 m EnemyDef body. */
   scrapjaw: { path: 'models/bosses/scrapjaw.glb', rigged: true, clips: SCRAPJAW_CLIPS, fitHeight: 5.4, rotationY: 0, inPlace: true },
+  /** C5: the second boss (faces +Z, in-place clips), lazy-loaded. Fitted to her 5 m EnemyDef body. */
+  burrowmother: { path: 'models/bosses/burrowmother.glb', rigged: true, clips: BURROWMOTHER_CLIPS, fitHeight: 5, rotationY: 0, inPlace: true },
   /** The Old Quarry's breakable pillars (the sim's obstacles; the same rock as the quarry's rim). */
   quarry_pillar: { path: 'models/props/rock_outcrop.glb' },
   /**
@@ -96,6 +100,8 @@ export const MODELS = {
   npc_watch: { path: 'models/npcs/agent.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
   npc_ranger: { path: 'models/npcs/pepe.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
   npc_weaver: { path: 'models/npcs/pepe_tux.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
+  // C5's quarry miners: the Trader's Pepe, tinted by the view.
+  npc_miner: { path: 'models/npcs/pepe.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
   /**
    * M4 interactables and pickups (sproto-shooter's cartoon kit; vertex colours). The shrine is
    * 2.46 m tall at scale 1 (its crystal, `shrine_focus`, has its own clip); the chest's lid is the

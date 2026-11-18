@@ -120,6 +120,8 @@ const FILES = [
   ...['robot_shooter', 'robot_laser'].map((id) => [SHOOTER_BOSSES, `dist/assets/models/characters/${id}.glb`, `models/elites/${id}.glb`, { tex: 512 }]),
   // M5: Scrapjaw, the Quarry Beast (20.1k triangles; every boss clip; lazy-loaded at the quarry).
   [SHOOTER_BOSSES, 'dist/assets/models/characters/car_monster.glb', 'models/bosses/scrapjaw.glb', { tex: 512 }],
+  // C5: the Burrowmother (26k vertices; every boss clip, no burrow clip; lazy-loaded at the Deep Seam).
+  [SHOOTER_BOSSES, 'dist/assets/models/characters/mole_monster.glb', 'models/bosses/burrowmother.glb', { tex: 512 }],
   // M4: Sproutvale's villagers.
   [SHOOTER, 'public/assets/models/characters/pepe-general.glb', 'models/npcs/pepe_general.glb', PEPE],
   [SHOOTER, 'public/assets/models/characters/pepe.glb', 'models/npcs/pepe.glb', PEPE],

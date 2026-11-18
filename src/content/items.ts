@@ -4,6 +4,7 @@
  */
 import { C2_ITEMS } from './packs/c2';
 import { C4_ITEMS } from './packs/c4';
+import { C5_ITEMS } from './packs/c5';
 import type { SpellId } from './spells';
 
 export type ItemKind = 'staff' | 'robe' | 'charm' | 'consumable' | 'quest';
@@ -76,6 +77,7 @@ export const ITEMS: Record<string, ItemDef> = {
 };
 
 Object.assign(ITEMS, C4_ITEMS);
+Object.assign(ITEMS, C5_ITEMS);
 
 export const STARTING_GEAR = { staff: 'staff_sproto', robe: 'robe_apprentice', charm: null } as const;
 
