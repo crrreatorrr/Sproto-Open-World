@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { AssetLoader } from '../assets/AssetLoader';
-import { MODELS, type ModelKey } from '../assets/manifest';
+import { MODELS, STAFF_BOOT_LOD, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
 import { CameraRig } from '../camera/CameraRig';
 import { ITEMS } from '../content/items';
@@ -394,7 +394,10 @@ export class App {
       }
       const view = new PlayerView(this.assets);
       const staff = this.staffModel(entity.progress?.equipment.staff);
-      await view.load(staff);
+      // A non-starter staff boots with its small model; the full one streams in behind it.
+      const bootStaff = STAFF_BOOT_LOD[staff];
+      await view.load(bootStaff ?? staff);
+      if (bootStaff) void view.setStaff(staff);
       this.staffShown = staff;
       this.renderer.scene.add(view.root);
       this.sim = sim;

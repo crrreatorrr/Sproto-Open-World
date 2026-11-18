@@ -95,6 +95,8 @@ const FILES = [
     [DUEL, `public/assets/models/staffs/staff_${id}.glb`, `models/staffs/staff_${id}.glb`],
     [DUEL, `public/assets/models/staffs/staff_${id}-lod1.glb`, `models/staffs/staff_${id}-lod1.glb`],
   ]),
+  // C2: duel only ships a LOD1 of these two, which becomes their one model (expansion plan §2.2).
+  ...['shooter', 'fighter'].map((id) => [DUEL, `public/assets/models/staffs/staff_${id}-lod1.glb`, `models/staffs/staff_${id}.glb`]),
   // Ground, rock and sky for the yard and, later, Sproutvale.
   [DUEL, 'public/assets/textures/themes/grove/floor.jpg', 'textures/grove/floor.jpg'],
   [DUEL, 'public/assets/textures/themes/grove/stone.jpg', 'textures/grove/stone.jpg'],

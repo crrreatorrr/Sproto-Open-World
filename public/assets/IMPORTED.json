@@ -749,6 +749,12 @@
       "sourceSha256": "12f7c69cfd30349a734854e01bce07dbbb2a4d28f6394c70c6c2b18efc30eec7",
       "derived": "meshopt"
     },
+    "models/staffs/staff_fighter.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/staffs/staff_fighter-lod1.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "5c5cba5e15c08b9fea20739e99afdf8f9a9a04f7023ad1e37330044f0bc302f5"
+    },
     "models/staffs/staff_fighters_might-lod1.glb": {
       "repo": "sproto-duel",
       "path": "public/assets/models/staffs/staff_fighters_might-lod1.glb",
@@ -796,6 +802,12 @@
       "path": "public/assets/models/staffs/staff_nobu.glb",
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "d65f979c5bbd1bc45fa213c680b8e28a716311317b5b10967ef523880e69da9c"
+    },
+    "models/staffs/staff_shooter.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/staffs/staff_shooter-lod1.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "6aa4a4cdbf100142d78692b07df8e6b19584c83c260b71a58c639d1701122c53"
     },
     "models/staffs/staff_sproto-lod1.glb": {
       "repo": "sproto-duel",

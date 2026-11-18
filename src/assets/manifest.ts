@@ -46,6 +46,14 @@ export const MODELS = {
   staff_momentum: { path: 'models/staffs/staff_momentum.glb' },
   staff_nobu: { path: 'models/staffs/staff_nobu.glb' },
   staff_fighters_might: { path: 'models/staffs/staff_fighters_might.glb' },
+  /** C2: loaded the first time one is equipped, never in the critical download. Each is its own only LOD. */
+  staff_shooter: { path: 'models/staffs/staff_shooter.glb' },
+  staff_fighter: { path: 'models/staffs/staff_fighter.glb' },
+  /** The small models a save's equipped staff boots with (STAFF_BOOT_LOD). */
+  staff_moonward_lod1: { path: 'models/staffs/staff_moonward-lod1.glb' },
+  staff_momentum_lod1: { path: 'models/staffs/staff_momentum-lod1.glb' },
+  staff_nobu_lod1: { path: 'models/staffs/staff_nobu-lod1.glb' },
+  staff_fighters_might_lod1: { path: 'models/staffs/staff_fighters_might-lod1.glb' },
   /** Faces +Z already (the shooter's MODEL_ROTATION_Y is 0 for it); fitted to the EnemyDef body. */
   brute: { path: 'models/elites/brute.glb', rigged: true, clips: BRUTE_CLIPS, fitHeight: 2.4, rotationY: 0, inPlace: true },
   /** M1b standard enemies, fitted to their EnemyDef bodies (the Wisp's 1.9 m is the body; it hovers above that). */
@@ -85,6 +93,17 @@ export const MODELS = {
 } satisfies Record<string, ModelEntry>;
 
 export type ModelKey = keyof typeof MODELS;
+
+/**
+ * A save that continues with one of these staffs boots with its LOD1, and the full model streams in
+ * after (expansion plan §2.2). The Sprout Staff is in the critical download already.
+ */
+export const STAFF_BOOT_LOD: Partial<Record<ModelKey, ModelKey>> = {
+  staff_moonward: 'staff_moonward_lod1',
+  staff_momentum: 'staff_momentum_lod1',
+  staff_nobu: 'staff_nobu_lod1',
+  staff_fighters_might: 'staff_fighters_might_lod1',
+};
 
 export const TEXTURES = {
   groundGrass: 'textures/grove/floor.jpg',

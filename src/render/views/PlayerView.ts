@@ -24,6 +24,8 @@ export class PlayerView {
   animator: Animator | null = null;
   private model: ModelInstance | null = null;
   private staff: ModelInstance | null = null;
+  /** Counts setStaff calls, so a slow download can't replace a newer choice. */
+  private staffRequest = 0;
   /** The staff attached to the socket (false: no socket, or no staff model). */
   staffMounted = false;
   /** The last update showed an attack clip at the sim's clip tick (QA: command → pose). */
@@ -40,17 +42,28 @@ export class PlayerView {
     await this.setStaff(staffKey);
   }
 
+  /**
+   * Mount a staff. A staff may have to download first (expansion plan §2.2): the one in hand stays
+   * until the new one arrives, and only the latest request is mounted.
+   */
   async setStaff(key: ModelKey): Promise<void> {
-    this.staff?.dispose();
-    this.staff = null;
-    this.staffMounted = false;
+    const request = ++this.staffRequest;
     const socket = this.model?.root.getObjectByName(STAFF_SOCKET);
     if (!socket) {
+      this.staff?.dispose();
+      this.staff = null;
+      this.staffMounted = false;
       console.warn('[player] no socket_staff node: staff not shown');
       return;
     }
-    this.staff = await this.assets.instance(key);
-    socket.add(this.staff.root);
+    const next = await this.assets.instance(key);
+    if (request !== this.staffRequest) {
+      next.dispose();
+      return;
+    }
+    this.staff?.dispose();
+    this.staff = next;
+    socket.add(next.root);
     this.staffMounted = true;
   }
 
@@ -124,6 +137,7 @@ export class PlayerView {
   }
 
   dispose(): void {
+    this.staffRequest++;
     this.animator?.dispose();
     this.staff?.dispose();
     this.model?.dispose();
