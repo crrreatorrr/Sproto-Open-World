@@ -138,7 +138,12 @@ export class GameMenu {
     return this.src.player()?.progress;
   }
 
+  /** What the open tab shows, and the glyphs of the device in use (they follow it while the menu is up). */
   private signature(): string {
+    return `${this.src.prompt(['KeyQ'], ['lb'])}|${this.src.slotGlyph(0)}|${this.tabSignature()}`;
+  }
+
+  private tabSignature(): string {
     const e = this.src.player();
     const p = e?.progress;
     if (!p) return 'none';
