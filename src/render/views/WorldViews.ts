@@ -1,3 +1,4 @@
+import { MountView } from './MountView';
 import * as THREE from 'three';
 import type { AssetLoader } from '../../assets/AssetLoader';
 import type { ModelKey } from '../../assets/manifest';
@@ -51,6 +52,9 @@ export function enemyDef(e: Readonly<Entity> | undefined): EnemyDef | undefined 
   return id ? ENEMIES[id] : undefined;
 }
 
+/** The bull is drawn within this flat distance of the player (m). */
+const MOUNT_DRAW_RANGE = 150;
+
 /**
  * Every drawn non-player entity: a view per enemy and projectile, made when the entity appears and
  * dropped when it leaves the sim, plus the telegraph decals under their attacks, status particles,
@@ -101,6 +105,12 @@ export class WorldViews {
     return this.views.get(id);
   }
 
+  /** How far this mount's saddle has moved from its idle height (m), for the rider. */
+  saddleLift(id: EntityId): number {
+    const v = this.views.get(id);
+    return v instanceof MountView ? v.saddleLift : 0;
+  }
+
   /** Make, update and drop views to match the sim. Call once per rendered frame. */
   sync(view: ReadonlySimView, alpha: number, dt: number): void {
     if (this.rebuildViews) {
@@ -137,6 +147,8 @@ export class WorldViews {
         this.root.add(v.root);
       }
       this.seen.add(e.id);
+      // Skinned meshes aren't frustum culled: a bull left far behind shouldn't cost a draw.
+      if (e.mount && me) v.root.visible = Math.hypot(e.tf.pos.x - me.tf.pos.x, e.tf.pos.z - me.tf.pos.z) <= MOUNT_DRAW_RANGE;
       v.update(e, alpha, dt);
       if (e.statuses) this.statusParticles(e, v, dt);
       if (e.combat) this.status.track(e, v.root, v.height, e.body?.radius ?? 0.4, dt);
@@ -350,6 +362,7 @@ export class WorldViews {
       if (pr?.homing || e.view.model === 'hex' || pr?.kind === 'arcane') return new HexView(this.fx);
       return new CoinView();
     }
+    if (e.mount) return new MountView(this.assets);
     // World objects, by component (villagers by their `npc_*` model key; objects by theirs).
     if (e.npc) return new NpcView(e, this.assets);
     const kind: string | undefined = e.interactable?.kind;

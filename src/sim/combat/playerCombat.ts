@@ -222,7 +222,7 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: Physi
     return;
   }
   // A heavy pressed while falling from a height is a plunge attack.
-  if (b.action === 'heavy' && !a && tryPlunge(ctx, p, physics)) {
+  if (b.action === 'heavy' && !a && !p.riding && tryPlunge(ctx, p, physics)) {
     c.buffer = null;
     return;
   }

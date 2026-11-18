@@ -9,7 +9,7 @@ import type { Vec3 } from './math';
 
 export type EntityId = number;
 export type PlayerId = number;
-export type EntityKind = 'player' | 'enemy' | 'boss' | 'npc' | 'projectile' | 'area' | 'pickup' | 'interactable';
+export type EntityKind = 'player' | 'enemy' | 'boss' | 'npc' | 'projectile' | 'area' | 'pickup' | 'interactable' | 'mount';
 export type Team = 'player' | 'enemy';
 
 /** Transform. `prevPos` is the position at the start of the tick (render interpolation). */
@@ -54,6 +54,8 @@ export interface Vitals {
 
 /** What a combatant is doing. `null` means free (locomotion). Ticks count from the action's start. */
 export type Action =
+  /** Getting on or off the bull (the rider's `riding.state` says which). */
+  | { kind: 'mounting'; t: number; dur: number }
   | {
       kind: 'attack';
       /** Player move id, or an enemy move id. */
@@ -197,6 +199,23 @@ export interface Interactable {
   kind: InteractKind;
   /** Chests and objects: used already (then not interactable). */
   used: boolean;
+}
+
+/** A rideable animal. It has no body of its own: while ridden it follows its rider. */
+export interface Mount {
+  rider: EntityId | null;
+  home: Vec3;
+  homeYaw: number;
+  /** Planar speed (m/s), for its legs. */
+  speed: number;
+}
+
+/** On a mount, or getting on or off it. */
+export interface Riding {
+  mount: EntityId;
+  state: 'mounting' | 'riding' | 'dismounting';
+  /** Dismounting: the way off (unit, world). */
+  dir: { x: number; z: number };
 }
 
 /** A talkable NPC. */
@@ -365,6 +384,8 @@ export interface Entity {
   progress?: Progress;
   interactable?: Interactable;
   npc?: Npc;
+  mount?: Mount;
+  riding?: Riding;
   pickup?: Pickup;
   boss?: BossState;
   hazard?: Hazard;

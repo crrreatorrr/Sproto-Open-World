@@ -83,11 +83,11 @@ function blinkSpot(ctx: CombatCtx, p: Entity, dir: { x: number; z: number }, phy
 
 /**
  * Blink: Sprint + Dodge jumps along `dir`, untouchable while it lasts. False (so the dodge rolls)
- * with another staff, without Sprint held, on cooldown, or with nowhere to land.
+ * with another staff, without Sprint held, on cooldown, in the saddle, or with nowhere to land.
  */
 export function tryBlink(ctx: CombatCtx, p: Entity, cmd: InputCommand, dir: { x: number; z: number }, physics: PhysicsWorld): boolean {
   const c = p.combat!;
-  if (!has(p, 'blink') || (cmd.held & BTN.sprint) === 0 || ctx.now < (c.blinkReadyAt ?? 0)) return false;
+  if (p.riding || !has(p, 'blink') || (cmd.held & BTN.sprint) === 0 || ctx.now < (c.blinkReadyAt ?? 0)) return false;
   const to = blinkSpot(ctx, p, dir, physics);
   if (!to) return false;
   const from = { ...p.tf.pos };

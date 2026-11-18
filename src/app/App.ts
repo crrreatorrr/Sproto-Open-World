@@ -666,6 +666,7 @@ export class App {
     if (!p) return;
     this.autosave(simView, p, dt, held);
     this.syncEquipment(p);
+    view.saddleLift = p.riding ? this.world.saddleLift(p.riding.mount) : 0;
     this.sharpenStaff(p, dt);
     view.update(p, this.loop.alpha, dt);
     const a = p.combat?.action;
@@ -960,6 +961,10 @@ export class App {
     const me = this.playerId;
     const pad = this.input.pad;
     switch (e.type) {
+      case 'mount':
+        if (e.entity === me && (e.phase === 'start' || e.phase === 'dismount')) this.audio.play('rugWhoosh', 0.8);
+        if (e.entity === me && (e.phase === 'seated' || e.phase === 'off')) pad.rumble(RUMBLE.block);
+        return;
       case 'land':
         if (e.entity === me && e.fallSpeed > 6) {
           const k = Math.min(1, (e.fallSpeed - 6) / 10);
@@ -1517,6 +1522,7 @@ export class App {
             grounded: p.loco?.grounded ?? false,
             speed: p.loco?.speed ?? 0,
             action: p.combat?.action?.kind ?? null,
+            riding: p.riding?.state ?? null,
             cast: p.combat?.action?.kind === 'cast' ? { ...p.combat.action } : null,
             hp: p.vitals?.hp ?? null,
             mana: p.vitals?.mana ?? null,

@@ -4,6 +4,7 @@ import type { LevelDef } from '../content/sandbox';
 import { WAVE_CENTRE, WAVE_GAP, WAVES } from '../content/waves';
 import { cellKey, cellOf, type CellColliders } from '../content/world/format';
 import { DIALOGUE } from '../content/dialogue';
+import { MOUNT } from '../content/mounts';
 import { NPCS } from '../content/npcs';
 import { OBJECTS, usedFlag } from '../content/objects';
 import { AFFIXES, CAMP_GENERATION_FLAG } from '../content/packs/c4';
@@ -35,6 +36,7 @@ import { stepHazards } from './combat/hazards';
 import { bossArena, newBossState, type BossHost } from './systems/boss';
 import { locomotion } from './systems/locomotion';
 import { gearLocked, markTargeted } from './systems/loadout';
+import { followRiders, ridingMotion } from './systems/riding';
 import { vitals } from './systems/vitals';
 import type { ReadonlySimView } from './view';
 
@@ -212,6 +214,15 @@ export class SimWorld {
     for (const c of content.chests) {
       this.chests.set(c.id, { items: c.chest.items, sprouts: c.chest.sprouts });
       this.addInteractable(c.id, 'chest', c.pos, c.yaw, this.world.openedChests.includes(c.id));
+    }
+    for (const m of content.mounts ?? []) {
+      const pos = { x: m.pos[0], y: m.pos[1], z: m.pos[2] };
+      this.add({
+        id: this.nextId++, kind: 'mount', tf: { pos, prevPos: { ...pos }, yaw: m.yaw, prevYaw: m.yaw, vel: { x: 0, y: 0, z: 0 } },
+        mount: { rider: null, home: { ...pos }, homeYaw: m.yaw, speed: 0 }, view: { model: MOUNT.id },
+        ...(this.streamed ? { settle: true as const } : {}),
+      });
+      this.places.set(m.id, { ...pos });
     }
     for (const o of content.objects ?? []) this.addInteractable(o.id, 'object', o.pos, o.yaw, (this.world.flags[usedFlag(o.id)] ?? 0) !== 0);
     for (const o of content.obstacles ?? []) this.addObstacle(o);
@@ -671,6 +682,7 @@ export class SimWorld {
     const ctx: CombatCtx = { now: this.now, entities: this.entities, get: (id) => this.byId.get(id), events: this.events, motion, frozen };
     lockOn(ctx, commands, this.physics);
     playerCombat(ctx, commands, this.physics, (e) => this.spawnSpellProjectile(e));
+    ridingMotion(ctx);
     enemyBrains(ctx, this.rng.stream('ai'), this.physics, (o, m, t, a) => this.spawnProjectile(o, m, t, a), this.bossHost);
     this.syncBurrowed();
     markTargeted(this.entities, this.now, (id) => this.byId.get(id));
@@ -678,6 +690,7 @@ export class SimWorld {
     locomotion(this.entities, commands, this.physics, this.events, motion, noGround.size ? new Set([...frozen, ...noGround]) : frozen);
     bossArena(this.entities, this.physics, (e) => (e.brain ? ENEMIES[e.brain.def] : undefined));
     this.physics.step();
+    followRiders(this.entities, (id) => this.byId.get(id));
     resolveAttacks(ctx, this.physics);
     for (const id of stepProjectiles(ctx, this.physics)) this.remove(id);
     for (const id of stepPowers(ctx)) this.remove(id);
@@ -700,7 +713,10 @@ export class SimWorld {
         const u = dead?.brain?.unique;
         if (u && !this.world.killedUniques.includes(u)) this.world.killedUniques.push(u);
         if (dead?.boss && dead.boss.state !== 'dead') this.bossDied(ctx, dead);
-      } else if (ev.type === 'shrineRest') this.respawnCamps();
+      } else if (ev.type === 'shrineRest') {
+        this.respawnCamps();
+        this.callMount(ev.shrine);
+      }
     }
     for (const id of pickups(rpg)) this.remove(id);
     triggers(rpg, this.triggerList, this.insideTriggers);
@@ -736,6 +752,7 @@ export class SimWorld {
         for (const e of this.entities) if (e.brain && !(e.brain.unique && this.world.killedUniques.includes(e.brain.unique))) this.reset(e, e.brain.home, e.brain.homeYaw);
       }
       for (const e of [...this.entities]) if (e.projectile || e.powerArea) this.remove(e.id);
+      this.callMount(player.progress?.lastShrine ?? null);
       this.events.push({ type: 'respawn', entity: player.id });
     }
     for (const e of [...this.entities]) {
@@ -752,6 +769,19 @@ export class SimWorld {
       if (a.t < ENEMIES[e.brain.def].respawnTicks) continue;
       this.reset(e, e.brain.home, e.brain.homeYaw);
       this.events.push({ type: 'respawn', entity: e.id });
+    }
+  }
+
+  /** An unridden bull comes to the shrine you rest or respawn at (home, if there is none), so it is never lost. */
+  private callMount(shrine: string | null): void {
+    const at = shrine ? this.places.get(shrine) : undefined;
+    for (const e of this.entities) {
+      const m = e.mount;
+      if (!m || m.rider !== null) continue;
+      e.tf.pos = at ? { x: at.x + MOUNT.shrineOffset[0], y: at.y, z: at.z + MOUNT.shrineOffset[1] } : { ...m.home };
+      e.tf.prevPos = { ...e.tf.pos };
+      e.tf.yaw = e.tf.prevYaw = m.homeYaw;
+      if (this.streamed) e.settle = true;
     }
   }
 

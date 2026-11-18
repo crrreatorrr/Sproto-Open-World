@@ -3,6 +3,7 @@ import { DIALOGUE, type DialogueNode } from '../../content/dialogue';
 import { ENEMIES } from '../../content/enemies';
 import { HEART_HEAL, INVENTORY_CAP, ITEMS, STARTING_GEAR, TONIC, type Slot } from '../../content/items';
 import { DROPS, MERCHANTS } from '../../content/loot';
+import { MOUNT } from '../../content/mounts';
 import { NPCS } from '../../content/npcs';
 import { OBJECTS, usedFlag } from '../../content/objects';
 import { GROWTH, LEVEL_CAP, SKILL_EFFECT, SKILL_POINTS_PER_LEVEL, noSkills, xpForLevel } from '../../content/progression';
@@ -16,6 +17,7 @@ import type { Vec3 } from '../math';
 import { affixXp } from './affixes';
 import { equipSpell, gearLocked, grantSkillPoints, learnIntoLoadout, respecSkills, spendSkill } from './loadout';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
+import { startDismount, startMount } from './riding';
 
 /**
  * The RPG layer (plan §5): progression and derived stats, inventory and gear, loot and pickups,
@@ -241,21 +243,27 @@ function countFor(o: Objective, events: readonly SimEvent[], e: Entity, entities
 
 // ---------------------------------------------------------------- interaction, dialogue, menus
 
-const REACH = { npc: 2.6, shrine: 3, chest: 2.4, object: 2.4 } as const;
+const REACH = { npc: 2.6, shrine: 3, chest: 2.4, object: 2.4, mount: MOUNT.reach } as const;
 const FRONT = (80 * Math.PI) / 180;
 
 /** The nearest NPC, shrine or unopened chest within reach and roughly in front of the player. */
-export function interactTarget(player: Entity, entities: readonly Entity[]): { e: Entity; id: string; kind: 'npc' | InteractKind; name: string } | null {
-  let best: { e: Entity; id: string; kind: 'npc' | InteractKind; name: string } | null = null;
+export function interactTarget(player: Entity, entities: readonly Entity[]): { e: Entity; id: string; kind: 'npc' | 'mount' | InteractKind; name: string } | null {
+  if (player.riding && player.riding.state !== 'riding') return null;
+  let best: { e: Entity; id: string; kind: 'npc' | 'mount' | InteractKind; name: string } | null = null;
   let bestD = Infinity;
   for (const e of entities) {
-    let kind: 'npc' | InteractKind;
+    let kind: 'npc' | 'mount' | InteractKind;
     let id: string;
     let name: string;
     if (e.npc) {
       kind = 'npc';
       id = e.npc.id;
       name = NPCS[id]?.name ?? id;
+    } else if (e.mount) {
+      if (e.mount.rider !== null || player.riding) continue;
+      kind = 'mount';
+      id = MOUNT.id;
+      name = `Ride ${MOUNT.name}`;
     } else if (e.interactable && !(e.interactable.kind !== 'shrine' && e.interactable.used)) {
       kind = e.interactable.kind;
       id = e.interactable.id;
@@ -269,6 +277,11 @@ export function interactTarget(player: Entity, entities: readonly Entity[]): { e
       bestD = d;
       best = { e, id, kind, name };
     }
+  }
+  // In the saddle with nothing else in reach, the same button gets you down.
+  if (!best && player.riding) {
+    const bull = entities.find((x) => x.id === player.riding!.mount);
+    if (bull) return { e: bull, id: MOUNT.id, kind: 'mount', name: 'Dismount' };
   }
   return best;
 }
@@ -404,6 +417,7 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
     if (t?.kind === 'npc') startTalk(ctx, e, t.id);
     else if (t?.kind === 'chest') openChest(ctx, e, t.e, chests.get(t.id));
     else if (t?.kind === 'object') useObject(ctx, e, t.e);
+    else if (t?.kind === 'mount') (e.riding ? startDismount : startMount)(ctx.events, e, t.e);
     else if (t?.kind === 'shrine') {
       if (!p.discoveredShrines.includes(t.id)) p.discoveredShrines.push(t.id);
       p.atShrine = t.id;

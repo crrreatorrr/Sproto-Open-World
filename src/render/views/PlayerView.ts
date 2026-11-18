@@ -24,6 +24,11 @@ const CAST_IN_FADE = 0.06;
 const CAST_OUT_FADE = 0.15;
 /** How much of a flinch a raised guard lets through. */
 const GUARD_RECOIL = 0.55;
+/** Into and out of the saddle poses. */
+const RIDE_FADE = 0.1;
+/** The rider's bounce: its rate at a standstill, and how fast it rises with the bull's speed (m/s per 1× rate). */
+const RIDE_RATE_BASE = 0.6;
+const RIDE_RATE_SPEED = 6;
 
 /** Draws one player entity: the rigged model, its staff on `socket_staff`, and its animation. */
 export class PlayerView {
@@ -43,6 +48,8 @@ export class PlayerView {
   attackShown = false;
   /** The last update showed a cast on the upper body (QA). */
   castShown = false;
+  /** On the bull: how far its saddle has moved from its idle height this frame (m). */
+  saddleLift = 0;
 
   private staffKey: ModelKey | null = null;
   private readonly stopListening: () => void;
@@ -121,9 +128,15 @@ export class PlayerView {
   /** Interpolate between the last two ticks and pose the model from the sim's state. */
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
     placeEntity(this.root, e, alpha);
+    if (e.riding?.state === 'riding') this.root.position.y += this.saddleLift;
     const anim = this.animator;
     if (!anim) return;
     this.attackShown = false;
+    if (e.riding) {
+      this.poseRiding(e, anim);
+      this.finishFrame(e, anim, dt);
+      return;
+    }
     // Spells are upper body only (plan §4.4): the arms scrub the cast so the hand's peak lands on
     // the release tick, while the legs keep the locomotion layer (the player may walk slowly).
     const a = e.combat?.action;
@@ -149,11 +162,58 @@ export class PlayerView {
       }
       anim.locomotion({ grounded: loco?.grounded ?? true, speed, sprinting: loco?.sprinting ?? false, strafe });
     }
+    this.finishFrame(e, anim, dt);
+  }
+
+  /** Advance the clips, then the flinch and the status glow on top of them. */
+  private finishFrame(e: Readonly<Entity>, anim: Animator, dt: number): void {
     anim.update(dt);
     this.reaction.update(dt);
     this.reaction.apply(this.pivot);
     this.glow.setStatus(glowStatusOf(e));
     this.glow.update(dt);
+  }
+
+  /**
+   * On the bull the legs stay in the saddle (the Blender `ride` clip) and every action plays on the
+   * upper body, scrubbed from the same sim counters as on foot, so melee and magic keep their timing.
+   */
+  private poseRiding(e: Readonly<Entity>, anim: Animator): void {
+    const a = e.combat?.action;
+    this.castShown = false;
+    if (a?.kind === 'mounting') {
+      anim.upperOff(ENTRY_FADE);
+      anim.scrub(e.riding!.state === 'dismounting' ? 'dismount' : 'mount', a.t / TICK_HZ, RIDE_FADE);
+      return;
+    }
+    anim.loop('ride', RIDE_RATE_BASE + (e.loco?.speed ?? 0) / RIDE_RATE_SPEED, RIDE_FADE);
+    switch (a?.kind) {
+      case 'attack': {
+        const def = PLAYER_MOVES[a.move as PlayerMoveId];
+        this.attackShown = !!def && anim.upper(def.clip, a.clipT / TICK_HZ, ENTRY_FADE);
+        return;
+      }
+      case 'cast': {
+        const def = SPELLS[a.spell];
+        // A channel holds the hands at the release pose for as long as it lasts.
+        const t = a.channel ? Math.min(a.t, a.release) : a.t;
+        this.castShown = anim.upper(def.clip, castClipTime(CAST_PEAKS.player, def.clip, t, a.release, def.recovery), CAST_IN_FADE);
+        return;
+      }
+      case 'block':
+        anim.upper('block', Math.min(a.t, BLOCK_HOLD) / TICK_HZ, ENTRY_FADE);
+        return;
+      case 'hitstun':
+        anim.upper('hit', (Math.min(a.t, a.dur) / Math.max(1, a.dur)) * anim.duration('hit'), ENTRY_FADE);
+        return;
+      case 'stagger': {
+        const d = anim.duration('stun');
+        anim.upper('stun', d > 0 ? (a.t / TICK_HZ) % d : 0, ENTRY_FADE);
+        return;
+      }
+      default:
+        anim.upperOff(a ? ENTRY_FADE : CAST_OUT_FADE);
+    }
   }
 
   /**

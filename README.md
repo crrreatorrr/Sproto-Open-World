@@ -67,6 +67,7 @@ Then open http://localhost:5180.
 | Lock on / switch target | Middle mouse or T / flick the mouse | Right stick click / flick the right stick |
 | Cast the spell in slot 1–4 (in Sproutvale you start with Bolt) | 1 2 3 4 (or E R Z X) | Hold LT + X / Y / B / A |
 | Interact: talk, open, rest | F | Y |
+| Ride or get off the Pepe Bull (east of the start) | F | Y |
 | Drink a Sprout Tonic | H | D-pad ↑ |
 | Open the menu / close it | Esc | Menu (Start) |
 | Open the menu on Quests | J | View (Back) |

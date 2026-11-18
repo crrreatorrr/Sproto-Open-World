@@ -1,3 +1,4 @@
+import { MOUNT } from '../../content/mounts';
 import { DT, MOVE } from '../../content/tuning';
 import { BTN, idleInput, type CommandMap } from '../commands';
 import type { Motion } from '../combat/playerCombat';
@@ -39,7 +40,9 @@ export function locomotion(
       const sprintHeld = (cmd.held & BTN.sprint) !== 0;
       const canSprint = free && sprintHeld && w.mag >= MOVE.sprintMinStick && (loco.grounded || loco.sprinting) && (e.vitals ? e.vitals.stamina > 0 : true);
       loco.sprinting = canSprint;
-      const top = (loco.sprinting ? MOVE.sprintSpeed : MOVE.runSpeed) * steer;
+      const riding = e.riding?.state === 'riding';
+      const mountScale = riding ? (loco.sprinting ? MOUNT.sprintScale : MOUNT.runScale) : 1;
+      const top = (loco.sprinting ? MOVE.sprintSpeed : MOVE.runSpeed) * steer * mountScale;
       const tx = w.x * top, tz = w.z * top;
       const ground = loco.grounded ? 1 : MOVE.airControl;
       const rate = (w.mag > 1e-4 ? MOVE.accel : MOVE.decel) * ground * DT;

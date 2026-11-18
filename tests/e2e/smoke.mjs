@@ -131,7 +131,7 @@ try {
   s = await state();
   check(s.state === 'playing', 'A on Play starts the game');
   check(s.staffMounted === true, 'staff mounted on socket_staff');
-  check(s.clips.length === 18 && s.clips.includes('attack_light_1') && s.clips.includes('block'), 'player.glb has all 18 clips', s.clips.join(','));
+  check(s.clips.length === 21 && s.clips.includes('attack_light_1') && s.clips.includes('block'), 'player.glb has all 21 clips', s.clips.join(','));
 
   // Long tasks from here on (loading is allowed to be heavy).
   await page.evaluate(() => {

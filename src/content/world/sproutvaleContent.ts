@@ -41,6 +41,8 @@ export interface RegionContent {
   npcs: (Placement & { npc: string })[];
   shrines: Placement[];
   chests: (Placement & { chest: ChestDef })[];
+  /** Rideable animals (`content/mounts.ts`). */
+  mounts?: Placement[];
   /** One-use quest objects (`content/objects.ts`). */
   objects?: Placement[];
   obstacles?: ObstaclePlacement[];
@@ -85,6 +87,8 @@ export const SPROUTVALE_CONTENT: RegionContent = {
     { id: 'relic_rootarch', pos: [176, G, 360], yaw: 0.5, chest: { id: 'relic_rootarch', items: [], sprouts: 15 } },
     { id: 'relic_beanstalk', pos: [106, G, 400], yaw: -0.6, chest: { id: 'relic_beanstalk', items: [], sprouts: 15 } },
   ],
+  // The Pepe Bull waits just east of where you wake up.
+  mounts: [{ id: 'pepe_bull', pos: [272, V, 58], yaw: -Math.PI / 2 }],
   objects: [
     { id: 'watchtower_beacon', pos: [256, 32, 270], yaw: 0 },
     { id: 'mill_lever', pos: [436, G, 242], yaw: Math.PI },

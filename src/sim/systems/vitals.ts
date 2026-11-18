@@ -13,7 +13,8 @@ export function vitals(entities: readonly Entity[], frozen: ReadonlySet<number>)
     const v = e.vitals;
     const c = e.combat;
     if (!v || frozen.has(e.id) || c?.action?.kind === 'dead') continue;
-    if (e.loco?.sprinting) {
+    // On the bull, the bull does the running.
+    if (e.loco?.sprinting && !e.riding) {
       v.stamina = Math.max(0, v.stamina - PLAYER_STATS.sprintCost * DT);
       v.staminaDelay = PLAYER_STATS.staminaDelay;
     } else if (v.staminaDelay > 0) v.staminaDelay--;

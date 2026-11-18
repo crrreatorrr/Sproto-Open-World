@@ -22,6 +22,7 @@ export interface ModelEntry {
 export const PLAYER_CLIPS = [
   'idle', 'run', 'run_back', 'strafe_l', 'strafe_r', 'jump', 'roll', 'hit', 'stun', 'defeat', 'victory',
   'cast', 'cast_big', 'attack_light_1', 'attack_light_2', 'attack_light_3', 'attack_heavy', 'block',
+  'mount', 'ride', 'dismount',
 ] as const;
 
 /** The Thornwood Brute (sproto-shooter's `sproto_monster`). */
@@ -127,6 +128,8 @@ export const MODELS = {
   /** World props the C3 powers grow, tinted by their views: Bramble Wall's roots, Healing Bloom's flowers. */
   prop_root_wall: { path: 'models/props/grove_root_wall.glb' },
   prop_crops: { path: 'models/props/grove_crops.glb' },
+  /** The rideable Pepe Bull (art/tools/build_bull.py), at the height art/tools/ride_anim.py poses the rider for. */
+  pepe_bull: { path: 'models/mounts/pepe_bull.glb', rigged: true, clips: ['idle', 'follow_walk', 'follow_run'], fitHeight: 1.7, rotationY: 0, inPlace: true },
 } satisfies Record<string, ModelEntry>;
 
 export type ModelKey = keyof typeof MODELS;
