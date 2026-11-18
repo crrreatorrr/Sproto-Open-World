@@ -41,6 +41,8 @@ export interface HitInfo {
   contact?: { a: Vec3; b: Vec3; radius: number };
   /** Exactly this much damage, whatever the formula says (a parried Scrap Throw). */
   fixedDamage?: number;
+  /** A blast on a circle on the ground: its owner may be far away, so parrying it stuns nobody. */
+  area?: boolean;
 }
 
 export type HitOutcome = 'dodged' | 'parried' | 'blocked' | 'hit';
@@ -88,16 +90,44 @@ export function computeDamage(attacker: Entity, target: Entity, info: HitInfo, w
   const affinity = affinityOf(target, info.kind);
   if (info.fixedDamage !== undefined) return { damage: Math.max(1, Math.round(info.fixedDamage)), crit, affinity };
   const mitig = (info.base * 100) / (100 + tc.defense[info.kind]);
-  // "Stunned" means frozen (a status), not a stagger: a riposte on a parried enemy is the table's
-  // 75, not 75 × 1.25.
+  // "Stunned" here means frozen (a status), not a stagger.
   const frozen = tc.action?.kind === 'frozen';
   const lv = Math.max(0.8, Math.min(1.2, 1 + 0.05 * ((attacker.combat?.level ?? 1) - tc.level)));
   // A melee hit on a chilled target shatters the chill for ×1.3 (consumed in resolveHit).
   const shatter = !info.projectile && info.kind === 'physical' && !!target.statuses?.chill;
   // Broken (its poise broke): a boss takes more damage until it recovers (plan §4.10).
   const broken = tc.action?.kind === 'stagger' && tc.action.reason === 'broken' && target.brain ? (ENEMIES[target.brain.def].brokenDamage ?? 1) : 1;
-  const mult = (crit ? 1.5 : 1) * (frozen ? STATUS.chill.frozenDamage : 1) * (shatter ? STATUS.chill.meleeBonus : 1) * rootedMult(target) * lv * AFFINITY_MULT[affinity] * broken * weakSpot;
+  // A riposte on the enemy its parry stunned (or broke) is the biggest hit the staff has.
+  const reeling = tc.action?.kind === 'stagger' && (tc.action.reason === 'parried' || tc.action.reason === 'broken');
+  const riposte = info.move === 'riposte' && reeling ? BLOCK.riposteBonus : 1;
+  const mult = riposte * (crit ? 1.5 : 1) * (frozen ? STATUS.chill.frozenDamage : 1) * (shatter ? STATUS.chill.meleeBonus : 1) * rootedMult(target) * lv * AFFINITY_MULT[affinity] * broken * weakSpot;
   return { damage: Math.max(1, Math.round(mitig * mult)), crit, affinity };
+}
+
+/**
+ * A parry throws a melee attacker off its blow: the attack is cancelled, and it is stunned for as
+ * long as its tier allows. Elites and bosses also lose poise, and a parry can break it. Returns how
+ * long it can't act (ticks, not counting the hit-stop).
+ */
+function stunParried(ctx: CombatCtx, attacker: Entity): number {
+  const c = attacker.combat!;
+  const def = attacker.brain ? ENEMIES[attacker.brain.def] : undefined;
+  const tier = def?.boss ? BLOCK.parryStun.boss : def?.elite || affixElite(attacker) ? BLOCK.parryStun.elite : BLOCK.parryStun.normal;
+  addHitstop(attacker, BLOCK.parryHitstop);
+  if (tier.poise > 0) {
+    c.poise -= c.poiseMax * tier.poise;
+    c.poiseDelay = POISE_REGEN_DELAY;
+  }
+  if (c.poise <= 0) {
+    c.poise = c.poiseMax;
+    const ticks = def?.staggerTicks ?? 40;
+    c.action = { kind: 'stagger', t: 0, dur: ticks, reason: 'broken' };
+    ctx.events.push({ type: 'stagger', entity: attacker.id, ticks });
+    return ticks;
+  }
+  c.action = { kind: 'stagger', t: 0, dur: tier.ticks, reason: 'parried' };
+  ctx.events.push({ type: 'stagger', entity: attacker.id, ticks: tier.ticks, reason: 'parried' });
+  return tier.ticks;
 }
 
 /**
@@ -129,15 +159,14 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   if (ta?.kind === 'block' && facing && !info.unblockable) {
     if (ta.t < ta.parryTicks) {
       tv.mana = Math.min(tv.manaMax, tv.mana + BLOCK.parryMana);
-      tc.riposteUntil = ctx.now + BLOCK.riposteWindow;
       addHitstop(target, BLOCK.parryHitstop);
-      if (!info.projectile && attacker.combat) {
-        const def = attacker.brain ? ENEMIES[attacker.brain.def] : undefined;
-        attacker.combat.action = { kind: 'stagger', t: 0, dur: BLOCK.parryStagger };
-        if (def?.elite) attacker.combat.poise = Math.max(0, attacker.combat.poise - attacker.combat.poiseMax * 0.35);
-        addHitstop(attacker, BLOCK.parryHitstop);
+      const stun = !info.projectile && !info.area && attacker.combat ? stunParried(ctx, attacker) : 0;
+      if (stun > 0) {
+        // Open for as long as a riposte started now still lands inside the stun.
+        tc.riposteUntil = ctx.now + BLOCK.parryHitstop + Math.max(0, stun - BLOCK.riposteStartup);
+        tc.riposteTarget = attacker.id;
       }
-      ctx.events.push({ type: 'parry', attacker: attacker.id, target: target.id, projectile: info.projectile, pos: chest });
+      ctx.events.push({ type: 'parry', attacker: attacker.id, target: target.id, projectile: info.projectile, pos: chest, ...(stun > 0 ? { stun } : {}) });
       // Combat 10: a parry restores 5% HP.
       if (hasPerk(target.progress?.skills, 'combat10')) tv.hp = Math.min(tv.hpMax, tv.hp + tv.hpMax * PERK_EFFECT.parryHeal);
       if (!info.projectile && target.progress && charmOf(target.progress)?.burnOnParry && attacker.combat) applyStatus(ctx, attacker, 'burn', 1, target.id);
@@ -152,7 +181,7 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
     if (guardBreak) {
       tv.stamina = 0;
       tc.action = { kind: 'stagger', t: 0, dur: BLOCK.guardBreakTicks };
-    }
+    } else if (!info.projectile && !info.area) tc.guardCounterUntil = ctx.now + BLOCK_HITSTOP + BLOCK.guardCounterWindow;
     addHitstop(target, BLOCK_HITSTOP);
     if (!info.projectile) addHitstop(attacker, BLOCK_HITSTOP);
     ctx.events.push({ type: 'block', attacker: attacker.id, target: target.id, damage: chip, guardBreak, pos: chest });
@@ -276,6 +305,8 @@ export function resolveAttacks(ctx: CombatCtx, physics: PhysicsWorld): void {
       if (!shape.area && !lineOfSight(physics, att, tgt)) continue;
       a.hit.push(tgt.id);
       resolveHit(ctx, att, tgt, { ...shape.info, contact: { a: shape.a, b: shape.b, radius: shape.radius } });
+      // Parried: the blow is over, for everyone else it was about to reach too.
+      if (c.action !== a) break;
     }
   }
 }
@@ -368,6 +399,7 @@ function attackShape(e: Entity): AttackShape | null {
       mana: 0,
       from: area ? { ...a.aim! } : { ...e.tf.pos },
       projectile: false,
+      area: !!area,
     },
   };
 }

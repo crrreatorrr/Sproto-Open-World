@@ -183,7 +183,7 @@ export class BruteView implements EntityView {
       } else if (a?.kind === 'stagger') {
         // Poise broken: reel back and sway, the idle slowed to a stagger.
         idle(0.35);
-        lean = -0.2 + 0.07 * Math.sin((a.t / TICK_HZ) * 7);
+        lean = a.reason === 'parried' ? -0.36 + 0.1 * Math.sin((a.t / TICK_HZ) * 11) : -0.2 + 0.07 * Math.sin((a.t / TICK_HZ) * 7);
       } else if (a?.kind === 'hitstun') {
         idle(0.5);
         lean = -0.12 * Math.max(0, 1 - a.t / Math.max(1, a.dur));
@@ -357,7 +357,7 @@ export class DummyView implements EntityView {
       this.kick = Math.max(0, this.kick - dt * 5);
       this.launcher.position.z = 0.12 - 0.12 * this.kick;
     }
-    if (a?.kind === 'stagger') this.wx.v += Math.sin((a.t / TICK_HZ) * 9) * 6 * dt;
+    if (a?.kind === 'stagger') this.wx.v += Math.sin((a.t / TICK_HZ) * 9) * (a.reason === 'parried' ? 15 : 6) * dt;
     const dead = a?.kind === 'dead';
     this.tip += ((dead ? 1 : 0) - this.tip) * (1 - Math.exp(-(dead ? 8 : 5) * dt));
     if (a?.kind !== 'frozen') {
@@ -578,6 +578,8 @@ export class HumanoidEnemyView implements EntityView {
         anim?.scrub('stun', d > 0 ? (a.t / TICK_HZ) % d : 0, 0.08);
         // The robots have no `stun` clip: they reel back and sway instead.
         if (anim && !anim.has('stun')) lean = -0.22 + 0.07 * Math.sin((a.t / TICK_HZ) * 7);
+        // Parried: thrown further back on its heels than any other stagger.
+        if (a.reason === 'parried') lean -= 0.16;
       } else if (a?.kind === 'hitstun') {
         anim?.scrub('hit', (Math.min(a.t, a.dur) / Math.max(1, a.dur)) * (anim?.duration('hit') ?? 0), 0.06);
         // Nor a `hit` clip: a short rock back on their heels.

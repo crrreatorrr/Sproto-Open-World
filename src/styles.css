@@ -194,6 +194,15 @@ h2 { margin: 0 0 4px; font-size: 34px; }
   border-radius: 10px; background: var(--panel); border: 1px solid var(--panel-edge); font-size: 15px; text-align: center;
 }
 .toast.active { display: block; animation: toast-in 5s ease-out forwards; }
+.counter-prompt {
+  display: none; position: absolute; left: 50%; top: 64%; transform: translate(-50%, -50%); padding: 8px 18px 10px; border-radius: 10px;
+  background: var(--panel); border: 2px solid #ffe27a; color: #fff3c4; font-size: 22px; font-weight: 700; text-align: center; white-space: nowrap;
+  text-shadow: 0 1px 3px #000; pointer-events: none;
+}
+.counter-prompt.active { display: block; animation: counter-pop 0.16s ease-out; }
+.counter-prompt kbd { margin-right: 10px; padding: 1px 9px; border-radius: 6px; background: #ffe27a; color: #2a2108; font: inherit; text-shadow: none; }
+.counter-prompt .time { height: 3px; margin-top: 7px; border-radius: 2px; background: #ffe27a; transform-origin: left center; }
+@keyframes counter-pop { from { transform: translate(-50%, -50%) scale(1.4); } to { transform: translate(-50%, -50%) scale(1); } }
 @keyframes toast-in { 0% { opacity: 0; transform: translate(-50%, -8px); } 6%, 88% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
 @keyframes aff-in { from { transform: scale(2); } to { transform: none; } }
 

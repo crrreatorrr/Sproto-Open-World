@@ -85,6 +85,11 @@ export class DrakeView implements EntityView {
     this.recoil.v -= heavy ? 1.2 : 0.6;
   }
 
+  /** Thrown off a blow (a parry) or its poise broke: the whole body rocks back. */
+  reel(): void {
+    this.recoil.v -= 1.6;
+  }
+
   /** Spitting: the wind-up opens the jaw to the release frame, and each shot of a volley replays the spit. */
   private playSpit(mv: EnemyMoveDef, t: number): void {
     const anim = this.animator;
@@ -134,6 +139,10 @@ export class DrakeView implements EntityView {
           this.embers = 0;
           this.fx.emit(this.root.getWorldPosition(this.at).setY(this.at.y + 2.4), 'fire', 3, 0.5, 2);
         }
+      } else if (a?.kind === 'stagger' && a.reason === 'parried') {
+        // Thrown off its dive: nose up, wings stalling for a moment.
+        anim?.loop('fly', 0.6);
+        nose = -0.4;
       } else if (a?.kind !== 'frozen') anim?.loop('fly', 1 + Math.min(0.5, hspeed / 40));
     }
     this.pitch += (nose - this.pitch) * (1 - Math.exp(-6 * dt));

@@ -9,7 +9,7 @@ export const RUMBLE = {
   /** Your heavy, finisher or crit lands. */
   heavyHit: { strong: 0.5, weak: 0.55, ms: 120 },
   /** A parry: the strongest thing you do, so the strongest kick. */
-  parry: { strong: 0.7, weak: 0.9, ms: 160 },
+  parry: { strong: 1, weak: 1, ms: 220 },
   /** A blocked hit on your guard. */
   block: { strong: 0.3, weak: 0.15, ms: 80 },
   /** You got hit (or your guard broke). */
@@ -26,6 +26,9 @@ export const RUMBLE = {
   zap: { strong: 0.1, weak: 0.6, ms: 120 },
 } as const;
 
+/** Camera punch-in (degrees of field of view). */
+export const CAMERA_KICK = { parry: 6 } as const;
+
 export const TRAUMA = {
   lightHit: 0.1,
   heavyHit: 0.22,
@@ -33,7 +36,7 @@ export const TRAUMA = {
   hurt: 0.32,
   block: 0.08,
   guardBreak: 0.3,
-  parry: 0.3,
+  parry: 0.42,
   death: 0.5,
   /** Blast at point-blank (scaled down with distance from you). */
   blast: 0.34,

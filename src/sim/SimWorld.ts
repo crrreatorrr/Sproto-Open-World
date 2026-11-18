@@ -919,6 +919,6 @@ export class SimWorld {
 function newCombat(team: Team, poise: number, poiseMax: number, defense: { physical: number; arcane: number }, level: number): Combat {
   return {
     team, action: null, buffer: null, hitstop: 0, poise, poiseMax, poiseDelay: 0, defense: { ...defense }, level,
-    lastBlockTick: -999, riposteUntil: 0, critNext: false, lock: null, lockLostTicks: 0, push: null, lastHitTick: -999, cooldowns: {}, targetedAt: -999,
+    lastBlockTick: -999, blockHeld: false, blockPressTicks: 0, riposteUntil: 0, riposteTarget: null, guardCounterUntil: 0, critNext: false, lock: null, lockLostTicks: 0, push: null, lastHitTick: -999, cooldowns: {}, targetedAt: -999,
   };
 }

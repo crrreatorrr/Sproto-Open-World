@@ -22,7 +22,7 @@ import { CommandBuilder } from '../input/CommandBuilder';
 import { applyControlPrefs, loadControlPrefs, saveControlPrefs } from '../input/controlPrefs';
 import { promptLabel } from '../input/glyphs';
 import { Input } from '../input/Input';
-import { RUMBLE, TRAUMA } from '../render/fx/feedback';
+import { CAMERA_KICK, RUMBLE, TRAUMA } from '../render/fx/feedback';
 import { HitFx, type SparkStyle } from '../render/fx/HitFx';
 import { isSoftPowerHit, powerSpark } from '../render/fx/powers';
 import { PortraitStudio } from '../render/PortraitStudio';
@@ -44,7 +44,7 @@ import { Hud, spellSlotGlyph, type HudCombat, type HudStatus } from '../ui/Hud';
 import { MenuNav, type Screen } from '../ui/MenuNav';
 import { Menus } from '../ui/menus';
 import { Panels } from '../ui/panels';
-import { Tutorial } from '../ui/tutorial';
+import { Tutorial, counterPrompt } from '../ui/tutorial';
 import { Reveals, affinityToast } from '../ui/Reveals';
 import { RpgHud, type HudRpgState } from '../ui/RpgHud';
 import { RpgMenus } from '../ui/rpgMenus';
@@ -997,16 +997,23 @@ export class App {
         }
         return;
       }
-      case 'parry':
+      case 'parry': {
         this.fx.burst(e.pos, 'parry');
         this.fx.ring(e.pos, 0xbfe8ff, 0.3, 2.6, 0.32);
-        this.audio.play('shieldPerfect');
+        this.fx.ring(e.pos, 0xffffff, 0.2, 1.5, 0.18);
+        // A high ring of steel over the chime: nothing like the dull knock of a plain block.
+        this.audio.play('shieldPerfect', 1.1);
+        this.audio.play('clash', 1.9, 0.9);
+        const foe = e.stun ? view.get(e.attacker) : undefined;
+        if (foe) this.fx.ring({ x: foe.tf.pos.x, y: foe.tf.pos.y + (foe.body?.height ?? 1.8) * 0.9, z: foe.tf.pos.z }, 0xffe27a, 0.3, 1.9, 0.4);
         if (e.target === me) {
           pad.rumble(RUMBLE.parry);
           this.shake(TRAUMA.parry);
-          this.flashScreen();
+          this.rig.kick(CAMERA_KICK.parry * motionScale(this.settings.shake));
+          this.flashScreen(0.65);
         }
         return;
+      }
       case 'dodgePerfect': {
         const pos = e.entity === me && this.player ? this.player.root.position : view.get(e.entity)?.tf.pos;
         if (pos) this.fx.ring(pos, 0x8ff0ff, 0.4, 2.2, 0.3);
@@ -1024,8 +1031,8 @@ export class App {
         }
         return;
       case 'stagger':
-        // Poise broken: a heavy thud on top of the hit.
-        if (e.entity !== me) this.audio.play('pillarHit', 0.6);
+        // Poise broken: a heavy thud on top of the hit (a parry has its own sharp sound).
+        if (e.entity !== me && e.reason !== 'parried') this.audio.play('pillarHit', 0.6);
         return;
       case 'telegraph':
         this.world.event(view, e);
@@ -1351,11 +1358,11 @@ export class App {
   }
 
   /** A white screen flash (parry), scaled by the screen flashes setting (motion sensitivity). */
-  private flashScreen(): void {
+  private flashScreen(peak = 0.35): void {
     const k = motionScale(this.settings.flash);
     if (k <= 0) return;
     const el = this.screenFlash;
-    el.style.setProperty('--flash-peak', String(0.35 * k));
+    el.style.setProperty('--flash-peak', String(peak * k));
     el.classList.remove('go');
     void el.offsetWidth;
     el.classList.add('go');
@@ -1406,7 +1413,9 @@ export class App {
     const lp = this.lockPoint(view, p);
     const c = p.combat;
     const a = c?.action;
+    const counter = c ? counterPrompt(c, view.now) : null;
     return {
+      counter: counter ? { ...counter, key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.heavy, PAD.heavy) } : null,
       player: v ? { hp: v.hp, hpMax: v.hpMax, stamina: v.stamina, staminaMax: v.staminaMax, mana: v.mana, manaMax: v.manaMax } : null,
       enemy,
       reticle: lp ? this.project(lp) : null,

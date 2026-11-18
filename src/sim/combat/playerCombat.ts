@@ -80,6 +80,7 @@ export function playerCombat(ctx: CombatCtx, commands: CommandMap, physics: Phys
       continue;
     }
 
+    noteBlockPress(p, cmd, ctx);
     bufferPresses(p, cmd, frozen);
     if (frozen) {
       // Hit-stop: nothing advances (action, buffer clock), but presses were recorded above.
@@ -96,6 +97,20 @@ export function playerCombat(ctx: CombatCtx, commands: CommandMap, physics: Phys
     tickBuffer(c);
     setMotion(p, cmd, ctx);
   }
+}
+
+/**
+ * The parry window runs from the moment block goes down, even if the guard can't rise yet (a press
+ * late in a recovery still counts). Mashing it shortens the window.
+ */
+function noteBlockPress(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
+  const c = p.combat!;
+  const held = (cmd.held & BTN.block) !== 0;
+  if (held && !c.blockHeld) {
+    c.blockPressTicks = ctx.now - c.lastBlockTick < BLOCK.spamWindow ? BLOCK.spamParryTicks : BLOCK.parryTicks;
+    c.lastBlockTick = ctx.now;
+  }
+  c.blockHeld = held;
 }
 
 function bufferPresses(p: Entity, cmd: InputCommand, frozen: boolean): void {
@@ -229,7 +244,7 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: Physi
   // Light or heavy.
   let move: PlayerMoveId | null;
   if (!a || a.kind === 'block') {
-    move = b.action === 'light' ? 'light1' : ctx.now < c.riposteUntil ? 'riposte' : 'heavy';
+    move = b.action === 'light' ? 'light1' : ctx.now < c.riposteUntil ? 'riposte' : ctx.now < c.guardCounterUntil ? 'guardCounter' : 'heavy';
   } else if (a.kind === 'attack') {
     const def = PLAYER_MOVES[a.move as PlayerMoveId];
     if (a.clipT < clipTiming(def.clip).cancel) return;
@@ -307,12 +322,19 @@ function startAttack(p: Entity, move: PlayerMoveId, cmd: InputCommand, ctx: Comb
   const tm = clipTiming(def.clip);
   v.stamina = Math.max(0, v.stamina - def.stamina);
   v.staminaDelay = PLAYER_STATS.staminaDelay;
+  // A riposte goes for the enemy the parry stunned, whatever else is near.
+  const stunned = move === 'riposte' && c.riposteTarget !== null ? ctx.get(c.riposteTarget) : undefined;
   if (move === 'riposte') c.riposteUntil = 0;
+  c.guardCounterUntil = 0;
+  // Committed: the stun holds through the swing's last active tick (brains run before hits land).
+  const stun = stunned?.combat?.action;
+  if (stun?.kind === 'stagger' && (stun.reason === 'parried' || stun.reason === 'broken')) stun.dur = Math.max(stun.dur, stun.t + BLOCK.riposteReach + 1);
   const w = wishDir(cmd);
   // Pushing the stick swings that way; with the stick at rest the swing goes to the screen's centre.
   const aimed = cmd.aim && w.mag <= 0.2 ? resolveAim(ctx.entities, physics, p, cmd.aim) : null;
   const swing = cmd.aim && aimed ? aimSwingDir(p, cmd.aim, aimed.point) : undefined;
-  const target = softTarget(p, cmd, ctx, swing, aimed?.target);
+  const inReach = stunned?.body && stunned.combat?.action?.kind !== 'dead' && flatDist(p.tf.pos, stunned.tf.pos) - stunned.body.radius <= SOFT_TARGET.meleeRange;
+  const target = inReach ? stunned! : softTarget(p, cmd, ctx, swing, aimed?.target);
   let lunge: number;
   let dir = swing ?? { x: Math.sin(p.tf.yaw), z: Math.cos(p.tf.yaw) };
   if (target) {
@@ -365,9 +387,8 @@ function updateBlock(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
     return;
   }
   if (!held || c.action) return;
-  const spam = ctx.now - c.lastBlockTick < BLOCK.spamWindow;
-  c.lastBlockTick = ctx.now;
-  c.action = { kind: 'block', t: 0, parryTicks: spam ? BLOCK.spamParryTicks : BLOCK.parryTicks };
+  // What is left of the press's window: nothing when block was simply held until the guard could rise.
+  c.action = { kind: 'block', t: 0, parryTicks: Math.max(0, c.blockPressTicks - (ctx.now - c.lastBlockTick)) };
 }
 
 function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {

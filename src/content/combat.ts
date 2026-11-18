@@ -6,7 +6,7 @@ import { PLAYER_HITBOXES, STAFF_CAPSULE_RADIUS } from './generated/playerHitboxe
 import { PLAYER_MOVE_TIMING, type PlayerClip } from './generated/playerMoveTiming';
 
 export type DamageKind = 'physical' | 'arcane';
-export type PlayerMoveId = 'light1' | 'light2' | 'light3' | 'light4' | 'heavy' | 'comboHeavy' | 'riposte' | 'rollAttack';
+export type PlayerMoveId = 'light1' | 'light2' | 'light3' | 'light4' | 'heavy' | 'comboHeavy' | 'riposte' | 'guardCounter' | 'rollAttack';
 
 export interface PlayerMoveDef {
   id: PlayerMoveId;
@@ -64,6 +64,8 @@ export const PLAYER_MOVES: Record<PlayerMoveId, PlayerMoveDef> = {
   heavy: { id: 'heavy', clip: 'attack_heavy', entry: 0, mv: 2.2, hitstun: 28, pushback: 1.0, poise: 35, stamina: 18, hitstop: 6, mana: 8, hyperArmorFrom: HEAVY.chargeStart, chargeable: true, next: { light: 'light1', heavy: 'heavy' } },
   comboHeavy: { id: 'comboHeavy', clip: 'attack_heavy', entry: HEAVY.chargeStart, mv: 2.4, hitstun: 28, pushback: 1.0, poise: 40, stamina: 18, hitstop: 6, mana: 8, hyperArmorFrom: HEAVY.chargeStart, next: { light: 'light1', heavy: 'heavy' } },
   riposte: { id: 'riposte', clip: 'attack_heavy', entry: HEAVY.chargeStart, mv: 2.5, hitstun: 30, pushback: 1.5, poise: 80, stamina: 0, hitstop: 8, mana: 8, crit: true, hyperArmorFrom: HEAVY.chargeStart, next: { light: 'light1', heavy: 'heavy' } },
+  // A heavy pressed right after a blocked blow: quick out of the guard, and it costs little.
+  guardCounter: { id: 'guardCounter', clip: 'attack_heavy', entry: HEAVY.chargeStart, mv: 2.6, hitstun: 30, pushback: 1.5, poise: 55, stamina: 10, hitstop: 7, mana: 8, hyperArmorFrom: HEAVY.chargeStart, next: { light: 'light1', heavy: 'heavy' } },
   rollAttack: { id: 'rollAttack', clip: 'attack_light_1', entry: 0, mv: 1.2, hitstun: 20, pushback: 0.4, poise: 12, stamina: 8, hitstop: 3, mana: 4, next: { light: 'light2', heavy: 'comboHeavy' } },
 };
 
@@ -95,9 +97,12 @@ export const ROLL = {
 export const BLOCK = {
   /** Block clip ticks (generated): raised by tick 7. */
   raised: PLAYER_MOVE_TIMING.block.raised,
-  /** Parry window from the press (ticks). */
-  parryTicks: 10,
-  /** A block raised within this many ticks of the last one only parries for `spamParryTicks`. */
+  /**
+   * Parry window (ticks, 200 ms): a block PRESSED this recently when a blow lands parries it. Only the
+   * press counts: a guard that was already up, or held through a recovery, is a plain block.
+   */
+  parryTicks: 12,
+  /** A press within this many ticks of the last one only parries for `spamParryTicks`. */
   spamWindow: 20,
   spamParryTicks: 4,
   /** Frontal arc that blocks (degrees). */
@@ -106,12 +111,26 @@ export const BLOCK = {
   chip: 0.2,
   /** Stagger when the guard breaks at 0 stamina. */
   guardBreakTicks: 40,
-  /** Parried melee attacker: stagger ticks (non-boss), hit-stop on both sides, mana gained. */
-  parryStagger: 60,
+  /**
+   * What a parry does to a melee attacker, by tier: how long it is stunned (ticks) and the share of
+   * its max poise it loses. Bosses only flinch, so a parry wears them down without stun-locking them.
+   */
+  parryStun: {
+    normal: { ticks: 75, poise: 0 },
+    elite: { ticks: 45, poise: 0.35 },
+    boss: { ticks: 24, poise: 0.25 },
+  },
+  /** Hit-stop on both sides of a parry, and the mana it gives. */
   parryHitstop: 10,
   parryMana: 15,
-  /** A heavy press within this many ticks of a parry is a riposte. */
-  riposteWindow: 40,
+  /** Ticks from the riposte's start to its blow: the riposte window closes this long before the stun ends. */
+  riposteStartup: HEAVY.activeStart - HEAVY.chargeStart,
+  /** Ticks from the riposte's start to the end of its swing: the stun holds this long once one has started. */
+  riposteReach: HEAVY.activeEnd - HEAVY.chargeStart,
+  /** A riposte on an enemy a parry stunned does this much more damage. */
+  riposteBonus: 1.6,
+  /** A heavy press within this many ticks of a blocked melee blow is a guard counter. */
+  guardCounterWindow: 30,
   /** Reflected projectiles: speed and damage multiplier. */
   reflect: 1.5,
   /** Walking speed while blocking (fraction of run). */

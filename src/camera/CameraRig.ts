@@ -68,6 +68,8 @@ export class CameraRig {
   private shoulder: number = CAM.shoulder;
   private rise = 0;
   private fovBoost = 0;
+  /** A sharp punch-in (degrees) that eases back out: `kick`. */
+  private fovKick = 0;
   private time = 0;
   private padHeldEdge = 0;
   private readonly pivot = new THREE.Vector3();
@@ -132,6 +134,11 @@ export class CameraRig {
 
   addTrauma(amount: number): void {
     this.trauma = Math.min(1, this.trauma + amount);
+  }
+
+  /** Punch the view in by `degrees` for a moment (a parry). */
+  kick(degrees: number): void {
+    this.fovKick = Math.max(this.fovKick, degrees);
   }
 
   /**
@@ -212,7 +219,8 @@ export class CameraRig {
     cam.rotateZ((Math.sin(t * 0.9 + 2.2) + Math.sin(t * 1.9) * 0.5) * shake * CAM.maxShakeRoll);
 
     this.fovBoost = damp(this.fovBoost, sprinting ? CAM.sprintFovBoost : 0, 8, dt);
-    const fov = CAM.fov + this.fovBoost;
+    this.fovKick = damp(this.fovKick, 0, 11, dt);
+    const fov = CAM.fov + this.fovBoost - this.fovKick;
     if (Math.abs(cam.fov - fov) > 0.01) {
       cam.fov = fov;
       cam.updateProjectionMatrix();

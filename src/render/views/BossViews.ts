@@ -105,6 +105,11 @@ export class ScrapjawView implements EntityView {
     this.recoil.v -= heavy ? 1.2 : 0.6;
   }
 
+  /** Thrown off a blow (a parry) or its poise broke: the whole body rocks back. */
+  reel(): void {
+    this.recoil.v -= 1.6;
+  }
+
   /** How far under the ground the body is drawn (m): the Burrowmother's burrow. */
   protected burrowDepth(_e: Readonly<Entity>, _dt: number): number {
     return 0;
@@ -152,6 +157,7 @@ export class ScrapjawView implements EntityView {
         sink = Math.min(1, Math.max(0, (a.t - SINK_DELAY) / SINK_TICKS));
       } else if (a?.kind === 'stagger' || a?.kind === 'hitstun') {
         anim?.loop('stunned', a.kind === 'stagger' && a.reason === 'broken' ? 0.75 : 1);
+        if (a.kind === 'stagger' && a.reason === 'parried') lean = -0.14;
       } else if (e.boss?.state === 'intro') {
         const ticks = this.def.boss?.introTicks ?? 120;
         anim?.scrub('roar', (e.boss.t / ticks) * (anim?.duration('roar') ?? 0), 0.25);

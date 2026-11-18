@@ -33,11 +33,12 @@ export type SimEvent =
       weakSpot?: boolean;
     }
   | { type: 'block'; attacker: EntityId; target: EntityId; damage: number; guardBreak: boolean; pos: Vec3 }
-  | { type: 'parry'; attacker: EntityId; target: EntityId; projectile: boolean; pos: Vec3 }
+  /** `stun`: ticks the attacker is stunned for (absent when nothing was: a projectile, a far-off blast). */
+  | { type: 'parry'; attacker: EntityId; target: EntityId; projectile: boolean; pos: Vec3; stun?: number }
   | { type: 'dodgePerfect'; entity: EntityId; attacker: EntityId }
   | { type: 'dodge'; entity: EntityId }
   | { type: 'noStamina'; entity: EntityId }
-  | { type: 'stagger'; entity: EntityId; ticks: number }
+  | { type: 'stagger'; entity: EntityId; ticks: number; reason?: 'parried' }
   /** `at`/`radius`: an area attack's circle on the ground (else the decal sits under the enemy). */
   | { type: 'telegraph'; entity: EntityId; move: string; ticks: number; unblockable: boolean; decal?: 'circle' | 'jagged'; at?: Vec3; radius?: number }
   | { type: 'fire'; entity: EntityId; projectile: EntityId }

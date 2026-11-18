@@ -100,8 +100,11 @@ export type Action =
   | { kind: 'plunge'; t: number; fromY: number; landT: number }
   | { kind: 'block'; t: number; parryTicks: number }
   | { kind: 'hitstun'; t: number; dur: number; knockdown: boolean }
-  /** `broken`: its poise broke (bosses take more damage). `stunned`: it ran into something (weak spots open). */
-  | { kind: 'stagger'; t: number; dur: number; reason?: 'broken' | 'stunned' }
+  /**
+   * `broken`: its poise broke (bosses take more damage). `stunned`: it ran into something (weak spots
+   * open). `parried`: its blow was parried (a riposte hits it hardest).
+   */
+  | { kind: 'stagger'; t: number; dur: number; reason?: 'broken' | 'stunned' | 'parried' }
   | { kind: 'frozen'; t: number; dur: number }
   /** Drinking a Sprout Tonic: locked for TONIC.lockTicks, healing over TONIC.healTicks. */
   | { kind: 'drink'; t: number; healPerTick: number }
@@ -129,10 +132,18 @@ export interface Combat {
   poiseDelay: number;
   defense: { physical: number; arcane: number };
   level: number;
-  /** Tick the last block was raised (parry spam). */
+  /** Tick of the last block press (parry spam). */
   lastBlockTick: number;
+  /** Block was held last tick: a press is block going down, whatever the entity was doing. */
+  blockHeld: boolean;
+  /** How long the last block press can parry for, counted from `lastBlockTick` (ticks). */
+  blockPressTicks: number;
   /** A heavy press before this tick is a riposte. */
   riposteUntil: number;
+  /** The enemy the last parry stunned: the riposte goes for it. */
+  riposteTarget: EntityId | null;
+  /** A heavy press before this tick is a guard counter (a melee blow was just blocked). */
+  guardCounterUntil: number;
   /** The next landed hit is a critical (perfect dodge). */
   critNext: boolean;
   /** Hard lock target. */
