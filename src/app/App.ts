@@ -573,7 +573,7 @@ export class App {
     const t0 = performance.now();
     for (let i = 0; i < ticks; i++) {
       // Behind the veil the player is frozen by the sim anyway; their input is dropped, not buffered.
-      const cmd = this.commands.take(this.rig.yaw);
+      const cmd = this.commands.take(this.rig.yaw, this.rig.aimRay());
       sim.tick(held ? new Map() : new Map([[LOCAL_PLAYER, cmd]]));
       this.afterTick(simView);
     }
@@ -1159,11 +1159,18 @@ export class App {
       player: v ? { hp: v.hp, hpMax: v.hpMax, stamina: v.stamina, staminaMax: v.staminaMax, mana: v.mana, manaMax: v.manaMax } : null,
       enemy,
       reticle: lp ? this.project(lp) : null,
+      crosshair: this.crosshairState(view, lock),
       spells: v && c
         ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window, learned: this.mode === 'world' ? p.progress?.spells : undefined }
         : null,
       wave: view.wave ? { ...view.wave } : null,
     };
+  }
+
+  private crosshairState(view: ReadonlySimView, lock: number | null): HudCombat['crosshair'] {
+    const ray = this.rig.aimRay();
+    if (lock !== null || this.nav.top || !ray) return 'off';
+    return view.aimTarget(LOCAL_PLAYER, ray) !== null ? 'enemy' : 'free';
   }
 
   /** QA timing hooks (dev and QA builds): presses latched and the ticks that took them. */

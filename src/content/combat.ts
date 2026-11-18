@@ -129,6 +129,22 @@ export const LUNGE = {
   noTarget: 0.4,
 } as const;
 
+/**
+ * Aiming at the centre of the screen: attacks and spells go where the camera's centre ray points.
+ * A small assist forgives a near miss, so a moving enemy doesn't need a pixel-perfect crosshair.
+ */
+export const AIM = {
+  /** How far the crosshair reaches past the player (m). */
+  range: 60,
+  /** A ray this close to a body still counts as on it: an angle, with a floor up close. */
+  assistDeg: 2.5,
+  assistMin: 0.3,
+  /** Melee also takes an enemy in this cone (full angle) around the crosshair, within melee range. */
+  meleeConeDeg: 50,
+  /** A crosshair point nearer than this (m, flat) swings along the camera instead of toward it. */
+  meleeMinPoint: 1.5,
+} as const;
+
 export const SOFT_TARGET = {
   meleeRange: 4,
   coneDeg: 60,

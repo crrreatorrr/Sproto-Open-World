@@ -14,6 +14,7 @@ import {
 import { DT, MOVE, PLAYER_BODY } from '../content/tuning';
 import { enemyBrains, muzzle } from './ai/brain';
 import type { CommandMap } from './commands';
+import { resolveAim } from './combat/aim';
 import { kill, resolveAttacks } from './combat/hits';
 import { lockOn } from './combat/lockon';
 import { playerCombat, type CombatCtx, type Motion } from './combat/playerCombat';
@@ -125,6 +126,10 @@ export class SimWorld {
       },
       get world() {
         return get().world;
+      },
+      aimTarget: (pl, ray) => {
+        const p = this.playerEntity(pl);
+        return p ? (resolveAim(this.entities, this.physics, p, ray).target?.id ?? null) : null;
       },
       interactTarget: (pl) => {
         const p = this.playerEntity(pl);
