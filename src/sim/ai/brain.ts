@@ -24,6 +24,8 @@ const MIN_GAP = 0.6;
 /** A walk home gets this many times the ticks it should take (plus a moment), then the enemy is put back there. */
 const LEASH_PATIENCE = 3;
 const LEASH_GRACE = 60;
+/** A blink looks for the ground this far above where it starts (m), and twice as far down. */
+const BLINK_GROUND_RAY = 5;
 
 /**
  * Enemy brains (plan §4.8). Dummies run fixed timers. Fighters approach (melee) or hold a distance
@@ -372,7 +374,11 @@ function blink(ctx: CombatCtx, e: Entity, def: EnemyDef, physics: PhysicsWorld):
     const yaw = away + off;
     const dir = { x: Math.sin(yaw), y: 0, z: Math.cos(yaw) };
     if (physics.raycast({ x: from.x, y: from.y + 1, z: from.z }, dir, dist + 0.6)) continue;
-    e.tf.pos = { x: from.x + dir.x * dist, y: from.y, z: from.z + dir.z * dist };
+    const x = from.x + dir.x * dist, z = from.z + dir.z * dist;
+    // On the ground there: uphill, its old height is inside the hill, and a body inside the ground falls through it.
+    const ground = physics.raycast({ x, y: from.y + BLINK_GROUND_RAY, z }, { x: 0, y: -1, z: 0 }, BLINK_GROUND_RAY * 2);
+    if (!ground) continue;
+    e.tf.pos = { x, y: ground.point.y + 0.02, z };
     e.tf.prevPos = { ...e.tf.pos };
     physics.teleport(e.id, e.tf.pos);
     ctx.events.push({ type: 'blink', entity: e.id, from, to: { ...e.tf.pos } });
