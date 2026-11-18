@@ -6,7 +6,7 @@ import { cellKey, cellOf, type CellColliders } from '../content/world/format';
 import { DIALOGUE } from '../content/dialogue';
 import { NPCS } from '../content/npcs';
 import { OBJECTS, usedFlag } from '../content/objects';
-import type { RegionContent } from '../content/world/sproutvaleContent';
+import type { ObstaclePlacement, RegionContent } from '../content/world/sproutvaleContent';
 import { SAVE_SCHEMA, type SaveFile } from '../save/schema';
 import { idleInput, type InputCommand } from './commands';
 import {
@@ -20,12 +20,14 @@ import { lockOn } from './combat/lockon';
 import { playerCombat, type CombatCtx, type Motion } from './combat/playerCombat';
 import { stepProjectiles } from './combat/projectiles';
 import { tickStatuses } from './combat/statuses';
-import type { Combat, Entity, EntityId, PlayerId, Team, WorldState } from './entity';
+import type { Combat, Entity, EntityId, Hazard, PlayerId, Team, WorldState } from './entity';
 import type { SimEvent } from './events';
 import { hashValue } from './hash';
 import type { Vec3 } from './math';
 import { PhysicsWorld } from './physics/PhysicsWorld';
 import { Rng, type RngState } from './rng';
+import { stepHazards } from './combat/hazards';
+import { bossArena, newBossState, type BossHost } from './systems/boss';
 import { locomotion } from './systems/locomotion';
 import { gearLocked, markTargeted } from './systems/loadout';
 import { vitals } from './systems/vitals';
@@ -203,6 +205,7 @@ export class SimWorld {
       this.addInteractable(c.id, 'chest', c.pos, c.yaw, this.world.openedChests.includes(c.id));
     }
     for (const o of content.objects ?? []) this.addInteractable(o.id, 'object', o.pos, o.yaw, (this.world.flags[usedFlag(o.id)] ?? 0) !== 0);
+    for (const o of content.obstacles ?? []) this.addObstacle(o);
     for (const en of content.enemies) this.spawnEnemy(en.def, { x: en.pos[0], y: en.pos[1], z: en.pos[2] }, en.yaw);
     // Camps (M4): members around the camp centre; each stays dead until a rest or a respawn.
     for (const camp of content.camps ?? []) {
@@ -225,6 +228,62 @@ export class SimWorld {
       ...(this.streamed ? { settle: true as const } : {}),
     });
     this.places.set(id, { ...pos });
+  }
+
+  /** A gate barrier or a boss's pillar: an entity whose collider `syncObstacles` keeps up to date. */
+  private addObstacle(o: ObstaclePlacement): void {
+    const pos = { x: o.pos[0], y: o.pos[1], z: o.pos[2] };
+    this.add({
+      id: this.nextId++, kind: 'area', tf: { pos, prevPos: { ...pos }, yaw: o.yaw, prevYaw: o.yaw, vel: { x: 0, y: 0, z: 0 } },
+      obstacle: { id: o.id, shape: o.shape, openFlag: o.openFlag, breakable: o.breakable, broken: false }, view: { model: o.model },
+      ...(this.streamed ? { settle: true as const } : {}),
+    });
+  }
+
+  /**
+   * Rapier's obstacle colliders follow the entities (and so a restored snapshot): one stands while
+   * its gate is shut and it isn't broken, once it has been set down on the ground.
+   */
+  private syncObstacles(): void {
+    const live = new Set<EntityId>();
+    for (const e of this.entities) {
+      const o = e.obstacle;
+      if (!o) continue;
+      live.add(e.id);
+      const stands = !e.settle && !o.broken && !(o.openFlag && this.world.flags[o.openFlag]);
+      if (stands && !this.physics.hasObstacle(e.id)) this.physics.addObstacle(e.id, e.tf.pos, o.shape);
+      else if (!stands) this.physics.removeObstacle(e.id);
+    }
+    for (const id of this.physics.obstacleIds()) if (!live.has(id)) this.physics.removeObstacle(id);
+  }
+
+  /** What boss fights ask of the world: adds and hazards. */
+  private readonly bossHost: BossHost = {
+    spawnAdd: (def, pos, yaw) => this.spawnEnemy(def, pos, yaw),
+    spawnHazard: (pos, hazard) => this.spawnHazard(pos, hazard),
+  };
+
+  private spawnHazard(pos: Vec3, hazard: Hazard): void {
+    this.add({
+      id: this.nextId++, kind: 'area', tf: { pos: { ...pos }, prevPos: { ...pos }, yaw: 0, prevYaw: 0, vel: { x: 0, y: 0, z: 0 } },
+      hazard, view: { model: `hazard_${hazard.kind}` },
+    });
+  }
+
+  /** The player fell: every boss fight starts over (plan §4.10). Their HP comes back with `reset`. */
+  private resetBossFights(): void {
+    for (const e of [...this.entities]) if (e.hazard || e.brain?.summoned) this.remove(e.id);
+    for (const e of this.entities) {
+      if (e.obstacle) e.obstacle.broken = false;
+      if (e.boss && e.combat?.action?.kind !== 'dead') e.boss = newBossState();
+    }
+  }
+
+  /** A boss died: its adds fall with it. */
+  private bossDied(ctx: CombatCtx, boss: Entity): void {
+    boss.boss!.state = 'dead';
+    ctx.events.push({ type: 'bossDefeated', boss: boss.id });
+    for (const e of this.entities) if (e.brain?.summoned && e.combat?.action?.kind !== 'dead') kill(ctx, e, null);
   }
 
   /** Where a content id is (NPC, shrine, chest, trigger), for markers. */
@@ -286,7 +345,8 @@ export class SimWorld {
       loco: { grounded: true, sprinting: false, jumpBuffer: 0, coyote: 0, speed: 0, landedTicks: 1 },
       vitals: { hp: def.hp, hpMax: def.hp, stamina: 100, staminaMax: 100, mana: 0, manaMax: 0, staminaDelay: 0 },
       combat: newCombat('enemy', def.poise, def.poise, def.defense, def.level),
-      brain: { def: defId, home: { ...pos }, homeYaw: yaw, state: 'idle', target: null, cooldowns: {}, recent: [], circle: 0, circleDir: 1, timer: 30, meleeHitsTaken: 0 },
+      brain: { def: defId, home: { ...pos }, homeYaw: yaw, state: 'idle', target: null, cooldowns: {}, recent: [], circle: 0, circleDir: 1, timer: 30, meleeHitsTaken: 0, ...(def.boss ? { unique: def.id } : {}) },
+      ...(def.boss ? { boss: newBossState() } : {}),
       view: { model: def.model },
       ...(this.streamed ? { settle: true as const } : {}),
     };
@@ -315,8 +375,9 @@ export class SimWorld {
         owner: owner.id, team: owner.combat!.team, kind: move.kind, damage: move.damage, poise: move.poise, radius: move.projectile.radius,
         life: Math.ceil(move.projectile.range / (sp * DT)), reflected: false,
         homing: move.projectile.homing, target: move.projectile.homing ? target.id : undefined,
+        ...(move.projectile.reflectBonus ? { reflectBonus: { ...move.projectile.reflectBonus, shooter: owner.id } } : {}),
       },
-      view: { model: move.kind === 'arcane' ? 'hex' : 'coin' },
+      view: { model: move.projectile.model ?? (move.kind === 'arcane' ? 'hex' : 'coin') },
     };
     this.add(e);
     this.events.push({ type: 'fire', entity: owner.id, projectile: e.id });
@@ -524,6 +585,7 @@ export class SimWorld {
       e.tf.prevYaw = e.tf.yaw;
     }
     this.settleOnGround();
+    this.syncObstacles();
     this.applyCellQueue();
     // Hit-stop: frozen entities skip this tick entirely (their clocks don't run).
     const frozen = new Set<number>();
@@ -552,13 +614,15 @@ export class SimWorld {
     const ctx: CombatCtx = { now: this.now, entities: this.entities, get: (id) => this.byId.get(id), events: this.events, motion, frozen };
     lockOn(ctx, commands, this.physics);
     playerCombat(ctx, commands, this.physics, (e) => this.spawnSpellProjectile(e));
-    enemyBrains(ctx, this.rng.stream('ai'), this.physics, (o, m, t, a) => this.spawnProjectile(o, m, t, a));
+    enemyBrains(ctx, this.rng.stream('ai'), this.physics, (o, m, t, a) => this.spawnProjectile(o, m, t, a), this.bossHost);
     markTargeted(this.entities, this.now, (id) => this.byId.get(id));
     const noGround = this.groundless();
     locomotion(this.entities, commands, this.physics, this.events, motion, noGround.size ? new Set([...frozen, ...noGround]) : frozen);
+    bossArena(this.entities, this.physics, (e) => (e.brain ? ENEMIES[e.brain.def] : undefined));
     this.physics.step();
     resolveAttacks(ctx, this.physics);
     for (const id of stepProjectiles(ctx, this.physics)) this.remove(id);
+    for (const id of stepHazards(ctx)) this.remove(id);
     for (const { entity, source } of tickStatuses(ctx)) {
       if (entity.combat?.action?.kind !== 'dead') kill(ctx, entity, this.byId.get(source) ?? null);
     }
@@ -573,8 +637,10 @@ export class SimWorld {
     for (const ev of this.events) {
       // A unique stays dead for good (saved); camps come back when the player rests.
       if (ev.type === 'death') {
-        const u = this.byId.get(ev.entity)?.brain?.unique;
+        const dead = this.byId.get(ev.entity);
+        const u = dead?.brain?.unique;
         if (u && !this.world.killedUniques.includes(u)) this.world.killedUniques.push(u);
+        if (dead?.boss && dead.boss.state !== 'dead') this.bossDied(ctx, dead);
       } else if (ev.type === 'shrineRest') this.respawnCamps();
     }
     for (const id of pickups(rpg)) this.remove(id);
@@ -606,15 +672,19 @@ export class SimWorld {
         this.wave.ids = [];
         this.wave.enemiesLeft = 0;
         this.wave.nextIn = 90;
-      } else for (const e of this.entities) if (e.brain && !(e.brain.unique && this.world.killedUniques.includes(e.brain.unique))) this.reset(e, e.brain.home, e.brain.homeYaw);
+      } else {
+        this.resetBossFights();
+        for (const e of this.entities) if (e.brain && !(e.brain.unique && this.world.killedUniques.includes(e.brain.unique))) this.reset(e, e.brain.home, e.brain.homeYaw);
+      }
       for (const e of [...this.entities]) if (e.projectile) this.remove(e.id);
       this.events.push({ type: 'respawn', entity: player.id });
     }
     for (const e of [...this.entities]) {
       const a = e.combat?.action;
       if (!e.brain || a?.kind !== 'dead') continue;
-      // Wave enemies stay dead: their bodies are cleared after a moment. So do uniques (M4), for good.
-      if (this.wave?.ids.includes(e.id) || e.brain.unique) {
+      // Wave enemies stay dead: their bodies are cleared after a moment. So do uniques (M4), for good,
+      // and a boss's adds.
+      if (this.wave?.ids.includes(e.id) || e.brain.unique || e.brain.summoned) {
         if (a.t >= WAVE_CORPSE_TICKS) this.remove(e.id);
         continue;
       }

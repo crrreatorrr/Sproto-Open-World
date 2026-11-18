@@ -3,6 +3,7 @@
  * `dialogueChoose`; the sim checks conditions and applies effects. Strings live here, keyed, for
  * later localization.
  */
+import { registerScrapjawDialogue } from './packs/m5';
 import type { Condition, Effect } from './quests';
 
 export interface DialogueChoice {
@@ -178,3 +179,5 @@ export const DIALOGUE: Record<string, DialogueGraph> = {
     },
   },
 };
+
+registerScrapjawDialogue(DIALOGUE);

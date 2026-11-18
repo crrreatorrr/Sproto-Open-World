@@ -79,7 +79,7 @@ interface PlacementsSrc {
   seed: number;
   kinds: Record<string, KindSrc>;
   place: PlaceSrc[];
-  lines: { key: string; from: [number, number]; to: [number, number]; step: number; yaw: number }[];
+  lines: { key: string; from: [number, number]; to: [number, number]; step: number; yaw: number; scale?: number }[];
   zones: Record<string, Shape & { falloff?: number }>;
   scatter: ScatterSrc[];
   marks: { id: string; kind: string; at: [number, number]; yaw?: number; clear?: number }[];
@@ -390,7 +390,8 @@ function placeProps(t: Terrain, terrainSrc: TerrainSrc, src: PlacementsSrc, grou
     const n = Math.max(1, Math.floor(len / l.step + 1e-9));
     for (let i = 0; i <= n; i++) {
       const x = l.from[0] + (dx * i) / n, z = l.from[1] + (dz * i) / n;
-      out.push({ key: l.key, x: r2(x), z: r2(z), yaw: r4(l.yaw * DEG), scale: 1, y: r2(ground(x, z, 'min', kind(l.key).footprint * 0.5)) });
+      const scale = l.scale ?? 1;
+      out.push({ key: l.key, x: r2(x), z: r2(z), yaw: r4(l.yaw * DEG), scale: r4(scale), y: r2(ground(x, z, 'min', kind(l.key).footprint * scale * 0.5)) });
     }
     for (let i = 0; i <= n; i++) taken.push({ x: l.from[0] + (dx * i) / n, z: l.from[1] + (dz * i) / n, r: kind(l.key).footprint });
   }

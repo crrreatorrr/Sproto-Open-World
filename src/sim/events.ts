@@ -24,6 +24,8 @@ export type SimEvent =
       heavy: boolean;
       pos: Vec3;
       hitstop: number;
+      /** It landed on a weak spot (expansion plan §3.3). */
+      weakSpot?: boolean;
     }
   | { type: 'block'; attacker: EntityId; target: EntityId; damage: number; guardBreak: boolean; pos: Vec3 }
   | { type: 'parry'; attacker: EntityId; target: EntityId; projectile: boolean; pos: Vec3 }
@@ -80,4 +82,13 @@ export type SimEvent =
   | { type: 'skillPoints'; entity: EntityId; amount: number; total: number }
   | { type: 'skillsReset'; entity: EntityId; refunded: number; cost: number }
   | { type: 'perk'; entity: EntityId; perk: string }
-  | { type: 'cleanse'; entity: EntityId; status: StatusId };
+  | { type: 'cleanse'; entity: EntityId; status: StatusId }
+  // Boss fights (M5).
+  | { type: 'bossIntro'; boss: EntityId }
+  | { type: 'bossPhase'; boss: EntityId; phase: number }
+  | { type: 'bossSummon'; boss: EntityId; count: number }
+  /** A charge ended in a pillar or the arena wall. */
+  | { type: 'bossImpact'; boss: EntityId; pos: Vec3; pillar: boolean }
+  | { type: 'bossDefeated'; boss: EntityId }
+  | { type: 'rockLand'; pos: Vec3; radius: number }
+  | { type: 'gateOpened'; gate: string };

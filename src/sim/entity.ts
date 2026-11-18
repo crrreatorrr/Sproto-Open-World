@@ -87,7 +87,8 @@ export type Action =
   | { kind: 'dodge'; t: number; dir: { x: number; z: number } }
   | { kind: 'block'; t: number; parryTicks: number }
   | { kind: 'hitstun'; t: number; dur: number; knockdown: boolean }
-  | { kind: 'stagger'; t: number; dur: number }
+  /** `broken`: its poise broke (bosses take more damage). `stunned`: it ran into something (weak spots open). */
+  | { kind: 'stagger'; t: number; dur: number; reason?: 'broken' | 'stunned' }
   | { kind: 'frozen'; t: number; dur: number }
   /** Drinking a Sprout Tonic: locked for TONIC.lockTicks, healing over TONIC.healTicks. */
   | { kind: 'drink'; t: number; healPerTick: number }
@@ -232,6 +233,51 @@ export interface EnemyBrain {
   camp?: string;
   /** A unique (named) enemy: once killed it never comes back (`WorldState.killedUniques`). */
   unique?: string;
+  /** Called in by a boss: gone for good once dead, and gone when the fight resets. */
+  summoned?: boolean;
+}
+
+/** A boss fight in progress (plan §4.10). Lives on the boss, so snapshots and hashes carry it. */
+export interface BossState {
+  state: 'idle' | 'intro' | 'fight' | 'dead';
+  /** Ticks in the intro. */
+  t: number;
+  phase: number;
+  /** Falling rocks stop at this tick; the next one may start at `nextRock`. */
+  rocksUntil: number;
+  nextRock: number;
+  /** The add wave has been called. */
+  summoned: boolean;
+}
+
+/** A danger on the ground that belongs to a boss (plan §4.10). */
+export interface Hazard {
+  /** `rock`: lands after `fuse` ticks and hits once. `burn`: burns whoever stands in it until `life` runs out. */
+  kind: 'rock' | 'burn';
+  owner: EntityId;
+  radius: number;
+  /** Ticks until a rock lands (0 once it has). */
+  fuse: number;
+  /** The fuse at the start (the telegraph's fill). */
+  fuseMax: number;
+  /** Ticks until it is removed. */
+  life: number;
+  damage: number;
+}
+
+/**
+ * A static collider that can come and go (expansion plan §3.3): a gate barrier that stands until its
+ * world flag is set, or a pillar a boss's charge can smash. Rapier's copy is derived from this.
+ */
+export interface Obstacle {
+  id: string;
+  shape: { kind: 'box'; half: [number, number, number]; yaw: number } | { kind: 'cylinder'; radius: number; height: number };
+  /** The world flag that opens it for good (a gate). */
+  openFlag?: string;
+  /** A boss's charge smashes it. */
+  breakable?: boolean;
+  /** Smashed: no collider, until the fight resets. */
+  broken: boolean;
 }
 
 export interface Projectile {
@@ -257,6 +303,8 @@ export interface Projectile {
   interrupts?: boolean;
   knockdown?: boolean;
   woven?: boolean;
+  /** Parried back into `shooter`: takes this fraction of its max HP and staggers it (Scrap Throw). */
+  reflectBonus?: { hpFrac: number; stagger: number; shooter: EntityId };
 }
 
 /**
@@ -278,6 +326,9 @@ export interface Entity {
   interactable?: Interactable;
   npc?: Npc;
   pickup?: Pickup;
+  boss?: BossState;
+  hazard?: Hazard;
+  obstacle?: Obstacle;
   owner?: PlayerId;
   /**
    * Placed by content at a guessed height: set down on the ground (a raycast) on the tick its cell's

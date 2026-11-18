@@ -2,6 +2,7 @@
  * Quests (plan §5). The quest runtime (src/sim/systems/quests.ts) matches each tick's events
  * against the active step's objectives and applies effects in the sim. Pure data.
  */
+import { registerScrapjawQuest } from './packs/m5';
 import type { SpellId } from './spells';
 
 export type Objective =
@@ -175,3 +176,5 @@ export const QUESTS: Record<string, QuestDef> = {
     rewards: [{ give: 'staff_moonward' }, { give: 'charm_scholars_knot' }, { xp: 300 }],
   },
 };
+
+registerScrapjawQuest(QUESTS);

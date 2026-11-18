@@ -3,9 +3,49 @@
  * Enemy hitboxes are defined by hand: a sphere at `forward` / `up` metres from the feet.
  */
 import type { DamageKind } from './combat';
+import { SCRAPJAW } from './packs/m5';
 
 export type Affinity = 'weak' | 'normal' | 'resist';
 export const AFFINITY_MULT: Record<Affinity, number> = { weak: 1.5, normal: 1, resist: 0.5 };
+
+/**
+ * A weak spot (expansion plan §3.3): a sphere in the enemy's facing frame, checked only when damage
+ * resolves. A hit that touches it multiplies its damage. `when: 'stunned'` opens it only while stunned.
+ */
+export interface WeakSpotDef {
+  forward: number;
+  up: number;
+  radius: number;
+  mult: number;
+  when?: 'stunned';
+}
+
+/** What makes an enemy a boss: its arena (a circle around its home) and the fight's beats. */
+export interface BossDef {
+  /** The boss bar's second line. */
+  title: string;
+  /** The fight is sealed inside this radius around the boss's home (m). */
+  arenaRadius: number;
+  /** The intro's length (ticks). */
+  introTicks: number;
+  /** Phase 2 and 3 start at or below these fractions of max HP. */
+  phase2: number;
+  phase3: number;
+  /** Phase 3 moves and charges this much faster. */
+  enrage: number;
+  /** The add wave comes at or below this fraction of max HP. */
+  summon: { def: string; count: number; below: number };
+  /** The move played at each phase change. */
+  roar: string;
+  /** How long a charge into a pillar or the wall stuns it (ticks). */
+  stunTicks: number;
+  /** Ticks between a recovery and the next wind-up. */
+  gapTicks: number;
+  /** Falling rocks: how long they fall after the roar, and each rock. */
+  rocks: { ticks: number; fuse: number; radius: number; damage: number };
+  /** The Burn patch a phase 3 slam leaves behind. */
+  burnPatch: { radius: number; ticks: number };
+}
 
 export interface EnemyMoveDef {
   id: string;
@@ -35,7 +75,13 @@ export interface EnemyMoveDef {
    * `interval` ticks apart, fanned by `spread` radians; `homing` turns them toward the target
    * (rad/s); `reflectable` is false only for spells that can't be parried.
    */
-  projectile?: { speed: number; radius: number; range: number; count?: number; interval?: number; spread?: number; homing?: number };
+  projectile?: {
+    speed: number; radius: number; range: number; count?: number; interval?: number; spread?: number; homing?: number;
+    /** View model (default: a hex or a coin, by damage kind). */
+    model?: string;
+    /** Parried back into its shooter: takes this fraction of its max HP and staggers it (ticks). */
+    reflectBonus?: { hpFrac: number; stagger: number };
+  };
   /**
    * An area attack: a circle of `radius` m placed on the target's feet when the wind-up starts
    * (the decal shows it), which hits whoever stands in it during the active ticks.
@@ -57,12 +103,26 @@ export interface EnemyMoveDef {
   followUp?: string;
   /** Only reachable as another move's `followUp`. */
   chainOnly?: boolean;
+  /** A boss move: the fight phases it is used in (absent: all of them). */
+  phases?: number[];
+  /** A rush: runs along its facing at this speed (m/s) through the active ticks. */
+  charge?: { speed: number };
+  /** A big swing: the hitbox travels from `hitbox` to this point over the active ticks. */
+  sweep?: { forward: number; up: number };
+  /** No hitbox at all (a roar: what it does is scripted). */
+  noHit?: boolean;
+  /** Pushes everyone within `radius` m back `distance` m when the wind-up ends. */
+  shove?: { radius: number; distance: number };
+  /** A slam that leaves the boss's Burn patch where it lands (in the last phase). */
+  burnPatch?: boolean;
+  /** Weak spots open only during this move. */
+  weakSpots?: WeakSpotDef[];
 }
 
 export interface EnemyDef {
   id: string;
   name: string;
-  model: 'brute' | 'dummy' | 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'gatekeeper';
+  model: 'brute' | 'dummy' | 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'gatekeeper' | 'scrapjaw';
   /** Extra names a quest's `kill` objective matches (an Orchard Grunt is still a `grunt`). */
   tags?: string[];
   hp: number;
@@ -97,6 +157,14 @@ export interface EnemyDef {
   hover?: number;
   /** Uses attack tokens (bosses and dummies don't). */
   usesTokens?: boolean;
+  /** Giants (expansion plan §3.3): weak spots, where the lock-on aims, and how far the camera pulls back. */
+  weakSpots?: WeakSpotDef[];
+  lockPoint?: { forward?: number; up: number };
+  cameraScale?: number;
+  /** Damage taken while Broken (its poise broke). */
+  brokenDamage?: number;
+  /** A boss fight's rules; the brain is `sim/systems/boss.ts`. */
+  boss?: BossDef;
 }
 
 const NORMAL_PROFILE = { damage: { physical: 'normal', arcane: 'normal' }, status: { burn: 'normal', chill: 'normal', shock: 'normal' } } as const;
@@ -298,5 +366,8 @@ ENEMIES.gatekeeper = {
     },
   ],
 };
+
+// M5: the boss of the Old Quarry.
+ENEMIES.scrapjaw = SCRAPJAW;
 
 export type EnemyId = keyof typeof ENEMIES;

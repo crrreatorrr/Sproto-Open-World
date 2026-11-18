@@ -30,7 +30,8 @@
     "frost_beacon": { "model": "frost_beacon", "collider": { "kind": "cylinder", "radius": 0.4, "height": 2 }, "footprint": 0.6, "landmark": true, "impostor": { "shape": "cylinder", "color": [0.45, 0.8, 0.9] } },
     "frost_gate": { "model": "frost_gate", "collider": { "kind": "none" }, "footprint": 1.2, "landmark": true, "impostor": { "shape": "box", "color": [0.45, 0.75, 0.85] } },
     "skyline_crane": { "model": "skyline_crane", "collider": { "kind": "cylinder", "radius": 1.8, "height": 16.6 }, "footprint": 4, "landmark": true, "impostor": { "shape": "box", "color": [0.75, 0.6, 0.25] } },
-    "underworks_hoist": { "model": "underworks_hoist", "collider": { "kind": "box", "half": [1.96, 2.88, 1.61] }, "footprint": 2.5, "landmark": true, "impostor": { "shape": "box", "color": [0.45, 0.4, 0.38] } }
+    "underworks_hoist": { "model": "underworks_hoist", "collider": { "kind": "box", "half": [1.96, 2.88, 1.61] }, "footprint": 2.5, "landmark": true, "impostor": { "shape": "box", "color": [0.45, 0.4, 0.38] } },
+    "quarry_rock": { "model": "rock_outcrop", "collider": { "kind": "cylinder", "radius": 2.2, "height": 6 }, "footprint": 2.4 }
   },
   "place": [
     { "_": "Sprout Hollow (3-4, 0-1): water tower landmark, sheds, barn, silo, well." },
@@ -61,16 +62,19 @@
     { "key": "scarecrow_giant", "at": [100, 204], "yaw": 160, "scale": 4, "ground": "min" },
     { "_": "Thornwood landmark at (1, 6)." },
     { "key": "grove_beanstalk", "at": [96, 414], "yaw": 30, "scale": 1, "ground": "min" },
-    { "_": "Quarry Ravine: the fog gate at the entrance, the crane in the bowl." },
+    { "_": "Quarry Ravine: the fog gate at the entrance, the crane on the bowl's far slope (clear of Scrapjaw's 20 m arena)." },
     { "key": "frost_gate", "at": [352, 414], "yaw": 62, "scale": 5, "ground": "min" },
-    { "key": "skyline_crane", "at": [446, 464], "yaw": 200, "scale": 1, "ground": "min" }
+    { "key": "skyline_crane", "at": [474, 482], "yaw": 200, "scale": 1, "ground": "min" }
   ],
   "lines": [
     { "key": "grove_hedge", "from": [208, 126], "to": [248, 126], "step": 2, "yaw": 0 },
     { "key": "grove_hedge", "from": [264, 126], "to": [312, 126], "step": 2, "yaw": 0 },
     { "key": "grove_hedge", "from": [40, 136], "to": [104, 136], "step": 2.4, "yaw": 0 },
     { "key": "grove_hedge", "from": [120, 196], "to": [172, 196], "step": 2.4, "yaw": 0 },
-    { "key": "grove_hedge", "from": [40, 224], "to": [84, 224], "step": 2.4, "yaw": 0 }
+    { "key": "grove_hedge", "from": [40, 224], "to": [84, 224], "step": 2.4, "yaw": 0 },
+    { "key": "quarry_rock", "from": [347.3, 423], "to": [347.3, 508], "step": 5.5, "yaw": 0, "scale": 1.6 },
+    { "key": "quarry_rock", "from": [356.7, 405.2], "to": [440, 392], "step": 5.5, "yaw": 40, "scale": 1.6 },
+    { "key": "quarry_rock", "from": [440, 392], "to": [508, 392], "step": 5.5, "yaw": 90, "scale": 1.6 }
   ],
   "zones": {
     "village": { "rect": [200, 24, 320, 130] },
@@ -121,6 +125,8 @@
     { "id": "watchtower_beacon", "kind": "object", "at": [256, 270], "yaw": 0, "clear": 2.5 },
     { "id": "mill_lever", "kind": "object", "at": [436, 242], "yaw": 180, "clear": 2.5 },
     { "id": "frost_tome", "kind": "object", "at": [240, 334], "yaw": -90, "clear": 2.5 },
+    { "id": "quarry_gate_lock", "kind": "object", "at": [347.6, 411.7], "yaw": 62, "clear": 2.5 },
+    { "id": "old_quarry_arena", "kind": "arena", "at": [440, 452], "clear": 22 },
     { "id": "orchard_south", "kind": "camp", "at": [70, 100], "clear": 4 },
     { "id": "orchard_south#0", "kind": "enemy", "at": [70, 103.5], "clear": 2 },
     { "id": "orchard_south#1", "kind": "enemy", "at": [73.5, 100], "clear": 2 },

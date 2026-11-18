@@ -142,7 +142,10 @@ export function applyEffects(ctx: RpgCtx, e: Entity, effects: readonly Effect[] 
     else if ('currency' in fx) addSprouts(ctx, e, fx.currency);
     else if ('openShop' in fx) p.shop = fx.openShop;
     else if ('spawnUnique' in fx) ctx.world.flags[`unique:${fx.spawnUnique}`] = 1;
-    else if ('openGate' in fx) ctx.world.flags[`gate:${fx.openGate}`] = 1;
+    else if ('openGate' in fx) {
+      ctx.world.flags[`gate:${fx.openGate}`] = 1;
+      ctx.events.push({ type: 'gateOpened', gate: fx.openGate });
+    }
     else if ('skillPoints' in fx) grantSkillPoints(ctx, e, fx.skillPoints);
   }
 }
@@ -339,6 +342,11 @@ function openChest(ctx: RpgCtx, e: Entity, chest: Entity, contents: { items: { i
 /** Use a one-use world object (M4): it stays used (a world flag) and applies its effects. */
 function useObject(ctx: RpgCtx, e: Entity, obj: Entity): void {
   const ia = obj.interactable!;
+  const def = OBJECTS[ia.id];
+  if (def && !checkAll(def.requires, e.progress!, ctx.world)) {
+    ctx.events.push({ type: 'refused', entity: e.id, action: 'interact', reason: def.refusal ?? "You can't use that yet." });
+    return;
+  }
   ia.used = true;
   ctx.world.flags[usedFlag(ia.id)] = 1;
   ctx.events.push({ type: 'interact', entity: e.id, object: ia.id, kind: 'object' });
