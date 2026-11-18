@@ -337,13 +337,27 @@ try {
     // A Grunt's hit cancels a cast (hitstun replaces it), and in a live wave they reach you, so
     // try a few casts and judge the first that gets through (or the last one, if none does).
     let before = null, inFlight = false, castMana = null, log = [];
+    // Watch the sim on every tick: a slow runner runs several ticks per frame, and a bolt that hits
+    // something close can come and go between two looks at the page.
+    await page.evaluate(() => {
+      const sim = window.__qa.app.sim;
+      const tick = sim.tick.bind(sim);
+      window.__boltSeen = false;
+      sim.tick = (commands) => {
+        tick(commands);
+        if (sim.entities.some((e) => e.projectile?.spell === 'bolt')) window.__boltSeen = true;
+      };
+    });
     for (let attempt = 0; attempt < 5; attempt++) {
       // Wait until the player is free (not in hitstun or mid-action) before pressing.
       for (let i = 0; i < 60 && (await state()).player.action; i++) await frames(2);
       before = (await state()).player.mana;
       castMana = before;
       inFlight = false;
-      await page.evaluate(() => window.__qa.log(true));
+      await page.evaluate(() => {
+        window.__boltSeen = false;
+        window.__qa.log(true);
+      });
       await page.evaluate(() => window.__pad.set('lt', true));
       await frames(3);
       await press('x');
@@ -365,6 +379,7 @@ try {
         if ((await state()).projectiles.some((p) => p.spell === 'bolt')) inFlight = true;
         log = await page.evaluate(() => window.__qa.log());
       }
+      inFlight ||= await page.evaluate(() => window.__boltSeen);
       if (log.some((e) => e.kind === 'cast' && e.what === 'bolt')) break;
       console.log(`  info cast attempt ${attempt + 1} was cut off (${log.filter((e) => e.kind === 'hit').length} hits on the way); retrying`);
     }
