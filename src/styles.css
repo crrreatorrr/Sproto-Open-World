@@ -109,6 +109,12 @@ h2 { margin: 0 0 4px; font-size: 34px; }
 }
 .reticle::after { content: ''; position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: var(--accent); }
 .reticle.active { display: block; }
+.crosshair {
+  display: none; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%;
+  background: rgba(255, 250, 230, 0.8); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55); pointer-events: none;
+}
+.crosshair.active { display: block; }
+.crosshair.on-enemy { background: #ff6a4d; transform: scale(1.5); }
 .died {
   display: none; position: absolute; inset: 0; align-items: center; justify-content: center; font-size: clamp(36px, 6vw, 72px); font-weight: 800;
   color: #ffd9cf; letter-spacing: 0.04em; text-shadow: 0 4px 0 #5a1208, 0 0 40px rgba(200, 40, 20, 0.8); background: radial-gradient(transparent 30%, rgba(80, 0, 0, 0.45));

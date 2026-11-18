@@ -1,6 +1,13 @@
 import type { SkillId } from '../content/progression';
 import type { SpellId } from '../content/spells';
 import type { PlayerId } from './entity';
+import type { Vec3 } from './math';
+
+/** The camera's centre ray: what the crosshair points at (`dir` is a unit vector). */
+export interface AimRay {
+  from: Vec3;
+  dir: Vec3;
+}
 
 /** Buttons a player can hold. Bit flags so a command is two small integers. */
 export const BTN = {
@@ -53,6 +60,8 @@ export interface InputCommand {
   pressed: number;
   /** Switch the hard lock to the next target left (-1) or right (+1) of the current one. */
   lockSwitch: number;
+  /** Where the crosshair points. Without one (bots, tests), attacks use the stick and facing. */
+  aim?: AimRay;
   /** Menu intents for this tick (usually none). */
   ui?: UiAction[];
 }
