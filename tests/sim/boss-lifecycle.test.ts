@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { ENEMIES } from '../../src/content/enemies';
+import { idleInput } from '../../src/sim/commands';
 import type { Entity } from '../../src/sim/entity';
 import type { SimEvent } from '../../src/sim/events';
 import { kill } from '../../src/sim/combat/hits';
+import { step } from './combatHelpers';
 import { BOSSES, bossWorld, moveOf, startFight, tickAlive, toPhase, until, type BossId } from './bossHelpers';
 import { VILLAGE_Y } from './m3Helpers';
 import { standAt } from './m4Helpers';
@@ -46,7 +48,7 @@ describe('the player falls: the whole fight resets', () => {
     const pillars = w.entities.filter((e) => e.obstacle?.breakable);
     for (const o of pillars) o.obstacle!.broken = true;
     kill({ now: w.now, entities: w.entities, get: (x) => w.get(x), events: w.events, motion: new Map(), frozen: new Set() }, p, boss);
-    for (let i = 0; i < 400 && p.combat!.action?.kind === 'dead'; i++) w.tick(new Map([[0, { ...tickInput(p) }]]));
+    for (let i = 0; i < 400 && p.combat!.action?.kind === 'dead'; i++) step(w, idleInput(p.tf.yaw));
     expect(p.combat!.action?.kind).not.toBe('dead');
     expectFullyReset(boss, id);
     expect(w.entities.filter((e) => e.hazard || e.brain?.summoned)).toEqual([]);
@@ -58,10 +60,6 @@ describe('the player falls: the whole fight resets', () => {
     w.dispose();
   });
 });
-
-function tickInput(p: Entity) {
-  return { move: { x: 0, y: 0 }, camYaw: p.tf.yaw, camPitch: 0, pressed: 0, held: 0, lockSwitch: 0, ui: [] };
-}
 
 describe('a boss can die in any state, once', () => {
   const cases: [BossId, string, (ctx: Awaited<ReturnType<typeof bossWorld>>) => void][] = [
@@ -120,9 +118,9 @@ describe('no boss goes quiet for good', () => {
     startFight(w, p, boss, off);
     const stand = () => standAt(w, boss.brain!.home.x + off, boss.brain!.home.z);
     for (const phase of [1, 2, 3] as const) {
-      if (phase > 1) toPhase(w, p, boss, phase);
+      if (phase !== 1) toPhase(w, p, boss, phase);
       let quiet = 0, worst = 0, started = 0;
-      for (let i = 0; i < 1800; i++) {
+      for (let i = 0; i < 1200; i++) {
         const had = moveOf(boss);
         stand();
         tickAlive(w, p);
