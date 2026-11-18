@@ -1,5 +1,7 @@
-import { SKILL_IDS, SKILL_MAX_RANK, pointsForLevel } from '../content/progression';
-import { LOADOUT_SLOTS } from '../content/spells';
+import { ITEMS, STARTING_GEAR } from '../content/items';
+import { LEVEL_CAP, SKILL_IDS, SKILL_MAX_RANK, pointsForLevel } from '../content/progression';
+import { QUESTS } from '../content/quests';
+import { LOADOUT_SLOTS, SPELLS } from '../content/spells';
 import { SAVE_SCHEMA, type SaveFile } from './schema';
 
 /**
@@ -58,21 +60,61 @@ export function migrate(raw: unknown): SaveFile {
     if (!step) throw new SaveError(`no migration from schema ${s.schema}`);
     s = step(s);
   }
-  return validate(s);
+  return reconcile(validate(s));
 }
+
+const isTable = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+/** A finite number, zero or more (JSON can spell Infinity as 1e999). */
+const isAmount = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+const isCount = (v: unknown): v is number => isAmount(v) && Number.isInteger(v);
 
 /** Shape check: a save that would crash the game is treated as damaged. */
 function validate(s: Raw): SaveFile {
   const p = s.player as Record<string, unknown> | undefined;
   const w = s.world as Record<string, unknown> | undefined;
   const ok =
-    !!p && !!w && typeof p.level === 'number' && typeof p.xp === 'number' && typeof p.sprouts === 'number' &&
-    typeof p.points === 'number' && Number.isInteger(p.points) && p.points >= 0 &&
-    validSkills(p.skills) && validLoadout(p.loadout, p.spells) && !!p.equipment && typeof p.equipment === 'object' &&
-    !!p.inventory && typeof p.inventory === 'object' && Array.isArray(p.spells) && !!p.quests && typeof p.quests === 'object' &&
-    !!p.tonics && typeof p.tonics === 'object' && !!w.flags && Array.isArray(w.openedChests) && Array.isArray(w.killedUniques);
+    !!p && !!w && isCount(p.level) && p.level >= 1 && p.level <= LEVEL_CAP && isAmount(p.xp) && isAmount(p.sprouts) &&
+    isCount(p.points) &&
+    validSkills(p.skills) && validSpells(p.spells) && validLoadout(p.loadout, p.spells) && isTable(p.equipment) &&
+    isTable(p.inventory) && Object.values(p.inventory).every(isCount) && isTable(p.quests) &&
+    isTable(p.tonics) && isCount(p.tonics.charges) && isCount(p.tonics.max) && Array.isArray(p.discoveredShrines) &&
+    isTable(w.flags) && Array.isArray(w.openedChests) && Array.isArray(w.killedUniques);
   if (!ok) throw new SaveError('missing fields');
   return s as unknown as SaveFile;
+}
+
+/** Every known spell is one the game has. */
+const validSpells = (v: unknown): boolean => Array.isArray(v) && v.every((x) => typeof x === 'string' && Object.hasOwn(SPELLS, x));
+
+/**
+ * A sound save can still outlive the content it names. What the game no longer has is let go, gear
+ * that isn't owned comes off, and a quest that changed resumes where it can: the save plays on.
+ */
+function reconcile(s: SaveFile): SaveFile {
+  const p = s.player;
+  const inventory = Object.fromEntries(Object.entries(p.inventory).filter(([id]) => Object.hasOwn(ITEMS, id)));
+  const owned = (id: string | null | undefined, kind: string): id is string => !!id && Object.hasOwn(ITEMS, id) && ITEMS[id].kind === kind && inventory[id] > 0;
+  const worn = (id: string, kind: string, starter: string): string => {
+    if (owned(id, kind)) return id;
+    inventory[starter] = Math.max(1, inventory[starter] ?? 0);
+    return starter;
+  };
+  const equipment = {
+    staff: worn(p.equipment.staff, 'staff', STARTING_GEAR.staff),
+    robe: worn(p.equipment.robe, 'robe', STARTING_GEAR.robe),
+    charm: owned(p.equipment.charm, 'charm') ? p.equipment.charm : null,
+  };
+  const quests: SaveFile['player']['quests'] = {};
+  for (const [id, q] of Object.entries(p.quests)) {
+    if (!isTable(q) || !Object.hasOwn(QUESTS, id)) continue;
+    const steps = QUESTS[id].steps;
+    const step = Math.min(isCount(q.step) ? q.step : 0, steps.length - 1);
+    const size = steps[step].objectives.length;
+    const fits = step === q.step && Array.isArray(q.progress) && q.progress.length === size && q.progress.every(isAmount);
+    quests[id] = q.status !== 'active' || fits ? q : { ...q, step, progress: new Array<number>(size).fill(0) };
+  }
+  const tracked = p.tracked && quests[p.tracked]?.status === 'active' ? p.tracked : null;
+  return { ...s, player: { ...p, inventory, equipment, quests, tracked } };
 }
 
 /** Every skill present, an integer rank 0–10. */

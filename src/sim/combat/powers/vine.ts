@@ -3,6 +3,7 @@ import { POWER } from '../../../content/packs/c3';
 import { idleInput } from '../../commands';
 import type { Entity } from '../../entity';
 import type { PhysicsWorld } from '../../physics/PhysicsWorld';
+import { affixElite } from '../../systems/affixes';
 import { flatDist, toWorld } from '../geometry';
 import { resolveHit } from '../hits';
 import type { CombatCtx } from '../playerCombat';
@@ -17,7 +18,7 @@ export const vineTarget = (ctx: CombatCtx, p: Entity): Entity | null => spellTar
 /** Elites, dummies and wide bodies stay put: the vine pulls you to them. */
 function heavy(e: Entity): boolean {
   const def = e.brain ? ENEMIES[e.brain.def] : undefined;
-  return !!def?.elite || !!def?.dummy || (e.body?.radius ?? 0) >= V.heavyRadius;
+  return !!def?.elite || !!def?.dummy || affixElite(e) || (e.body?.radius ?? 0) >= V.heavyRadius;
 }
 
 /** Lash the target and reel it in, or reel yourself in to a heavy one. Terrain in the way stops the vine. */
@@ -38,6 +39,7 @@ export function throwVine(ctx: CombatCtx, p: Entity, power: number, physics: Phy
   if (heavy(t)) p.combat!.push = { x, z, ticks };
   else if (out === 'hit') {
     t.combat!.push = { x: -x, z: -z, ticks };
-    t.combat!.action = { kind: 'hitstun', t: 0, dur: ticks + 10, knockdown: false };
+    // Dragged along, a frozen target stays frozen.
+    if (t.combat!.action?.kind !== 'frozen') t.combat!.action = { kind: 'hitstun', t: 0, dur: ticks + 10, knockdown: false };
   }
 }
