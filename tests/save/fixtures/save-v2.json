@@ -1,0 +1,26 @@
+{
+  "schema": 2,
+  "savedAt": "2026-11-17T12:00:00.000Z",
+  "build": "m3",
+  "region": "sproutvale",
+  "player": {
+    "level": 2,
+    "xp": 90,
+    "attrs": { "might": 0, "arcana": 1, "vitality": 0, "endurance": 0 },
+    "points": 0,
+    "sprouts": 35,
+    "equipment": { "staff": "staff_sproto", "robe": "robe_apprentice", "charm": "charm_second_wind" },
+    "inventory": { "staff_sproto": 1, "robe_apprentice": 1, "charm_second_wind": 1 },
+    "spells": ["bolt", "blast"],
+    "tonics": { "charges": 2, "max": 4 },
+    "quests": { "q_wake_up": { "status": "complete", "step": 5, "progress": [] } },
+    "tracked": null,
+    "lastShrine": "shrine_first_light",
+    "discoveredShrines": ["shrine_first_light", "shrine_watchtower"]
+  },
+  "world": {
+    "flags": { "bought:merchant_village:charm_second_wind": 1 },
+    "openedChests": ["chest_training"],
+    "killedUniques": []
+  }
+}

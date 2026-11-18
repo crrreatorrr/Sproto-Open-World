@@ -616,8 +616,8 @@ At most one AoE telegraph at a time, and at least 20 ticks between a recovery an
 
 - **Attributes:** Might, Arcana, Vitality, Endurance. Fixed growth each level plus **1 point** to
   spend at a shrine. Level cap 10.
-- **XP curve `round(60·L^1.45)` (main session's call):** 60, 164, 295, 448, 620, 807, 1,008… The
-  cumulative XP to reach L6 is **1,587** and to reach L7 is **2,394**. QA's totals were about 1,850
+- **XP curve `round(60·L^1.45)` (main session's call):** 60, 164, 295, 448, 619, 806, 1,008… The
+  cumulative XP to reach L6 is **1,586** and to reach L7 is **2,392** (corrected in M3: the formula rounds 618.95 to 619). QA's totals were about 1,850
   XP for the main path before the boss, and about 2,650 for a full clear. Those mean **level 6 on
   the main path and level 7 with the side content** when the player reaches Scrapjaw, which is the
   intended range. The old curve (`80·L^1.6`, L6 = 2,573) left main-path players at level 5. Enemy

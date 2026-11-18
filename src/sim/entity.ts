@@ -1,4 +1,6 @@
 import type { DamageKind, PlayerMoveId } from '../content/combat';
+import type { Attr } from '../content/progression';
+import type { QuestState } from '../content/quests';
 import type { SpellId } from '../content/spells';
 import type { StatusId } from '../content/statuses';
 import type { Vec3 } from './math';
@@ -87,6 +89,8 @@ export type Action =
   | { kind: 'hitstun'; t: number; dur: number; knockdown: boolean }
   | { kind: 'stagger'; t: number; dur: number }
   | { kind: 'frozen'; t: number; dur: number }
+  /** Drinking a Sprout Tonic: locked for TONIC.lockTicks, healing over TONIC.healTicks. */
+  | { kind: 'drink'; t: number; healPerTick: number }
   | { kind: 'dead'; t: number };
 
 export type BufferedAction = 'light' | 'heavy' | 'dodge' | 'spell1' | 'spell2' | 'spell3' | 'spell4';
@@ -127,6 +131,65 @@ export interface Combat {
   lastHitTick: number;
   /** Spell cooldowns: ticks left per spell. */
   cooldowns: Partial<Record<SpellId, number>>;
+}
+
+/** The player's RPG state (plan §5). Saved in the SaveFile. */
+export interface Progress {
+  level: number;
+  /** Total XP earned. */
+  xp: number;
+  attrs: Record<Attr, number>;
+  /** Attribute points to spend at a shrine. */
+  points: number;
+  sprouts: number;
+  equipment: { staff: string; robe: string; charm: string | null };
+  /** Item id → count. */
+  inventory: Record<string, number>;
+  spells: SpellId[];
+  tonics: { charges: number; max: number };
+  quests: Record<string, QuestState>;
+  tracked: string | null;
+  /** The shrine the player last rested at (respawn point), and every shrine found. */
+  lastShrine: string | null;
+  discoveredShrines: string[];
+  /** Talking: the NPC and the dialogue node the sim's cursor is on. */
+  dialogue: { npc: string; node: string } | null;
+  /** An open merchant shop (buy commands are accepted only while it is open). */
+  shop: string | null;
+  /** At a shrine (Rest / Level up menu): which one. */
+  atShrine: string | null;
+}
+
+/** World flags and per-session world state (plan §2.8). */
+export interface WorldState {
+  flags: Record<string, number>;
+  openedChests: string[];
+  killedUniques: string[];
+}
+
+export type InteractKind = 'shrine' | 'chest';
+
+/** Something the player can interact with (F / pad Y) in reach. */
+export interface Interactable {
+  /** Content id (the shrine's or chest's id). */
+  id: string;
+  kind: InteractKind;
+  /** Chests: opened already (then not interactable). */
+  used: boolean;
+}
+
+/** A talkable NPC. */
+export interface Npc {
+  id: string;
+}
+
+/** Something lying on the ground, picked up by walking over it. */
+export interface Pickup {
+  kind: 'sprouts' | 'heart' | 'item';
+  item?: string;
+  amount: number;
+  /** Ticks left before it disappears. */
+  life: number;
 }
 
 /** Status effects on an entity (plan §4.7). Absent = not affected. */
@@ -200,6 +263,10 @@ export interface Entity {
   brain?: EnemyBrain;
   projectile?: Projectile;
   statuses?: Statuses;
+  progress?: Progress;
+  interactable?: Interactable;
+  npc?: Npc;
+  pickup?: Pickup;
   owner?: PlayerId;
   /** Presentation hint only: which model to draw. */
   view: { model: string; tint?: number };
