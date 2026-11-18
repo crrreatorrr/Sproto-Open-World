@@ -6,16 +6,18 @@ import type { UiAction } from '../sim/commands';
 import type { Entity, Progress } from '../sim/entity';
 import type { ReadonlySimView } from '../sim/view';
 import { spellIcon } from './Hud';
+import { mapSignature, renderMap } from './mapTab';
 import type { MenuNav, Screen } from './MenuNav';
 import { KIND_NAMES, SWAP_RULE, costText, gearCompare, inventoryGroups, itemStats, levelProgress, questLog, readyText, skillGain, staffTraitText, swapCooldown } from './rpgText';
 
-export type MenuTab = 'powers' | 'skills' | 'gear' | 'quests' | 'settings';
+export type MenuTab = 'powers' | 'skills' | 'gear' | 'quests' | 'map' | 'settings';
 
 export const MENU_TABS: readonly { id: MenuTab; label: string }[] = [
   { id: 'powers', label: 'Powers' },
   { id: 'skills', label: 'Skills' },
   { id: 'gear', label: 'Gear' },
   { id: 'quests', label: 'Quests' },
+  { id: 'map', label: 'Map' },
   { id: 'settings', label: 'Settings' },
 ];
 
@@ -153,6 +155,8 @@ export class GameMenu {
       }
       case 'quests':
         return `${p.tracked}|${JSON.stringify(p.quests)}`;
+      case 'map':
+        return e ? mapSignature(this.src.view(), e, p) : 'none';
       default:
         return 'settings';
     }
@@ -193,6 +197,10 @@ export class GameMenu {
         return this.gear(body, p!);
       case 'quests':
         return this.quests(body, p!);
+      case 'map':
+        return renderMap(body, this.src.view(), this.src.player()!, p!, () => this.nav.retab(() => {
+          this.tab = 'quests';
+        }));
       case 'settings':
         return this.settings(body);
     }
