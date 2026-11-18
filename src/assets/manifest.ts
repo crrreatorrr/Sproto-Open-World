@@ -35,6 +35,9 @@ export const DUEL_ENEMY_CLIPS = [
 /** The Gatekeeper (sproto-shooter's `monster` boss): smash is its only attack clip. */
 export const GATEKEEPER_CLIPS = ['idle', 'walk', 'run', 'smash'] as const;
 
+/** Scrapjaw (sproto-shooter-bosses' `car_monster`): every boss action has its own clip. */
+export const SCRAPJAW_CLIPS = ['idle', 'walk', 'smash', 'slam', 'charge_start', 'charge', 'stunned', 'roar', 'throw_start', 'throw_loop'] as const;
+
 /** Villagers keep only their idle (the importer drops the rest). */
 export const NPC_CLIPS = ['idle'] as const;
 
@@ -61,6 +64,10 @@ export const MODELS = {
   slinger_vet: { path: 'models/enemies/slinger_vet.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.85 },
   big_coin: { path: 'models/enemies/slinger_vet.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.3 },
   gatekeeper: { path: 'models/elites/gatekeeper.glb', rigged: true, clips: GATEKEEPER_CLIPS, fitHeight: 3.2, rotationY: 0, inPlace: true },
+  /** M5: the boss (faces +Z, in-place clips), lazy-loaded. Fitted to its 5.4 m EnemyDef body. */
+  scrapjaw: { path: 'models/bosses/scrapjaw.glb', rigged: true, clips: SCRAPJAW_CLIPS, fitHeight: 5.4, rotationY: 0, inPlace: true },
+  /** The Old Quarry's breakable pillars (the sim's obstacles; the same rock as the quarry's rim). */
+  quarry_pillar: { path: 'models/props/rock_outcrop.glb' },
   /**
    * M4 villagers (NpcDef.model), fitted to 1.8 m (views rescale to the NPC's body). The Miller is
    * the Trader's model, tinted by the view.
