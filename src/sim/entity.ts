@@ -260,6 +260,8 @@ export interface BossState {
   nextRock: number;
   /** The add wave has been called. */
   summoned: boolean;
+  /** Underground (dormant, or mid-burrow): nothing can touch it, and it has no collider. */
+  under?: boolean;
 }
 
 /** A danger on the ground that belongs to a boss (plan §4.10). */

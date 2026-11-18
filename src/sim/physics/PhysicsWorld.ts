@@ -208,6 +208,10 @@ export class PhysicsWorld {
     this.characters.delete(id);
   }
 
+  hasCharacter(id: EntityId): boolean {
+    return this.characters.has(id);
+  }
+
   removeAllCharacters(): void {
     for (const id of [...this.characters.keys()]) this.removeCharacter(id);
   }

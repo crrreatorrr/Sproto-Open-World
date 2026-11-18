@@ -11,7 +11,7 @@ export const powersOf = (e: Entity): PowerState => (e.powers ??= {});
 export const alive = (e: Entity): boolean => e.combat?.action?.kind !== 'dead';
 
 /** A living body on the other team. */
-export const hostile = (p: Entity, e: Entity): boolean => !!e.combat && !!e.body && e.combat.team !== p.combat?.team && alive(e);
+export const hostile = (p: Entity, e: Entity): boolean => !!e.combat && !!e.body && e.combat.team !== p.combat?.team && alive(e) && !e.boss?.under;
 
 export const chestOf = (e: Entity): Vec3 => ({ x: e.tf.pos.x, y: e.tf.pos.y + (e.body?.height ?? 1.8) * 0.55, z: e.tf.pos.z });
 

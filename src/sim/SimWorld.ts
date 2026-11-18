@@ -287,7 +287,23 @@ export class SimWorld {
   private readonly bossHost: BossHost = {
     spawnAdd: (def, pos, yaw) => this.spawnEnemy(def, pos, yaw),
     spawnHazard: (pos, hazard) => this.spawnHazard(pos, hazard),
+    flag: (name) => (this.world.flags[name] ?? 0) !== 0,
+    groundY: (x, z, near) => {
+      const hit = this.physics.raycast({ x, y: near + 20, z }, { x: 0, y: -1, z: 0 }, 60);
+      // Capped near where it was aimed: the ray can land on top of a pillar.
+      return hit ? Math.min(hit.point.y + 0.02, near + 1.5) : near;
+    },
   };
+
+  /** A boss underground has no collider, so nothing bumps into what can't be seen. */
+  private syncBurrowed(): void {
+    for (const e of this.entities) {
+      if (!e.boss || !e.body) continue;
+      const solid = this.physics.hasCharacter(e.id);
+      if (e.boss.under && solid) this.physics.removeCharacter(e.id);
+      else if (!e.boss.under && !solid) this.physics.addCharacter(e.id, e.body, e.tf.pos);
+    }
+  }
 
   private spawnHazard(pos: Vec3, hazard: Hazard): void {
     this.add({
@@ -308,6 +324,7 @@ export class SimWorld {
   /** A boss died: its adds fall with it. */
   private bossDied(ctx: CombatCtx, boss: Entity): void {
     boss.boss!.state = 'dead';
+    delete boss.boss!.under;
     ctx.events.push({ type: 'bossDefeated', boss: boss.id });
     for (const e of this.entities) if (e.brain?.summoned && e.combat?.action?.kind !== 'dead') kill(ctx, e, null);
   }
@@ -403,6 +420,7 @@ export class SimWorld {
         life: Math.ceil(move.projectile.range / (sp * DT)), reflected: false,
         homing: move.projectile.homing, target: move.projectile.homing ? target.id : undefined,
         ...(move.projectile.reflectBonus ? { reflectBonus: { ...move.projectile.reflectBonus, shooter: owner.id } } : {}),
+        ...(move.projectile.status ? { status: { ...move.projectile.status } } : {}),
       },
       view: { model: move.projectile.model ?? (move.kind === 'arcane' ? 'hex' : 'coin') },
     };
@@ -510,7 +528,8 @@ export class SimWorld {
     for (const e of this.entities) {
       if (!e.body) continue;
       const [cx, cz] = cellOf(e.tf.pos.x, e.tf.pos.z);
-      if (e.settle || !this.readyCells.has(cellKey(cx, cz))) out.add(e.id);
+      // A boss underground stays put too: it has no collider to move.
+      if (e.settle || e.boss?.under || !this.readyCells.has(cellKey(cx, cz))) out.add(e.id);
     }
     return out;
   }
@@ -647,6 +666,7 @@ export class SimWorld {
     lockOn(ctx, commands, this.physics);
     playerCombat(ctx, commands, this.physics, (e) => this.spawnSpellProjectile(e));
     enemyBrains(ctx, this.rng.stream('ai'), this.physics, (o, m, t, a) => this.spawnProjectile(o, m, t, a), this.bossHost);
+    this.syncBurrowed();
     markTargeted(this.entities, this.now, (id) => this.byId.get(id));
     const noGround = this.groundless();
     locomotion(this.entities, commands, this.physics, this.events, motion, noGround.size ? new Set([...frozen, ...noGround]) : frozen);
