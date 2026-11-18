@@ -10,6 +10,7 @@ import type { HitFx } from '../fx/HitFx';
 import { PowerFx } from '../fx/powers';
 import { SpellFx } from '../fx/SpellFx';
 import { makeBossView } from './BossViews';
+import { DrakeFlyover, makeDrakeView } from './DrakeViews';
 import { BlastOrbView, BoltView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
 import { ChestView, NpcView, PickupView, ShrineView, objectView } from './RpgViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
@@ -18,7 +19,7 @@ import { wantsView } from './viewCull';
 const DECAL_COLOR: Record<DecalShape, number> = { circle: 0xffa23a, jagged: 0xff2a1a };
 
 /** Enemy models outside the critical download: fetched the first time one comes into range. */
-const LAZY_MODELS: ReadonlySet<string> = new Set<ModelKey>(['gatekeeper', 'grunt_vet', 'slinger_vet', 'big_coin', 'robot_shooter', 'robot_laser', 'scrapjaw']);
+const LAZY_MODELS: ReadonlySet<string> = new Set<ModelKey>(['gatekeeper', 'grunt_vet', 'slinger_vet', 'big_coin', 'robot_shooter', 'robot_laser', 'scrapjaw', 'drake']);
 
 /** Seconds between status particles on a burning, shocked or chilled enemy. */
 const EMBER_EVERY = 0.07;
@@ -57,6 +58,8 @@ export class WorldViews {
   readonly spells = new SpellFx();
   /** The C3 powers' visuals. */
   readonly powers: PowerFx;
+  /** The Skyfire Drake's far passes over the valley before its fight (C6). */
+  readonly flyover: DrakeFlyover;
   private readonly views = new Map<EntityId, EntityView>();
   private readonly decals: LiveDecal[] = [];
   private readonly seen = new Set<EntityId>();
@@ -77,7 +80,8 @@ export class WorldViews {
     private readonly fx: HitFx | null = null,
   ) {
     this.powers = new PowerFx(assets, fx);
-    this.root.add(this.spells.root, this.powers.root);
+    this.flyover = new DrakeFlyover(assets);
+    this.root.add(this.spells.root, this.powers.root, this.flyover.root);
   }
 
   get(id: EntityId): EntityView | undefined {
@@ -126,6 +130,7 @@ export class WorldViews {
     this.updateDecals(view, dt);
     this.spells.update(dt);
     this.powers.sync(view, alpha, dt);
+    this.flyover.update(view, me, dt);
   }
 
   /** React to a sim event (telegraphs, flinches and spell visuals; sounds and numbers live in the app). */
@@ -136,7 +141,8 @@ export class WorldViews {
         const move = enemyDef(ent)?.moves.find((m) => m.id === e.move);
         this.views.get(e.entity)?.telegraph?.(move, e.unblockable, e.ticks);
         const shape: DecalShape | null = e.decal ?? move?.decal ?? (e.unblockable ? 'jagged' : null);
-        if (shape && move) {
+        // A dive paints its own lane on the ground (DrakeView).
+        if (shape && move && !move.dive) {
           const decal = new TelegraphDecal(shape, DECAL_COLOR[shape]);
           this.root.add(decal.root);
           // Area attacks put their circle where they aim (the event's `at`, else the action's `aim`).
@@ -306,7 +312,7 @@ export class WorldViews {
 
   private make(e: Readonly<Entity>): EntityView | null {
     if (LAZY_MODELS.has(e.view.model) && !this.lazyReady(e.view.model as ModelKey)) return null;
-    const bossView = makeBossView(e, this.assets, this.fx);
+    const bossView = makeDrakeView(e, this.assets, this.fx) ?? makeBossView(e, this.assets, this.fx);
     if (bossView) return bossView;
     const pr = e.projectile;
     if (e.kind === 'projectile' || pr) {
@@ -361,5 +367,6 @@ export class WorldViews {
     this.decals.length = 0;
     this.spells.clear();
     this.powers.clear();
+    this.flyover.clear();
   }
 }

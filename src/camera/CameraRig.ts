@@ -31,6 +31,9 @@ export const CAM = {
   /** Pitch clamp while locked: −35° to +20°. */
   lockMinPitch: (-35 * Math.PI) / 180,
   lockMaxPitch: (20 * Math.PI) / 180,
+  /** A locked target high in the air: the camera tips up to keep it this far (radians) below the top of the view. */
+  lockAirMargin: 0.42,
+  lockAirMaxPitch: (55 * Math.PI) / 180,
 } as const;
 
 const damp = (a: number, b: number, sharpness: number, dt: number) => a + (b - a) * (1 - Math.exp(-sharpness * dt));
@@ -127,8 +130,13 @@ export class CameraRig {
       this.tmp.x += dx * shift;
       this.tmp.z += dz * shift;
       if (dx * dx + dz * dz > 0.04) this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), CAM.lockYawSharpness, dt);
-      // Ease into the lock's pitch range rather than snapping when the lock starts.
-      this.pitch = damp(this.pitch, Math.min(CAM.lockMaxPitch, Math.max(CAM.lockMinPitch, this.pitch)), 12, dt);
+      // Ease into the lock's pitch range rather than snapping when the lock starts. A target overhead
+      // (the Skyfire Drake) lifts the range, so the camera looks up and keeps it in frame.
+      const up = Math.atan2(lockOn.y - target.y - CAM.height, Math.max(1, Math.hypot(dx, dz))) - CAM.lockAirMargin;
+      const air = Math.min(CAM.lockAirMaxPitch, up);
+      const lo = air > 0 ? air : CAM.lockMinPitch;
+      const hi = Math.max(CAM.lockMaxPitch, air);
+      this.pitch = damp(this.pitch, Math.min(hi, Math.max(lo, this.pitch)), air > 0 ? 5 : 12, dt);
     }
     if (!this.hasPivot) {
       this.pivot.copy(this.tmp);

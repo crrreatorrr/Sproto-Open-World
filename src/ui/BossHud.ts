@@ -40,6 +40,8 @@ export class BossHud {
   private value = -1;
   private lagValue = 1;
   private lastName = '';
+  private readonly endTitle = Object.assign(document.createElement('h1'), { className: 'logo', textContent: 'The Scrap Rumble' });
+  private readonly endText = Object.assign(document.createElement('p'), { className: 'tagline', textContent: 'Scrapjaw is beaten and Sproutvale sleeps easy. Thank you for playing.' });
 
   constructor(hud: HTMLElement, menus: HTMLElement) {
     const track = div('track');
@@ -61,14 +63,16 @@ export class BossHud {
     go.addEventListener('click', () => this.onContinue?.());
     const list = div('list');
     list.append(go);
-    el.append(
-      Object.assign(document.createElement('h1'), { className: 'logo', textContent: 'The Scrap Rumble' }),
-      Object.assign(document.createElement('p'), { className: 'tagline', textContent: 'Scrapjaw is beaten and Sproutvale sleeps easy. Thank you for playing.' }),
-      list,
-    );
+    el.append(this.endTitle, this.endText, list);
     host.append(el);
     // Back does what Continue does: the card never traps a pad.
     return { el, onBack: () => this.onContinue?.() };
+  }
+
+  /** What the end card says (each story's last quest has its own). */
+  setEndCard(title: string, text: string): void {
+    this.endTitle.textContent = title;
+    this.endText.textContent = text;
   }
 
   /** The bar, once per rendered frame: `null` hides it. */
