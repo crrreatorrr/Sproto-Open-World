@@ -24,6 +24,19 @@ export type ButtonName = keyof typeof BTN;
  * space. `pressed` holds the buttons that went down since the previous tick, latched by the
  * client so a tap between two ticks is never lost.
  */
+/**
+ * Intents from menus (plan §2.2: intents, not effects). The sim validates each: equipping an item
+ * you own, buying while that merchant's shop is open, spending a point at a shrine, and so on.
+ */
+export type UiAction =
+  | { kind: 'dialogueChoose'; choice: number }
+  | { kind: 'buy'; merchant: string; item: string }
+  | { kind: 'equip'; item: string }
+  | { kind: 'spendAttr'; attr: 'might' | 'arcana' | 'vitality' | 'endurance' }
+  | { kind: 'rest' }
+  | { kind: 'closeMenu' }
+  | { kind: 'track'; quest: string };
+
 export interface InputCommand {
   kind: 'input';
   move: { x: number; y: number };
@@ -32,6 +45,8 @@ export interface InputCommand {
   pressed: number;
   /** Switch the hard lock to the next target left (-1) or right (+1) of the current one. */
   lockSwitch: number;
+  /** Menu intents for this tick (usually none). */
+  ui?: UiAction[];
 }
 
 export type Command = InputCommand;

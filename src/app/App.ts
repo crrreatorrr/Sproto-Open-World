@@ -1,23 +1,30 @@
 import * as THREE from 'three';
 import { AssetLoader } from '../assets/AssetLoader';
+import { MODELS, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
 import { CameraRig } from '../camera/CameraRig';
+import { ITEMS } from '../content/items';
+import { QUESTS } from '../content/quests';
 import { SANDBOX } from '../content/sandbox';
 import { SPELLS, WOVEN, type SpellId } from '../content/spells';
 import { worldLevel } from '../content/world/level';
+import { SPROUTVALE_CONTENT } from '../content/world/sproutvaleContent';
 import { frameDataLines, targetLines } from '../debug/frameData';
 import { Overlay } from '../debug/Overlay';
 import { QA_LOG_ENABLED, qaLog } from '../debug/qaLog';
 import { GAMEPAD, KEYS, PAD } from '../input/bindings';
 import { CommandBuilder } from '../input/CommandBuilder';
 import { applyControlPrefs, loadControlPrefs, saveControlPrefs } from '../input/controlPrefs';
+import { promptLabel } from '../input/glyphs';
 import { Input } from '../input/Input';
 import { RUMBLE, TRAUMA } from '../render/fx/feedback';
 import { HitFx, type SparkStyle } from '../render/fx/HitFx';
 import { Renderer } from '../render/Renderer';
 import { PlayerView } from '../render/views/PlayerView';
 import { WorldViews, enemyDef } from '../render/views/WorldViews';
-import { BTN } from '../sim/commands';
+import { loadSave, writeSave } from '../save/SaveStore';
+import type { SaveFile } from '../save/schema';
+import { BTN, type UiAction } from '../sim/commands';
 import type { Entity, EntityId } from '../sim/entity';
 import type { SimEvent } from '../sim/events';
 import { initPhysics } from '../sim/physics/PhysicsWorld';
@@ -25,10 +32,13 @@ import { SimWorld } from '../sim/SimWorld';
 import type { ReadonlySimView } from '../sim/view';
 import { DamageNumbers, type NumberStyle, type Projector } from '../ui/DamageNumbers';
 import { Hud, type HudCombat, type HudStatus } from '../ui/Hud';
-import { MenuNav } from '../ui/MenuNav';
+import { MenuNav, type Screen } from '../ui/MenuNav';
 import { Menus } from '../ui/menus';
 import { Panels } from '../ui/panels';
 import { Reveals, affinityToast } from '../ui/Reveals';
+import { RpgHud, type HudRpgState } from '../ui/RpgHud';
+import { RpgMenus } from '../ui/rpgMenus';
+import { compassOffset, headingTo, interactLabel, trackedQuest } from '../ui/rpgText';
 import { loadSettings, saveSettings, type Settings } from '../ui/settings';
 import { FixedLoop } from './loop';
 import { WorldSession } from './WorldSession';
@@ -56,6 +66,8 @@ export type GameMode = 'world' | 'yard' | 'waves';
 const MODE: GameMode = WAVE_SANDBOX ? 'waves' : PARAMS.get('yard') === '1' ? 'yard' : 'world';
 /** Blast shakes the camera less the further it is from you (m at which it stops). */
 const BLAST_SHAKE_RANGE = 16;
+/** Autosave every 5 minutes of play when out of combat (plan §2.8), on top of the event saves. */
+const AUTOSAVE_SEC = 300;
 
 /**
  * The game shell: app state machine, the fixed-step loop, and the wiring between devices, sim,
@@ -111,6 +123,19 @@ export class App {
   /** QA teleport waiting for the target cell's heights, to set the player down on the ground. */
   private pendingDrop: { x: number; z: number } | null = null;
   private frameCount = 0;
+  /** The RPG HUD layer and menus (plan §5; world mode). */
+  readonly rpgHud: RpgHud;
+  readonly rpgMenus: RpgMenus;
+  /** The save found at boot (or on returning to the title): Continue loads it. */
+  private bootSave: SaveFile | null = null;
+  /** An event asked for a save; written once after this frame's ticks. */
+  private saveWanted = false;
+  /** Seconds of play since the last save (the 5-minute autosave). */
+  private sinceSave = 0;
+  /** Saves written this session (QA). */
+  private saves = 0;
+  /** The staff model shown on the player, to swap it when the equipment changes. */
+  private staffShown = '';
 
   constructor(host: HTMLElement, private readonly physicsReady: Promise<void>) {
     const canvas = document.createElement('canvas');
@@ -132,12 +157,17 @@ export class App {
     host.appendChild(ui);
     this.numbers = new DamageNumbers(ui);
     this.hud = new Hud(ui);
+    this.rpgHud = new RpgHud(this.hud.root);
+    this.rpgHud.enabled = MODE === 'world';
     this.screenFlash = document.createElement('div');
     this.screenFlash.className = 'screen-flash';
     ui.appendChild(this.screenFlash);
     this.nav = new MenuNav(this.input);
     this.menus = new Menus(ui, this.nav, this.input, {
       play: () => void this.play(),
+      continueGame: () => void this.play(this.bootSave),
+      character: () => this.nav.push(this.rpgMenus.character),
+      questLog: () => this.nav.push(this.rpgMenus.quests),
       resume: () => this.resume(),
       quitToTitle: () => this.quitToTitle(),
       settingsChanged: (s) => {
@@ -150,6 +180,15 @@ export class App {
         saveControlPrefs(p);
       },
     }, this.settings, prefs);
+    this.menus.rpgMenus = MODE === 'world';
+    this.rpgMenus = new RpgMenus(ui, this.nav, {
+      view: () => this.sim?.view() ?? null,
+      player: () => this.sim?.playerEntity(LOCAL_PLAYER),
+      choices: () => this.sim?.view().dialogueChoices(LOCAL_PLAYER) ?? [],
+      send: (a) => this.sendUi(a),
+      interactGlyph: () => promptLabel(this.input.pad.device, this.input.pad.style, KEYS.interact, PAD.interact),
+      resume: () => this.resume(),
+    });
     this.panels = new Panels(ui);
     this.overlay = new Overlay(ui);
     this.nav.onMove = () => this.audio.play('uiHover');
@@ -160,6 +199,8 @@ export class App {
 
     if (QA_LOG_ENABLED) this.bindQaLog();
     this.bindWindowEvents(canvas);
+    window.addEventListener('resize', () => this.rpgHud.setCompassWidth(compassWidth()));
+    this.rpgHud.setCompassWidth(compassWidth());
     this.stream = MODE === 'world' ? new WorldSession(this.renderer, this.assets) : null;
     if (!this.stream) {
       this.renderer.yardLook();
@@ -239,10 +280,59 @@ export class App {
   private toTitle(): void {
     this.state = 'title';
     this.hud.visible = false;
+    if (MODE === 'world') this.readSave();
     this.nav.reset(this.menus.title);
   }
 
-  async play(): Promise<void> {
+  /**
+   * Look for a save (plan §2.8) and tell the title: Continue when there is one, and a notice when
+   * it was damaged (the backup loaded instead, or nothing could be).
+   */
+  private readSave(): void {
+    let r: ReturnType<typeof loadSave>;
+    try {
+      r = loadSave();
+    } catch (err) {
+      r = { save: null, fromBackup: false, error: errorText(err) };
+    }
+    this.bootSave = r.save;
+    const notice = r.save && r.fromBackup
+      ? 'Your last save was damaged; loaded the backup.'
+      : !r.save && r.error
+        ? "Your save couldn't be loaded; starting fresh."
+        : '';
+    if (r.error) console.warn('[save]', r.error);
+    this.menus.setSave(!!r.save, notice);
+  }
+
+  /** Queue a menu intent for the next tick. */
+  private sendUi(a: UiAction): void {
+    this.commands.queueUi(a);
+  }
+
+  /**
+   * Write the autosave (plan §2.8): the sim's state as a SaveFile, stamped with the app's clock.
+   * A full or blocked storage is said on screen, never fatal.
+   */
+  private writeSaveNow(): void {
+    const sim = this.sim;
+    const region = this.stream?.region;
+    if (!sim || !region) return;
+    this.sinceSave = 0;
+    let ok = false;
+    try {
+      ok = writeSave(sim.toSave({ savedAt: new Date().toISOString(), build: __BUILD_ID__, region: region.manifest.id }));
+    } catch (err) {
+      console.warn('[save] could not write', err);
+    }
+    if (ok) {
+      this.saves++;
+      this.rpgHud.saved();
+    } else this.hud.toast("Couldn't save: the browser's storage is full or blocked.");
+  }
+
+  /** Start a session: a new game, or `save` restored on top of it (Continue). */
+  async play(save: SaveFile | null = null): Promise<void> {
     if (this.state === 'loading') return;
     this.state = 'loading';
     this.nav.reset(null);
@@ -271,16 +361,21 @@ export class App {
       const region = this.stream?.region;
       const sim = new SimWorld(region ? worldLevel(region.manifest) : SANDBOX, 1);
       const entity = sim.spawnPlayer(LOCAL_PLAYER);
-      // The sandbox's dummies and Brute (bare test worlds stay empty), or the wave runner. The
-      // world's camps arrive with its content (M4).
+      // The sandbox's dummies and Brute (bare test worlds stay empty), the wave runner, or
+      // Sproutvale's villagers, shrines, chest and training yard (its camps arrive in M4). A save
+      // goes on top of the fresh world, so opened chests and found shrines come back as they were.
       if (WAVE_SANDBOX) sim.startWaves();
+      else if (this.stream) sim.populateWorld(SPROUTVALE_CONTENT);
       else sim.populate();
+      if (save && this.stream) sim.applySave(save);
       if (this.stream) {
         this.stream.attach(sim);
         this.groundWait = true;
       }
       const view = new PlayerView(this.assets);
-      await view.load('staff_sproto');
+      const staff = this.staffModel(entity.progress?.equipment.staff);
+      await view.load(staff);
+      this.staffShown = staff;
       this.renderer.scene.add(view.root);
       this.sim = sim;
       this.player = view;
@@ -290,6 +385,10 @@ export class App {
       this.rig.snap(this.target, entity.tf.yaw);
       this.loop.reset();
       this.commands.clear();
+      this.commands.clearUi();
+      this.saveWanted = false;
+      this.sinceSave = 0;
+      this.rpgHud.clearFeed();
       this.state = 'playing';
       if (this.groundWait) this.panels.showVeil('Loading Sproutvale…');
       else this.panels.hideVeil();
@@ -328,6 +427,7 @@ export class App {
   }
 
   quitToTitle(): void {
+    this.commands.clearUi();
     this.player?.dispose();
     this.player = null;
     this.playerId = null;
@@ -346,13 +446,17 @@ export class App {
   }
 
   /**
-   * The cell-load timeout's way out (plan §2.9, "Return to last shrine" until M3 brings shrines):
-   * a fresh world session at the player start. Cells already fetched stay cached.
+   * The cell-load timeout's way out (plan §2.9): a fresh world session that keeps the player's
+   * progress (the current state goes through a SaveFile, so it resumes at the last shrine, or at
+   * the start before one is found). Cells already fetched stay cached.
    */
   private returnToStart(): void {
     this.panels.hideError();
+    const sim = this.sim;
+    const region = this.stream?.region;
+    const save = sim && region ? sim.toSave({ savedAt: new Date().toISOString(), build: __BUILD_ID__, region: region.manifest.id }) : null;
     this.quitToTitle();
-    void this.play();
+    void this.play(save);
   }
 
   /** The cell-load timeout (plan §2.9): Retry, or Return to start, pad or mouse. */
@@ -367,7 +471,7 @@ export class App {
           this.panels.showVeil('Loading Sproutvale…');
         },
       },
-      { label: 'Return to start', run: () => this.returnToStart() },
+      { label: this.sim?.playerEntity(LOCAL_PLAYER)?.progress?.lastShrine ? 'Return to last shrine' : 'Return to start', run: () => this.returnToStart() },
     ]);
   }
 
@@ -396,7 +500,10 @@ export class App {
     } else if (this.nav.open) {
       this.nav.frame(dt);
       this.menus.frame(dt, pad);
+      this.rpgMenus.frame(dt);
     }
+    // An equip or a track chosen in the pause menu reaches the sim through one tick of its own.
+    if (this.state === 'paused' && this.sim && this.commands.hasUi && !this.groundWait) this.pausedTick();
 
     if (this.state === 'playing' && this.sim && this.player) this.playFrame(dt);
     else this.idleFrame(dt);
@@ -434,18 +541,32 @@ export class App {
       this.pause();
       return;
     }
+    // Menus the sim opens (dialogue, shop, shrine) follow the player's progress.
+    const menu = this.syncSimMenus(sim.playerEntity(LOCAL_PLAYER));
+    if (!menu && this.mode === 'world') {
+      if (this.input.wasPressed(KEYS.questLog) || pad.wasPressed(PAD.questLog)) return this.openFromPlay(this.rpgMenus.quests);
+      if (this.input.wasPressed(KEYS.inventory)) return this.openFromPlay(this.rpgMenus.character);
+    }
     if (this.overlay.open) {
       if (pad.wasPressed(['right'])) this.cycleClip(1);
       if (pad.wasPressed(['left'])) this.cycleClip(-1);
     }
     // Look: raw mouse, then the right stick. Locked on (plan §4.1), the camera turns itself to the
     // target and horizontal look becomes the target switch (CommandBuilder), so it doesn't turn yaw.
+    // In a menu the sticks drive the menu and the camera frames the speaker.
     const locked = this.lockPoint(simView, sim.playerEntity(LOCAL_PLAYER)) !== null;
     const m = this.input.consumeMouseDelta();
-    if (m.x || m.y) this.rig.rotateMouse(locked ? 0 : m.x, m.y);
-    if (pad.look.x || pad.look.y) this.rig.rotatePad(locked ? 0 : pad.look.x, pad.look.y, dt);
+    if (!menu) {
+      if (m.x || m.y) this.rig.rotateMouse(locked ? 0 : m.x, m.y);
+      if (pad.look.x || pad.look.y) this.rig.rotatePad(locked ? 0 : pad.look.x, pad.look.y, dt);
+    }
 
-    this.commands.frame({ locked, mouseDx: m.x, dt });
+    if (menu) {
+      // Gameplay input is suppressed while a menu is up: the ticks get idle moves (plus the
+      // menu's queued intents). F / pad Y still advance a dialogue.
+      this.commands.clear();
+      if (this.input.wasPressed(KEYS.interact) || pad.wasPressed(PAD.interact)) this.rpgMenus.interactPressed();
+    } else this.commands.frame({ locked, mouseDx: m.x, dt });
     // Streaming runs before the ticks, so colliders queued now are built at the top of this frame's ticks.
     const held = this.streamFrame(simView);
     const ticks = this.loop.advance(dt);
@@ -460,6 +581,8 @@ export class App {
 
     const p = sim.playerEntity(LOCAL_PLAYER);
     if (!p) return;
+    this.autosave(simView, p, dt, held);
+    this.syncEquipment(p);
     view.update(p, this.loop.alpha, dt);
     const a = p.combat?.action;
     if (QA_LOG_ENABLED && a?.kind === 'attack' && view.attackShown && a !== this.posedAction) {
@@ -473,12 +596,119 @@ export class App {
     this.world.sync(simView, this.loop.alpha, dt);
     this.fx.update(dt);
     this.target.copy(view.root.position);
-    this.rig.update(dt, this.target, simView, p.loco?.sprinting ?? false, this.lockPoint(simView, p));
+    this.rig.update(dt, this.target, simView, p.loco?.sprinting ?? false, this.speakerPoint(simView, p) ?? this.lockPoint(simView, p));
     this.renderer.follow(this.target);
     // Screen-space UI projects through this frame's camera.
     this.renderer.camera.updateMatrixWorld();
     this.numbers.update(dt, this.project);
     this.hud.combat(this.hudCombat(simView, p), dt);
+    this.rpgFrame(simView, p, dt, !!menu);
+  }
+
+  /**
+   * Open or close the menus the sim drives (plan §5: the sim owns the cursor): dialogue while
+   * `progress.dialogue` is set, else the shop, else the shrine. Returns the open one, or null.
+   */
+  private syncSimMenus(p: Readonly<Entity> | undefined): Screen | null {
+    const want = this.rpgMenus.wanted(p?.progress);
+    if (want) {
+      if (!this.nav.has(want)) {
+        this.rpgMenus.opened(want);
+        this.nav.reset(want);
+        this.commands.clear();
+        // Free the mouse so the menu can be clicked; keyboard and pad work either way.
+        if (this.input.locked) {
+          this.releasingLock = true;
+          this.input.releaseLock();
+        }
+      }
+      return want;
+    }
+    if (this.rpgMenus.isSimScreen(this.nav.top)) {
+      this.nav.reset(null);
+      if (this.input.pad.device === 'kbm') this.input.requestLock();
+    }
+    return null;
+  }
+
+  /** Character or Quest log straight from play (I, J, pad View): paused, and Back returns to play. */
+  private openFromPlay(screen: Screen): void {
+    this.pause();
+    this.nav.reset(screen);
+  }
+
+  /** While paused, queued menu intents (equip, track) get one tick so the menu shows the result. */
+  private pausedTick(): void {
+    const sim = this.sim!;
+    this.commands.clear();
+    sim.tick(new Map([[LOCAL_PLAYER, this.commands.take(this.rig.yaw)]]));
+    this.afterTick(sim.view());
+  }
+
+  /**
+   * Autosave (plan §2.8): when an event asked for it (shrine rest, quest step or completion, level
+   * up), and every 5 minutes of play out of combat. Never while dead or held behind the veil.
+   */
+  private autosave(view: ReadonlySimView, p: Readonly<Entity>, dt: number, held: boolean): void {
+    if (this.mode !== 'world' || !p.progress) return;
+    const dead = p.combat?.action?.kind === 'dead';
+    const fighting = view.entities.some((e) => e.brain && e.brain.target === p.id && (e.brain.state === 'engage' || e.brain.state === 'leash'));
+    if (!fighting && !dead) this.sinceSave += dt;
+    if (this.sinceSave >= AUTOSAVE_SEC && !fighting) this.saveWanted = true;
+    if (this.saveWanted && !dead && !held) {
+      this.saveWanted = false;
+      this.writeSaveNow();
+    }
+  }
+
+  /** The staff in the player's hands follows the equipment (the robe tint waits for M4's art). */
+  private syncEquipment(p: Readonly<Entity>): void {
+    const id = p.progress?.equipment.staff;
+    if (!id || !this.player) return;
+    const key = this.staffModel(id);
+    if (key === this.staffShown) return;
+    this.staffShown = key;
+    void this.player.setStaff(key);
+  }
+
+  private staffModel(item: string | undefined): ModelKey {
+    const key = item ? ITEMS[item]?.staff?.model : undefined;
+    return key && key in MODELS ? (key as ModelKey) : 'staff_sproto';
+  }
+
+  /**
+   * In a dialogue the camera turns to frame the speaker's face (plan §5). It aims a little to the
+   * speaker's left, so the speaker stands right of centre instead of behind the player's head.
+   */
+  private speakerPoint(view: ReadonlySimView, p: Readonly<Entity>): THREE.Vector3 | null {
+    const npc = p.progress?.dialogue?.npc;
+    if (!npc) return null;
+    const e = view.entities.find((x) => x.npc?.id === npc);
+    if (!e) return null;
+    const v = this.world.get(e.id);
+    const pos = v?.root.position ?? e.tf.pos;
+    const me = this.player?.root.position ?? p.tf.pos;
+    const yaw = Math.atan2(pos.x - me.x, pos.z - me.z);
+    // Screen-left of the player → speaker line is (cos yaw, −sin yaw) (the camera's right is −that).
+    const side = 1.3;
+    return this.lockPos.set(pos.x + Math.cos(yaw) * side, pos.y + (v?.height ?? e.body?.height ?? 1.8) * 0.85, pos.z - Math.sin(yaw) * side);
+  }
+
+  /** The RPG HUD: level, Sprouts, tonics, tracker, compass and the interact prompt (world mode). */
+  private rpgFrame(view: ReadonlySimView, p: Readonly<Entity>, dt: number, inMenu: boolean): void {
+    const pr = p.progress;
+    if (this.mode !== 'world' || !pr) return;
+    const tracker = trackedQuest(pr);
+    let marker: HudRpgState['compass']['marker'] = null;
+    const at = tracker?.marker ? view.locate(tracker.marker) : null;
+    if (at) marker = { offset: compassOffset(this.rig.yaw, headingTo(p.tf.pos, at)), dist: Math.hypot(at.x - p.tf.pos.x, at.z - p.tf.pos.z) };
+    let prompt: HudRpgState['prompt'] = null;
+    const t = inMenu || p.combat?.action?.kind === 'dead' ? null : view.interactTarget(LOCAL_PLAYER);
+    if (t) {
+      if (t.kind === 'shrine') this.rpgMenus.nameShrine(t.id, t.name);
+      prompt = { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.interact, PAD.interact), text: interactLabel(t.kind, t.name) };
+    }
+    this.rpgHud.update({ level: pr.level, xp: pr.xp, points: pr.points, sprouts: pr.sprouts, tonics: pr.tonics, tracker, compass: { camYaw: this.rig.yaw, marker }, prompt }, dt);
   }
 
   /**
@@ -604,7 +834,9 @@ export class App {
       case 'death':
         if (e.entity === me) {
           this.audio.play('roundLose');
-          this.hud.showDeath(true);
+          // The world sends you back to the last shrine you rested at (plan §2.9).
+          if (this.mode === 'world') this.hud.showDeath(true, 'You fell', 'You will wake at the last shrine you rested at');
+          else this.hud.showDeath(true);
           pad.rumble(RUMBLE.hurt, 1.2);
           this.shake(TRAUMA.death);
         } else {
@@ -734,6 +966,91 @@ export class App {
         this.audio.play('shieldPerfect', 1.2);
         return;
       default:
+        this.presentRpg(view, e);
+        return;
+    }
+  }
+
+  /**
+   * RPG events (M3) for the local player: banners for the big moments (a quest started or done, a
+   * level), feed lines for the small ones, the refusal's reason as a toast, and the autosave
+   * triggers (plan §2.8).
+   */
+  private presentRpg(view: ReadonlySimView, e: SimEvent): void {
+    if (!('entity' in e) || e.entity !== this.playerId) return;
+    const hud = this.rpgHud;
+    const quest = (id: string) => QUESTS[id]?.title ?? id;
+    switch (e.type) {
+      case 'xp':
+        if (e.amount > 0) hud.feed(`+${e.amount} XP`, 'level');
+        return;
+      case 'levelUp':
+        this.hud.waveBanner('Level up!', `Level ${e.level} · spend your point at a shrine`);
+        hud.feed(`Reached level ${e.level}`, 'level');
+        this.audio.play('shieldPerfect', 1.3);
+        this.saveWanted = true;
+        return;
+      case 'itemGained':
+        hud.feed(`Got ${ITEMS[e.item]?.name ?? e.item}${e.count > 1 ? ` ×${e.count}` : ''}`, 'item');
+        return;
+      case 'currency':
+        // Sprouts from the ground pulse the counter; a chest's or a reward's gets a line too.
+        if (e.amount > 0 && !view.events.some((x) => x.type === 'pickup' && x.kind === 'sprouts')) hud.feed(`+${e.amount} Sprouts`, 'item');
+        return;
+      case 'equip':
+        hud.feed(`Equipped ${ITEMS[e.item]?.name ?? e.item}`, 'item');
+        return;
+      case 'bought':
+        hud.feed(`Bought ${ITEMS[e.item]?.name ?? e.item} for ${e.price} Sprouts`, 'item');
+        this.audio.play('uiClick', 0.8);
+        return;
+      case 'refused':
+        this.rpgMenus.event(e);
+        this.hud.toast(e.reason);
+        this.audio.play('noMana', 1.1, 0.6);
+        return;
+      case 'drink':
+        this.audio.play('shieldUp', 0.7, 0.6);
+        return;
+      case 'pickup':
+        this.audio.play('uiHover', e.kind === 'heart' ? 0.8 : 1.5, 0.7);
+        return;
+      case 'interact':
+        if (e.kind === 'chest') this.audio.play('shieldBlock', 0.6);
+        return;
+      case 'shrineRest':
+        this.world.event(view, e);
+        hud.feed('Rested: health and tonics restored', 'info');
+        this.rpgMenus.event(e);
+        this.audio.play('shieldPerfect', 0.8);
+        this.saveWanted = true;
+        return;
+      case 'questStarted':
+        this.hud.waveBanner('New quest', quest(e.quest));
+        hud.feed(`New quest: ${quest(e.quest)}`, 'quest');
+        this.audio.play('shieldUp', 1.1);
+        return;
+      case 'questStep':
+        hud.feed(`Quest updated: ${quest(e.quest)}`, 'quest');
+        this.audio.play('uiClick', 1.3);
+        this.saveWanted = true;
+        return;
+      case 'questComplete':
+        this.hud.waveBanner('Quest complete', quest(e.quest));
+        hud.feed(`Quest complete: ${quest(e.quest)}`, 'quest');
+        this.audio.play('shieldPerfect', 1.1);
+        this.saveWanted = true;
+        return;
+      case 'spellLearned':
+        hud.feed(`Learned ${SPELLS[e.spell as SpellId]?.name ?? e.spell}`, 'level');
+        this.hud.toast(`New spell: ${SPELLS[e.spell as SpellId]?.name ?? e.spell}`);
+        return;
+      case 'attrSpent':
+        // Spent at a shrine: saved like the rest that came before it, so a reload keeps it.
+        this.audio.play('uiClick', 1.1);
+        this.saveWanted = true;
+        return;
+      default:
         return;
     }
   }
@@ -842,7 +1159,9 @@ export class App {
       player: v ? { hp: v.hp, hpMax: v.hpMax, stamina: v.stamina, staminaMax: v.staminaMax, mana: v.mana, manaMax: v.manaMax } : null,
       enemy,
       reticle: lp ? this.project(lp) : null,
-      spells: v && c ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window } : null,
+      spells: v && c
+        ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window, learned: this.mode === 'world' ? p.progress?.spells : undefined }
+        : null,
       wave: view.wave ? { ...view.wave } : null,
     };
   }
@@ -978,6 +1297,20 @@ export class App {
       clips: this.player?.animator?.clipNames ?? [],
       errorOpen: this.panels.errorOpen,
       drawCalls: this.renderer.renderer.info.render.calls,
+      rpg: p?.progress ? JSON.parse(JSON.stringify(p.progress)) : null,
+      rpgWorld: this.sim ? JSON.parse(JSON.stringify(this.sim.view().world)) : null,
+      interact: this.sim?.view().interactTarget(LOCAL_PLAYER) ?? null,
+      choices: this.sim?.view().dialogueChoices(LOCAL_PLAYER) ?? [],
+      typing: this.rpgMenus.typing,
+      tracker: this.rpgHud.trackerText,
+      prompt: this.rpgHud.promptText,
+      markerShown: this.rpgHud.markerShown,
+      feed: this.rpgHud.feedText,
+      saves: this.saves,
+      deathShown: this.hud.deathShown,
+      objects: (this.sim?.entities ?? [])
+        .filter((e) => e.npc || e.interactable || e.pickup)
+        .map((e) => ({ id: e.npc?.id ?? e.interactable?.id ?? null, kind: e.npc ? 'npc' : (e.interactable?.kind ?? 'pickup'), used: e.interactable?.used ?? false, pos: { ...e.tf.pos }, viewShown: !!this.world.get(e.id) })),
     };
   }
 }
@@ -996,6 +1329,11 @@ function hudStatuses(t: Readonly<Entity>): HudStatus[] {
 /** Kick off physics while the shell loads; exported for main.ts. */
 export function startPhysics(): Promise<void> {
   return initPhysics();
+}
+
+/** The compass bar's width: 440 px, narrower on a small window (App passes it to the HUD on resize). */
+function compassWidth(): number {
+  return Math.min(440, Math.round(window.innerWidth * 0.6));
 }
 
 function errorText(err: unknown): string {

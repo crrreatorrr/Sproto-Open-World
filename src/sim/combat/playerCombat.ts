@@ -1,7 +1,9 @@
 import {
   BLOCK, BUFFER, CHARGE, LUNGE, PLAYER_MOVES, PLAYER_STATS, ROLL, SOFT_TARGET, clipReach, clipTiming, type PlayerMoveId,
 } from '../../content/combat';
+import { TONIC } from '../../content/items';
 import { CAST_WALK_SCALE, SPELL_BY_SLOT } from '../../content/spells';
+import { charmOf } from '../systems/rpg';
 import { DT } from '../../content/tuning';
 import { BTN, idleInput, type CommandMap, type InputCommand } from '../commands';
 import type { Action, Buffered, BufferedAction, Entity } from '../entity';
@@ -153,6 +155,14 @@ function advance(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
     case 'block':
       a.t++;
       return;
+    case 'drink': {
+      // A Sprout Tonic: heal over TONIC.healTicks, locked until TONIC.lockTicks (punishable).
+      a.t++;
+      const v = p.vitals!;
+      if (a.t <= TONIC.healTicks) v.hp = Math.min(v.hpMax, v.hp + a.healPerTick);
+      if (a.t >= TONIC.lockTicks) c.action = null;
+      return;
+    }
     case 'hitstun':
     case 'stagger':
       a.t++;
@@ -269,7 +279,9 @@ function startAttack(p: Entity, move: PlayerMoveId, cmd: InputCommand, ctx: Comb
 function startRoll(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
   const c = p.combat!;
   const v = p.vitals!;
-  v.stamina = Math.max(0, v.stamina - ROLL.stamina);
+  // Quick Step makes rolls cheaper.
+  const k = p.progress ? (charmOf(p.progress)?.dodgeStamina ?? 1) : 1;
+  v.stamina = Math.max(0, v.stamina - ROLL.stamina * k);
   v.staminaDelay = PLAYER_STATS.dodgeDelay;
   const w = wishDir(cmd);
   const dir = w.mag > 0.2 ? { x: w.x / w.mag, z: w.z / w.mag } : { x: Math.sin(p.tf.yaw), z: Math.cos(p.tf.yaw) };
@@ -329,6 +341,9 @@ function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
     }
     case 'block':
       ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: BLOCK.walkScale, faceYaw: faceLock ?? p.tf.yaw });
+      return;
+    case 'drink':
+      ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: 0.35, faceYaw: p.tf.yaw });
       return;
     case 'cast':
       // Spells are upper body: walk slowly, facing the spell's target while it winds up.

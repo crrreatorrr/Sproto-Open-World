@@ -52,4 +52,25 @@ export type SimEvent =
   | { type: 'interrupt'; entity: EntityId; by: EntityId }
   | { type: 'blink'; entity: EntityId; from: Vec3; to: Vec3 }
   | { type: 'wave'; wave: number; loop: number; enemies: number }
-  | { type: 'waveClear'; wave: number };
+  | { type: 'waveClear'; wave: number }
+  // RPG systems (M3).
+  | { type: 'xp'; entity: EntityId; amount: number; total: number }
+  | { type: 'levelUp'; entity: EntityId; level: number }
+  | { type: 'itemGained'; entity: EntityId; item: string; count: number }
+  | { type: 'currency'; entity: EntityId; amount: number; total: number }
+  | { type: 'equip'; entity: EntityId; item: string; slot: 'staff' | 'robe' | 'charm' }
+  | { type: 'bought'; entity: EntityId; merchant: string; item: string; price: number }
+  | { type: 'refused'; entity: EntityId; action: string; reason: string }
+  | { type: 'drink'; entity: EntityId; charges: number }
+  | { type: 'pickup'; entity: EntityId; kind: 'sprouts' | 'heart' | 'item'; item?: string; amount: number }
+  | { type: 'interact'; entity: EntityId; object: string; kind: 'shrine' | 'chest' | 'npc' }
+  | { type: 'trigger'; entity: EntityId; trigger: string }
+  | { type: 'talk'; entity: EntityId; npc: string; node: string }
+  | { type: 'dialogueEnd'; entity: EntityId; npc: string }
+  | { type: 'shrineRest'; entity: EntityId; shrine: string }
+  | { type: 'questStarted'; entity: EntityId; quest: string }
+  | { type: 'questProgress'; entity: EntityId; quest: string; step: number; progress: number[] }
+  | { type: 'questStep'; entity: EntityId; quest: string; step: number }
+  | { type: 'questComplete'; entity: EntityId; quest: string }
+  | { type: 'spellLearned'; entity: EntityId; spell: string }
+  | { type: 'attrSpent'; entity: EntityId; attr: string; value: number };

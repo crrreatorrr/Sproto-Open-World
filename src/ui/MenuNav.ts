@@ -80,6 +80,16 @@ export class MenuNav {
     return this.stack.length > 0;
   }
 
+  /** Screens on the stack (a screen opened straight from play backs out to play, not to a parent). */
+  get depth(): number {
+    return this.stack.length;
+  }
+
+  /** The screen is somewhere on the stack. */
+  has(screen: Screen): boolean {
+    return this.stack.includes(screen);
+  }
+
   push(screen: Screen): void {
     if (this.top) {
       this.top.el.classList.remove('active');

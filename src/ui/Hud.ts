@@ -48,6 +48,8 @@ export interface HudSpells {
   casting: SpellId | null;
   /** A cast now would be woven (a melee hit landed within WOVEN.window ticks). */
   woven: boolean;
+  /** Spells the player has learned (M3 progress); absent means all four (the yard and the sandbox). */
+  learned?: readonly SpellId[];
 }
 
 /** The wave runner (`?sandbox=1`): `index` into WAVES (the next wave between waves), `nextIn` in ticks (0 while fighting). */
@@ -75,6 +77,7 @@ interface SpellSlot {
   cd: number;
   poor: boolean;
   casting: boolean;
+  locked: boolean;
 }
 
 const SLOTS = [1, 2, 3, 4] as const;
@@ -195,7 +198,7 @@ export class Hud {
       root.dataset.spell = id;
       root.innerHTML = `<div class="sweep"></div>${icon(id, 'spell-ico')}<div class="name">${def.name}</div><div class="cost">${def.cost}</div><kbd class="key"></kbd>`;
       this.spellBar.append(root);
-      return { id, root, key: root.querySelector('.key') as HTMLElement, cd: -1, poor: false, casting: false };
+      return { id, root, key: root.querySelector('.key') as HTMLElement, cd: -1, poor: false, casting: false, locked: false };
     });
     this.waveInfo = document.createElement('div');
     this.waveInfo.className = 'wave-info';
@@ -305,8 +308,15 @@ export class Hud {
     return this.toastLeft > 0 ? this.toastEl.textContent : null;
   }
 
-  showDeath(on: boolean): void {
+  /** The death card; the world says "You fell" (you wake at a shrine), the yard "You died". */
+  showDeath(on: boolean, text = 'You died', sub = ''): void {
+    if (on) this.died.innerHTML = sub ? `<div>${text}<span class="sub">${sub}</span></div>` : text;
     this.died.classList.toggle('active', on);
+  }
+
+  /** The death card is up (QA). */
+  get deathShown(): boolean {
+    return this.died.classList.contains('active');
   }
 
   private enemyIcons(e: HudEnemy): void {
@@ -345,6 +355,12 @@ export class Hud {
       if (casting !== sl.casting) {
         sl.casting = casting;
         sl.root.classList.toggle('casting', casting);
+      }
+      // Not learned yet (quests teach them, plan §6.2): the slot shows, dimmed and padlocked.
+      const locked = !!sp.learned && !sp.learned.includes(sl.id);
+      if (locked !== sl.locked) {
+        sl.locked = locked;
+        sl.root.classList.toggle('locked', locked);
       }
     }
     if (sp.woven !== this.woven) {

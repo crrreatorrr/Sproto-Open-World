@@ -3,10 +3,17 @@
 A browser action RPG set in Sproutvale: fight up close with a staff and at range with spells,
 take quests, beat Scrapjaw. Built with Three.js, Rapier (physics), TypeScript and Vite.
 
-**Status: M2, the streaming world.** Play drops you into a greybox **Sproutvale**: a 512 × 512 m
-valley streamed in 64 m cells as you move. It has a village plateau, Watchtower Hill, the Millrun
-river and its bridge, the orchard, Thornwood and the quarry ravine. You can explore it on foot.
-Camps, quests and NPCs come in M3 and M4. Combat from M1a and M1b works on its slopes. The plan is in
+**Status: M3, RPG systems.** Play drops you into a greybox **Sproutvale**: a 512 × 512 m valley
+streamed in 64 m cells as you move. It has a village plateau, Watchtower Hill, the Millrun river and
+its bridge, the orchard, Thornwood and the quarry ravine. The village has the first RPG loop:
+- **Elder Pepe** gives the test quest *Wake Up, Sproto*: reach the training yard, break three straw
+  dummies, open the old chest, bring back the seed, then rest at the shrine.
+- **Trader Pepe** sells a staff, charms and a tonic flask for Sprouts.
+- **The Shrine of First Light** heals you, refills your Sprout Tonics, becomes your respawn point,
+  and is where you spend level-up points on Might, Arcana, Vitality and Endurance.
+
+You earn XP and levels, wear a staff, a robe and a charm, collect loot, and the game saves itself
+(Continue on the title). The camps, the other quests and the boss come in M4 and M5. The plan is in
 [docs/plans/2026-11-17-first-area-plan.md](docs/plans/2026-11-17-first-area-plan.md).
 
 | URL | What you get |
@@ -44,7 +51,10 @@ Then open http://localhost:5180.
 | Dodge roll | C | B |
 | Block (the first moment of a block parries) | Q | LB |
 | Lock on / switch target | Middle mouse or T / flick the mouse | Right stick click / flick the right stick |
-| Spells: Bolt, Blast, Frost Nova, Chain Zap | 1 2 3 4 (or E R Z X) | Hold LT + X / Y / B / A |
+| Spells: Bolt, Blast, Frost Nova, Chain Zap (in Sproutvale you start with Bolt) | 1 2 3 4 (or E R Z X) | Hold LT + X / Y / B / A |
+| Interact: talk, open, rest | F | Y |
+| Drink a Sprout Tonic | H | D-pad ↑ |
+| Quest log / inventory | J / I | Menu → tabs |
 | Pause / back | Esc | Menu / B |
 | Menus | Arrows, Enter, Esc, or the mouse | D-pad or left stick, A, B |
 

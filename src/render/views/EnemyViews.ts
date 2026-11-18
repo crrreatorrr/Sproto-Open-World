@@ -205,7 +205,8 @@ export class DummyView implements EntityView {
   constructor(readonly def: EnemyDef) {
     const g = dummyGeometry();
     const wood = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 0.9 });
-    const burlap = new THREE.MeshStandardMaterial({ color: 0xc9a66b, roughness: 1 });
+    // Breakable quest dummies (straw) are paler and yellower than the burlap training dummies.
+    const burlap = new THREE.MeshStandardMaterial({ color: def.breakable ? 0xe2c45a : 0xc9a66b, roughness: 1 });
     const paint = new THREE.MeshStandardMaterial({ color: 0xc8402e, roughness: 0.7 });
     const metal = new THREE.MeshStandardMaterial({ color: 0x8a8f96, roughness: 0.4, metalness: 0.6 });
     const mesh = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number) => {

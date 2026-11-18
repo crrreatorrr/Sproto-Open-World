@@ -42,3 +42,25 @@ describe('command builder', () => {
     expect(c.camYaw).toBe(1.25);
   });
 });
+
+describe('command builder: menu intents', () => {
+  it('a queued UiAction rides on the next take only, in order, and survives clear()', () => {
+    const f = fakeInput();
+    const b = new CommandBuilder(f.input);
+    b.queueUi({ kind: 'dialogueChoose', choice: 1 });
+    b.queueUi({ kind: 'closeMenu' });
+    expect(b.hasUi).toBe(true);
+    b.clear();
+    const first = b.take(0);
+    expect(first.ui).toEqual([{ kind: 'dialogueChoose', choice: 1 }, { kind: 'closeMenu' }]);
+    expect(b.hasUi).toBe(false);
+    expect(b.take(0).ui).toBeUndefined();
+  });
+
+  it('clearUi drops queued intents', () => {
+    const b = new CommandBuilder(fakeInput().input);
+    b.queueUi({ kind: 'rest' });
+    b.clearUi();
+    expect(b.take(0).ui).toBeUndefined();
+  });
+});

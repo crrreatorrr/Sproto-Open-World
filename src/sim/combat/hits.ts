@@ -3,7 +3,10 @@ import {
 } from '../../content/combat';
 import { PLAYER_HITBOXES, STAFF_CAPSULE_RADIUS } from '../../content/generated/playerHitboxes';
 import { AFFINITY_MULT, ENEMIES, type Affinity, type EnemyMoveDef } from '../../content/enemies';
+import { GROWTH } from '../../content/progression';
 import { STATUS } from '../../content/statuses';
+import { charmOf, staffOf } from '../systems/rpg';
+import { applyStatus } from './statuses';
 import type { Entity } from '../entity';
 import type { Vec3 } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
@@ -99,6 +102,7 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
         addHitstop(attacker, BLOCK.parryHitstop);
       }
       ctx.events.push({ type: 'parry', attacker: attacker.id, target: target.id, projectile: info.projectile, pos: chest });
+      if (!info.projectile && target.progress && charmOf(target.progress)?.burnOnParry && attacker.combat) applyStatus(ctx, attacker, 'burn', 1, target.id);
       return 'parried';
     }
     const { damage } = computeDamage(attacker, target, info);
@@ -132,7 +136,8 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   tc.poiseDelay = POISE_REGEN_DELAY;
   if (ac && !info.projectile) {
     ac.lastHitTick = ctx.now;
-    if (attacker.vitals) attacker.vitals.mana = Math.min(attacker.vitals.manaMax, attacker.vitals.mana + info.mana);
+    const bonus = attacker.progress ? (charmOf(attacker.progress)?.manaPerHit ?? 0) : 0;
+    if (attacker.vitals) attacker.vitals.mana = Math.min(attacker.vitals.manaMax, attacker.vitals.mana + info.mana + bonus);
     addHitstop(attacker, info.hitstop);
   }
   addHitstop(target, info.hitstop);
@@ -194,7 +199,7 @@ export function enemyMove(e: Entity, id: string): EnemyMoveDef | undefined {
 
 export function kill(ctx: CombatCtx, target: Entity, killer: Entity | null): void {
   const def = target.brain ? ENEMIES[target.brain.def] : undefined;
-  if (def?.dummy) {
+  if (def?.dummy && !def.breakable) {
     // Training dummies never die: they refill.
     target.vitals!.hp = target.vitals!.hpMax;
     return;
@@ -257,7 +262,9 @@ function attackShape(e: Entity): AttackShape | null {
     if (a.clipT < tm.activeStart || a.clipT >= tm.activeEnd) return null;
     const box = PLAYER_HITBOXES[def.clip]?.find((h) => h.tick === a.clipT);
     if (!box) return null;
-    const staff = STAFFS.staff_sproto;
+    const staff = e.progress ? staffOf(e.progress) : STAFFS.staff_sproto;
+    // Melee power: the staff's damage × (1 + 0.04 · Might) (plan §4.6).
+    const power = staff.damage * (1 + GROWTH.mightPower * (e.progress?.attrs.might ?? 0));
     const charged = a.charged;
     return {
       a: toWorld(e.tf.pos, e.tf.yaw, box.a),
@@ -265,7 +272,7 @@ function attackShape(e: Entity): AttackShape | null {
       radius: STAFF_CAPSULE_RADIUS,
       info: {
         move: a.move,
-        base: staff.damage * (charged ? CHARGED_HEAVY.mv : def.mv),
+        base: power * (charged ? CHARGED_HEAVY.mv : def.mv),
         kind: 'physical',
         poise: charged ? CHARGED_HEAVY.poise : def.poise,
         hitstun: charged ? CHARGED_HEAVY.hitstun : def.hitstun,

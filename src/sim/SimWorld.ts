@@ -3,6 +3,14 @@ import { ENEMIES, type EnemyMoveDef } from '../content/enemies';
 import type { LevelDef } from '../content/sandbox';
 import { WAVE_CENTRE, WAVE_GAP, WAVES } from '../content/waves';
 import { cellKey, cellOf, type CellColliders } from '../content/world/format';
+import { DIALOGUE } from '../content/dialogue';
+import { NPCS } from '../content/npcs';
+import type { RegionContent } from '../content/world/sproutvaleContent';
+import { SAVE_SCHEMA, type SaveFile } from '../save/schema';
+import { idleInput, type InputCommand } from './commands';
+import {
+  ALL_SPELLS, availableChoices, interactTarget, newProgress, onKill, pickups, playerRpg, questTick, recompute, triggers, type RpgCtx,
+} from './systems/rpg';
 import { DT, MOVE, PLAYER_BODY } from '../content/tuning';
 import { enemyBrains, muzzle } from './ai/brain';
 import type { CommandMap } from './commands';
@@ -11,7 +19,7 @@ import { lockOn } from './combat/lockon';
 import { playerCombat, type CombatCtx, type Motion } from './combat/playerCombat';
 import { stepProjectiles } from './combat/projectiles';
 import { tickStatuses } from './combat/statuses';
-import type { Combat, Entity, EntityId, PlayerId, Team } from './entity';
+import type { Combat, Entity, EntityId, PlayerId, Team, WorldState } from './entity';
 import type { SimEvent } from './events';
 import { hashValue } from './hash';
 import type { Vec3 } from './math';
@@ -41,6 +49,9 @@ export interface SimSnapshot {
   players: [PlayerId, EntityId][];
   rng: Record<string, RngState>;
   wave: WaveState | null;
+  world?: WorldState;
+  /** `${entityId}:${triggerId}` for every player inside a trigger volume. */
+  triggers?: string[];
 }
 
 /** Ticks a dead wave enemy lies there before it's removed (wave enemies don't respawn). */
@@ -70,6 +81,13 @@ export class SimWorld {
   private nextId = 1;
   /** Wave runner state, or null outside the wave runner. */
   wave: WaveState | null = null;
+  /** World flags, opened chests, killed uniques (plan §2.8). */
+  world: WorldState = { flags: {}, openedChests: [], killedUniques: [] };
+  /** Region content for the RPG layer: trigger volumes, chest contents, shrine positions. */
+  private triggerList: RegionContent['triggers'] = [];
+  private readonly insideTriggers = new Set<string>();
+  private readonly chests = new Map<string, { items: { item: string; count: number }[]; sprouts?: number }>();
+  private readonly places = new Map<string, Vec3>();
   /** Streamed cells whose colliders are fully built, and the ones still being built. */
   private readonly readyCells = new Set<string>();
   private cellQueue: QueuedCell[] = [];
@@ -105,6 +123,21 @@ export class SimWorld {
       get waitingForGround() {
         return get().waitingForGround();
       },
+      get world() {
+        return get().world;
+      },
+      interactTarget: (pl) => {
+        const p = this.playerEntity(pl);
+        const t = p ? interactTarget(p, this.entities) : null;
+        return t ? { entity: t.e.id, id: t.id, kind: t.kind, name: t.name } : null;
+      },
+      dialogueChoices: (pl) => {
+        const p = this.playerEntity(pl)?.progress;
+        if (!p?.dialogue) return [];
+        const node = DIALOGUE[NPCS[p.dialogue.npc]?.dialogue ?? p.dialogue.npc]?.nodes[p.dialogue.node];
+        return node ? availableChoices(node, p, this.world) : [];
+      },
+      locate: (id) => this.locate(id),
     };
   }
 
@@ -131,12 +164,87 @@ export class SimWorld {
       loco: { grounded: true, sprinting: false, jumpBuffer: 0, coyote: 0, speed: 0, landedTicks: 1 },
       vitals: { hp: PLAYER_STATS.hp, hpMax: PLAYER_STATS.hp, stamina: PLAYER_STATS.stamina, staminaMax: PLAYER_STATS.stamina, mana: PLAYER_STATS.mana, manaMax: PLAYER_STATS.mana, staminaDelay: 0 },
       combat: newCombat('player', 1, 1, PLAYER_STATS.defense, PLAYER_STATS.level),
+      // The yard and the wave runner know every spell; a streamed world starts with Bolt.
+      progress: newProgress(this.streamed ? ['bolt'] : ALL_SPELLS),
       view: { model: 'player' },
     };
+    recompute(e);
     this.add(e);
     this.players.set(player, e.id);
     this.events.push({ type: 'spawn', entity: e.id });
     return e;
+  }
+
+  /**
+   * Spawn a streamed region's RPG content (plan M3): NPCs, shrines, chests, enemies and trigger
+   * volumes. (A streamed world's player already starts with Bolt only; the rest are learned.)
+   */
+  populateWorld(content: RegionContent): void {
+    for (const n of content.npcs) {
+      const def = NPCS[n.npc];
+      const pos = { x: n.pos[0], y: n.pos[1], z: n.pos[2] };
+      this.add({
+        id: this.nextId++, kind: 'npc', tf: { pos, prevPos: { ...pos }, yaw: n.yaw, prevYaw: n.yaw, vel: { x: 0, y: 0, z: 0 } },
+        body: { ...def.body }, npc: { id: n.id }, view: { model: def.model },
+      });
+      this.places.set(n.id, { ...pos });
+    }
+    for (const s of content.shrines) this.addInteractable(s.id, 'shrine', s.pos, s.yaw, false);
+    for (const c of content.chests) {
+      this.chests.set(c.id, { items: c.chest.items, sprouts: c.chest.sprouts });
+      this.addInteractable(c.id, 'chest', c.pos, c.yaw, this.world.openedChests.includes(c.id));
+    }
+    for (const en of content.enemies) this.spawnEnemy(en.def, { x: en.pos[0], y: en.pos[1], z: en.pos[2] }, en.yaw);
+    this.triggerList = content.triggers;
+    for (const t of content.triggers) this.places.set(t.id, { x: t.pos[0], y: t.pos[1], z: t.pos[2] });
+  }
+
+  private addInteractable(id: string, kind: 'shrine' | 'chest', p: [number, number, number], yaw: number, used: boolean): void {
+    const pos = { x: p[0], y: p[1], z: p[2] };
+    this.add({
+      id: this.nextId++, kind: 'interactable', tf: { pos, prevPos: { ...pos }, yaw, prevYaw: yaw, vel: { x: 0, y: 0, z: 0 } },
+      interactable: { id, kind, used }, view: { model: kind },
+    });
+    this.places.set(id, { ...pos });
+  }
+
+  /** Where a content id is (NPC, shrine, chest, trigger), for markers. */
+  locate(id: string): Vec3 | null {
+    const p = this.places.get(id);
+    return p ? { ...p } : null;
+  }
+
+  private spawnPickup(pos: Vec3, pickup: NonNullable<Entity['pickup']>): void {
+    this.add({
+      id: this.nextId++, kind: 'pickup', tf: { pos: { ...pos }, prevPos: { ...pos }, yaw: 0, prevYaw: 0, vel: { x: 0, y: 0, z: 0 } },
+      pickup, view: { model: pickup.kind },
+    });
+  }
+
+  /** The save file for the current state (plan §2.8). `savedAt` comes from the app's clock. */
+  toSave(meta: { savedAt: string; build: string; region: string }, player: PlayerId = 0): SaveFile {
+    const p = this.playerEntity(player)?.progress;
+    if (!p) throw new Error('toSave: no player');
+    const { dialogue: _d, shop: _s, atShrine: _a, ...rest } = structuredClone(p);
+    void _d;
+    void _s;
+    void _a;
+    return { schema: SAVE_SCHEMA, ...meta, player: rest, world: structuredClone(this.world) };
+  }
+
+  /** Load a save into the spawned player and the world (call after spawnPlayer / populateWorld). */
+  applySave(save: SaveFile, player: PlayerId = 0): void {
+    const e = this.playerEntity(player);
+    if (!e) throw new Error('applySave: no player');
+    e.progress = { ...structuredClone(save.player), dialogue: null, shop: null, atShrine: null };
+    this.world = structuredClone(save.world);
+    for (const x of this.entities) if (x.interactable?.kind === 'chest') x.interactable.used = this.world.openedChests.includes(x.interactable.id);
+    recompute(e);
+    e.vitals!.hp = e.vitals!.hpMax;
+    e.vitals!.mana = e.vitals!.manaMax;
+    e.vitals!.stamina = e.vitals!.staminaMax;
+    const at = e.progress.lastShrine ? this.places.get(e.progress.lastShrine) : undefined;
+    if (at) this.teleportPlayer(player, { x: at.x + 1.5, y: at.y + 0.05, z: at.z + 1.5 });
   }
 
   /** Spawn the level's enemies (the app calls this; bare test worlds stay empty). */
@@ -376,6 +484,21 @@ export class SimWorld {
         frozen.add(e.id);
       }
     }
+    // RPG intents and interact / potion presses first. A player in a menu or talking sends no
+    // gameplay input this tick.
+    const rpg: RpgCtx = {
+      now: this.now, entities: this.entities, events: this.events, world: this.world, rng: this.rng.stream('loot'),
+      spawnPickup: (pos, pk) => this.spawnPickup(pos, pk),
+    };
+    const effective = new Map<PlayerId, InputCommand>(commands);
+    for (const e of this.entities) {
+      // Hit-stop freezes combat, not menus: intents and interact/potion presses still apply.
+      if (!e.progress || e.owner === undefined) continue;
+      const cmd = commands.get(e.owner);
+      const busy = playerRpg(rpg, e, cmd?.pressed ?? 0, cmd?.ui ?? [], this.chests);
+      if (busy) effective.set(e.owner, { ...idleInput(cmd?.camYaw ?? e.tf.yaw) });
+    }
+    commands = effective;
     const motion = new Map<number, Motion>();
     const ctx: CombatCtx = { now: this.now, entities: this.entities, get: (id) => this.byId.get(id), events: this.events, motion, frozen };
     lockOn(ctx, commands, this.physics);
@@ -390,6 +513,16 @@ export class SimWorld {
       if (entity.combat?.action?.kind !== 'dead') kill(ctx, entity, this.byId.get(source) ?? null);
     }
     vitals(this.entities, frozen);
+    // Kills feed XP and loot; then pickups, triggers and the quest runtime see this tick's events.
+    for (const ev of [...this.events]) {
+      if (ev.type !== 'death' || ev.killer === null) continue;
+      const killer = this.byId.get(ev.killer);
+      const dead = this.byId.get(ev.entity);
+      if (killer?.progress && dead) onKill(rpg, killer, dead);
+    }
+    for (const id of pickups(rpg)) this.remove(id);
+    triggers(rpg, this.triggerList, this.insideTriggers);
+    for (const e of this.entities) if (e.progress) questTick(rpg, e);
     this.respawns();
     this.waveTick();
     this.fallGuard();
@@ -403,7 +536,13 @@ export class SimWorld {
   private respawns(): void {
     const player = this.entities.find((e) => e.kind === 'player' && e.combat?.action?.kind === 'dead');
     if (player && player.combat!.action!.kind === 'dead' && player.combat!.action!.t >= PLAYER_STATS.respawnTicks) {
-      this.reset(player, this.spawnPoint(), this.level.spawn.yaw);
+      // A streamed world respawns you at the shrine you last rested at, tonics refilled.
+      const shrine = player.progress?.lastShrine ? this.places.get(player.progress.lastShrine) : undefined;
+      this.reset(player, shrine ? { x: shrine.x + 1.5, y: shrine.y + 0.05, z: shrine.z + 1.5 } : this.spawnPoint(), this.level.spawn.yaw);
+      if (player.progress) {
+        player.progress.tonics.charges = player.progress.tonics.max;
+        player.progress.dialogue = player.progress.shop = player.progress.atShrine = null;
+      }
       if (this.wave) {
         // The wave runner restarts the current wave (plan §2.9).
         for (const id of this.wave.ids) this.remove(id);
@@ -492,7 +631,7 @@ export class SimWorld {
 
   /** Hash of the sim state (entities, players, rng streams, tick). Not Rapier's internals. */
   hash(): number {
-    return hashValue({ now: this.now, entities: this.entities, players: [...this.players], rng: this.rng.streams, wave: this.wave, cells: [...this.readyCells].sort() });
+    return hashValue({ now: this.now, entities: this.entities, players: [...this.players], rng: this.rng.streams, wave: this.wave, cells: [...this.readyCells].sort(), world: this.world, triggers: [...this.insideTriggers].sort() });
   }
 
   snapshot(): SimSnapshot {
@@ -503,6 +642,8 @@ export class SimWorld {
       players: [...this.players],
       rng: this.rng.streams,
       wave: this.wave,
+      world: this.world,
+      triggers: [...this.insideTriggers].sort(),
     });
   }
 
@@ -520,6 +661,10 @@ export class SimWorld {
     for (const k of Object.keys(this.rng.streams)) delete this.rng.streams[k];
     Object.assign(this.rng.streams, copy.rng);
     this.wave = copy.wave ?? null;
+    this.world = copy.world ?? { flags: {}, openedChests: [], killedUniques: [] };
+    // Who stands in which trigger is sim state: a rewind before entering one must fire it again.
+    this.insideTriggers.clear();
+    for (const k of copy.triggers ?? []) this.insideTriggers.add(k);
     this.events = [];
   }
 

@@ -63,8 +63,12 @@ export interface EnemyDef {
   poise: number;
   /** Elites take no hitstun until their poise breaks. */
   elite: boolean;
-  /** Training dummies refill their HP instead of dying. */
+  /** Training dummies refill their HP instead of dying (unless `breakable`). */
   dummy?: 'passive' | 'swing' | 'shooter';
+  /** A dummy that breaks (dies) and comes back after `respawnTicks` (quest training). */
+  breakable?: boolean;
+  /** XP for the kill (plan §5). */
+  xp: number;
   body: { radius: number; height: number };
   defense: { physical: number; arcane: number };
   profile: { damage: Record<DamageKind, Affinity>; status: { burn: Affinity; chill: Affinity; shock: Affinity } };
@@ -93,6 +97,7 @@ const NORMAL_PROFILE = { damage: { physical: 'normal', arcane: 'normal' }, statu
 
 const dummyBase = {
   model: 'dummy',
+  xp: 0,
   hp: 400,
   poise: 30,
   elite: false,
@@ -110,6 +115,7 @@ const dummyBase = {
 
 export const ENEMIES: Record<string, EnemyDef> = {
   dummy_passive: { ...dummyBase, id: 'dummy_passive', name: 'Training Dummy', dummy: 'passive', moves: [] },
+  dummy_straw: { ...dummyBase, id: 'dummy_straw', name: 'Straw Dummy', dummy: 'passive', breakable: true, hp: 40, xp: 5, respawnTicks: 600, moves: [] },
   dummy_swing: {
     ...dummyBase,
     id: 'dummy_swing',
@@ -132,6 +138,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     id: 'brute',
     name: 'Thornwood Brute',
     model: 'brute',
+    xp: 60,
     hp: 220,
     poise: 70,
     elite: true,
@@ -158,6 +165,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     id: 'grunt',
     name: 'Sprout Grunt',
     model: 'grunt',
+    xp: 12,
     hp: 55,
     poise: 20,
     elite: false,
@@ -181,6 +189,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     id: 'slinger',
     name: 'Coin Slinger',
     model: 'slinger',
+    xp: 18,
     hp: 70,
     poise: 25,
     elite: false,
@@ -211,6 +220,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     id: 'wisp',
     name: 'Hex Wisp',
     model: 'wisp',
+    xp: 18,
     hp: 80,
     poise: 30,
     elite: false,
