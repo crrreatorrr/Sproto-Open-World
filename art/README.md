@@ -31,13 +31,36 @@ To rebuild them and the raw export without opening the Blender UI:
 Then run `node art/tools/build-player-glb.mjs`.
 
 The bull itself is built here too. `tools/build_bull.py` starts from the hub's `pet_pepe_bull`
-(`source/pepe_bull_decoded.glb`), slims its barrel so the rider's legs clear it, and adds a saddle:
+(`source/pepe_bull_decoded.glb`), turns it onto its line of travel, slims its barrel so the rider's
+legs clear it, and adds a saddle, a blanket and ears:
 
 ```bash
 /Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python art/tools/build_bull.py
 ```
 
-Then run `node art/tools/build-bull-glb.mjs`.
+Then run `node art/tools/build-bull-glb.mjs`, which also sets each gait's real length from
+`source/pepe_bull_clips.json`.
+
+| File | What it does |
+|---|---|
+| `tools/bull_rig.py` | Rig repairs: hips, loin and ear bones, the trunk and neck skin, and tack skinned from the body beneath it |
+| `tools/bull_anim.py` | The clips. `GAITS` holds each gait's footfalls and body curves. Hooves are planted and moved at ground speed, and the legs reach them by IK |
+| `tools/verify_bull.py` | Measures the game file: loop closure, hoof skate, hooves through the ground, body through the tack |
+| `tools/render_bull_sheet.py` | Contact sheets of any clip from any side |
+
+| Clip | Length | Ground speed | Gait |
+|---|---|---|---|
+| `follow_walk` | 0.56 s | 2.6 m/s | Four-beat walk |
+| `follow_run` | 0.42 s | 9.5 m/s | Three-beat canter |
+| `gallop` | 0.32 s | 17 m/s | Four-beat gallop with a moment of suspension |
+
+Every gait starts its loop when the left hind hoof lands, so `MountView` can blend between them in
+step. If a clip's length or speed changes, change the speed in `MountView`'s `GAITS` to match.
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python art/tools/verify_bull.py -- public/assets/models/mounts/pepe_bull.glb
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python art/tools/render_bull_sheet.py -- public/assets/models/mounts/pepe_bull.glb <out_dir> gallop side,three_quarter 8
+```
 
 ### Changing a clip
 

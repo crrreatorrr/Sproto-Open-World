@@ -129,7 +129,7 @@ export const MODELS = {
   prop_root_wall: { path: 'models/props/grove_root_wall.glb' },
   prop_crops: { path: 'models/props/grove_crops.glb' },
   /** The rideable Pepe Bull (art/tools/build_bull.py), at the height art/tools/ride_anim.py poses the rider for. */
-  pepe_bull: { path: 'models/mounts/pepe_bull.glb', rigged: true, clips: ['idle', 'follow_walk', 'follow_run'], fitHeight: 1.7, rotationY: 0, inPlace: true },
+  pepe_bull: { path: 'models/mounts/pepe_bull.glb', rigged: true, clips: ['idle', 'follow_walk', 'follow_run', 'gallop'], fitHeight: 1.7, rotationY: 0, inPlace: true },
 } satisfies Record<string, ModelEntry>;
 
 export type ModelKey = keyof typeof MODELS;
