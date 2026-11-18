@@ -23,6 +23,7 @@ export function locomotion(
   events: SimEvent[],
   motion: ReadonlyMap<number, Motion>,
   frozen: ReadonlySet<number>,
+  hasGround: (x: number, z: number) => boolean = () => true,
 ): void {
   for (const e of entities) {
     const loco = e.loco;
@@ -91,7 +92,17 @@ export function locomotion(
     else tf.vel.y = 0; // snap-to-ground keeps the capsule on slopes; a downward push sinks it into the skin
 
     const want = { x: (tf.vel.x + px) * DT, y: tf.vel.y * DT, z: (tf.vel.z + pz) * DT };
-    const res = physics.moveCharacter(e.id, tf.pos, want);
+    // A player won't leave the built world: they run along the map's edge, or a cell still loading.
+    if (isPlayer) {
+      if (!hasGround(tf.pos.x + want.x, tf.pos.z)) want.x = 0;
+      if (!hasGround(tf.pos.x + want.x, tf.pos.z + want.z)) want.z = 0;
+    }
+    let res = physics.moveCharacter(e.id, tf.pos, want);
+    if (isPlayer && !hasGround(tf.pos.x + res.moved.x, tf.pos.z + res.moved.z)) {
+      // A slope slid them over the line after all: this tick they stay where they were.
+      physics.teleport(e.id, tf.pos);
+      res = { moved: { x: 0, y: 0, z: 0 }, grounded: loco.grounded };
+    }
     tf.pos.x += res.moved.x;
     tf.pos.y += res.moved.y;
     tf.pos.z += res.moved.z;

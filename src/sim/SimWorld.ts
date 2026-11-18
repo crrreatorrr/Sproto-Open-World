@@ -699,7 +699,7 @@ export class SimWorld {
     this.syncUnseen();
     markTargeted(this.entities, this.now, (id) => this.byId.get(id));
     const noGround = this.groundless();
-    locomotion(this.entities, commands, this.physics, this.events, motion, noGround.size ? new Set([...frozen, ...noGround]) : frozen);
+    locomotion(this.entities, commands, this.physics, this.events, motion, noGround.size ? new Set([...frozen, ...noGround]) : frozen, (x, z) => this.cellReady(...cellOf(x, z)));
     bossArena(this.entities, this.physics, (e) => (e.brain ? ENEMIES[e.brain.def] : undefined));
     this.physics.step();
     followRiders(this.entities, (id) => this.byId.get(id));
