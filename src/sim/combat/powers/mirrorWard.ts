@@ -10,7 +10,7 @@ import { addSurge } from './surge';
 
 const W = POWER.ward;
 
-/** Raise the bubble. Protection makes it last longer and its reflections hit harder. */
+/** Raise the bubble. Protection makes it last longer, widens its reflect window and makes reflections hit harder. */
 export function raiseWard(ctx: CombatCtx, p: Entity): void {
   powersOf(p).ward = { t: 0, dur: Math.round(W.ticks * protectionMult(p.progress?.skills)) };
   ctx.events.push({ type: 'power', fx: 'ward', entity: p.id, pos: { ...p.tf.pos } });
@@ -28,7 +28,7 @@ export function wardProjectile(ctx: CombatCtx, e: Entity, from: Vec3, to: Vec3):
     const centre = { x: w.tf.pos.x, y: w.tf.pos.y + (w.body?.height ?? 1.8) / 2, z: w.tf.pos.z };
     const r = W.radius + pr.radius;
     if (segmentSegmentDistSq(from, to, centre, centre) > r * r) continue;
-    if (ward.t >= W.reflectTicks) {
+    if (ward.t >= Math.round(W.reflectTicks * protectionMult(w.progress?.skills))) {
       ctx.events.push({ type: 'power', fx: 'wardBlock', entity: w.id, pos: { ...from } });
       return 'blocked';
     }
