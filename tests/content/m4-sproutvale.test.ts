@@ -34,6 +34,20 @@ describe('placements', () => {
     }
   });
 
+  it('nothing is placed on a hand-placed prop (a capsule set down there would stand on top of it), except the beacon', () => {
+    const src = JSON.parse(readFileSync('world-src/sproutvale/placements.json', 'utf8'));
+    const radius = (key: string, scale: number) => {
+      const c = src.kinds[key]?.collider;
+      if (!c || c.kind === 'none') return 0;
+      return (c.kind === 'cylinder' ? c.radius : Math.hypot(c.half[0], c.half[2])) * scale;
+    };
+    const props = src.place.filter((p: { key?: string }) => p.key).map((p: { key: string; at: [number, number]; scale?: number }) => ({ key: p.key, at: p.at, r: radius(p.key, p.scale ?? 1) }));
+    for (const m of marks) {
+      if (m.kind === 'camp' || m.kind === 'playerStart' || m.id === 'watchtower_beacon') continue;
+      for (const p of props) expect(Math.hypot(m.at[0] - p.at[0], m.at[1] - p.at[1]), `${m.id} on ${p.key}`).toBeGreaterThan(p.r + 0.6);
+    }
+  });
+
   it('every placement is inside the soft wall (8 m in from the border)', () => {
     const all = [...C.npcs, ...C.chests, ...(C.objects ?? []), ...camps.flatMap((c) => c.members.map((m) => ({ pos: [c.pos[0] + m.at[0], 0, c.pos[2] + m.at[1]] })))];
     for (const p of all) for (const v of [p.pos[0], p.pos[2]]) expect(v > 8 && v < 504).toBe(true);

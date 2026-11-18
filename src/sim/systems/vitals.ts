@@ -1,4 +1,5 @@
 import { PLAYER_STATS } from '../../content/combat';
+import { SKILL_EFFECT } from '../../content/progression';
 import { DT } from '../../content/tuning';
 import { poiseRegenRate } from '../combat/statuses';
 import type { Entity } from '../entity';
@@ -18,7 +19,8 @@ export function vitals(entities: readonly Entity[], frozen: ReadonlySet<number>)
       v.staminaDelay = PLAYER_STATS.staminaDelay;
     } else if (v.staminaDelay > 0) v.staminaDelay--;
     else if (c?.action?.kind !== 'block') v.stamina = Math.min(v.staminaMax, v.stamina + PLAYER_STATS.staminaRegen * DT);
-    v.mana = Math.min(v.manaMax, v.mana + PLAYER_STATS.manaRegen * DT);
+    // Focus: +3% mana regen per rank.
+    v.mana = Math.min(v.manaMax, v.mana + PLAYER_STATS.manaRegen * DT * (1 + SKILL_EFFECT.focusRegen * (e.progress?.skills.focus ?? 0)));
     if (c) {
       // Shock slows poise regen: the refill delay counts down at a reduced rate.
       if (c.poiseDelay > 0) c.poiseDelay = Math.max(0, c.poiseDelay - poiseRegenRate(e));

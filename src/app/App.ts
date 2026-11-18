@@ -4,6 +4,7 @@ import { MODELS, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
 import { CameraRig } from '../camera/CameraRig';
 import { ITEMS } from '../content/items';
+import { PERKS, SKILLS, type PerkId, type SkillId } from '../content/progression';
 import { QUESTS } from '../content/quests';
 import { SANDBOX } from '../content/sandbox';
 import { SPELLS, WOVEN, type SpellId } from '../content/spells';
@@ -31,7 +32,8 @@ import { initPhysics } from '../sim/physics/PhysicsWorld';
 import { SimWorld } from '../sim/SimWorld';
 import type { ReadonlySimView } from '../sim/view';
 import { DamageNumbers, type NumberStyle, type Projector } from '../ui/DamageNumbers';
-import { Hud, type HudCombat, type HudStatus } from '../ui/Hud';
+import { GameMenu, type MenuTab } from '../ui/gameMenu';
+import { Hud, spellSlotGlyph, type HudCombat, type HudStatus } from '../ui/Hud';
 import { MenuNav, type Screen } from '../ui/MenuNav';
 import { Menus } from '../ui/menus';
 import { Panels } from '../ui/panels';
@@ -128,6 +130,8 @@ export class App {
   readonly rpgHud: RpgHud;
   readonly rpgMenus: RpgMenus;
   private readonly tutorial = new Tutorial();
+  /** The one tabbed menu (C1): Powers, Skills, Gear, Quests, Settings (world mode). */
+  readonly gameMenu: GameMenu;
   /** The save found at boot (or on returning to the title): Continue loads it. */
   private bootSave: SaveFile | null = null;
   /** An event asked for a save; written once after this frame's ticks. */
@@ -136,6 +140,8 @@ export class App {
   private sinceSave = 0;
   /** Saves written this session (QA). */
   private saves = 0;
+  /** This frame's Start press closed the tabbed menu: it doesn't also pause. */
+  private startUsed = false;
   /** The staff model shown on the player, to swap it when the equipment changes. */
   private staffShown = '';
 
@@ -168,8 +174,6 @@ export class App {
     this.menus = new Menus(ui, this.nav, this.input, {
       play: () => void this.play(),
       continueGame: () => void this.play(this.bootSave),
-      character: () => this.nav.push(this.rpgMenus.character),
-      questLog: () => this.nav.push(this.rpgMenus.quests),
       resume: () => this.resume(),
       quitToTitle: () => this.quitToTitle(),
       settingsChanged: (s) => {
@@ -182,14 +186,28 @@ export class App {
         saveControlPrefs(p);
       },
     }, this.settings, prefs);
-    this.menus.rpgMenus = MODE === 'world';
     this.rpgMenus = new RpgMenus(ui, this.nav, {
       view: () => this.sim?.view() ?? null,
       player: () => this.sim?.playerEntity(LOCAL_PLAYER),
       choices: () => this.sim?.view().dialogueChoices(LOCAL_PLAYER) ?? [],
       send: (a) => this.sendUi(a),
       interactGlyph: () => promptLabel(this.input.pad.device, this.input.pad.style, KEYS.interact, PAD.interact),
-      resume: () => this.resume(),
+      // From the shrine (the sim's menu, play running): the tabbed menu stacks on it, Back returns.
+      openMenu: (tab) => {
+        this.gameMenu.open(tab);
+        this.nav.push(this.gameMenu.screen);
+      },
+    });
+    this.gameMenu = new GameMenu(ui, this.nav, {
+      view: () => this.sim?.view() ?? null,
+      player: () => this.sim?.playerEntity(LOCAL_PLAYER),
+      send: (a) => this.sendUi(a),
+      gearLocked: () => this.sim?.view().gearLocked(LOCAL_PLAYER) ?? false,
+      prompt: (keys, padButtons) => promptLabel(this.input.pad.device, this.input.pad.style, keys, padButtons),
+      slotGlyph: (i) => spellSlotGlyph(i, this.input.pad.device, this.input.pad.style),
+      resume: () => this.closeGameMenu(),
+      quitToTitle: () => this.quitToTitle(),
+      openSettings: () => this.nav.push(this.menus.settings),
     });
     this.panels = new Panels(ui);
     this.overlay = new Overlay(ui);
@@ -415,7 +433,17 @@ export class App {
       this.input.releaseLock();
     }
     this.hud.visible = false;
-    this.nav.reset(this.menus.pause);
+    // The world's pause is the tabbed menu (on the tab it was left on); the yard keeps the pause list.
+    if (this.mode === 'world') {
+      this.gameMenu.open();
+      this.nav.reset(this.gameMenu.screen);
+    } else this.nav.reset(this.menus.pause);
+  }
+
+  /** Close the tabbed menu: back to play, or (opened from a shrine) back to the shrine's menu. */
+  private closeGameMenu(): void {
+    if (this.state === 'paused') this.resume();
+    else if (this.nav.top === this.gameMenu.screen && this.nav.depth > 1) this.nav.pop();
   }
 
   resume(): void {
@@ -500,9 +528,14 @@ export class App {
       if (pad.wasPressed(['right', 'down'])) this.panels.move(1);
       if (pad.wasPressed(['a'])) this.panels.confirmError();
     } else if (this.nav.open) {
-      this.nav.frame(dt);
+      // Start (or Esc, through MenuNav's Back) closes the tabbed menu it opened.
+      if (this.nav.top === this.gameMenu.screen && pad.wasPressed(PAD.pause)) {
+        this.closeGameMenu();
+        this.startUsed = true;
+      } else this.nav.frame(dt);
       this.menus.frame(dt, pad);
       this.rpgMenus.frame(dt);
+      this.gameMenu.frame();
     }
     // An equip or a track chosen in the pause menu reaches the sim through one tick of its own.
     if (this.state === 'paused' && this.sim && this.commands.hasUi && !this.groundWait) this.pausedTick();
@@ -510,6 +543,7 @@ export class App {
     if (this.state === 'playing' && this.sim && this.player) this.playFrame(dt);
     else this.idleFrame(dt);
 
+    this.startUsed = false;
     this.frameCount++;
     this.renderer.render();
     this.hud.update(pad, this.input.locked);
@@ -539,15 +573,15 @@ export class App {
     const view = this.player!;
     const simView = sim.view();
     const pad = this.input.pad;
-    if (this.input.wasPressed(KEYS.pause) || pad.wasPressed(PAD.pause)) {
+    if (this.input.wasPressed(KEYS.pause) || (pad.wasPressed(PAD.pause) && !this.startUsed)) {
       this.pause();
       return;
     }
     // Menus the sim opens (dialogue, shop, shrine) follow the player's progress.
     const menu = this.syncSimMenus(sim.playerEntity(LOCAL_PLAYER));
     if (!menu && this.mode === 'world') {
-      if (this.input.wasPressed(KEYS.questLog) || pad.wasPressed(PAD.questLog)) return this.openFromPlay(this.rpgMenus.quests);
-      if (this.input.wasPressed(KEYS.inventory)) return this.openFromPlay(this.rpgMenus.character);
+      if (this.input.wasPressed(KEYS.questLog) || pad.wasPressed(PAD.questLog)) return this.openFromPlay('quests');
+      if (this.input.wasPressed(KEYS.inventory)) return this.openFromPlay('gear');
     }
     if (this.overlay.open) {
       if (pad.wasPressed(['right'])) this.cycleClip(1);
@@ -575,7 +609,7 @@ export class App {
     const t0 = performance.now();
     for (let i = 0; i < ticks; i++) {
       // Behind the veil the player is frozen by the sim anyway; their input is dropped, not buffered.
-      const cmd = this.commands.take(this.rig.yaw);
+      const cmd = this.commands.take(this.rig.yaw, this.rig.aimRay());
       sim.tick(held ? new Map() : new Map([[LOCAL_PLAYER, cmd]]));
       this.afterTick(simView);
     }
@@ -627,17 +661,18 @@ export class App {
       }
       return want;
     }
-    if (this.rpgMenus.isSimScreen(this.nav.top)) {
+    // Nothing the sim opened is wanted any more (also under the tabbed menu stacked on a shrine).
+    if (this.nav.open) {
       this.nav.reset(null);
       if (this.input.pad.device === 'kbm') this.input.requestLock();
     }
     return null;
   }
 
-  /** Character or Quest log straight from play (I, J, pad View): paused, and Back returns to play. */
-  private openFromPlay(screen: Screen): void {
+  /** The tabbed menu straight from play on a tab (J and pad View: Quests; I: Gear): paused, Back returns to play. */
+  private openFromPlay(tab: MenuTab): void {
+    this.gameMenu.open(tab);
     this.pause();
-    this.nav.reset(screen);
   }
 
   /** While paused, queued menu intents (equip, track) get one tick so the menu shows the result. */
@@ -646,6 +681,11 @@ export class App {
     this.commands.clear();
     sim.tick(new Map([[LOCAL_PLAYER, this.commands.take(this.rig.yaw)]]));
     this.afterTick(sim.view());
+    // A skill spent or a power swapped while paused is saved now: Quit to title may come next.
+    if (this.saveWanted && this.mode === 'world' && sim.playerEntity(LOCAL_PLAYER)?.combat?.action?.kind !== 'dead') {
+      this.saveWanted = false;
+      this.writeSaveNow();
+    }
   }
 
   /**
@@ -999,7 +1039,8 @@ export class App {
         if (e.amount > 0) hud.feed(`+${e.amount} XP`, 'level');
         return;
       case 'levelUp':
-        this.hud.waveBanner('Level up!', `Level ${e.level} · spend your point at a shrine`);
+        this.hud.waveBanner('Level up!', `Level ${e.level} · +${e.points} skill points`);
+        this.hud.toast(`+${e.points} skill points: spend them on the Skills tab.`);
         hud.feed(`Reached level ${e.level}`, 'level');
         this.audio.play('shieldPerfect', 1.3);
         this.saveWanted = true;
@@ -1059,9 +1100,22 @@ export class App {
         hud.feed(`Learned ${SPELLS[e.spell as SpellId]?.name ?? e.spell}`, 'level');
         this.hud.toast(`New spell: ${SPELLS[e.spell as SpellId]?.name ?? e.spell}`);
         return;
-      case 'attrSpent':
-        // Spent at a shrine: saved like the rest that came before it, so a reload keeps it.
+      case 'skillSpent':
+      case 'skillsReset':
+      case 'spellEquipped':
+        if (e.type === 'skillSpent') hud.feed(`${SKILLS[e.skill as SkillId]?.name ?? e.skill} rank ${e.rank}`, 'level');
+        else if (e.type === 'skillsReset') hud.feed(`Skills reset: ${e.refunded} points back for ${e.cost} Sprouts`, 'level');
+        else hud.feed(`Slot ${e.slot + 1}: ${e.spell ? SPELLS[e.spell as SpellId]?.name ?? e.spell : 'empty'}${e.cooldown > 0 ? ` (ready in ${Math.ceil(e.cooldown / 60)} s)` : ''}`, 'info');
+        // Saved like a rest, so a reload keeps it.
         this.audio.play('uiClick', 1.1);
+        this.saveWanted = true;
+        return;
+      case 'perk':
+        this.hud.waveBanner('Perk unlocked', PERKS[e.perk as PerkId]?.name ?? e.perk);
+        hud.feed(PERKS[e.perk as PerkId]?.text ?? e.perk, 'level');
+        return;
+      case 'skillPoints':
+        hud.feed(`+${e.amount} skill ${e.amount === 1 ? 'point' : 'points'}`, 'level');
         this.saveWanted = true;
         return;
       default:
@@ -1173,11 +1227,18 @@ export class App {
       player: v ? { hp: v.hp, hpMax: v.hpMax, stamina: v.stamina, staminaMax: v.staminaMax, mana: v.mana, manaMax: v.manaMax } : null,
       enemy,
       reticle: lp ? this.project(lp) : null,
+      crosshair: this.crosshairState(view, lock),
       spells: v && c
-        ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window, learned: this.mode === 'world' ? p.progress?.spells : undefined }
+        ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window, learned: this.mode === 'world' ? p.progress?.spells : undefined, loadout: p.progress?.loadout }
         : null,
       wave: view.wave ? { ...view.wave } : null,
     };
+  }
+
+  private crosshairState(view: ReadonlySimView, lock: number | null): HudCombat['crosshair'] {
+    const ray = this.rig.aimRay();
+    if (lock !== null || this.nav.top || !ray) return 'off';
+    return view.aimTarget(LOCAL_PLAYER, ray) !== null ? 'enemy' : 'free';
   }
 
   /** QA timing hooks (dev and QA builds): presses latched and the ticks that took them. */
@@ -1317,6 +1378,10 @@ export class App {
       interact: this.sim?.view().interactTarget(LOCAL_PLAYER) ?? null,
       choices: this.sim?.view().dialogueChoices(LOCAL_PLAYER) ?? [],
       typing: this.rpgMenus.typing,
+      menuTab: this.nav.has(this.gameMenu.screen) ? this.gameMenu.tab : null,
+      menuPick: this.gameMenu.pending,
+      hudSlots: this.hud.slotSpells,
+      gearLocked: this.sim?.view().gearLocked(LOCAL_PLAYER) ?? false,
       tracker: this.rpgHud.trackerText,
       prompt: this.rpgHud.promptText,
       markerShown: this.rpgHud.markerShown,

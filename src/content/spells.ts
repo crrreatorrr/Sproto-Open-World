@@ -10,7 +10,7 @@ export type SpellId = 'bolt' | 'blast' | 'frostNova' | 'chainZap';
 export interface SpellDef {
   id: SpellId;
   name: string;
-  /** Spell slot 1–4 (keys 1–4, or LT + X/Y/B/A). */
+  /** Home slot 1–4: where it's equipped when learned, if free. The loadout decides what casts. */
   slot: 1 | 2 | 3 | 4;
   cost: number;
   release: number;
@@ -69,4 +69,15 @@ export const SPELLS: Record<SpellId, SpellDef> = {
   },
 };
 
+/** Each spell's home slot: where a newly learned spell goes when that slot is free (and the v2 save layout). */
 export const SPELL_BY_SLOT: Record<1 | 2 | 3 | 4, SpellId> = { 1: 'bolt', 2: 'blast', 3: 'frostNova', 4: 'chainZap' };
+
+/** The loadout (expansion plan §1.1): four slots you fill from the spells you know. */
+export const LOADOUT_SLOTS = 4;
+export type Loadout = (SpellId | null)[];
+
+/** A power swapped into the loadout waits max(remaining, max(full cooldown, this)) ticks: at least 3 s. */
+export const SWAP_MIN_COOLDOWN = 180;
+
+/** The default loadout for a set of known spells: each in its home slot. */
+export const defaultLoadout = (known: readonly SpellId[]): Loadout => ([1, 2, 3, 4] as const).map((n) => (known.includes(SPELL_BY_SLOT[n]) ? SPELL_BY_SLOT[n] : null));

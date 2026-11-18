@@ -271,7 +271,8 @@ ENEMIES.gatekeeper = {
   name: 'The Gatekeeper',
   model: 'gatekeeper',
   xp: 300,
-  hp: 600,
+  // 1,000, up from the plan's 600: the balance bot killed 600 in 10–14 s. Above about 1,100 it starts losing.
+  hp: 1000,
   poise: 120,
   elite: true,
   body: { radius: 1.0, height: 3.2 },

@@ -55,7 +55,8 @@ export type SimEvent =
   | { type: 'waveClear'; wave: number }
   // RPG systems (M3).
   | { type: 'xp'; entity: EntityId; amount: number; total: number }
-  | { type: 'levelUp'; entity: EntityId; level: number }
+  /** `points`: skill points this level-up gave. */
+  | { type: 'levelUp'; entity: EntityId; level: number; points: number }
   | { type: 'itemGained'; entity: EntityId; item: string; count: number }
   | { type: 'currency'; entity: EntityId; amount: number; total: number }
   | { type: 'equip'; entity: EntityId; item: string; slot: 'staff' | 'robe' | 'charm' }
@@ -74,4 +75,10 @@ export type SimEvent =
   | { type: 'questStep'; entity: EntityId; quest: string; step: number }
   | { type: 'questComplete'; entity: EntityId; quest: string }
   | { type: 'spellLearned'; entity: EntityId; spell: string }
-  | { type: 'attrSpent'; entity: EntityId; attr: string; value: number };
+  // The loadout and the skill tree (C1).
+  | { type: 'spellEquipped'; entity: EntityId; slot: number; spell: string | null; cooldown: number; free: boolean }
+  | { type: 'skillSpent'; entity: EntityId; skill: string; rank: number }
+  | { type: 'skillPoints'; entity: EntityId; amount: number; total: number }
+  | { type: 'skillsReset'; entity: EntityId; refunded: number; cost: number }
+  | { type: 'perk'; entity: EntityId; perk: string }
+  | { type: 'cleanse'; entity: EntityId; status: StatusId };

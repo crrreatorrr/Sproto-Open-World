@@ -6,14 +6,15 @@ import { DROPS, MERCHANTS } from '../../content/loot';
 import { MOUNT } from '../../content/mounts';
 import { NPCS } from '../../content/npcs';
 import { OBJECTS, usedFlag } from '../../content/objects';
-import { GROWTH, LEVEL_CAP, xpForLevel, type Attr } from '../../content/progression';
+import { GROWTH, LEVEL_CAP, SKILL_EFFECT, SKILL_POINTS_PER_LEVEL, noSkills, xpForLevel } from '../../content/progression';
 import { QUESTS, type Condition, type Effect, type Objective } from '../../content/quests';
-import { SPELLS, type SpellId } from '../../content/spells';
+import { SPELLS, defaultLoadout, type SpellId } from '../../content/spells';
 import { BTN, type UiAction } from '../commands';
 import { angleTo, flatDist } from '../combat/geometry';
 import type { Entity, InteractKind, Progress, WorldState } from '../entity';
 import type { SimEvent } from '../events';
 import type { Vec3 } from '../math';
+import { equipSpell, gearLocked, grantSkillPoints, learnIntoLoadout, respecSkills, spendSkill } from './loadout';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
 import { startDismount, startMount } from './riding';
 
@@ -37,10 +38,10 @@ export interface RpgCtx {
 
 export function newProgress(spells: SpellId[]): Progress {
   return {
-    level: 1, xp: 0, attrs: { might: 0, arcana: 0, vitality: 0, endurance: 0 }, points: 0, sprouts: 0,
+    level: 1, xp: 0, skills: noSkills(), points: 0, sprouts: 0,
     equipment: { staff: STARTING_GEAR.staff, robe: STARTING_GEAR.robe, charm: STARTING_GEAR.charm },
     inventory: { [STARTING_GEAR.staff]: 1, [STARTING_GEAR.robe]: 1 },
-    spells: [...spells], tonics: { charges: TONIC.charges, max: TONIC.charges },
+    spells: [...spells], loadout: defaultLoadout(spells), tonics: { charges: TONIC.charges, max: TONIC.charges },
     quests: {}, tracked: null, lastShrine: null, discoveredShrines: [], dialogue: null, shop: null, atShrine: null,
   };
 }
@@ -48,16 +49,17 @@ export function newProgress(spells: SpellId[]): Progress {
 export const charmOf = (p: Progress) => (p.equipment.charm ? ITEMS[p.equipment.charm]?.charm : undefined);
 export const staffOf = (p: Progress) => ITEMS[p.equipment.staff]?.staff ?? ITEMS[STARTING_GEAR.staff].staff!;
 
-/** Re-derive max HP/stamina/mana, defense and tonic charges from level, attributes and gear. */
+/** Re-derive max HP/stamina/mana, defense and tonic charges from level, skills and gear. */
 export function recompute(e: Entity): void {
   const p = e.progress;
   const v = e.vitals;
   const c = e.combat;
   if (!p || !v || !c) return;
   const above = p.level - 1;
-  const hpMax = PLAYER_STATS.hp + GROWTH.hpPerLevel * above + GROWTH.hpPerVitality * p.attrs.vitality;
-  const stMax = PLAYER_STATS.stamina + GROWTH.staminaPerLevel * above + GROWTH.staminaPerEndurance * p.attrs.endurance;
-  const mpMax = PLAYER_STATS.mana + GROWTH.manaPerLevel * above + GROWTH.manaPerArcana * p.attrs.arcana;
+  const sk = p.skills;
+  const hpMax = PLAYER_STATS.hp + GROWTH.hpPerLevel * above + SKILL_EFFECT.defenseHp * sk.defense;
+  const stMax = PLAYER_STATS.stamina + GROWTH.staminaPerLevel * above + SKILL_EFFECT.staminaMax * sk.stamina;
+  const mpMax = PLAYER_STATS.mana + GROWTH.manaPerLevel * above + SKILL_EFFECT.focusMana * sk.focus;
   // Growing a maximum grows the current value with it (a level-up feels like one).
   v.hp = Math.min(hpMax, v.hp + Math.max(0, hpMax - v.hpMax));
   v.stamina = Math.min(stMax, v.stamina + Math.max(0, stMax - v.staminaMax));
@@ -67,7 +69,7 @@ export function recompute(e: Entity): void {
   v.manaMax = mpMax;
   const robe = ITEMS[p.equipment.robe]?.robe ?? { physical: 0, arcane: 0 };
   const charm = charmOf(p);
-  const vit = p.attrs.vitality * GROWTH.vitalityDefense;
+  const vit = sk.defense * SKILL_EFFECT.defense;
   const k = charm?.defense ?? 1;
   c.defense = { physical: Math.round((robe.physical + vit) * k), arcane: Math.round((robe.arcane + vit) * k) };
   c.level = p.level;
@@ -83,8 +85,8 @@ export function grantXp(ctx: RpgCtx, e: Entity, amount: number): void {
   ctx.events.push({ type: 'xp', entity: e.id, amount, total: p.xp });
   while (p.level < LEVEL_CAP && p.xp >= xpForLevel(p.level + 1)) {
     p.level++;
-    p.points++;
-    ctx.events.push({ type: 'levelUp', entity: e.id, level: p.level });
+    p.points += SKILL_POINTS_PER_LEVEL;
+    ctx.events.push({ type: 'levelUp', entity: e.id, level: p.level, points: SKILL_POINTS_PER_LEVEL });
   }
   recompute(e);
 }
@@ -134,6 +136,7 @@ export function applyEffects(ctx: RpgCtx, e: Entity, effects: readonly Effect[] 
     else if ('learnSpell' in fx) {
       if (!p.spells.includes(fx.learnSpell)) {
         p.spells.push(fx.learnSpell);
+        learnIntoLoadout(p, fx.learnSpell);
         ctx.events.push({ type: 'spellLearned', entity: e.id, spell: fx.learnSpell });
       }
     } else if ('setFlag' in fx) ctx.world.flags[fx.setFlag] = fx.value ?? 1;
@@ -142,6 +145,7 @@ export function applyEffects(ctx: RpgCtx, e: Entity, effects: readonly Effect[] 
     else if ('openShop' in fx) p.shop = fx.openShop;
     else if ('spawnUnique' in fx) ctx.world.flags[`unique:${fx.spawnUnique}`] = 1;
     else if ('openGate' in fx) ctx.world.flags[`gate:${fx.openGate}`] = 1;
+    else if ('skillPoints' in fx) grantSkillPoints(ctx, e, fx.skillPoints);
   }
 }
 
@@ -260,7 +264,8 @@ export function interactTarget(player: Entity, entities: readonly Entity[]): { e
       name = kind === 'shrine' ? shrineName(id) : kind === 'object' ? `${OBJECTS[id]?.verb ?? 'Use'} ${OBJECTS[id]?.name ?? id}` : 'Old chest';
     } else continue;
     const d = flatDist(player.tf.pos, e.tf.pos);
-    if (d > REACH[kind] || Math.abs(player.tf.pos.y - e.tf.pos.y) > 2.5) continue;
+    // An object can stand on top of its prop (the beacon, about 4 m above the ground around it).
+    if (d > REACH[kind] || Math.abs(player.tf.pos.y - e.tf.pos.y) > (kind === 'object' ? 6 : 2.5)) continue;
     if (d > 0.8 && angleTo(player.tf.pos, player.tf.yaw, e.tf.pos) > FRONT) continue;
     if (d < bestD) {
       bestD = d;
@@ -372,15 +377,14 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
       case 'equip':
         equip(ctx, e, a.item);
         break;
-      case 'spendAttr':
-        if (!p.atShrine) ctx.events.push({ type: 'refused', entity: e.id, action: 'spendAttr', reason: 'Spend points at a shrine.' });
-        else if (p.points <= 0) ctx.events.push({ type: 'refused', entity: e.id, action: 'spendAttr', reason: 'No points to spend.' });
-        else {
-          p.points--;
-          p.attrs[a.attr as Attr]++;
-          recompute(e);
-          ctx.events.push({ type: 'attrSpent', entity: e.id, attr: a.attr, value: p.attrs[a.attr as Attr] });
-        }
+      case 'equipSpell':
+        equipSpell(ctx, e, a.slot, a.spell);
+        break;
+      case 'spendSkill':
+        spendSkill(ctx, e, a.skill);
+        break;
+      case 'respecSkills':
+        respecSkills(ctx, e);
         break;
       case 'rest':
         if (p.atShrine) rest(ctx, e, p.atShrine);
@@ -445,6 +449,11 @@ function equip(ctx: RpgCtx, e: Entity, item: string): void {
   const def = ITEMS[item];
   if (!def || !(p.inventory[item] > 0) || (def.kind !== 'staff' && def.kind !== 'robe' && def.kind !== 'charm')) {
     ctx.events.push({ type: 'refused', entity: e.id, action: 'equip', reason: "You don't have that." });
+    return;
+  }
+  // Gear changes only out of combat, or at a shrine (expansion plan §1.1).
+  if (gearLocked(e, ctx.now)) {
+    ctx.events.push({ type: 'refused', entity: e.id, action: 'equip', reason: "You can't change gear in combat." });
     return;
   }
   const slot = def.kind as Slot;

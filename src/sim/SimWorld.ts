@@ -16,6 +16,7 @@ import {
 import { DT, MOVE, PLAYER_BODY } from '../content/tuning';
 import { enemyBrains, muzzle } from './ai/brain';
 import type { CommandMap } from './commands';
+import { resolveAim } from './combat/aim';
 import { kill, resolveAttacks } from './combat/hits';
 import { lockOn } from './combat/lockon';
 import { playerCombat, type CombatCtx, type Motion } from './combat/playerCombat';
@@ -28,6 +29,7 @@ import type { Vec3 } from './math';
 import { PhysicsWorld } from './physics/PhysicsWorld';
 import { Rng, type RngState } from './rng';
 import { locomotion } from './systems/locomotion';
+import { gearLocked, markTargeted } from './systems/loadout';
 import { followRiders, ridingMotion } from './systems/riding';
 import { vitals } from './systems/vitals';
 import type { ReadonlySimView } from './view';
@@ -131,6 +133,10 @@ export class SimWorld {
       get world() {
         return get().world;
       },
+      aimTarget: (pl, ray) => {
+        const p = this.playerEntity(pl);
+        return p ? (resolveAim(this.entities, this.physics, p, ray).target?.id ?? null) : null;
+      },
       interactTarget: (pl) => {
         const p = this.playerEntity(pl);
         const t = p ? interactTarget(p, this.entities) : null;
@@ -143,6 +149,10 @@ export class SimWorld {
         return node ? availableChoices(node, p, this.world) : [];
       },
       locate: (id) => this.locate(id),
+      gearLocked: (pl) => {
+        const p = this.playerEntity(pl);
+        return !!p && gearLocked(p, this.now);
+      },
     };
   }
 
@@ -560,6 +570,7 @@ export class SimWorld {
     playerCombat(ctx, commands, this.physics, (e) => this.spawnSpellProjectile(e));
     ridingMotion(ctx);
     enemyBrains(ctx, this.rng.stream('ai'), this.physics, (o, m, t, a) => this.spawnProjectile(o, m, t, a));
+    markTargeted(this.entities, this.now, (id) => this.byId.get(id));
     const noGround = this.groundless();
     locomotion(this.entities, commands, this.physics, this.events, motion, noGround.size ? new Set([...frozen, ...noGround]) : frozen);
     this.physics.step();
@@ -751,6 +762,9 @@ export class SimWorld {
     this.byId.clear();
     this.players.clear();
     for (const e of copy.entities) this.add(e);
+    // Rapier's queries only see colliders after a step: without this, the first tick after a restore
+    // moves characters as if the rebuilt capsules weren't there.
+    this.physics.step();
     for (const [p, id] of copy.players) this.players.set(p, id);
     for (const k of Object.keys(this.rng.streams)) delete this.rng.streams[k];
     Object.assign(this.rng.streams, copy.rng);
@@ -770,6 +784,6 @@ export class SimWorld {
 function newCombat(team: Team, poise: number, poiseMax: number, defense: { physical: number; arcane: number }, level: number): Combat {
   return {
     team, action: null, buffer: null, hitstop: 0, poise, poiseMax, poiseDelay: 0, defense: { ...defense }, level,
-    lastBlockTick: -999, riposteUntil: 0, critNext: false, lock: null, lockLostTicks: 0, push: null, lastHitTick: -999, cooldowns: {},
+    lastBlockTick: -999, riposteUntil: 0, critNext: false, lock: null, lockLostTicks: 0, push: null, lastHitTick: -999, cooldowns: {}, targetedAt: -999,
   };
 }

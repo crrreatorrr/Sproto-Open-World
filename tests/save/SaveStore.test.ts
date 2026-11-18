@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { loadSave, writeSave } from '../../src/save/SaveStore';
-import { SAVE_BAK_KEY, SAVE_KEY, type SaveFile } from '../../src/save/schema';
+import { SAVE_BAK_KEY, SAVE_KEY, SAVE_SCHEMA, type SaveFile } from '../../src/save/schema';
 
 /** M3 acceptance 3 (plan §2.8): one slot, `.bak` keeps the previous good write, corrupt-save fallback. */
 
@@ -19,7 +19,7 @@ class FakeStorage {
   }
 }
 
-const v2 = (): SaveFile => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'save-v2.json'), 'utf8'));
+const v2 = (): SaveFile => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', `save-v${SAVE_SCHEMA}.json`), 'utf8'));
 const withSprouts = (n: number): SaveFile => {
   const s = v2();
   s.player.sprouts = n;
@@ -81,7 +81,7 @@ describe('SaveStore (M3 acceptance 3)', () => {
     st.setItem(SAVE_KEY, 'garbage');
     const r = loadSave(st);
     expect(r.fromBackup).toBe(true);
-    expect(r.save!.schema).toBe(2);
+    expect(r.save!.schema).toBe(SAVE_SCHEMA);
     expect(r.save!.player.tonics).toEqual({ charges: 2, max: 3 });
   });
 

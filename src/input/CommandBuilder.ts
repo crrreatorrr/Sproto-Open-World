@@ -1,4 +1,4 @@
-import { BTN, type ButtonName, type InputCommand, type UiAction } from '../sim/commands';
+import { BTN, type AimRay, type ButtonName, type InputCommand, type UiAction } from '../sim/commands';
 import { GAMEPAD, KEYS, PAD } from './bindings';
 import { shapeStick } from './Gamepad';
 import type { Input } from './Input';
@@ -125,8 +125,9 @@ export class CommandBuilder {
   }
 
   /** The command for the next tick. Latched presses, a lock switch and queued menu intents go to this tick only. */
-  take(camYaw: number): InputCommand {
+  take(camYaw: number, aim?: AimRay): InputCommand {
     const cmd: InputCommand = { kind: 'input', move: { ...this.move }, camYaw, held: this.held | this.latched, pressed: this.latched, lockSwitch: this.switchLatched };
+    if (aim) cmd.aim = aim;
     if (this.ui.length) {
       cmd.ui = this.ui;
       this.ui = [];

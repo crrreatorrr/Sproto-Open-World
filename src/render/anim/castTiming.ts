@@ -14,6 +14,10 @@ export const CAST_PEAKS: Readonly<Record<string, CastPeaks>> = {
   wisp: LIBRARY_CAST_PEAKS,
   grunt: { cast: 0.733, cast_big: 0.9 },
   slinger: { cast: 0.667, cast_big: 0.933 },
+  // M4: the veterans' stage-2 rigs carry the same cast clips as stage 1 (same lengths and keys).
+  grunt_vet: { cast: 0.733, cast_big: 0.9 },
+  slinger_vet: { cast: 0.667, cast_big: 0.933 },
+  big_coin: { cast: 0.667, cast_big: 0.933 },
 };
 
 /** A wind-up may compress the clip's anticipation up to this much to fit it before the release (duel). */

@@ -239,9 +239,18 @@ try {
     await shot('05-at-dummy');
 
     await page.evaluate(() => window.__qa.log(true));
+    // Push the stick at the dummy while swinging: a swing goes where the stick points.
+    s = await state();
+    {
+      const d = s.enemies.find((e) => e.id === dummy.id).pos;
+      const wx = d.x - s.player.pos.x, wz = d.z - s.player.pos.z, l = Math.hypot(wx, wz);
+      const sy = Math.sin(s.camYaw), cy = Math.cos(s.camYaw);
+      await page.evaluate(([x, y]) => window.__pad.axes(x, y), [(-cy * wx + sy * wz) / l, -(sy * wx + cy * wz) / l]);
+    }
     await page.evaluate(() => window.__pad.set('rb', true));
     await frames(3);
     await page.evaluate(() => window.__pad.set('rb', false));
+    await page.evaluate(() => window.__pad.axes(0, 0));
     await frames(12);
     await shot('06-light-attack');
     await frames(60);
@@ -350,6 +359,12 @@ try {
         await frames(2);
       }
       log = await page.evaluate(() => window.__qa.log());
+      // On a slow runner the release can land at the very end of that window: keep watching the bolt.
+      for (let i = 0; i < 40 && !inFlight && log.some((e) => e.kind === 'cast' && e.what === 'bolt') && !log.some((e) => e.kind === 'hit' && e.what === 'bolt'); i++) {
+        await frames(1);
+        if ((await state()).projectiles.some((p) => p.spell === 'bolt')) inFlight = true;
+        log = await page.evaluate(() => window.__qa.log());
+      }
       if (log.some((e) => e.kind === 'cast' && e.what === 'bolt')) break;
       console.log(`  info cast attempt ${attempt + 1} was cut off (${log.filter((e) => e.kind === 'hit').length} hits on the way); retrying`);
     }

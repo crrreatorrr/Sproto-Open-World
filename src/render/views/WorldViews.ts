@@ -1,6 +1,7 @@
 import { MountView } from './MountView';
 import * as THREE from 'three';
 import type { AssetLoader } from '../../assets/AssetLoader';
+import type { ModelKey } from '../../assets/manifest';
 import { ENEMIES, type EnemyDef, type EnemyMoveDef } from '../../content/enemies';
 import type { Entity, EntityId } from '../../sim/entity';
 import type { SimEvent } from '../../sim/events';
@@ -9,10 +10,14 @@ import type { ReadonlySimView } from '../../sim/view';
 import type { HitFx } from '../fx/HitFx';
 import { SpellFx } from '../fx/SpellFx';
 import { BlastOrbView, BoltView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
-import { ChestView, NpcView, PickupView, ShrineView } from './RpgViews';
+import { ChestView, NpcView, PickupView, ShrineView, objectView } from './RpgViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
+import { wantsView } from './viewCull';
 
 const DECAL_COLOR: Record<DecalShape, number> = { circle: 0xffa23a, jagged: 0xff2a1a };
+
+/** Enemy models outside the critical download: fetched the first time one comes into range. */
+const LAZY_MODELS: ReadonlySet<string> = new Set<ModelKey>(['gatekeeper', 'grunt_vet', 'slinger_vet', 'big_coin']);
 
 /** Seconds between status particles on a burning, shocked or chilled enemy. */
 const EMBER_EVERY = 0.07;
@@ -57,6 +62,8 @@ export class WorldViews {
   private readonly discovered = new Set<string>();
   /** Shrine views by content id (a rest pulses its shrine). */
   private readonly shrines = new Map<string, ShrineView>();
+  /** Lazy enemy models: requested (false) and ready to draw (true). */
+  private readonly lazyModels = new Map<string, boolean>();
 
   constructor(
     private readonly assets: AssetLoader,
@@ -78,7 +85,7 @@ export class WorldViews {
   /** Make, update and drop views to match the sim. Call once per rendered frame. */
   sync(view: ReadonlySimView, alpha: number, dt: number): void {
     this.seen.clear();
-    const me = view.entities.find((e) => e.kind === 'player');
+    const me = view.playerEntity(0);
     for (const e of view.entities) {
       if (e.kind === 'player') {
         // Single player for now: the one player's progress lights the shrines.
@@ -87,6 +94,8 @@ export class WorldViews {
         continue;
       }
       let v = this.views.get(e.id);
+      // Not drawn (far away, not set down yet, a faded corpse): the sweep below drops any old view.
+      if (!wantsView(e, me, v !== undefined)) continue;
       if (!v) {
         const made = this.make(e);
         if (!made) continue;
@@ -274,7 +283,18 @@ export class WorldViews {
     }
   }
 
+  /** Has this lazy model arrived? Asks for it the first time; `sync` retries every frame until then. */
+  private lazyReady(key: ModelKey): boolean {
+    const state = this.lazyModels.get(key);
+    if (state === undefined) {
+      this.lazyModels.set(key, false);
+      void this.assets.template(key).then(() => this.lazyModels.set(key, true));
+    }
+    return state === true;
+  }
+
   private make(e: Readonly<Entity>): EntityView | null {
+    if (LAZY_MODELS.has(e.view.model) && !this.lazyReady(e.view.model as ModelKey)) return null;
     const pr = e.projectile;
     if (e.kind === 'projectile' || pr) {
       // Spell projectiles by their spell (the sim names the models 'bolt' and 'blastOrb'); enemy
@@ -285,24 +305,30 @@ export class WorldViews {
       return new CoinView();
     }
     if (e.mount) return new MountView(this.assets);
-    // M3 world objects, by component (their model keys are placeholders until M4's art).
-    if (e.npc) return new NpcView(e);
-    if (e.interactable?.kind === 'shrine') {
-      const v = new ShrineView(e.interactable.id, this.discovered);
+    // World objects, by component (villagers by their `npc_*` model key; objects by theirs).
+    if (e.npc) return new NpcView(e, this.assets);
+    const kind: string | undefined = e.interactable?.kind;
+    if (e.interactable && kind === 'shrine') {
+      const v = new ShrineView(e.interactable.id, this.discovered, this.assets);
       this.shrines.set(e.interactable.id, v);
       return v;
     }
-    if (e.interactable?.kind === 'chest') return new ChestView();
-    if (e.pickup) return new PickupView(e);
+    if (kind === 'chest') return new ChestView(this.assets);
+    if (kind === 'object') return objectView(e.view.model);
+    if (e.pickup) return new PickupView(e, this.assets);
     const def = enemyDef(e);
     switch (e.view.model) {
       case 'brute':
-        return def ? new BruteView(this.assets, def) : new FallbackView(e);
+      case 'gatekeeper':
+        return def ? new BruteView(this.assets, def, e.view.model) : new FallbackView(e);
       case 'dummy':
         return def ? new DummyView(def) : new FallbackView(e);
       case 'grunt':
       case 'slinger':
       case 'wisp':
+      case 'grunt_vet':
+      case 'slinger_vet':
+      case 'big_coin':
         return def ? new HumanoidEnemyView(this.assets, def, e.view.model) : new FallbackView(e);
       default:
         return e.kind === 'enemy' || e.kind === 'boss' ? new FallbackView(e) : null;

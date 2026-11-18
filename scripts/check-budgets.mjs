@@ -3,6 +3,7 @@
  * Byte budgets on the production build (plan §3.5). Run after `npm run build`.
  *   - Title shell (index.html + CSS + entry JS, gzip): ≤ 150 KiB.
  *   - Critical transfer to playable (all JS, the player, its staff, every enemy model the yard or the wave runner loads, the yard textures,
+ *     the village's villagers, shrine, chests, pickups and square props (M4),
  *     Sproutvale's region.json, the village cells (3–4, 0–1) and their ring, every prop those cells place (LOD0 + LOD1) and
  *     horizon.glb), as served (JS gzip; GLB/JPG/WebM already compressed; cell .bin/.json counted raw): ≤ 8 MiB.
  *   - World (plan §3.1, §3.5): every cell (bin + json) ≤ 120 KB; each region under world/ ≤ 30 MiB.
@@ -24,6 +25,15 @@ const shell = gz(path.join(DIST, 'index.html')) + entry.reduce((n, f) => n + gz(
 const allJs = files.filter((f) => f.endsWith('.js')).reduce((n, f) => n + gz(path.join(build, f)), 0);
 const rapier = files.filter((f) => f.startsWith('rapier') && f.endsWith('.js')).reduce((n, f) => n + gz(path.join(build, f)), 0);
 const critical = ['assets/models/characters/player.glb', 'assets/models/staffs/staff_sproto.glb', 'assets/models/elites/brute.glb', 'assets/models/enemies/grunt.glb', 'assets/models/enemies/slinger.glb', 'assets/models/enemies/wisp.glb', 'assets/textures/grove/floor.jpg', 'assets/textures/grove/stone.jpg', 'assets/textures/grove/sky.jpg'];
+// M4: the village start draws its villagers, its shrine and chests, the pickups and the village
+// square's props.
+// The veterans, Big Coin and the Gatekeeper live out in the wilds: not critical.
+critical.push(
+  ...['pepe_general', 'pepe', 'pepe_tux', 'broccoli', 'agent'].map((id) => `assets/models/npcs/${id}.glb`),
+  'assets/models/interactables/shrine.glb', 'assets/models/interactables/chest.glb',
+  ...['gem', 'heart', 'potion'].map((id) => `assets/models/pickups/${id}.glb`),
+  ...['fountain', 'bench', 'cart', 'lantern_post', 'market_stall'].flatMap((id) => [`assets/models/props/${id}.glb`, `assets/models/props/${id}-lod1.glb`]),
+);
 
 // Sproutvale: the village cells and their ring load before Playing (plan §3.2), with their props and the horizon.
 const WORLD = path.join(DIST, 'world');
