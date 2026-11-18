@@ -61,12 +61,13 @@ const SESSION: Op[] = [
     tick1(w, interact());
     tick1(w, choose(0));
     tick1(w, ui([{ kind: 'buy', merchant: 'merchant_village', item: 'charm_quick_step' }, { kind: 'buy', merchant: 'merchant_village', item: 'staff_nobu' }]));
-    tick1(w, ui([{ kind: 'equip', item: 'staff_nobu' }, { kind: 'closeMenu' }]));
+    tick1(w, ui([{ kind: 'closeMenu' }]));
   },
   (w) => {
     standBy(w, 'shrine_first_light');
     tick1(w, interact());
-    tick1(w, ui([{ kind: 'rest' }, { kind: 'spendAttr', attr: 'might' }, { kind: 'closeMenu' }]));
+    // The fight's Grunt may still be after you: gear changes at a shrine regardless (C1 gear lock).
+    tick1(w, ui([{ kind: 'rest' }, { kind: 'equip', item: 'staff_nobu' }, { kind: 'spendSkill', skill: 'attack' }, { kind: 'equipSpell', slot: 1, spell: null }, { kind: 'closeMenu' }]));
   },
   fight,
 ];

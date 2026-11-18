@@ -1,26 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { xpForLevel, xpToNext } from '../../src/content/progression';
+import { ITEMS } from '../../src/content/items';
+import { noSkills, xpForLevel, xpToNext } from '../../src/content/progression';
 import type { Progress } from '../../src/sim/entity';
 import {
-  attrGain, compassOffset, headingTo, interactLabel, inventoryGroups, levelProgress, objectiveLines, plural, questLog, shopStock, trackedQuest, wrapAngle,
+  compassOffset, gearCompare, readyText, skillGain, swapCooldown, headingTo, interactLabel, inventoryGroups, levelProgress, objectiveLines, plural, questLog, shopStock, trackedQuest, wrapAngle,
 } from '../../src/ui/rpgText';
 
 function progress(over: Partial<Progress> = {}): Progress {
   return {
-    level: 1, xp: 0, attrs: { might: 0, arcana: 0, vitality: 0, endurance: 0 }, points: 0, sprouts: 0,
-    equipment: { staff: 'staff_sproto', robe: 'robe_apprentice', charm: null }, inventory: {}, spells: ['bolt'],
+    level: 1, xp: 0, skills: noSkills(), points: 0, sprouts: 0,
+    equipment: { staff: 'staff_sproto', robe: 'robe_apprentice', charm: null }, inventory: {}, spells: ['bolt'], loadout: ['bolt', null, null, null],
     tonics: { charges: 3, max: 3 }, quests: {}, tracked: null, lastShrine: null, discoveredShrines: [], dialogue: null, shop: null, atShrine: null,
     ...over,
   };
 }
 
 describe('XP bar', () => {
-  it('fills through the current level and caps at 10', () => {
+  it('fills through the current level and caps at 15', () => {
     expect(levelProgress(1, 0)).toMatchObject({ frac: 0, into: 0, need: 60 });
     expect(levelProgress(1, 30).frac).toBeCloseTo(0.5);
     const l3 = xpForLevel(3);
     expect(levelProgress(3, l3 + xpToNext(3) / 4).frac).toBeCloseTo(0.25, 2);
-    expect(levelProgress(10, 99999)).toMatchObject({ frac: 1, capped: true });
+    expect(levelProgress(10, 99999)).toMatchObject({ capped: false });
+    expect(levelProgress(15, 99999)).toMatchObject({ frac: 1, capped: true });
   });
 });
 
@@ -84,9 +86,29 @@ describe('prompts, level-up, shop, inventory', () => {
     expect(interactLabel('chest', 'Old Chest')).toBe('Open Old Chest');
   });
 
-  it('says what a point buys', () => {
-    expect(attrGain('vitality')).toBe('+15 health, +0.5 defense');
-    expect(attrGain('might')).toBe('+4% melee damage');
+  it('says what a skill rank buys', () => {
+    expect(skillGain('defense')).toBe('+1 defense, +10 health');
+    expect(skillGain('attack')).toBe('+4% melee damage');
+    expect(skillGain('spellPower')).toBe('+4% spell damage');
+    expect(skillGain('focus')).toBe('+5 mana, +3% mana regen');
+  });
+
+  it('words cooldowns and the swap cooldown the sim will apply', () => {
+    expect(readyText(0)).toBe('Ready');
+    expect(readyText(61)).toBe('Ready in 2 s');
+    expect(swapCooldown('bolt', 0, false)).toBe(180);
+    expect(swapCooldown('frostNova', 0, false)).toBe(480);
+    expect(swapCooldown('blast', 500, false)).toBe(500);
+    expect(swapCooldown('blast', 40, true)).toBe(40);
+  });
+
+  it('compares gear against what is worn (green up, red down)', () => {
+    expect(gearCompare(ITEMS.staff_moonward, ITEMS.staff_sproto)).toEqual([
+      { label: 'Damage', delta: -2, text: '−2' },
+      { label: 'Spell power', delta: 0.35, text: '+0.35' },
+    ]);
+    expect(gearCompare(ITEMS.robe_warden, ITEMS.robe_apprentice).map((d) => d.delta)).toEqual([8, 4]);
+    expect(gearCompare(ITEMS.charm_quick_step, undefined)).toEqual([]);
   });
 
   it('takes bought items out of the stock', () => {

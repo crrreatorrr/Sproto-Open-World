@@ -27,7 +27,9 @@ export type Effect =
   | { openShop: string }
   /** For M4/M5: spawn a unique enemy, open a gate. Recorded as flags until then. */
   | { spawnUnique: string }
-  | { openGate: string };
+  | { openGate: string }
+  /** Skill points (each boss gives one, expansion plan §7.1). */
+  | { skillPoints: number };
 
 export type Condition =
   | { quest: string; status: QuestStatus; step?: number }

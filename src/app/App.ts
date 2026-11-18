@@ -985,7 +985,8 @@ export class App {
         if (e.amount > 0) hud.feed(`+${e.amount} XP`, 'level');
         return;
       case 'levelUp':
-        this.hud.waveBanner('Level up!', `Level ${e.level} · spend your point at a shrine`);
+        this.hud.waveBanner('Level up!', `Level ${e.level} · +${e.points} skill points`);
+        this.hud.toast(`+${e.points} skill points: spend them on the Skills tab.`);
         hud.feed(`Reached level ${e.level}`, 'level');
         this.audio.play('shieldPerfect', 1.3);
         this.saveWanted = true;
@@ -1045,8 +1046,10 @@ export class App {
         hud.feed(`Learned ${SPELLS[e.spell as SpellId]?.name ?? e.spell}`, 'level');
         this.hud.toast(`New spell: ${SPELLS[e.spell as SpellId]?.name ?? e.spell}`);
         return;
-      case 'attrSpent':
-        // Spent at a shrine: saved like the rest that came before it, so a reload keeps it.
+      case 'skillSpent':
+      case 'skillsReset':
+      case 'spellEquipped':
+        // Saved like a rest, so a reload keeps it.
         this.audio.play('uiClick', 1.1);
         this.saveWanted = true;
         return;

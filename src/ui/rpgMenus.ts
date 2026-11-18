@@ -1,14 +1,14 @@
 import { DIALOGUE, type DialogueNode } from '../content/dialogue';
 import { ITEMS } from '../content/items';
 import { NPCS } from '../content/npcs';
-import { ATTRS } from '../content/progression';
+import { SKILLS, SKILL_IDS, SKILL_MAX_RANK } from '../content/progression';
 import { SPELLS, type SpellId } from '../content/spells';
 import type { UiAction } from '../sim/commands';
 import type { Entity, Progress } from '../sim/entity';
 import type { SimEvent } from '../sim/events';
 import type { ReadonlySimView } from '../sim/view';
 import type { MenuNav, Screen } from './MenuNav';
-import { ATTR_NAMES, KIND_NAMES, attrGain, inventoryGroups, itemStats, levelProgress, questLog, shopStock } from './rpgText';
+import { KIND_NAMES, skillGain, inventoryGroups, itemStats, levelProgress, questLog, shopStock } from './rpgText';
 
 /** What the RPG menus read and how they act: the sim's view, the local player, and the command queue. */
 export interface RpgSource {
@@ -169,10 +169,10 @@ export class RpgMenus {
       }
       case this.shrine:
       case this.levelUp:
-        return `${p.atShrine}|${p.points}|${JSON.stringify(p.attrs)}|${this.shrineNote}`;
+        return `${p.atShrine}|${p.points}|${JSON.stringify(p.skills)}|${this.shrineNote}`;
       case this.character: {
         const v = this.src.player()?.vitals;
-        return `${JSON.stringify(p.equipment)}|${JSON.stringify(p.inventory)}|${p.level}|${p.xp}|${JSON.stringify(p.attrs)}|${v?.hpMax}|${v?.staminaMax}|${v?.manaMax}`;
+        return `${JSON.stringify(p.equipment)}|${JSON.stringify(p.inventory)}|${p.level}|${p.xp}|${JSON.stringify(p.skills)}|${v?.hpMax}|${v?.staminaMax}|${v?.manaMax}`;
       }
       case this.quests:
         return `${p.tracked}|${JSON.stringify(p.quests)}`;
@@ -295,12 +295,12 @@ export class RpgMenus {
       const points = p?.points ?? 0;
       s.replaceChildren(el('h2', '', 'Level up'), el('p', 'note', points > 0 ? `${points} ${points === 1 ? 'point' : 'points'} to spend` : 'No points to spend. Level up to earn one.'));
       const list = el('div', 'list wide');
-      for (const a of ATTRS) {
-        const v = p?.attrs[a] ?? 0;
-        const b = button('', () => this.src.send({ kind: 'spendAttr', attr: a }), 'btn item-row');
-        b.innerHTML = `<span class="name">${ATTR_NAMES[a]}</span><span class="price">${v}${points > 0 ? ` → ${v + 1}` : ''}</span><span class="blurb">${attrGain(a)}</span>`;
-        b.dataset.attr = a;
-        if (points <= 0) b.disabled = true;
+      for (const a of SKILL_IDS) {
+        const v = p?.skills[a] ?? 0;
+        const b = button('', () => this.src.send({ kind: 'spendSkill', skill: a }), 'btn item-row');
+        b.innerHTML = `<span class="name">${SKILLS[a].name}</span><span class="price">${v}${points > 0 && v < SKILL_MAX_RANK ? ` → ${v + 1}` : ''}</span><span class="blurb">${skillGain(a)}</span>`;
+        b.dataset.skill = a;
+        if (points <= 0 || v >= SKILL_MAX_RANK) b.disabled = true;
         list.append(b);
       }
       list.append(button('Back', () => this.nav.pop()));
@@ -334,8 +334,8 @@ export class RpgMenus {
       stats.append(
         row('Level', String(p.level)),
         row('XP', lp.capped ? `${p.xp} (max level)` : `${lp.into} / ${lp.need}`),
-        ...(p.points > 0 ? [row('Points', `${p.points} (spend at a shrine)`)] : []),
-        ...ATTRS.map((a) => row(ATTR_NAMES[a], String(p.attrs[a]))),
+        ...(p.points > 0 ? [row('Skill points', String(p.points))] : []),
+        ...SKILL_IDS.map((a) => row(SKILLS[a].name, String(p.skills[a]))),
         row('Health', String(v?.hpMax ?? '—')),
         row('Stamina', String(v?.staminaMax ?? '—')),
         row('Mana', String(v?.manaMax ?? '—')),

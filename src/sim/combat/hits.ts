@@ -3,7 +3,7 @@ import {
 } from '../../content/combat';
 import { PLAYER_HITBOXES, STAFF_CAPSULE_RADIUS } from '../../content/generated/playerHitboxes';
 import { AFFINITY_MULT, ENEMIES, type Affinity, type EnemyMoveDef } from '../../content/enemies';
-import { GROWTH } from '../../content/progression';
+import { PERK_EFFECT, SKILL_EFFECT, hasPerk } from '../../content/progression';
 import { STATUS } from '../../content/statuses';
 import { charmOf, staffOf } from '../systems/rpg';
 import { applyStatus } from './statuses';
@@ -102,6 +102,8 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
         addHitstop(attacker, BLOCK.parryHitstop);
       }
       ctx.events.push({ type: 'parry', attacker: attacker.id, target: target.id, projectile: info.projectile, pos: chest });
+      // Combat 10: a parry restores 5% HP.
+      if (hasPerk(target.progress?.skills, 'combat10')) tv.hp = Math.min(tv.hpMax, tv.hp + tv.hpMax * PERK_EFFECT.parryHeal);
       if (!info.projectile && target.progress && charmOf(target.progress)?.burnOnParry && attacker.combat) applyStatus(ctx, attacker, 'burn', 1, target.id);
       return 'parried';
     }
@@ -186,6 +188,8 @@ function hasArmor(e: Entity): boolean {
   const a = e.combat?.action;
   if (a?.kind !== 'attack') return false;
   if (e.kind === 'player') {
+    // Combat 20: you can't be knocked out of your attacks.
+    if (hasPerk(e.progress?.skills, 'combat20')) return true;
     const def = PLAYER_MOVES[a.move as PlayerMoveId];
     return def?.hyperArmorFrom !== undefined && a.clipT >= def.hyperArmorFrom;
   }
@@ -263,8 +267,8 @@ function attackShape(e: Entity): AttackShape | null {
     const box = PLAYER_HITBOXES[def.clip]?.find((h) => h.tick === a.clipT);
     if (!box) return null;
     const staff = e.progress ? staffOf(e.progress) : STAFFS.staff_sproto;
-    // Melee power: the staff's damage × (1 + 0.04 · Might) (plan §4.6).
-    const power = staff.damage * (1 + GROWTH.mightPower * (e.progress?.attrs.might ?? 0));
+    // Melee power: the staff's damage × (1 + 0.04 · Attack) (expansion plan §7.2).
+    const power = staff.damage * (1 + SKILL_EFFECT.attack * (e.progress?.skills.attack ?? 0));
     const charged = a.charged;
     return {
       a: toWorld(e.tf.pos, e.tf.yaw, box.a),

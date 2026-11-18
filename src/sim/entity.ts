@@ -1,5 +1,5 @@
 import type { DamageKind, PlayerMoveId } from '../content/combat';
-import type { Attr } from '../content/progression';
+import type { SkillRanks } from '../content/progression';
 import type { QuestState } from '../content/quests';
 import type { SpellId } from '../content/spells';
 import type { StatusId } from '../content/statuses';
@@ -131,6 +131,8 @@ export interface Combat {
   lastHitTick: number;
   /** Spell cooldowns: ticks left per spell. */
   cooldowns: Partial<Record<SpellId, number>>;
+  /** The last tick an enemy targeted this entity (the gear lock, expansion plan §1.1). */
+  targetedAt: number;
 }
 
 /** The player's RPG state (plan §5). Saved in the SaveFile. */
@@ -138,14 +140,18 @@ export interface Progress {
   level: number;
   /** Total XP earned. */
   xp: number;
-  attrs: Record<Attr, number>;
-  /** Attribute points to spend at a shrine. */
+  /** Skill ranks (expansion plan §7): Magic (Spell Power, Protection, Focus) and Combat (Attack, Defense, Stamina). */
+  skills: SkillRanks;
+  /** Skill points to spend (anywhere, on the Skills tab). */
   points: number;
   sprouts: number;
   equipment: { staff: string; robe: string; charm: string | null };
   /** Item id → count. */
   inventory: Record<string, number>;
+  /** Known spells. */
   spells: SpellId[];
+  /** The four equipped spell slots (expansion plan §1.1): each null or a known spell, no duplicates. */
+  loadout: (SpellId | null)[];
   tonics: { charges: number; max: number };
   quests: Record<string, QuestState>;
   tracked: string | null;
@@ -156,7 +162,7 @@ export interface Progress {
   dialogue: { npc: string; node: string } | null;
   /** An open merchant shop (buy commands are accepted only while it is open). */
   shop: string | null;
-  /** At a shrine (Rest / Level up menu): which one. */
+  /** At a shrine (Rest / Skills menu): which one. */
   atShrine: string | null;
 }
 
