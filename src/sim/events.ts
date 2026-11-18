@@ -5,6 +5,11 @@ import type { StatusId } from '../content/statuses';
 import type { EntityId } from './entity';
 import type { Vec3 } from './math';
 
+/** A C3 power's moment, for its visuals and sound. */
+export type PowerFxId =
+  | 'ward' | 'wardReflect' | 'wardBlock' | 'snareRoot' | 'swarm' | 'wall' | 'wallStun' | 'wallEnd' | 'vine' | 'bloom'
+  | 'emberStart' | 'emberPulse' | 'surgeReady' | 'surge';
+
 /** Things that happened this tick, for presentation (audio, FX, camera, rumble) and for quests. */
 export type SimEvent =
   | { type: 'jump'; entity: EntityId }
@@ -46,6 +51,8 @@ export type SimEvent =
   | { type: 'nova'; entity: EntityId; pos: Vec3; radius: number }
   /** Chain Zap: the points the bolt jumps through (caster's hand first) and who it hit. */
   | { type: 'zap'; entity: EntityId; points: Vec3[]; targets: EntityId[] }
+  /** `to` / `target`: where a vine goes. `radius`: a patch's or a wave's reach. */
+  | { type: 'power'; fx: PowerFxId; entity: EntityId; pos: Vec3; to?: Vec3; target?: EntityId; radius?: number }
   | { type: 'status'; entity: EntityId; status: StatusId; stacks: number; affinity: Affinity }
   | { type: 'statusEnd'; entity: EntityId; status: StatusId }
   | { type: 'frozen'; entity: EntityId; ticks: number }

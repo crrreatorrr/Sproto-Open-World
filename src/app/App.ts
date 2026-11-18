@@ -5,6 +5,7 @@ import { AudioManager } from '../audio/AudioManager';
 import { CameraRig } from '../camera/CameraRig';
 import { ITEMS } from '../content/items';
 import { affixName } from '../content/packs/c4';
+import { POWER } from '../content/packs/c3';
 import { PERKS, SKILLS, type PerkId, type SkillId } from '../content/progression';
 import { staffCostMult } from '../content/packs/c2';
 import { QUESTS } from '../content/quests';
@@ -22,6 +23,7 @@ import { promptLabel } from '../input/glyphs';
 import { Input } from '../input/Input';
 import { RUMBLE, TRAUMA } from '../render/fx/feedback';
 import { HitFx, type SparkStyle } from '../render/fx/HitFx';
+import { isSoftPowerHit, powerSpark } from '../render/fx/powers';
 import { Renderer } from '../render/Renderer';
 import { PlayerView } from '../render/views/PlayerView';
 import { WorldViews, enemyDef } from '../render/views/WorldViews';
@@ -45,7 +47,9 @@ import { RpgHud, type HudRpgState } from '../ui/RpgHud';
 import { RpgMenus } from '../ui/rpgMenus';
 import { compassOffset, headingTo, interactLabel, trackedQuest } from '../ui/rpgText';
 import { loadSettings, saveSettings, type Settings } from '../ui/settings';
+import { SurgeMeter } from '../ui/SurgeMeter';
 import { FixedLoop } from './loop';
+import { powerFeedback } from './powerFeedback';
 import { WorldSession } from './WorldSession';
 
 export type AppState = 'title' | 'loading' | 'playing' | 'paused' | 'error';
@@ -88,6 +92,7 @@ export class App {
   readonly menus: Menus;
   readonly panels: Panels;
   readonly hud: Hud;
+  readonly surgeMeter: SurgeMeter;
   readonly overlay: Overlay;
   readonly audio = new AudioManager();
   readonly loop = new FixedLoop();
@@ -167,6 +172,7 @@ export class App {
     host.appendChild(ui);
     this.numbers = new DamageNumbers(ui);
     this.hud = new Hud(ui);
+    this.surgeMeter = new SurgeMeter(this.hud.root);
     this.rpgHud = new RpgHud(this.hud.root);
     this.rpgHud.enabled = MODE === 'world';
     this.screenFlash = document.createElement('div');
@@ -643,6 +649,7 @@ export class App {
     this.renderer.camera.updateMatrixWorld();
     this.numbers.update(dt, this.project);
     this.hud.combat(this.hudCombat(simView, p), dt);
+    this.surgeMeter.update(!!p.progress?.spells.includes('sproutSurge'), (p.powers?.surge ?? 0) / POWER.surge.max);
     this.rpgFrame(simView, p, dt, !!menu);
   }
 
@@ -911,6 +918,10 @@ export class App {
       case 'lock':
         if (e.entity === me && e.target !== null) this.audio.play('lockBeep');
         return;
+      case 'power':
+        this.world.event(view, e);
+        powerFeedback(e, { audio: this.audio, mine: e.entity === me, rumble: (r) => pad.rumble(r), shake: (t) => this.shake(t) });
+        return;
       default:
         this.presentSpell(view, e);
         return;
@@ -947,6 +958,7 @@ export class App {
         qa('cast', e.spell);
         if (e.spell === 'bolt') this.audio.play('boltCast', e.woven ? 1.15 : 1);
         else if (e.spell === 'blast') this.audio.play('boltCast', 0.62, 1.2);
+        else if (e.spell === 'staticSnare') this.audio.play('boltCast', 1.45, 0.9);
         if (e.entity === me) pad.rumble(RUMBLE.cast);
         return;
       case 'noMana':
@@ -1146,12 +1158,13 @@ export class App {
     const style: NumberStyle = hurt ? 'hurt' : e.affinity === 'weak' ? 'weak' : e.affinity === 'resist' ? 'resist' : e.crit ? 'crit' : 'normal';
     // Spell hits (the sim names the move after the spell) spark in the spell's colour.
     const spell = e.move in SPELLS ? (e.move as SpellId) : null;
-    const spellSpark: SparkStyle | null = spell === 'blast' ? 'fire' : spell === 'chainZap' ? 'shock' : spell === 'frostNova' ? 'frost' : spell ? 'arcane' : null;
+    const spellSpark: SparkStyle | null = (spell && powerSpark(spell)) || (spell === 'blast' ? 'fire' : spell === 'chainZap' ? 'shock' : spell === 'frostNova' ? 'frost' : spell ? 'arcane' : null);
+    const soft = isSoftPowerHit(e.move);
     const spark: SparkStyle = style === 'normal' ? (spellSpark ?? (e.heavy ? 'heavy' : 'normal')) : style === 'weak' || style === 'resist' || !spellSpark ? style : spellSpark;
     if (this.fx.burst(e.pos, spark) > 0) qa('spark');
     // Resisted hits sound dull (plan §4.6), weak and critical ones bright.
     const rate = e.affinity === 'resist' ? 0.7 : e.affinity === 'weak' ? 1.12 : e.crit ? 1.2 : 0.95 + Math.random() * 0.1;
-    if (this.audio.play(hurt ? 'hurt' : spell ? 'boltHit' : e.heavy ? 'pillarHit' : 'clash', hurt ? 1 : rate)) qa('sound');
+    if (this.audio.play(hurt ? 'hurt' : spell ? 'boltHit' : e.heavy ? 'pillarHit' : 'clash', hurt ? 1 : rate, soft ? 0.35 : 1)) qa('sound');
     if (!hurt) this.revealHit(view, e);
     this.numbers.spawn(e.pos, e.damage, style);
     qa('number');
@@ -1161,8 +1174,10 @@ export class App {
     if (mine) {
       this.lastHitEnemy = e.target;
       this.lastHitAt = performance.now();
-      this.shake(e.crit ? TRAUMA.crit : e.heavy ? TRAUMA.heavyHit : TRAUMA.lightHit);
-      this.input.pad.rumble(e.heavy || e.crit ? RUMBLE.heavyHit : RUMBLE.lightHit);
+      if (!soft) {
+        this.shake(e.crit ? TRAUMA.crit : e.heavy ? TRAUMA.heavyHit : TRAUMA.lightHit);
+        this.input.pad.rumble(e.heavy || e.crit ? RUMBLE.heavyHit : RUMBLE.lightHit);
+      }
     }
     if (hurt) {
       this.shake(TRAUMA.hurt);
@@ -1236,7 +1251,7 @@ export class App {
       enemy,
       reticle: lp ? this.project(lp) : null,
       spells: v && c
-        ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window, learned: this.mode === 'world' ? p.progress?.spells : undefined, loadout: p.progress?.loadout, costMult: staffCostMult(p.progress?.equipment.staff) }
+        ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window, learned: this.mode === 'world' ? p.progress?.spells : undefined, loadout: p.progress?.loadout, costMult: staffCostMult(p.progress?.equipment.staff), surge: p.powers?.surge ?? 0 }
         : null,
       wave: view.wave ? { ...view.wave } : null,
     };

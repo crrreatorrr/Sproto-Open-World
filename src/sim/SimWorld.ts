@@ -19,6 +19,8 @@ import type { CommandMap } from './commands';
 import { kill, resolveAttacks } from './combat/hits';
 import { lockOn } from './combat/lockon';
 import { playerCombat, type CombatCtx, type Motion } from './combat/playerCombat';
+import { wallBarrier } from './combat/powers/bramble';
+import { stepPowers } from './combat/powers/index';
 import { stepProjectiles } from './combat/projectiles';
 import { tickStatuses } from './combat/statuses';
 import type { Combat, Entity, EntityId, PlayerId, Team, WorldState } from './entity';
@@ -345,11 +347,11 @@ export class SimWorld {
     this.events.push({ type: 'fire', entity: owner.id, projectile: e.id });
   }
 
-  /** A player spell's projectile (bolt, blast orb). */
+  /** What a player's spell puts in the world: a projectile (bolt, blast orb) or a power's ground effect. */
   private spawnSpellProjectile(p: Omit<Entity, 'id'>): Entity {
     const e = { ...p, id: this.nextId++ } as Entity;
     this.add(e);
-    this.events.push({ type: 'fire', entity: e.projectile!.owner, projectile: e.id });
+    if (e.projectile) this.events.push({ type: 'fire', entity: e.projectile.owner, projectile: e.id });
     return e;
   }
 
@@ -522,6 +524,7 @@ export class SimWorld {
     if (i < 0) return;
     const e = this.entities[i];
     if (e.body) this.physics.removeCharacter(id);
+    if (e.powerArea?.kind === 'wall') this.physics.removeBarrier(id);
     this.entities.splice(i, 1);
     this.byId.delete(id);
   }
@@ -535,6 +538,10 @@ export class SimWorld {
     this.entities.push(e);
     this.byId.set(e.id, e);
     if (e.body) this.physics.addCharacter(e.id, e.body, e.tf.pos);
+    if (e.powerArea?.kind === 'wall') {
+      const b = wallBarrier(e);
+      this.physics.addBarrier(e.id, b.centre, b.half, b.yaw);
+    }
   }
 
   /** Advance one tick (plan §2.3 system order; later milestones fill in the other systems). */
@@ -582,6 +589,7 @@ export class SimWorld {
     this.physics.step();
     resolveAttacks(ctx, this.physics);
     for (const id of stepProjectiles(ctx, this.physics)) this.remove(id);
+    for (const id of stepPowers(ctx)) this.remove(id);
     for (const { entity, source } of tickStatuses(ctx)) {
       if (entity.combat?.action?.kind !== 'dead') kill(ctx, entity, this.byId.get(source) ?? null);
     }
@@ -630,7 +638,7 @@ export class SimWorld {
         this.wave.enemiesLeft = 0;
         this.wave.nextIn = 90;
       } else for (const e of this.entities) if (e.brain && !(e.brain.unique && this.world.killedUniques.includes(e.brain.unique))) this.reset(e, e.brain.home, e.brain.homeYaw);
-      for (const e of [...this.entities]) if (e.projectile) this.remove(e.id);
+      for (const e of [...this.entities]) if (e.projectile || e.powerArea) this.remove(e.id);
       this.events.push({ type: 'respawn', entity: player.id });
     }
     for (const e of [...this.entities]) {
@@ -696,6 +704,7 @@ export class SimWorld {
       e.brain.meleeHitsTaken = 0;
     }
     delete e.statuses;
+    delete e.powers;
   }
 
   /**
@@ -746,12 +755,15 @@ export class SimWorld {
   restore(s: SimSnapshot): void {
     const copy = structuredClone(s);
     this.physics.removeAllCharacters();
+    this.physics.removeAllBarriers();
     this.now = copy.now;
     this.nextId = copy.nextId;
     this.entities = [];
     this.byId.clear();
     this.players.clear();
     for (const e of copy.entities) this.add(e);
+    // A restored wall must block from the first tick, as it did when the snapshot was taken.
+    if (copy.entities.some((e) => e.powerArea?.kind === 'wall')) this.physics.step();
     for (const [p, id] of copy.players) this.players.set(p, id);
     for (const k of Object.keys(this.rng.streams)) delete this.rng.streams[k];
     Object.assign(this.rng.streams, copy.rng);

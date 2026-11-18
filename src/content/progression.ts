@@ -99,11 +99,11 @@ export const hasPerk = (s: Readonly<SkillRanks> | undefined, perk: PerkId): bool
 
 export const ranksSpent = (s: Readonly<SkillRanks>): number => SKILL_IDS.reduce((n, k) => n + (s[k] ?? 0), 0);
 
-/** Protection-spell strength multiplier (Frost Nova's push; later Mirror Ward, Bramble Wall, Healing Bloom). */
+/** Protection-spell strength multiplier (Frost Nova's push, Mirror Ward, Bramble Wall, Healing Bloom). */
 export const protectionMult = (s: Readonly<SkillRanks> | undefined): number => 1 + SKILL_EFFECT.protection * (s?.protection ?? 0);
 
 /** Spells that count as protection spells (Magic 20 cleanses on them). */
-export const PROTECTION_SPELLS: readonly string[] = ['frostNova'];
+export const PROTECTION_SPELLS: readonly string[] = ['frostNova', 'mirrorWard', 'brambleWall', 'healingBloom'];
 
 /**
  * "In combat" for the gear lock (plan §1.1): an enemy targeted you within this many ticks (5 s).

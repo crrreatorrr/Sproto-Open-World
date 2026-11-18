@@ -245,7 +245,7 @@ export class GameMenu {
         state = wait > 0 ? `Swap in: ${readyText(wait).toLowerCase()}` : 'Swap in: ready';
       }
       const def = id ? SPELLS[id] : null;
-      const html = `${spellIcon(id)}<span class="name">${def?.name ?? 'Clear slot'}</span>${def ? `<span class="cost">${costText(def.cost * staffCostMult(p.equipment.staff))} mana · ${(def.cooldown / 60).toFixed(def.cooldown % 60 ? 1 : 0)} s</span>` : ''}<span class="state">${state}</span>`;
+      const html = `${spellIcon(id)}<span class="name">${def?.name ?? 'Clear slot'}</span>${def ? `<span class="cost">${def.meter ? 'Uses the Surge meter' : `${costText(def.cost * staffCostMult(p.equipment.staff))} mana · ${(def.cooldown / 60).toFixed(def.cooldown % 60 ? 1 : 0)} s`}</span>` : ''}<span class="state">${state}</span>`;
       const b = cell(button(html, () => this.powerPressed(id), `btn power-card${picked ? ' picked' : ''}${inSlot >= 0 ? ' slotted' : ''}`), k % POWER_COLS, 1 + Math.floor(k / POWER_COLS));
       b.dataset.power = id ?? 'none';
       grid.append(b);

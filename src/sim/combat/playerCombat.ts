@@ -3,6 +3,7 @@ import {
 } from '../../content/combat';
 import { TONIC } from '../../content/items';
 import { TRAIT } from '../../content/packs/c2';
+import { POWER } from '../../content/packs/c3';
 import { CAST_WALK_SCALE } from '../../content/spells';
 import { charmOf } from '../systems/rpg';
 import { slotSpell } from '../systems/loadout';
@@ -365,6 +366,11 @@ function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
       ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: 0.35, faceYaw: p.tf.yaw });
       return;
     case 'cast':
+      // Holding a breath: a slow walk, turning with the stick (or kept on the lock).
+      if (a.channel) {
+        ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: POWER.ember.walkScale, faceYaw: faceLock });
+        return;
+      }
       // Spells are upper body: walk slowly, facing the spell's target while it winds up.
       ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: CAST_WALK_SCALE, faceYaw: castFacing(ctx, p, cmd) ?? faceLock ?? p.tf.yaw });
       return;

@@ -14,6 +14,8 @@ import { resolveHit, type HitInfo } from './hits';
 import type { CombatCtx } from './playerCombat';
 import { wishDir } from './playerCombat';
 import { castChargeMult, holdChargedBolt } from './staffTraits';
+import { advanceChannel } from './powers/ember';
+import { firePower, powerRefused, seekerMods } from './powers/index';
 import { applyStatus } from './statuses';
 
 /** Spawns a projectile entity (SimWorld owns ids). */
@@ -50,6 +52,7 @@ export function startCast(ctx: CombatCtx, p: Entity, id: SpellId): boolean {
     ctx.events.push({ type: 'cooldown', entity: p.id, spell: id });
     return false;
   }
+  if (powerRefused(ctx, p, id)) return false;
   const woven = ctx.now - c.lastHitTick <= WOVEN.window;
   const cost = spellCost(p, id, woven);
   if (v.mana < cost) {
@@ -111,6 +114,11 @@ export function advanceCast(ctx: CombatCtx, p: Entity, cmd: InputCommand, physic
   const c = p.combat!;
   const a = c.action;
   if (a?.kind !== 'cast') return;
+  if (a.channel) {
+    a.t++;
+    advanceChannel(ctx, p, cmd, physics);
+    return;
+  }
   if (holdChargedBolt(ctx, p, cmd, a, spellCost(p, a.spell, a.woven))) return;
   const def = SPELLS[a.spell];
   const target = spellTarget(ctx, p, cmd ?? idleInput(p.tf.yaw), def.chain?.range ?? SPELL_TARGET_RANGE);
@@ -136,6 +144,7 @@ function spellInfo(id: SpellId, base: number, from: Vec3): HitInfo {
 function fire(ctx: CombatCtx, p: Entity, id: SpellId, woven: boolean, target: Entity | null, physics: PhysicsWorld, spawn: SpawnSpellProjectile): void {
   const def = SPELLS[id];
   const power = spellPower(id, woven, p) * castChargeMult(p);
+  if (firePower(ctx, p, id, power, physics, spawn)) return;
   if (def.projectile) {
     const from = toWorld(p.tf.pos, p.tf.yaw, [0, 1.35, 0.6]);
     const aim = target ? chest(target) : toWorld(p.tf.pos, p.tf.yaw, [0, 1.35, 10]);
@@ -148,7 +157,7 @@ function fire(ctx: CombatCtx, p: Entity, id: SpellId, woven: boolean, target: En
       projectile: {
         owner: p.id, team: p.combat!.team, kind: 'arcane', damage: power, poise: def.poise, radius: def.projectile.radius,
         life: Math.ceil(def.projectile.range / (sp * DT)), reflected: false, spell: id, explode: def.projectile.explodeRadius,
-        status: def.status, interrupts: def.interruptsRanged, knockdown: def.knockdown, woven,
+        status: def.status, interrupts: def.interruptsRanged, knockdown: def.knockdown, woven, ...seekerMods(p, id, target),
       },
       view: { model: id === 'blast' ? 'blastOrb' : 'bolt' },
     });
