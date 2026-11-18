@@ -44,7 +44,7 @@ export function loadSave(storage: StorageLike | null = defaultStorage()): LoadRe
   } catch (e) {
     mainError = e instanceof Error ? e.message : String(e);
   }
-  let hadMain = false;
+  let hadMain: boolean;
   try {
     hadMain = storage.getItem(SAVE_KEY) !== null;
   } catch {
