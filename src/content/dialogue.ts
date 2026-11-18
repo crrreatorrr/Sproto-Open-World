@@ -114,7 +114,15 @@ export const DIALOGUE: Record<string, DialogueGraph> = {
       { node: 'pumpkins_offer' },
     ],
     nodes: {
-      pest_done: { speaker: 'Farmer Broccoli', text: 'The fields are quiet! Bless you. The Elder said you would want this: a spell my grandmother kept for foxes.', next: 'pumpkins_offer' },
+      pest_done: {
+        speaker: 'Farmer Broccoli',
+        text: 'The fields are quiet! Bless you. The Elder said you would want this: a spell my grandmother kept for foxes.',
+        // Her pumpkins come up only if you haven't already taken that job.
+        choices: [
+          { text: 'Glad to help.' },
+          { text: 'Anything else?', if: [{ quest: 'q_pumpkins', status: 'available' }], next: 'pumpkins_offer' },
+        ],
+      },
       pumpkins_offer: {
         speaker: 'Farmer Broccoli',
         text: 'Those Grunts ran off with my pumpkins. Five of them, my best. If you see any on a Grunt, take them back?',

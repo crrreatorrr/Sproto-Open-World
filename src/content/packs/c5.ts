@@ -157,6 +157,12 @@ export const C5_NPCS: Record<string, NpcDef> = {
 
 // ---------------------------------------------------------------- quests (plan §4.2)
 
+/**
+ * The XP budget for the level 15 cap (quest rewards plus the kills each quest asks for). The raises
+ * sit on A5, A7 and A8 because those open after Scrapjaw, so they can't over-level that fight:
+ *   Scrapjaw's gate 1,605 (level 6) → Scrapjaw dead 2,805 → A1–A8 done 9,944 (level 12, the Burrowmother)
+ *   → A9, A10, A11 done 14,644 (level 14, the Drake) → A12 done 18,544 (level 15).
+ */
 export const C5_QUESTS: Record<string, QuestDef> = {
   // A5: the shrine network.
   q_elders_garden: {
@@ -173,7 +179,7 @@ export const C5_QUESTS: Record<string, QuestDef> = {
       },
       { id: 'return', text: 'Tell Elder Pepe the shrines are awake.', objectives: [{ kind: 'talk', npc: 'elder_pepe', node: 'a5_done' }], marker: 'elder_pepe' },
     ],
-    rewards: [{ learnSpell: 'healingBloom' }, { xp: 400 }, { currency: 80 }],
+    rewards: [{ learnSpell: 'healingBloom' }, { xp: 1000 }, { currency: 80 }],
   },
   // A8: something is moving under the quarry.
   q_tremors: {
@@ -189,7 +195,7 @@ export const C5_QUESTS: Record<string, QuestDef> = {
       },
       { id: 'seam', text: 'Go down the ramp into the Deep Seam.', objectives: [{ kind: 'reach', trigger: 'deep_seam' }], marker: 'deep_seam' },
     ],
-    rewards: [{ give: 'charm_seam_lamp' }, { xp: 350 }, { currency: 80 }, { startQuest: 'q_deep_seam' }],
+    rewards: [{ give: 'charm_seam_lamp' }, { xp: 900 }, { currency: 80 }, { startQuest: 'q_deep_seam' }],
   },
   // A9: burrow tells and reflected spit. A12 (the Skyfire Drake) is gated on this id.
   q_deep_seam: {
@@ -222,6 +228,7 @@ const C5_DIALOGUE: Record<string, DialogueGraph> = {
     entry: [
       { if: [{ quest: 'q_deep_seam', status: 'complete' }], node: 'after' },
       { if: [{ quest: 'q_deep_seam', status: 'active' }], node: 'go' },
+      { if: [{ quest: 'q_deep_seam', status: 'available' }], node: 'a9_offer' },
       { if: [{ quest: T, status: 'active', step: 1 }], node: 'go' },
       { if: [{ quest: T, status: 'active' }], node: 'a8_bram' },
       { if: [{ quest: T, status: 'available' }], node: 'offer' },
@@ -238,8 +245,17 @@ const C5_DIALOGUE: Record<string, DialogueGraph> = {
         ],
       },
       a8_bram: { speaker: 'Foreman Bram', text: 'It comes in waves, and it moves. Ketta is over by the road and Old Odo is up the north slope. They have felt it closer than I have.' },
+      // Finishing Tremors starts A9 by itself; this is the giver's own offer of it.
+      a9_offer: {
+        speaker: 'Foreman Bram',
+        text: 'Whatever is shaking my quarry sleeps on the floor of that pit. Will you go down and end it?',
+        choices: [
+          { text: "I'll go down.", do: [{ startQuest: 'q_deep_seam' }], next: 'go' },
+          { text: 'Not yet.' },
+        ],
+      },
       go: { speaker: 'Foreman Bram', text: 'The ramp is the only way back up from the pit floor. Rest before you go down.' },
-      after: { speaker: 'Foreman Bram', text: 'The ground has gone still. First quiet shift we have had in years.' },
+      after: { speaker: 'Foreman Bram', text: 'The ground has gone still. First quiet shift we have had in years. There is smoke over the Orchard, though. Farmer Broccoli could use you.' },
     },
   },
   miner_ketta: {

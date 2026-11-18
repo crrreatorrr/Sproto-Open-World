@@ -6,10 +6,10 @@
  * dialogue.ts, ...) merges its table from here with one line, so this module never takes part in an
  * import cycle.
  *
- * Elite budget (at most 4 elite-tier characters in any 3 × 3 cells): the salvage camps split into a
- * west group (cells x 0–2) and an east group (cells x 5–7) of exactly 4 Rivet Gunners each, which is
- * why A3's 8 Gunners can't all stand in the Orchard. Colossal counts as elite, so it is only in the
- * pools of camps whose windows have room for one more.
+ * Elite budget (at most 4 elite-tier characters in any 3 × 3 cells): the Orchard holds only the salvage
+ * yard's 3 Rivet Gunners, because the Skyfire Drake is the fourth elite in those windows. The other 5
+ * stand east of the village and over the river, which is why A3's 8 Gunners can't all be in the Orchard.
+ * Colossal counts as elite, so it is only in the pools of camps whose windows have room for one more.
  */
 import type { DialogueGraph, DialogueNode } from '../dialogue';
 import type { EnemyDef } from '../enemies';
@@ -226,7 +226,7 @@ export const CAMP_AFFIX_POOLS: Record<string, AffixId[]> = {
   thorn_perch_west: ['swift', 'hardy'],
   thorn_perch_far: ['hardy', 'colossal'],
   salvage_yard: ['swift', 'hardy'],
-  salvage_west: ['swift', 'hardy'],
+  salvage_midway: ['swift', 'hardy'],
   salvage_east: ['swift', 'hardy'],
   salvage_far: ['swift', 'hardy'],
   bramble_west: ['swift', 'hardy'],
@@ -361,7 +361,7 @@ export const C4_QUESTS: Record<string, QuestDef> = {
       { id: 'seeds', text: 'Collect 4 Thorn Seeds from Hex Wisps in the Thornwood.', objectives: [{ kind: 'collect', item: 'thorn_seed', count: 4, consume: true }], marker: 'thornwood_clearing' },
       { id: 'return', text: 'Bring the seeds to Tansy.', objectives: [{ kind: 'talk', npc: 'weaver_tansy', node: 'a7_done' }], marker: 'weaver_tansy' },
     ],
-    rewards: [{ learnSpell: spell('brambleWall') }, { xp: 450 }, { currency: 90 }],
+    rewards: [{ learnSpell: spell('brambleWall') }, { xp: 1100 }, { currency: 90 }],
   },
 };
 
@@ -374,13 +374,14 @@ export const C4_DIALOGUE: Record<string, DialogueGraph> = {
       { if: [{ quest: 'q_rivet_volley', status: 'active', step: 3 }], node: 'a1_done' },
       { if: [{ quest: 'q_rivet_volley', status: 'active' }], node: 'a1_busy' },
       { if: [{ quest: 'q_iron_gallery', status: 'active', step: 2 }], node: 'a3_done' },
+      // The offers come before the busy lines, so one job under way never hides the other.
+      { if: [{ quest: 'q_lens_flare', status: 'available' }, { quest: 'q_iron_gallery', status: 'available' }], node: 'next_offer' },
+      { if: [{ quest: 'q_lens_flare', status: 'available' }], node: 'a2_offer' },
+      { if: [{ quest: 'q_iron_gallery', status: 'available' }], node: 'a3_offer' },
       { if: [{ quest: 'q_iron_gallery', status: 'active' }], node: 'a3_busy' },
       { if: [{ quest: 'q_lens_flare', status: 'active' }], node: 'a2_busy' },
       { if: [{ quest: 'q_rivet_volley', status: 'available' }], node: 'a1_offer' },
       { if: [{ quest: 'q_rivet_volley', status: 'locked' }], node: 'early' },
-      { if: [{ quest: 'q_lens_flare', status: 'available' }, { quest: 'q_iron_gallery', status: 'available' }], node: 'next_offer' },
-      { if: [{ quest: 'q_lens_flare', status: 'available' }], node: 'a2_offer' },
-      { if: [{ quest: 'q_iron_gallery', status: 'available' }], node: 'a3_offer' },
       { node: 'after' },
     ],
     nodes: {
@@ -423,7 +424,7 @@ export const C4_DIALOGUE: Record<string, DialogueGraph> = {
           { text: 'Not yet.' },
         ],
       },
-      a3_brief: { speaker: 'Watch Captain', text: 'There are camps in the Orchard and more east of the river. If you run short of Gunners, rest at a shrine and they will be back.' },
+      a3_brief: { speaker: 'Watch Captain', text: 'There is the yard in the Orchard, and more camps east of the village and over the river. If you run short of Gunners, rest at a shrine and they will be back.' },
       a3_busy: { speaker: 'Watch Captain', text: 'Eight Gunners, five Rivets. The camps refill whenever you rest at a shrine.' },
       a3_done: { speaker: 'Watch Captain', text: 'Five Rivets, and the camps are quiet. This staff was made by people who hated those things as much as you do.' },
       after: { speaker: 'Watch Captain', text: 'The road is safer for your work. Mind the ridge after dark.' },
@@ -487,11 +488,17 @@ export interface DialoguePatch {
 }
 
 export const C4_DIALOGUE_PATCHES: DialoguePatch[] = [
+  // A turn-in goes ahead of every busy line, so another job under way never blocks handing this in.
+  {
+    graph: 'farmer_broccoli',
+    before: 'pumpkins_busy',
+    entry: [{ if: [{ quest: 'q_pumpkin_strength', status: 'active', step: 1 }], node: 'a4_done' }],
+    nodes: {},
+  },
   {
     graph: 'farmer_broccoli',
     before: 'after',
     entry: [
-      { if: [{ quest: 'q_pumpkin_strength', status: 'active', step: 1 }], node: 'a4_done' },
       { if: [{ quest: 'q_pumpkin_strength', status: 'active' }], node: 'a4_busy' },
       { if: [{ quest: 'q_pumpkin_strength', status: 'available' }], node: 'a4_offer' },
     ],
@@ -527,16 +534,16 @@ export const C4_WORLD: Required<Pick<RegionContent, 'npcs' | 'chests' | 'objects
   ],
   objects: [{ id: 'mill_lens', pos: [474, G, 306], yaw: Math.PI }],
   camps: [
-    // The Orchard's salvage (west group: 4 Gunners).
+    // The Orchard's salvage: 3 Gunners, which with the Drake overhead is the 3 × 3 budget.
     {
       id: 'salvage_yard', pos: [130, G, 92],
       members: [{ def: 'rivet_gunner', at: [-6, -3], yaw: Math.PI }, { def: 'rivet_gunner', at: [6, -3], yaw: Math.PI }, { def: 'rivet_gunner', at: [0, 6], yaw: 0 }],
     },
+    // East of the village and across the river: the other 5 Gunners.
     {
-      id: 'salvage_west', pos: [30, G, 160],
+      id: 'salvage_midway', pos: [310, G, 170],
       members: [{ def: 'rivet_gunner', at: [0, 0], yaw: Math.PI / 2 }, { def: 'grunt', at: [-4, 3] }, { def: 'grunt', at: [4, 3] }],
     },
-    // East of the village and across the river (east group: 4 Gunners).
     { id: 'salvage_east', pos: [345, G, 62], members: [{ def: 'rivet_gunner', at: [-5, 0], yaw: -Math.PI / 2 }, { def: 'rivet_gunner', at: [5, 0], yaw: -Math.PI / 2 }] },
     { id: 'salvage_far', pos: [470, G, 85], members: [{ def: 'rivet_gunner', at: [-5, 2], yaw: -Math.PI / 2 }, { def: 'rivet_gunner', at: [5, -2], yaw: -Math.PI / 2 }] },
     // A2: the ridge behind the Old Mill.
