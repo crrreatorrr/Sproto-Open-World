@@ -11,7 +11,7 @@
   ],
   "cellSize": 64,
   "heightRange": {
-    "min": -3,
+    "min": -8,
     "max": 40
   },
   "cells": [
@@ -104,7 +104,7 @@
       "cz": 1,
       "bin": "world/sproutvale/cells/c_4_1.bin",
       "json": "world/sproutvale/cells/c_4_1.json",
-      "bytes": 26363
+      "bytes": 26362
     },
     {
       "cx": 5,
@@ -167,7 +167,7 @@
       "cz": 2,
       "bin": "world/sproutvale/cells/c_5_2.bin",
       "json": "world/sproutvale/cells/c_5_2.json",
-      "bytes": 25682
+      "bytes": 25681
     },
     {
       "cx": 6,
@@ -188,7 +188,7 @@
       "cz": 3,
       "bin": "world/sproutvale/cells/c_0_3.bin",
       "json": "world/sproutvale/cells/c_0_3.json",
-      "bytes": 26342
+      "bytes": 26341
     },
     {
       "cx": 1,
@@ -314,14 +314,14 @@
       "cz": 5,
       "bin": "world/sproutvale/cells/c_2_5.bin",
       "json": "world/sproutvale/cells/c_2_5.json",
-      "bytes": 26009
+      "bytes": 26008
     },
     {
       "cx": 3,
       "cz": 5,
       "bin": "world/sproutvale/cells/c_3_5.bin",
       "json": "world/sproutvale/cells/c_3_5.json",
-      "bytes": 25796
+      "bytes": 25795
     },
     {
       "cx": 4,
@@ -398,7 +398,7 @@
       "cz": 6,
       "bin": "world/sproutvale/cells/c_6_6.bin",
       "json": "world/sproutvale/cells/c_6_6.json",
-      "bytes": 26002
+      "bytes": 26049
     },
     {
       "cx": 7,
@@ -447,14 +447,14 @@
       "cz": 7,
       "bin": "world/sproutvale/cells/c_5_7.bin",
       "json": "world/sproutvale/cells/c_5_7.json",
-      "bytes": 25905
+      "bytes": 25752
     },
     {
       "cx": 6,
       "cz": 7,
       "bin": "world/sproutvale/cells/c_6_7.bin",
       "json": "world/sproutvale/cells/c_6_7.json",
-      "bytes": 25500
+      "bytes": 25647
     },
     {
       "cx": 7,
@@ -553,7 +553,7 @@
         "radius": 0.9,
         "height": 1.6
       },
-      "capacity": 23
+      "capacity": 21
     },
     "grove_bridge": {
       "path": "models/props/grove_bridge.glb",
@@ -605,7 +605,7 @@
         "radius": 1.4,
         "height": 22
       },
-      "capacity": 71
+      "capacity": 70
     },
     "grove_pumpkin": {
       "path": "models/props/grove_pumpkin.glb",
@@ -695,7 +695,7 @@
         "radius": 0.45,
         "height": 10
       },
-      "capacity": 145
+      "capacity": 143
     },
     "grove_water_tower": {
       "path": "models/props/grove_water_tower.glb",
