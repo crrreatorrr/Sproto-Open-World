@@ -61,8 +61,8 @@ export function recompute(e: Entity): void {
   const hpMax = PLAYER_STATS.hp + GROWTH.hpPerLevel * above + SKILL_EFFECT.defenseHp * sk.defense;
   const stMax = PLAYER_STATS.stamina + GROWTH.staminaPerLevel * above + SKILL_EFFECT.staminaMax * sk.stamina;
   const mpMax = PLAYER_STATS.mana + GROWTH.manaPerLevel * above + SKILL_EFFECT.focusMana * sk.focus;
-  // Growing a maximum grows the current value with it (a level-up feels like one).
-  v.hp = Math.min(hpMax, v.hp + Math.max(0, hpMax - v.hpMax));
+  // Growing a maximum grows the current value with it (a level-up feels like one). The dead stay at 0.
+  if (c.action?.kind !== 'dead') v.hp = Math.min(hpMax, v.hp + Math.max(0, hpMax - v.hpMax));
   v.stamina = Math.min(stMax, v.stamina + Math.max(0, stMax - v.staminaMax));
   v.mana = Math.min(mpMax, v.mana + Math.max(0, mpMax - v.manaMax));
   v.hpMax = hpMax;
@@ -75,7 +75,9 @@ export function recompute(e: Entity): void {
   c.defense = { physical: Math.round((robe.physical + vit) * k), arcane: Math.round((robe.arcane + vit) * k) };
   c.level = p.level;
   const max = TONIC.charges + (charm?.tonicCharges ?? 0) + (p.inventory.tonic_upgrade ? 1 : 0);
-  p.tonics.charges = Math.min(max, p.tonics.charges + Math.max(0, max - p.tonics.max));
+  // A charge comes and goes with the maximum, but an empty flask stays empty: otherwise taking a
+  // Second Wind off and on again would refill it for free.
+  p.tonics.charges = p.tonics.charges > 0 ? Math.max(0, Math.min(max, p.tonics.charges + max - p.tonics.max)) : 0;
   p.tonics.max = max;
 }
 
@@ -378,6 +380,11 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
   const p = e.progress!;
   const dead = e.combat?.action?.kind === 'dead';
   for (const a of ui) {
+    // The dead can look at menus, not use them (equipSpell refuses by itself).
+    if (dead && (a.kind === 'dialogueChoose' || a.kind === 'buy' || a.kind === 'equip' || a.kind === 'spendSkill' || a.kind === 'respecSkills' || a.kind === 'rest')) {
+      ctx.events.push({ type: 'refused', entity: e.id, action: a.kind, reason: "You can't do that now." });
+      continue;
+    }
     switch (a.kind) {
       case 'dialogueChoose':
         choose(ctx, e, a.choice);
