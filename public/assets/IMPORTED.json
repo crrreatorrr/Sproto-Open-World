@@ -228,6 +228,13 @@
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "891465a88f85bb202fd5335679e77567aca08e932298b6c6cfd8f1c7ad51dccb"
     },
+    "models/bosses/burrowmother.glb": {
+      "repo": "sproto-shooter-bosses",
+      "path": "dist/assets/models/characters/mole_monster.glb",
+      "commit": "18a3420397146dafa6fdb675f81770d902148862",
+      "sourceSha256": "545ad6ea2e066edf2761647b68330175bfd0d0c970f2f0d3c940ff9e0d79d5da",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
     "models/bosses/scrapjaw.glb": {
       "repo": "sproto-shooter-bosses",
       "path": "dist/assets/models/characters/car_monster.glb",

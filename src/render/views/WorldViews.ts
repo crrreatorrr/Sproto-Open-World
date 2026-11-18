@@ -18,7 +18,7 @@ import { wantsView } from './viewCull';
 const DECAL_COLOR: Record<DecalShape, number> = { circle: 0xffa23a, jagged: 0xff2a1a };
 
 /** Enemy models outside the critical download: fetched the first time one comes into range. */
-const LAZY_MODELS: ReadonlySet<string> = new Set<ModelKey>(['gatekeeper', 'grunt_vet', 'slinger_vet', 'big_coin', 'robot_shooter', 'robot_laser', 'scrapjaw']);
+const LAZY_MODELS: ReadonlySet<string> = new Set<ModelKey>(['gatekeeper', 'grunt_vet', 'slinger_vet', 'big_coin', 'robot_shooter', 'robot_laser', 'scrapjaw', 'burrowmother']);
 
 /** Seconds between status particles on a burning, shocked or chilled enemy. */
 const EMBER_EVERY = 0.07;
