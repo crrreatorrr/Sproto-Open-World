@@ -25,4 +25,4 @@ jobs:
       - run: npx playwright install --with-deps chromium
       # One Sproutvale lap on CI: the runner renders on a software GPU (~4 min a lap there). The
       # three-lap heap check runs locally with `npm run test:e2e`.
-      - run: node tests/e2e/smoke.mjs && node tests/e2e/world.mjs --laps 1
+      - run: node tests/e2e/smoke.mjs && node tests/e2e/world.mjs --laps 1 && node tests/e2e/mount.mjs

@@ -22,6 +22,7 @@ export interface ModelEntry {
 export const PLAYER_CLIPS = [
   'idle', 'run', 'run_back', 'strafe_l', 'strafe_r', 'jump', 'roll', 'hit', 'stun', 'defeat', 'victory',
   'cast', 'cast_big', 'attack_light_1', 'attack_light_2', 'attack_light_3', 'attack_heavy', 'block',
+  'mount', 'ride', 'dismount',
 ] as const;
 
 /** The Thornwood Brute (sproto-shooter's `sproto_monster`). */
@@ -49,6 +50,8 @@ export const MODELS = {
   grunt: { path: 'models/enemies/grunt.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.3, rotationY: TRIPO_ROTATION_Y },
   slinger: { path: 'models/enemies/slinger.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.85, rotationY: TRIPO_ROTATION_Y },
   wisp: { path: 'models/enemies/wisp.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.9, rotationY: TRIPO_ROTATION_Y },
+  /** The hub's Pepe Bull at riding size (art/tools/ride_anim.py poses the rider for this height). */
+  pepe_bull: { path: 'models/mounts/pepe_bull.glb', rigged: true, clips: ['idle', 'follow_walk', 'follow_run'], fitHeight: 1.7, rotationY: 0, inPlace: true },
 } satisfies Record<string, ModelEntry>;
 
 export type ModelKey = keyof typeof MODELS;

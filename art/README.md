@@ -4,17 +4,40 @@
 
 `public/assets/models/characters/player.glb` is sproto-duel's rigged `wizard_player` with the 13
 original clips plus five melee clips made in Blender: `attack_light_1`, `attack_light_2`,
-`attack_light_3`, `attack_heavy` and `block`. The weapon is the staff, mounted on the
+`attack_light_3`, `attack_heavy` and `block`, plus three riding clips (below). The weapon is the staff, mounted on the
 `socket_staff` node under `RightHand`. Hit windows, cancel points and the heavy's charge window
 are in `player.melee.json` next to the GLB.
 
 | File | What it is |
 |---|---|
-| `source/player_melee.blend` | The Blender scene: rig, all 18 actions (one NLA track each), and a preview staff that is not exported |
+| `source/player_melee.blend` | The Blender scene: rig, all 21 actions (one NLA track each), and a preview staff that is not exported |
 | `source/wizard_player_decoded.glb` | sproto-duel's `models/rigged/wizard_player.glb` with meshopt and quantization removed so Blender can import it |
 | `source/staff_sproto_decoded.glb` | sproto-duel's `models/staffs/staff_sproto.glb`, decoded, for previewing swings only |
 | `source/player_raw.glb` | Blender's uncompressed export |
+| `tools/ride_anim.py` | Builds the riding clips from the same helpers |
+| `tools/export_player.py` | Rebuilds the riding clips and exports `source/player_raw.glb` headless |
 | `tools/melee_anim.py` | Builds the melee clips from key-pose tables using IK for arms and legs. Edit `P`, `CLIPS` and `TIMING`, then run it again |
+
+## Riding clips
+
+`mount`, `ride` and `dismount` are posed for the hub's Pepe Bull at the game's 1.7 m fit height by
+`tools/ride_anim.py`. The clips carry height only: the game moves the rider onto and off the bull.
+To rebuild them and the raw export without opening the Blender UI:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background art/source/player_melee.blend --python art/tools/export_player.py
+```
+
+Then run `node art/tools/build-player-glb.mjs`.
+
+The bull itself is built here too. `tools/build_bull.py` starts from the hub's `pet_pepe_bull`
+(`source/pepe_bull_decoded.glb`), slims its barrel so the rider's legs clear it, and adds a saddle:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python art/tools/build_bull.py
+```
+
+Then run `node art/tools/build-bull-glb.mjs`.
 
 ### Changing a clip
 

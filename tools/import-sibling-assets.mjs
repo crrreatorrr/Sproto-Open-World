@@ -29,7 +29,8 @@ import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const GAMES = path.resolve(ROOT, '..');
+/** The folder holding the sibling repos (set SIBLING_REPOS when running from a git worktree). */
+const GAMES = process.env.SIBLING_REPOS ?? path.resolve(ROOT, '..');
 const OUT = path.join(ROOT, 'public', 'assets');
 const force = process.argv.includes('--force');
 

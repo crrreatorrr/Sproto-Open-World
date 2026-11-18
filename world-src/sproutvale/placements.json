@@ -93,6 +93,7 @@
     { "id": "shrine_first_light", "kind": "shrine", "name": "Shrine of First Light", "at": [240, 62], "yaw": 45, "clear": 3 },
     { "id": "shrine_watchtower", "kind": "shrine", "name": "Watchtower Shrine", "at": [252, 240], "yaw": 180, "clear": 3 },
     { "id": "shrine_quarry_gate", "kind": "shrine", "name": "Quarry Gate Shrine", "at": [318, 390], "yaw": 70, "clear": 3 },
+    { "id": "pepe_bull", "kind": "mount", "at": [272, 58], "yaw": -90, "clear": 3.5 },
     { "id": "elder_pepe", "kind": "npc", "at": [262, 68], "yaw": 180, "clear": 2.5 },
     { "id": "merchant_village", "kind": "npc", "at": [246, 74], "yaw": 144, "clear": 2.5 },
     { "id": "collector_pepe", "kind": "npc", "at": [278, 70], "yaw": -108, "clear": 2.5 },

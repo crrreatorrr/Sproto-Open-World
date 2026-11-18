@@ -1,3 +1,4 @@
+import { MountView } from './MountView';
 import * as THREE from 'three';
 import type { AssetLoader } from '../../assets/AssetLoader';
 import { ENEMIES, type EnemyDef, type EnemyMoveDef } from '../../content/enemies';
@@ -35,6 +36,9 @@ export function enemyDef(e: Readonly<Entity> | undefined): EnemyDef | undefined 
   return id ? ENEMIES[id] : undefined;
 }
 
+/** The bull is drawn within this flat distance of the player (m). */
+const MOUNT_DRAW_RANGE = 150;
+
 /**
  * Every drawn non-player entity: a view per enemy and projectile, made when the entity appears and
  * dropped when it leaves the sim, plus the telegraph decals under their attacks, status particles,
@@ -65,9 +69,16 @@ export class WorldViews {
     return this.views.get(id);
   }
 
+  /** How far this mount's saddle has moved from its idle height (m), for the rider. */
+  saddleLift(id: EntityId): number {
+    const v = this.views.get(id);
+    return v instanceof MountView ? v.saddleLift : 0;
+  }
+
   /** Make, update and drop views to match the sim. Call once per rendered frame. */
   sync(view: ReadonlySimView, alpha: number, dt: number): void {
     this.seen.clear();
+    const me = view.entities.find((e) => e.kind === 'player');
     for (const e of view.entities) {
       if (e.kind === 'player') {
         // Single player for now: the one player's progress lights the shrines.
@@ -84,6 +95,8 @@ export class WorldViews {
         this.root.add(v.root);
       }
       this.seen.add(e.id);
+      // Skinned meshes aren't frustum culled: a bull left far behind shouldn't cost a draw.
+      if (e.mount && me) v.root.visible = Math.hypot(e.tf.pos.x - me.tf.pos.x, e.tf.pos.z - me.tf.pos.z) <= MOUNT_DRAW_RANGE;
       v.update(e, alpha, dt);
       if (e.statuses) this.statusParticles(e, v, dt);
     }
@@ -271,6 +284,7 @@ export class WorldViews {
       if (pr?.homing || e.view.model === 'hex' || pr?.kind === 'arcane') return new HexView(this.fx);
       return new CoinView();
     }
+    if (e.mount) return new MountView(this.assets);
     // M3 world objects, by component (their model keys are placeholders until M4's art).
     if (e.npc) return new NpcView(e);
     if (e.interactable?.kind === 'shrine') {
