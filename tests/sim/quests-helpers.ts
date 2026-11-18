@@ -154,16 +154,16 @@ export function die(w: SimWorld): void {
   throw new Error('the player never got back up');
 }
 
-/** Finish an enemy with a Burn in the player's name. */
-export function slay(w: SimWorld, e: Entity): SimEvent[] {
+/** Finish an enemy with a Burn in the player's name, then walk over what it dropped (unless `leaveLoot`). */
+export function slay(w: SimWorld, e: Entity, leaveLoot = false): SimEvent[] {
   const p = w.playerEntity(0)!;
   e.vitals!.hp = 0.001;
   e.statuses = { ...e.statuses, burn: { ticks: 10, perTick: 1, source: p.id } };
   const out: SimEvent[] = [];
   for (let i = 0; i < 5 && alive(e); i++) out.push(...tick(w));
   if (alive(e)) throw new Error(`could not finish ${e.brain?.def}`);
-  // Everything it dropped, walked over at once.
   for (let i = 0; i < 2; i++) out.push(...tick(w));
+  if (leaveLoot) return out;
   for (const pk of w.entities.filter((x) => x.pickup)) {
     w.teleportPlayer(0, { ...pk.tf.pos });
     out.push(...tick(w));
@@ -177,7 +177,7 @@ const matches = (e: Entity, tag: string) => {
 };
 
 /** Kill one living enemy matching `tag`, resting at a shrine to bring the camps back if none is left. */
-export function hunt(w: SimWorld, tag: string): SimEvent[] {
+export function hunt(w: SimWorld, tag: string, leaveLoot = false): SimEvent[] {
   const find = () => w.entities.find((e) => e.brain && alive(e) && matches(e, tag) && !e.brain.summoned);
   let target = find();
   const out: SimEvent[] = [];
@@ -187,7 +187,7 @@ export function hunt(w: SimWorld, tag: string): SimEvent[] {
   }
   if (!target) throw new Error(`no ${tag} left in the world, even after a rest`);
   standAt(w, target.brain!.home.x + 5, target.brain!.home.z + 5);
-  return [...out, ...tick(w), ...slay(w, target)];
+  return [...out, ...tick(w), ...slay(w, target, leaveLoot)];
 }
 
 /** Where a collect objective's item comes from. */

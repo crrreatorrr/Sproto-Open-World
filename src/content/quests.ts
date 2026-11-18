@@ -135,9 +135,9 @@ export const QUESTS: Record<string, QuestDef> = {
       { id: 'clearing', text: 'Follow the tracks to the clearing in the Thornwood.', objectives: [{ kind: 'reach', trigger: 'thornwood_clearing' }], marker: 'thornwood_clearing' },
       {
         id: 'gatekeeper', text: 'Defeat the Gatekeeper.', objectives: [{ kind: 'kill', tag: 'gatekeeper', count: 1 }], marker: 'thornwood_clearing',
-        // The key is given, not dropped: a drop could fade before you pick it up, and the Gatekeeper
-        // never comes back.
-        onComplete: [{ give: 'quarry_key' }],
+        // The key and the robe are given, not dropped: a drop could fade before you pick it up, and
+        // the Gatekeeper never comes back.
+        onComplete: [{ give: 'quarry_key' }, { give: 'robe_quarryproof' }],
       },
       { id: 'key', text: 'Take the Quarry Key.', objectives: [{ kind: 'collect', item: 'quarry_key', count: 1 }] },
     ],
