@@ -61,7 +61,7 @@ describe('equipSpell: the swap rules (validated in the sim)', () => {
 
   it('a bad slot or an unknown id is refused', async () => {
     const { w, p } = await combatWorld();
-    for (const a of [eq(4, 'bolt'), eq(-1, 'bolt'), eq(1.5, 'bolt'), { kind: 'equipSpell', slot: 0, spell: 'nope' } as unknown as UiAction]) {
+    for (const a of [eq(4, 'bolt'), eq(-1, 'bolt'), eq(1.5, 'bolt'), { kind: 'equipSpell', slot: 0, spell: 'nope' } as unknown as UiAction, { kind: 'equipSpell', slot: 0, spell: 'constructor' } as unknown as UiAction]) {
       expect(evs(step(w, ui([a])), 'refused'), JSON.stringify(a)).toMatchObject([{ action: 'equipSpell' }]);
     }
     expect(p.progress!.loadout).toEqual(['bolt', 'blast', 'frostNova', 'chainZap']);
