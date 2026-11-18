@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BLOCK, BREAK_CRIT, PLAYER_MOVES } from '../../src/content/combat';
-import { BTN, cmd, combatWorld, hitsOn, hold, idle, press, step, stepN } from './combatHelpers';
+import { BTN, atYaw, cmd, combatWorld, hitsOn, hold, idle, press, step, stepN } from './combatHelpers';
 
 /** Where the parry and the melee strikes meet: which bonus wins, and what a stun survives. */
 const SWING_HIT = 54;
@@ -41,6 +41,21 @@ describe('the parry stun and the melee strikes', () => {
     const [hit] = hitsOn(stepN(w, BLOCK.riposteStartup + 24), d.id);
     expect(hit.ev.strike).toBeUndefined();
     expect(hit.ev.damage).toBe(Math.round(riposteDamage * BLOCK.riposteBonus));
+    w.dispose();
+  });
+
+  it('a riposte turns to the enemy it parried, even with another enemy hard-locked to one side', async () => {
+    const { w, p } = await combatWorld();
+    const d = w.spawnEnemy('dummy_swing', { x: 0, y: 0, z: 1.5 }, Math.PI);
+    const other = w.spawnEnemy('dummy_straw', atYaw(-65, 3), Math.PI);
+    p.combat!.lock = other.id;
+    for (let i = w.now; i <= SWING_HIT; i++) step(w, i >= SWING_HIT - 5 ? hold(BTN.block) : idle());
+    stepN(w, BLOCK.parryHitstop);
+    expect(d.combat!.action).toMatchObject({ kind: 'stagger', reason: 'parried' });
+    expect(p.combat!.lock).toBe(other.id);
+    step(w, press(BTN.heavy));
+    const [hit] = hitsOn(stepN(w, BLOCK.riposteStartup + 24), d.id);
+    expect(hit?.ev.move).toBe('riposte');
     w.dispose();
   });
 

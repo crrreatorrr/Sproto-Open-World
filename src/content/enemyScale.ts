@@ -26,8 +26,12 @@ const AREA_SLACK = 0.2;
 /** The follow camera pulls back this much per metre of body height, once a body is taller than `CAMERA_FROM`. */
 const CAMERA_FROM = 4;
 
-/** The largest circle centred on the player that a sprint started on the first tick still clears. */
-const outrunnable = (windup: number): number => (MOVE.sprintSpeed * windup) / TICK_HZ - PLAYER_BODY.radius - AREA_SLACK;
+/**
+ * The largest circle centred on the player that a sprint started on the first tick still clears. The
+ * sprint starts from a standstill, so it loses the distance it takes to build up to speed.
+ */
+const outrunnable = (windup: number): number =>
+  (MOVE.sprintSpeed * windup) / TICK_HZ - (MOVE.sprintSpeed * MOVE.sprintSpeed) / (2 * MOVE.accel) - PLAYER_BODY.radius - AREA_SLACK;
 
 const scaleSpot = (s: WeakSpotDef, k: number): WeakSpotDef => ({ ...s, forward: s.forward * k, up: s.up * k, radius: s.radius * k });
 

@@ -144,8 +144,9 @@ describe('determinism with the RPG layer', () => {
     a.w.restore(snap);
     await play(7, SNAP_AT, SESSION.length, a.w);
     const second = rewindState(a.w);
-    // Exact but for a sliver of position: characters in contact can drift by a fraction of a millimetre
-    // after a restore, because Rapier's query tree is rebuilt (restore-replay.test.ts).
+    // Exact but for a few millimetres of position. Rewinding in the same world puts characters in other
+    // Rapier slots, which changes the order contacts resolve in (restore-replay.test.ts). The test above
+    // holds a resume in a fresh world to exact hashes, so no sim state is missing from the snapshot.
     expect(differences(first, second, 0.005)).toEqual([]);
     a.w.dispose();
   });

@@ -518,8 +518,9 @@ function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
         vx = (a.lungeDir.x * step) / DT;
         vz = (a.lungeDir.z * step) / DT;
         if (a.clipT < tm.activeStart) {
-          // Turn toward the target during startup (720°/s), or the lock.
-          const target = c.lock !== null ? ctx.get(c.lock) : undefined;
+          // Turn toward the target during startup (720°/s), or the lock. A riposte keeps to its victim.
+          const facing = a.move === 'riposte' && a.lungeTarget !== undefined ? a.lungeTarget : c.lock;
+          const target = facing !== null ? ctx.get(facing) : undefined;
           const want = target ? yawTo(p.tf.pos, target.tf.pos) : Math.atan2(a.lungeDir.x, a.lungeDir.z);
           p.tf.yaw = turnToward(p.tf.yaw, want, SOFT_TARGET.turnRate * DT);
         }

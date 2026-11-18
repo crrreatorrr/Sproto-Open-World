@@ -123,7 +123,9 @@ describe('scaleEnemy', () => {
     for (const id of STRONG) {
       for (const m of ENEMIES[id].moves) {
         if (!m.area) continue;
-        const run = (MOVE.sprintSpeed * m.windup) / TICK_HZ;
+        // From a standstill: the sprint has to build up to speed like the player's does.
+        const top = MOVE.sprintSpeed, seconds = m.windup / TICK_HZ;
+        const run = top * seconds - (top * top) / (2 * MOVE.accel);
         expect(m.area.radius + PLAYER_BODY.radius, `${id}.${m.id}`).toBeLessThan(run);
       }
     }
