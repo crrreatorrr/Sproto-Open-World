@@ -3,9 +3,55 @@
  * Enemy hitboxes are defined by hand: a sphere at `forward` / `up` metres from the feet.
  */
 import type { DamageKind } from './combat';
+import { C4_ENEMIES } from './packs/c4';
+import { BURROWMOTHER } from './packs/c5';
+import { DRAKE, type DrakeDef } from './packs/c6';
+import { SCRAPJAW } from './packs/m5';
+import type { StatusId } from './statuses';
 
 export type Affinity = 'weak' | 'normal' | 'resist';
 export const AFFINITY_MULT: Record<Affinity, number> = { weak: 1.5, normal: 1, resist: 0.5 };
+
+/**
+ * A weak spot (expansion plan §3.3): a sphere in the enemy's facing frame, checked only when damage
+ * resolves. A hit that touches it multiplies its damage. `when: 'stunned'` opens it only while stunned.
+ */
+export interface WeakSpotDef {
+  forward: number;
+  up: number;
+  radius: number;
+  mult: number;
+  when?: 'stunned';
+}
+
+/** What makes an enemy a boss: its arena (a circle around its home) and the fight's beats. */
+export interface BossDef {
+  /** The boss bar's second line. */
+  title: string;
+  /** The fight is sealed inside this radius around the boss's home (m). */
+  arenaRadius: number;
+  /** The intro's length (ticks). */
+  introTicks: number;
+  /** Phase 2 and 3 start at or below these fractions of max HP. */
+  phase2: number;
+  phase3: number;
+  /** Phase 3 moves and charges this much faster. */
+  enrage: number;
+  /** The add wave comes at or below this fraction of max HP. */
+  summon: { def: string; count: number; below: number };
+  /** The move played at each phase change. */
+  roar: string;
+  /** How long a charge into a pillar or the wall stuns it (ticks). */
+  stunTicks: number;
+  /** Ticks between a recovery and the next wind-up. */
+  gapTicks: number;
+  /** Falling rocks: how long they fall after the roar, and each rock. */
+  rocks: { ticks: number; fuse: number; radius: number; damage: number };
+  /** The Burn patch a phase 3 slam leaves behind. */
+  burnPatch: { radius: number; ticks: number };
+  /** Dormant under the ground (out of reach, undrawn) until this world flag is set. */
+  wakeFlag?: string;
+}
 
 export interface EnemyMoveDef {
   id: string;
@@ -35,7 +81,18 @@ export interface EnemyMoveDef {
    * `interval` ticks apart, fanned by `spread` radians; `homing` turns them toward the target
    * (rad/s); `reflectable` is false only for spells that can't be parried.
    */
-  projectile?: { speed: number; radius: number; range: number; count?: number; interval?: number; spread?: number; homing?: number };
+  projectile?: {
+    speed: number; radius: number; range: number; count?: number; interval?: number; spread?: number; homing?: number;
+    /** View model (default: a hex or a coin, by damage kind). */
+    model?: string;
+    /**
+     * Parried back into its shooter: takes this fraction of its max HP and staggers it (ticks; 0: no
+     * stagger). `poiseFrac` also breaks that fraction of its poise; `homing` chases a flier (rad/s).
+     */
+    reflectBonus?: { hpFrac: number; stagger: number; poiseFrac?: number; homing?: number };
+    /** The status a hit leaves on its target. */
+    status?: { id: StatusId; stacks: number };
+  };
   /**
    * An area attack: a circle of `radius` m placed on the target's feet when the wind-up starts
    * (the decal shows it), which hits whoever stands in it during the active ticks.
@@ -53,12 +110,36 @@ export interface EnemyMoveDef {
   clip?: string;
   /** Attack tokens it takes from its target (plan §4.8): melee or ranged pool, and how many. */
   token?: { pool: 'melee' | 'ranged'; cost: number };
+  /** Chains straight into this move when it ends (a string); the AI never picks it on its own when `chainOnly`. */
+  followUp?: string;
+  /** Only reachable as another move's `followUp`. */
+  chainOnly?: boolean;
+  /** A boss move: the fight phases it is used in (absent: all of them). */
+  phases?: number[];
+  /** A rush: runs along its facing at this speed (m/s) through the active ticks. */
+  charge?: { speed: number };
+  /** A big swing: the hitbox travels from `hitbox` to this point over the active ticks. */
+  sweep?: { forward: number; up: number };
+  /** No hitbox at all (a roar: what it does is scripted). */
+  noHit?: boolean;
+  /** Pushes everyone within `radius` m back `distance` m when the wind-up ends. */
+  shove?: { radius: number; distance: number };
+  /** A slam that leaves the boss's Burn patch where it lands (in the last phase). */
+  burnPatch?: boolean;
+  /** Weak spots open only during this move. */
+  weakSpots?: WeakSpotDef[];
+  /** A burrow: `sink` goes under as the wind-up ends; `rise` comes up on its `area` circle as the wind-up ends. */
+  burrow?: 'sink' | 'rise';
+  /** The Drake's dive: a lane this long on the ground (m), flown this high above it at the lowest (m). */
+  dive?: { length: number; low: number };
 }
 
 export interface EnemyDef {
   id: string;
   name: string;
-  model: 'brute' | 'dummy' | 'grunt' | 'slinger' | 'wisp';
+  model: 'brute' | 'dummy' | 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'gatekeeper' | 'robot_shooter' | 'robot_laser' | 'scrapjaw' | 'burrowmother' | 'drake';
+  /** Extra names a quest's `kill` objective matches (an Orchard Grunt is still a `grunt`). */
+  tags?: string[];
   hp: number;
   poise: number;
   /** Elites take no hitstun until their poise breaks. */
@@ -91,6 +172,16 @@ export interface EnemyDef {
   hover?: number;
   /** Uses attack tokens (bosses and dummies don't). */
   usesTokens?: boolean;
+  /** Giants (expansion plan §3.3): weak spots, where the lock-on aims, and how far the camera pulls back. */
+  weakSpots?: WeakSpotDef[];
+  lockPoint?: { forward?: number; up: number };
+  cameraScale?: number;
+  /** Damage taken while Broken (its poise broke). */
+  brokenDamage?: number;
+  /** A boss fight's rules; the brain is `sim/systems/boss.ts`. */
+  boss?: BossDef;
+  /** It fights in the air; the brain is `sim/systems/drake.ts`. */
+  drake?: DrakeDef;
 }
 
 const NORMAL_PROFILE = { damage: { physical: 'normal', arcane: 'normal' }, status: { burn: 'normal', chill: 'normal', shock: 'normal' } } as const;
@@ -250,5 +341,55 @@ export const ENEMIES: Record<string, EnemyDef> = {
     ],
   },
 };
+
+// M4 (plan §4.9, §6.5): the Orchard's Grunts (they carry the Stolen Pumpkins), Thornwood's veterans
+// (the stage-2 models, ×1.6 HP, the same profile), Big Coin (S2: a Slinger with 3× HP) and the
+// Gatekeeper (the unique elite before the boss: a weaving exam).
+ENEMIES.grunt_orchard = { ...ENEMIES.grunt, id: 'grunt_orchard', tags: ['grunt'] };
+ENEMIES.grunt_vet = { ...ENEMIES.grunt, id: 'grunt_vet', name: 'Veteran Grunt', model: 'grunt_vet', hp: 88, poise: 28, xp: 20, level: 3, tags: ['grunt'] };
+ENEMIES.big_coin = {
+  ...ENEMIES.slinger, id: 'big_coin', name: 'Big Coin', model: 'big_coin', hp: 210, poise: 45, xp: 90, level: 3, body: { radius: 0.5, height: 2.3 },
+  staggerTicks: 40, tags: ['slinger'],
+};
+ENEMIES.gatekeeper = {
+  id: 'gatekeeper',
+  name: 'The Gatekeeper',
+  model: 'gatekeeper',
+  xp: 300,
+  // 1,000, up from the plan's 600: the balance bot killed 600 in 10–14 s. Above about 1,100 it starts losing.
+  hp: 1000,
+  poise: 120,
+  elite: true,
+  body: { radius: 1.0, height: 3.2 },
+  defense: { physical: 4, arcane: 0 },
+  profile: { damage: { physical: 'resist', arcane: 'normal' }, status: { burn: 'weak', chill: 'normal', shock: 'normal' } },
+  level: 5,
+  moveSpeed: 3.0,
+  turnRate: Math.PI * 0.9,
+  staggerTicks: 80,
+  aggroRange: 20,
+  leashRange: 30,
+  respawnTicks: 600,
+  usesTokens: true,
+  moves: [
+    { id: 'smash', windup: 34, active: 6, recovery: 32, damage: 30, kind: 'physical', poise: 30, hitbox: { forward: 2.0, up: 1.0, radius: 1.3 }, range: 3.4, weight: 2, cooldown: 60, hyperArmor: true, trackUntil: 0.6, hitstop: 7, clip: 'smash', token: { pool: 'melee', cost: 2 } },
+    // A 3-hit string: the second and third hits chain on (`followUp`); dodge each one.
+    { id: 'string', windup: 28, active: 5, recovery: 8, damage: 18, kind: 'physical', poise: 14, hitbox: { forward: 1.8, up: 1.2, radius: 1.1 }, range: 3.0, weight: 2, cooldown: 120, trackUntil: 0.7, hitstop: 4, clip: 'smash', followUp: 'string2', token: { pool: 'melee', cost: 2 } },
+    { id: 'string2', windup: 20, active: 5, recovery: 8, damage: 18, kind: 'physical', poise: 14, hitbox: { forward: 1.8, up: 1.2, radius: 1.1 }, range: 3.0, weight: 0, cooldown: 0, trackUntil: 0.7, hitstop: 4, clip: 'smash', followUp: 'string3', chainOnly: true, token: { pool: 'melee', cost: 2 } },
+    { id: 'string3', windup: 20, active: 5, recovery: 30, damage: 18, kind: 'physical', poise: 18, hitbox: { forward: 1.9, up: 1.0, radius: 1.2 }, range: 3.0, weight: 0, cooldown: 0, trackUntil: 0.5, hitstop: 5, clip: 'smash', chainOnly: true, token: { pool: 'melee', cost: 2 } },
+    {
+      id: 'ground_wave', windup: 40, active: 6, recovery: 40, damage: 35, kind: 'physical', poise: 30, hitbox: { forward: 0, up: 0.4, radius: 0 }, range: 9, minRange: 3, weight: 1, cooldown: 300,
+      unblockable: true, hyperArmor: true, trackUntil: 0, hitstop: 8, clip: 'smash', area: { radius: 3.5 }, decal: 'jagged', token: { pool: 'melee', cost: 2 },
+    },
+  ],
+};
+
+Object.assign(ENEMIES, C4_ENEMIES);
+// M5: the boss of the Old Quarry.
+ENEMIES.scrapjaw = SCRAPJAW;
+// C5: the boss of the Deep Seam.
+ENEMIES.burrowmother = BURROWMOTHER;
+// C6: the boss over the Orchard.
+ENEMIES.skyfire_drake = DRAKE;
 
 export type EnemyId = keyof typeof ENEMIES;

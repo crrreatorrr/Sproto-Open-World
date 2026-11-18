@@ -1,17 +1,24 @@
 import {
-  BLOCK, BUFFER, CHARGE, LUNGE, PLAYER_MOVES, PLAYER_STATS, ROLL, SOFT_TARGET, clipReach, clipTiming, type PlayerMoveId,
+  AIM, BLOCK, BUFFER, CHARGE, LUNGE, PLAYER_MOVES, PLAYER_STATS, ROLL, SOFT_TARGET, clipReach, clipTiming, type PlayerMoveId,
 } from '../../content/combat';
 import { TONIC } from '../../content/items';
-import { CAST_WALK_SCALE, SPELL_BY_SLOT } from '../../content/spells';
+import { TRAIT } from '../../content/packs/c2';
+import { POWER } from '../../content/packs/c3';
+import { BACKSTEP, dodgeFrames } from '../../content/packs/m7';
+import { CAST_WALK_SCALE } from '../../content/spells';
 import { charmOf } from '../systems/rpg';
+import { slotSpell } from '../systems/loadout';
 import { DT } from '../../content/tuning';
 import { BTN, idleInput, type CommandMap, type InputCommand } from '../commands';
 import type { Action, Buffered, BufferedAction, Entity } from '../entity';
 import type { SimEvent } from '../events';
 import { turnToward } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
+import { aimSwingDir, resolveAim } from './aim';
 import { angleTo, flatDist, yawTo } from './geometry';
+import { advancePlunge, plungeCancels, plungeMotion, tryPlunge } from './plunge';
 import { advanceCast, castFacing, startCast, type SpawnSpellProjectile } from './spells';
+import { brawlerChains, tryBlink } from './staffTraits';
 
 /** Per-tick motion an action asks for: planar velocity (m/s), and whether input steers it. */
 export interface Motion {
@@ -50,13 +57,13 @@ export function inHitstopOrStun(a: Action | null): boolean {
   return a?.kind === 'hitstun' || a?.kind === 'stagger' || a?.kind === 'frozen' || a?.kind === 'dead';
 }
 
-/** Is the entity invulnerable this tick (roll i-frames)? */
+/** Is the entity invulnerable this tick (roll or backstep i-frames, or a blink)? */
 export function iframes(a: Action | null): boolean {
-  return a?.kind === 'dodge' && a.t >= ROLL.iframeStart && a.t <= ROLL.iframeEnd;
+  return a?.kind === 'blink' || (a?.kind === 'dodge' && a.t >= dodgeFrames(a).iframeStart && a.t <= dodgeFrames(a).iframeEnd);
 }
 
 /** Light attacks a spell may cancel from activeEnd (plan §4.4: never a heavy). */
-const LIGHTS = new Set<string>(['light1', 'light2', 'light3', 'rollAttack']);
+const LIGHTS = new Set<string>(['light1', 'light2', 'light3', 'light4', 'rollAttack']);
 const SPELL_BUTTONS = [BTN.spell1, BTN.spell2, BTN.spell3, BTN.spell4] as const;
 
 /** Player moves: buffer presses, advance the current action, start the next one (plan §4.2–4.4). */
@@ -82,8 +89,9 @@ export function playerCombat(ctx: CombatCtx, commands: CommandMap, physics: Phys
 
     for (const k of Object.keys(c.cooldowns) as (keyof typeof c.cooldowns)[]) if (c.cooldowns[k]! > 0) c.cooldowns[k]!--;
     if (c.action?.kind === 'cast') advanceCast(ctx, p, cmd, physics, spawn);
+    else if (c.action?.kind === 'plunge') advancePlunge(ctx, p, physics);
     else advance(p, cmd, ctx);
-    tryConsume(p, cmd, ctx);
+    tryConsume(p, cmd, ctx, physics);
     updateBlock(p, cmd, ctx);
     tickBuffer(c);
     setMotion(p, cmd, ctx);
@@ -142,15 +150,26 @@ function advance(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
         return;
       }
       a.t++;
-      a.clipT++;
-      if (def.chargeable && heavyHeld && a.clipT === tm.chargeStart && a.charge === 0) a.charging = true;
-      if (a.clipT === tm.activeStart) ctx.events.push({ type: 'swing', entity: p.id, move: a.move, heavy: def.mv >= 2 });
-      if (a.clipT >= tm.end) c.action = null;
+      // A faster move covers two clip ticks on some sim ticks, so the clip stays on whole ticks.
+      const steps = def.rate ? Math.floor(a.t * def.rate) - Math.floor((a.t - 1) * def.rate) : 1;
+      for (let i = 0; i < steps; i++) {
+        a.clipT++;
+        if (def.chargeable && heavyHeld && a.clipT === tm.chargeStart && a.charge === 0) a.charging = true;
+        if (a.clipT === tm.activeStart) ctx.events.push({ type: 'swing', entity: p.id, move: a.move, heavy: def.mv >= 2 });
+        if (a.clipT >= tm.end) {
+          c.action = null;
+          return;
+        }
+      }
       return;
     }
     case 'dodge':
       a.t++;
-      if (a.t >= ROLL.ticks) c.action = null;
+      if (a.t >= dodgeFrames(a).ticks) c.action = null;
+      return;
+    case 'blink':
+      a.t++;
+      if (a.t >= TRAIT.blink.ticks) c.action = null;
       return;
     case 'block':
       a.t++;
@@ -174,20 +193,20 @@ function advance(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
 }
 
 /** Use the buffered press on the first tick it is legal. */
-function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
+function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: PhysicsWorld): void {
   const c = p.combat!;
   const b = c.buffer;
   if (!b) return;
   const a = c.action;
   if (b.action === 'dodge') {
-    const legal = !a || a.kind === 'block' || (a.kind === 'attack' && a.clipT >= clipTiming(PLAYER_MOVES[a.move as PlayerMoveId].clip).activeEnd);
+    const legal = !a || a.kind === 'block' || (a.kind === 'plunge' && plungeCancels(a)) || (a.kind === 'attack' && a.clipT >= clipTiming(PLAYER_MOVES[a.move as PlayerMoveId].clip).activeEnd);
     if (!legal) return;
     c.buffer = null;
     if (p.vitals!.stamina <= 0) {
       ctx.events.push({ type: 'noStamina', entity: p.id });
       return;
     }
-    startRoll(p, cmd, ctx);
+    startRoll(p, cmd, ctx, physics);
     return;
   }
   if (b.action.startsWith('spell')) {
@@ -195,7 +214,16 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
     const legal = !a || a.kind === 'block' || (a.kind === 'attack' && LIGHTS.has(a.move as string) && a.clipT >= clipTiming(PLAYER_MOVES[a.move as PlayerMoveId].clip).activeEnd);
     if (!legal) return;
     c.buffer = null;
-    startCast(ctx, p, SPELL_BY_SLOT[Number(b.action.slice(5)) as 1 | 2 | 3 | 4]);
+    // The loadout decides what each slot casts (expansion plan §1.4).
+    const slot = Number(b.action.slice(5)) - 1;
+    const spell = slotSpell(p, slot);
+    if (spell) startCast(ctx, p, spell);
+    else ctx.events.push({ type: 'refused', entity: p.id, action: 'cast', reason: `No power in slot ${slot + 1}. Equip one in the Powers tab.` });
+    return;
+  }
+  // A heavy pressed while falling from a height is a plunge attack.
+  if (b.action === 'heavy' && !a && tryPlunge(ctx, p, physics)) {
+    c.buffer = null;
     return;
   }
   // Light or heavy.
@@ -205,11 +233,14 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
   } else if (a.kind === 'attack') {
     const def = PLAYER_MOVES[a.move as PlayerMoveId];
     if (a.clipT < clipTiming(def.clip).cancel) return;
-    move = (b.action === 'light' ? def.next?.light : def.next?.heavy) ?? null;
+    move = (b.action === 'light' ? (brawlerChains(p, a.move) ? 'light4' : def.next?.light) : def.next?.heavy) ?? null;
     if (b.action === 'heavy' && ctx.now < c.riposteUntil) move = 'riposte';
   } else if (a.kind === 'dodge') {
-    if (a.t < ROLL.attackFrom) return;
+    if (a.t < dodgeFrames(a).attackFrom) return;
     move = b.action === 'light' ? 'rollAttack' : 'heavy';
+  } else if (a.kind === 'plunge') {
+    if (!plungeCancels(a)) return;
+    move = b.action === 'light' ? 'light1' : 'heavy';
   } else return;
   if (!move) return;
   c.buffer = null;
@@ -217,16 +248,17 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
     ctx.events.push({ type: 'noStamina', entity: p.id });
     return;
   }
-  startAttack(p, move, cmd, ctx);
+  startAttack(p, move, cmd, ctx, physics);
 }
 
 /** Best enemy for a soft target: locked target, else the nearest in a cone of the input or facing. */
-function softTarget(p: Entity, cmd: InputCommand, ctx: CombatCtx): Entity | null {
+function softTarget(p: Entity, cmd: InputCommand, ctx: CombatCtx, swing?: { x: number; z: number }, onCrosshair?: Entity | null): Entity | null {
   const c = p.combat!;
   if (c.lock !== null) {
     const t = ctx.get(c.lock);
     if (t && t.combat?.action?.kind !== 'dead') return t;
   }
+  if (swing) return crosshairTarget(p, ctx, swing, onCrosshair ?? null);
   const w = wishDir(cmd);
   const yaw = w.mag > 0.2 ? Math.atan2(w.x, w.z) : p.tf.yaw;
   let best: Entity | null = null;
@@ -247,7 +279,28 @@ function softTarget(p: Entity, cmd: InputCommand, ctx: CombatCtx): Entity | null
   return best;
 }
 
-function startAttack(p: Entity, move: PlayerMoveId, cmd: InputCommand, ctx: CombatCtx): void {
+/** The enemy a swing at the crosshair goes for: the one under it, else the best in a cone around it. */
+function crosshairTarget(p: Entity, ctx: CombatCtx, swing: { x: number; z: number }, onCrosshair: Entity | null): Entity | null {
+  const inReach = (e: Entity) => flatDist(p.tf.pos, e.tf.pos) - e.body!.radius <= SOFT_TARGET.meleeRange;
+  if (onCrosshair && inReach(onCrosshair)) return onCrosshair;
+  const yaw = Math.atan2(swing.x, swing.z);
+  const half = (AIM.meleeConeDeg * Math.PI) / 360;
+  let best: Entity | null = null;
+  let bestScore = Infinity;
+  for (const e of ctx.entities) {
+    if (!e.combat || e.combat.team === p.combat!.team || !e.body || e.combat.action?.kind === 'dead' || !inReach(e)) continue;
+    const ang = angleTo(p.tf.pos, yaw, e.tf.pos);
+    if (ang > half) continue;
+    const score = flatDist(p.tf.pos, e.tf.pos) + ang * 2;
+    if (score < bestScore) {
+      bestScore = score;
+      best = e;
+    }
+  }
+  return best;
+}
+
+function startAttack(p: Entity, move: PlayerMoveId, cmd: InputCommand, ctx: CombatCtx, physics: PhysicsWorld): void {
   const c = p.combat!;
   const v = p.vitals!;
   const def = PLAYER_MOVES[move];
@@ -255,10 +308,13 @@ function startAttack(p: Entity, move: PlayerMoveId, cmd: InputCommand, ctx: Comb
   v.stamina = Math.max(0, v.stamina - def.stamina);
   v.staminaDelay = PLAYER_STATS.staminaDelay;
   if (move === 'riposte') c.riposteUntil = 0;
-  const target = softTarget(p, cmd, ctx);
-  let lunge: number;
-  let dir = { x: Math.sin(p.tf.yaw), z: Math.cos(p.tf.yaw) };
   const w = wishDir(cmd);
+  // Pushing the stick swings that way; with the stick at rest the swing goes to the screen's centre.
+  const aimed = cmd.aim && w.mag <= 0.2 ? resolveAim(ctx.entities, physics, p, cmd.aim) : null;
+  const swing = cmd.aim && aimed ? aimSwingDir(p, cmd.aim, aimed.point) : undefined;
+  const target = softTarget(p, cmd, ctx, swing, aimed?.target);
+  let lunge: number;
+  let dir = swing ?? { x: Math.sin(p.tf.yaw), z: Math.cos(p.tf.yaw) };
   if (target) {
     const dx = target.tf.pos.x - p.tf.pos.x, dz = target.tf.pos.z - p.tf.pos.z;
     const d = Math.hypot(dx, dz);
@@ -266,27 +322,38 @@ function startAttack(p: Entity, move: PlayerMoveId, cmd: InputCommand, ctx: Comb
     // Close the gap until the staff's real reach for this clip overlaps the target's body.
     lunge = Math.max(0, Math.min(LUNGE.max, d - (target.body?.radius ?? 0) - clipReach(def.clip) + LUNGE.overlap));
   } else {
-    if (w.mag > 0.2) {
+    if (!swing && w.mag > 0.2) {
       dir = { x: w.x / w.mag, z: w.z / w.mag };
       p.tf.yaw = Math.atan2(dir.x, dir.z); // attacks go where you push, without a target
     }
     lunge = LUNGE.noTarget;
   }
-  const startup = Math.max(1, tm.activeStart - def.entry);
+  // Aimed swings turn to the crosshair at once: the hit must land where the player is looking.
+  if (swing) p.tf.yaw = p.tf.prevYaw = Math.atan2(dir.x, dir.z);
+  const startup = Math.max(1, Math.ceil((tm.activeStart - def.entry) / (def.rate ?? 1)));
   c.action = { kind: 'attack', move, t: 0, clipT: def.entry, charge: 0, charging: false, charged: false, hit: [], lunge: lunge / startup, lungeDir: dir };
 }
 
-function startRoll(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
+function startRoll(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: PhysicsWorld): void {
   const c = p.combat!;
   const v = p.vitals!;
-  // Quick Step makes rolls cheaper.
+  // Quick Step makes rolls and backsteps cheaper.
   const k = p.progress ? (charmOf(p.progress)?.dodgeStamina ?? 1) : 1;
-  v.stamina = Math.max(0, v.stamina - ROLL.stamina * k);
-  v.staminaDelay = PLAYER_STATS.dodgeDelay;
   const w = wishDir(cmd);
-  const dir = w.mag > 0.2 ? { x: w.x / w.mag, z: w.z / w.mag } : { x: Math.sin(p.tf.yaw), z: Math.cos(p.tf.yaw) };
+  const neutral = w.mag <= 0.2;
+  const dir = neutral ? { x: Math.sin(p.tf.yaw), z: Math.cos(p.tf.yaw) } : { x: w.x / w.mag, z: w.z / w.mag };
   p.tf.yaw = Math.atan2(dir.x, dir.z);
-  c.action = { kind: 'dodge', t: 0, dir };
+  const blinked = tryBlink(ctx, p, cmd, dir, physics);
+  const back = neutral && !blinked;
+  v.stamina = Math.max(0, v.stamina - (back ? BACKSTEP.stamina : ROLL.stamina) * k);
+  v.staminaDelay = PLAYER_STATS.dodgeDelay;
+  if (blinked) return;
+  if (back) {
+    // No direction: hop straight back, still facing the lock target if there is one.
+    const lock = c.lock !== null ? ctx.get(c.lock) : undefined;
+    if (lock) p.tf.yaw = yawTo(p.tf.pos, lock.tf.pos);
+    c.action = { kind: 'dodge', t: 0, dir: { x: -Math.sin(p.tf.yaw), z: -Math.cos(p.tf.yaw) }, back: true };
+  } else c.action = { kind: 'dodge', t: 0, dir };
   ctx.events.push({ type: 'dodge', entity: p.id });
 }
 
@@ -302,9 +369,6 @@ function updateBlock(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
   c.lastBlockTick = ctx.now;
   c.action = { kind: 'block', t: 0, parryTicks: spam ? BLOCK.spamParryTicks : BLOCK.parryTicks };
 }
-
-/** Roll speed profile: (1 − x²) over the roll, scaled so the whole roll covers ROLL.distance. */
-const ROLL_PEAK = (ROLL.distance / (ROLL.ticks * DT)) * 1.5;
 
 function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
   const c = p.combat!;
@@ -329,16 +393,30 @@ function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
         const target = c.lock !== null ? ctx.get(c.lock) : undefined;
         const want = target ? yawTo(p.tf.pos, target.tf.pos) : Math.atan2(a.lungeDir.x, a.lungeDir.z);
         p.tf.yaw = turnToward(p.tf.yaw, want, SOFT_TARGET.turnRate * DT);
+      } else if (a.charging && cmd.aim && c.lock === null) {
+        // A charging heavy turns with the stick, else follows the screen's centre, until released.
+        const w = wishDir(cmd);
+        const to = w.mag > 0.2 ? w : cmd.aim.dir;
+        const f = Math.hypot(to.x, to.z);
+        if (f > 1e-3) {
+          a.lungeDir = { x: to.x / f, z: to.z / f };
+          p.tf.yaw = turnToward(p.tf.yaw, Math.atan2(a.lungeDir.x, a.lungeDir.z), SOFT_TARGET.turnRate * DT);
+        }
       }
       ctx.motion.set(p.id, { vx, vz, inputScale: 0 });
       return;
     }
     case 'dodge': {
-      const x = a.t / ROLL.ticks;
-      const speed = ROLL_PEAK * Math.max(0, 1 - x * x);
+      // Speed profile (1 − x²) over the move, scaled so the whole of it covers its distance.
+      const f = dodgeFrames(a);
+      const x = a.t / f.ticks;
+      const speed = (f.distance / (f.ticks * DT)) * 1.5 * Math.max(0, 1 - x * x);
       ctx.motion.set(p.id, { vx: a.dir.x * speed, vz: a.dir.z * speed, inputScale: 0 });
       return;
     }
+    case 'plunge':
+      ctx.motion.set(p.id, plungeMotion(p, a, wishDir(cmd), faceLock));
+      return;
     case 'block':
       ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: BLOCK.walkScale, faceYaw: faceLock ?? p.tf.yaw });
       return;
@@ -346,6 +424,11 @@ function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
       ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: 0.35, faceYaw: p.tf.yaw });
       return;
     case 'cast':
+      // Holding a breath: a slow walk, turning with the stick (or kept on the lock).
+      if (a.channel) {
+        ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: POWER.ember.walkScale, faceYaw: faceLock });
+        return;
+      }
       // Spells are upper body: walk slowly, facing the spell's target while it winds up.
       ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: CAST_WALK_SCALE, faceYaw: castFacing(ctx, p, cmd) ?? faceLock ?? p.tf.yaw });
       return;

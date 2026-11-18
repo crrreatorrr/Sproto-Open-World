@@ -36,6 +36,30 @@
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "1613e1f5dcceac89aa335fbf71d90ec674c911ef508fc454b841e0652e2b4ead"
     },
+    "audio/bossRise.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/bossRise.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "d7d743d0ee913bd22f58ba6d69ecc1438ead99e7e53742ccd8beb3a271b42aa6"
+    },
+    "audio/bossRise.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/bossRise.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "d7d743d0ee913bd22f58ba6d69ecc1438ead99e7e53742ccd8beb3a271b42aa6"
+    },
+    "audio/bossRoar.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/bossRoar.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "3e8afb990c15c204a083f208f4995cddafa43b4ffc540ed13a7816e3dc00c551"
+    },
+    "audio/bossRoar.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/bossRoar.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "3e8afb990c15c204a083f208f4995cddafa43b4ffc540ed13a7816e3dc00c551"
+    },
     "audio/bossSlam.m4a": {
       "repo": "sproto-duel",
       "path": "public/assets/audio/placeholder/bossSlam.wav",
@@ -72,6 +96,18 @@
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "d8b3b8e30373e531fafbfccaf9a503082e5c26efe2dafa4300526a317d01459e"
     },
+    "audio/defeat.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/defeat.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "94feda576dcf175db8c1890386dd06505b897ab36ec4da8c795b5df13bbf2866"
+    },
+    "audio/defeat.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/defeat.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "94feda576dcf175db8c1890386dd06505b897ab36ec4da8c795b5df13bbf2866"
+    },
     "audio/dodge.m4a": {
       "repo": "sproto-duel",
       "path": "public/assets/audio/placeholder/dodge.wav",
@@ -83,6 +119,30 @@
       "path": "public/assets/audio/placeholder/dodge.wav",
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "b3e033754f8ca7ec969fc24834b949dab0c631839201a7568dcf432f36a27c43"
+    },
+    "audio/fireBurn.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/fireBurn.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "6247a9d70b3bcc205866888c3ab864b68a0f1077c0c91419d6de8d4ee867e900"
+    },
+    "audio/fireBurn.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/fireBurn.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "6247a9d70b3bcc205866888c3ab864b68a0f1077c0c91419d6de8d4ee867e900"
+    },
+    "audio/fizzle.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/fizzle.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "497738e9bdd35e6f8dba061f2dcb38620146110ad87676d3d0b96f723dfd53dd"
+    },
+    "audio/fizzle.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/fizzle.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "497738e9bdd35e6f8dba061f2dcb38620146110ad87676d3d0b96f723dfd53dd"
     },
     "audio/hurt.m4a": {
       "repo": "sproto-duel",
@@ -96,6 +156,18 @@
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "c64a8afe6f73bdd426c0a0a86cebcfafce3cdadadf4e381bc1836655be712169"
     },
+    "audio/lifePackPickup.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/lifePackPickup.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "5ddee54de87ae6f294671993782acb624a3f25b1f1577f5bdfbffbc2f08c8aa2"
+    },
+    "audio/lifePackPickup.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/lifePackPickup.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "5ddee54de87ae6f294671993782acb624a3f25b1f1577f5bdfbffbc2f08c8aa2"
+    },
     "audio/lockBeep.m4a": {
       "repo": "sproto-duel",
       "path": "public/assets/audio/placeholder/lockBeep.wav",
@@ -108,6 +180,18 @@
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "b06c65ccda71abe83493157222435c5fd9388ccb5b348766de87561cb136d13d"
     },
+    "audio/musicBattle.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/musicBattle.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "dcd0fb6629defd8b1872acc72550d7e00dbc812487785983df83d5a975c420fa"
+    },
+    "audio/musicBattle.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/musicBattle.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "dcd0fb6629defd8b1872acc72550d7e00dbc812487785983df83d5a975c420fa"
+    },
     "audio/noMana.m4a": {
       "repo": "sproto-duel",
       "path": "public/assets/audio/placeholder/noMana.wav",
@@ -119,6 +203,18 @@
       "path": "public/assets/audio/placeholder/noMana.wav",
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "bada519dd25c3cc7bfb27fff2a8d12538215b6770ad64991316dd2610bcd48d7"
+    },
+    "audio/pillarCrumble.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/pillarCrumble.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "7a2c91315e767f8a4ae2a0af426f45cf95fec5ecdbf6a6c90376e5824666e9af"
+    },
+    "audio/pillarCrumble.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/pillarCrumble.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "7a2c91315e767f8a4ae2a0af426f45cf95fec5ecdbf6a6c90376e5824666e9af"
     },
     "audio/pillarHit.m4a": {
       "repo": "sproto-duel",
@@ -143,6 +239,18 @@
       "path": "public/assets/audio/placeholder/roundLose.wav",
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "91d194b9e4b524801930e29f969df356c39d354d5e2a2a1bbee56c145ddc0373"
+    },
+    "audio/roundWin.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/roundWin.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "a63686d9fd79bbb746796f48f0ffc05cbef6f4c478298afe7cbc9a9ff0d3bcec"
+    },
+    "audio/roundWin.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/roundWin.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "a63686d9fd79bbb746796f48f0ffc05cbef6f4c478298afe7cbc9a9ff0d3bcec"
     },
     "audio/rugWhoosh.m4a": {
       "repo": "sproto-duel",
@@ -192,6 +300,18 @@
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "7f2b9011035476949ece8b83eba07039f9f38363b3776d7f49a1b90ba7264192"
     },
+    "audio/spellLearned.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/spellLearned.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "45706926a7af141f611e09a38656570e734e378ef1b5d4519da589a3b406dff6"
+    },
+    "audio/spellLearned.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/spellLearned.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "45706926a7af141f611e09a38656570e734e378ef1b5d4519da589a3b406dff6"
+    },
     "audio/stunCharge.m4a": {
       "repo": "sproto-duel",
       "path": "public/assets/audio/placeholder/stunCharge.wav",
@@ -203,6 +323,30 @@
       "path": "public/assets/audio/placeholder/stunCharge.wav",
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "8573f3ce0bf17619a28df39b81c3d7fc523ce88ad6a977192293859b93a46ca0"
+    },
+    "audio/stunHit.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/stunHit.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "20920a93f2f099365f781c580dc1ae608d0f798d065619c5e5741e8e43ab3656"
+    },
+    "audio/stunHit.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/stunHit.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "20920a93f2f099365f781c580dc1ae608d0f798d065619c5e5741e8e43ab3656"
+    },
+    "audio/ticketPickup.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/ticketPickup.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "65dbf1a3d02c6140dc14296e36c14cd1278dff883edd843610af41df2f2dd71e"
+    },
+    "audio/ticketPickup.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/ticketPickup.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "65dbf1a3d02c6140dc14296e36c14cd1278dff883edd843610af41df2f2dd71e"
     },
     "audio/uiClick.m4a": {
       "repo": "sproto-duel",
@@ -228,17 +372,103 @@
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "891465a88f85bb202fd5335679e77567aca08e932298b6c6cfd8f1c7ad51dccb"
     },
+    "models/bosses/burrowmother.glb": {
+      "repo": "sproto-shooter-bosses",
+      "path": "dist/assets/models/characters/mole_monster.glb",
+      "commit": "18a3420397146dafa6fdb675f81770d902148862",
+      "sourceSha256": "545ad6ea2e066edf2761647b68330175bfd0d0c970f2f0d3c940ff9e0d79d5da",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "models/bosses/drake_far.glb": {
+      "repo": "sproto-shooter-bosses",
+      "path": "dist/assets/models/characters/dragon.glb",
+      "commit": "18a3420397146dafa6fdb675f81770d902148862",
+      "sourceSha256": "11703697ef4fe8064a0c8b4afb292ada8cf690c6d325a3d29cbaac42bedd5b64",
+      "derived": "clips fly + resample + static channels dropped + far LOD: flat colours + position weld + simplify(0.1, error 0.3) + meshopt"
+    },
+    "models/bosses/drake.glb": {
+      "repo": "sproto-shooter-bosses",
+      "path": "dist/assets/models/characters/dragon.glb",
+      "commit": "18a3420397146dafa6fdb675f81770d902148862",
+      "sourceSha256": "11703697ef4fe8064a0c8b4afb292ada8cf690c6d325a3d29cbaac42bedd5b64",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "audio/ultReady.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/ultReady.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "4ebd099505ad458d45e2bf41a5f4142f23b82b8effe0b01ab8b5537a28a50654"
+    },
+    "audio/ultReady.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/ultReady.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "4ebd099505ad458d45e2bf41a5f4142f23b82b8effe0b01ab8b5537a28a50654"
+    },
+    "audio/victory.m4a": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/victory.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "7f9e57ee69031d20e43305322d4ce3ccab53d6e03be32e107f59b5d8773fb22a"
+    },
+    "audio/victory.webm": {
+      "repo": "sproto-duel",
+      "path": "public/assets/audio/placeholder/victory.wav",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "7f9e57ee69031d20e43305322d4ce3ccab53d6e03be32e107f59b5d8773fb22a"
+    },
+    "models/bosses/scrapjaw.glb": {
+      "repo": "sproto-shooter-bosses",
+      "path": "dist/assets/models/characters/car_monster.glb",
+      "commit": "18a3420397146dafa6fdb675f81770d902148862",
+      "sourceSha256": "d0dc6efb3db2347f9509733528377478dd941315b85f04278c38473366f60310",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
     "models/elites/brute.glb": {
       "repo": "sproto-shooter",
       "path": "public/assets/models/characters/sproto_monster.glb",
       "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
-      "sourceSha256": "e4fcdbaf3087ee495189f01004bd7875ac3594d1906284f78911f5d39546e56a"
+      "sourceSha256": "e4fcdbaf3087ee495189f01004bd7875ac3594d1906284f78911f5d39546e56a",
+      "derived": "resample + static channels dropped + webp ≤256 px + meshopt"
+    },
+    "models/elites/gatekeeper.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/monster.glb",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "2029b8ea482fa238d7f9dbf9d11daed2a5a3260612fe5c6be1a1ed89fa9604fa",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "models/elites/robot_laser.glb": {
+      "repo": "sproto-shooter-bosses",
+      "path": "dist/assets/models/characters/robot_laser.glb",
+      "commit": "18a3420397146dafa6fdb675f81770d902148862",
+      "sourceSha256": "7375849e5272442987e915317de31b74ca4145263ad6f8e2cedb44564eac635d",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "models/elites/robot_shooter.glb": {
+      "repo": "sproto-shooter-bosses",
+      "path": "dist/assets/models/characters/robot_shooter.glb",
+      "commit": "18a3420397146dafa6fdb675f81770d902148862",
+      "sourceSha256": "1a982afd77ee309e6f900b3c414ed5f356a964e1b3adb949db34d1b0e3a92ffb",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "models/enemies/grunt_vet.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/midget_stage2.glb",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "1acb867e55fd4c9ac15331046aabdf0a35cc2d7039bcb3d2187c935cc44ff6a3"
     },
     "models/enemies/grunt.glb": {
       "repo": "sproto-shooter",
       "path": "public/assets/models/characters/midget_stage1.glb",
       "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
       "sourceSha256": "d56523a040d6f8f97435d87de154214b4629bb3f1e6317172498042386201fc2"
+    },
+    "models/enemies/slinger_vet.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/obama_stage2.glb",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "3478521aee1436c5b3ecbb8bec83e5880ceb86dd04a16240d95162a79bfe711e"
     },
     "models/enemies/slinger.glb": {
       "repo": "sproto-shooter",
@@ -250,7 +480,120 @@
       "repo": "sproto-duel",
       "path": "public/assets/models/rigged/sahil_stage1.glb",
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
-      "sourceSha256": "4db33e1e34aa721c4ab1b62f972dada406afefc6de5d5709958d23fbd508ac84"
+      "sourceSha256": "4db33e1e34aa721c4ab1b62f972dada406afefc6de5d5709958d23fbd508ac84",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "models/interactables/chest.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/chest.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "711b124f11e67f7092b2030761967b055ab5116d3b59c68b3139498e70d488d1",
+      "derived": "resample + static channels dropped + lid cut at y 0.52 onto a hinged node + meshopt"
+    },
+    "models/interactables/shrine.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/campaign_shrine.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "aa182f229312f8e1920898642c47d23f6780e24f7e6a9d49b3368bb571f0ecc7",
+      "derived": "resample + static channels dropped + meshopt"
+    },
+    "models/npcs/agent.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/rigged/agent_stage1.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "482c6b2993588f80230099612d4c3f2e63caf2f655159229f725c60fb705afee",
+      "derived": "drop Cube + clips idle + resample + static channels dropped + webp ≤256 px + meshopt"
+    },
+    "models/npcs/broccoli.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/rigged/broccoli_stage1.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "9b99361cd6e8011fde55f24ff45a0895dc59173a5c7b0fe0b7a939ad5c5b29b2",
+      "derived": "drop Cube + clips idle + resample + static channels dropped + webp ≤256 px + meshopt"
+    },
+    "models/npcs/pepe_general.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/pepe-general.glb",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "3a5190e0fa9f21d70441cef4a98550b27936849957316af4c14456329650fdb2",
+      "derived": "drop Cube + clips idle + resample + static channels dropped + simplify(0.4) + webp ≤256 px + meshopt"
+    },
+    "models/npcs/pepe_tux.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/pepe-tux.glb",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "6fab4f856f27d1d01068587785eb4f41f3c4fb174c657d04cbb1717a37991ada",
+      "derived": "drop Cube + clips idle + resample + static channels dropped + simplify(0.4) + webp ≤256 px + meshopt"
+    },
+    "models/npcs/pepe.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/pepe.glb",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "b0ee387b858cb9193cf0b5d2d16c7bad42347c57b4521c7fd89083a622635f9d",
+      "derived": "drop Cube + clips idle + resample + static channels dropped + simplify(0.4) + webp ≤256 px + meshopt"
+    },
+    "models/pickups/gem.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/pickups/gem.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "c757448c2b890906afed3792c5f09cb7c7f251ffed7a3b2c081cc0605e88cdce",
+      "derived": "resample + static channels dropped + meshopt"
+    },
+    "models/pickups/heart.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/pickups/heart.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "3a1c91d2e27697180d5d35c2cf25eb33e908ec8c932a69530d119d1205ef97be",
+      "derived": "resample + static channels dropped + meshopt"
+    },
+    "models/pickups/potion.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/pickups/potion.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "199192693faa57dca82fbda6f09ab5e5eeaaae1fcaa5fa28119378510c058bdd",
+      "derived": "resample + static channels dropped + meshopt"
+    },
+    "models/props/bench-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/bench.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "8e82f05b69b3ed788e7bc25deb10c3667ff630a9e576fb2e338fcc20813750c9",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/bench.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/bench.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "8e82f05b69b3ed788e7bc25deb10c3667ff630a9e576fb2e338fcc20813750c9",
+      "derived": "meshopt"
+    },
+    "models/props/cart-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/cart.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "eb1505e4b686bafe02d6b9a26df98cfa8ab3ffa1a8d7da61bceb46dd58fa5d17",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/cart.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/cart.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "eb1505e4b686bafe02d6b9a26df98cfa8ab3ffa1a8d7da61bceb46dd58fa5d17",
+      "derived": "meshopt"
+    },
+    "models/props/fountain-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/fountain.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "c4989835baf0f62e416052e2a0fa87566dec75f20ee0ffa26203d434c69cade6",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/fountain.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/fountain.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "c4989835baf0f62e416052e2a0fa87566dec75f20ee0ffa26203d434c69cade6",
+      "derived": "meshopt"
     },
     "models/props/frost_beacon-lod1.glb": {
       "repo": "sproto-shooter",
@@ -532,6 +875,48 @@
       "sourceSha256": "faf1b29d38e95aac7b3599c4dc3336fa7bc85e6e77f53ac961a201f53ae6d055",
       "derived": "meshopt"
     },
+    "models/props/lantern_post-lod1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/lantern_post.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "7fb3f371f16b78e42efb8dc8c67d9c002c2c519308d179cb8e9b46578cf22c34",
+      "derived": "LOD1: position weld + simplify(0.3, error 0.05) + flat normals + meshopt"
+    },
+    "models/props/lantern_post.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/props/lantern_post.glb.gz",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "7fb3f371f16b78e42efb8dc8c67d9c002c2c519308d179cb8e9b46578cf22c34",
+      "derived": "meshopt"
+    },
+    "models/props/market_stall-lod1.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/obstacles/market_stall.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "e6c53ab82f92fb91829608cbab8134f41289f751db85b23acf4a2f7ff614b9e5",
+      "derived": "LOD1: weld + simplify(0.3, error 0.05) + webp ≤128 px + meshopt"
+    },
+    "models/props/market_stall.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/obstacles/market_stall.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "e6c53ab82f92fb91829608cbab8134f41289f751db85b23acf4a2f7ff614b9e5",
+      "derived": "fit 2.4 m, turn -90° + resample + static channels dropped + webp ≤256 px + meshopt"
+    },
+    "models/props/rock_outcrop-lod1.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/obstacles/rock_outcrop.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "52904c2d8ecad3335581b9b59f39b298211089ce66016a34b60d8afdd585ea57",
+      "derived": "LOD1: weld + simplify(0.3, error 0.05) + webp ≤128 px + meshopt"
+    },
+    "models/props/rock_outcrop.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/obstacles/rock_outcrop.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "52904c2d8ecad3335581b9b59f39b298211089ce66016a34b60d8afdd585ea57",
+      "derived": "fit 3 m, turn -90° + resample + static channels dropped + simplify(0.65) + webp ≤256 px + meshopt"
+    },
     "models/props/skyline_crane-lod1.glb": {
       "repo": "sproto-shooter",
       "path": "public/assets/models/props/skyline_crane.glb.gz",
@@ -573,6 +958,12 @@
       "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
       "sourceSha256": "12f7c69cfd30349a734854e01bce07dbbb2a4d28f6394c70c6c2b18efc30eec7",
       "derived": "meshopt"
+    },
+    "models/staffs/staff_fighter.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/staffs/staff_fighter-lod1.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "5c5cba5e15c08b9fea20739e99afdf8f9a9a04f7023ad1e37330044f0bc302f5"
     },
     "models/staffs/staff_fighters_might-lod1.glb": {
       "repo": "sproto-duel",
@@ -621,6 +1012,12 @@
       "path": "public/assets/models/staffs/staff_nobu.glb",
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "d65f979c5bbd1bc45fa213c680b8e28a716311317b5b10967ef523880e69da9c"
+    },
+    "models/staffs/staff_shooter.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/staffs/staff_shooter-lod1.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "6aa4a4cdbf100142d78692b07df8e6b19584c83c260b71a58c639d1701122c53"
     },
     "models/staffs/staff_sproto-lod1.glb": {
       "repo": "sproto-duel",

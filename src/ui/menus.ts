@@ -7,15 +7,13 @@ import type { Input } from '../input/Input';
 import { keyLabel } from '../input/glyphs';
 import type { MenuNav, Screen } from './MenuNav';
 import type { Settings } from './settings';
+import { SETTING_GROUPS, settingRow } from './settingsRows';
 
 export interface MenuActions {
   /** New game (Play). */
   play(): void;
   /** Continue from the save (offered on the title only when one loaded). */
   continueGame(): void;
-  /** The pause menu's Character and Quest log screens (RPG menus; App pushes them). */
-  character(): void;
-  questLog(): void;
   resume(): void;
   quitToTitle(): void;
   settingsChanged(s: Settings): void;
@@ -49,8 +47,6 @@ export class Menus {
   private note = '';
   /** The title's save state: whether Continue is offered, and a notice about a damaged save. */
   private titleSave: { canContinue: boolean; notice: string } = { canContinue: false, notice: '' };
-  /** The pause menu offers Character and Quest log (world mode: the yard and the sandbox have no RPG). */
-  private rpg = false;
 
   constructor(
     host: HTMLElement,
@@ -85,11 +81,6 @@ export class Menus {
     if (this.nav.top === this.title) this.nav.refresh();
   }
 
-  /** Show the RPG screens (Character, Quest log) in the pause menu. */
-  set rpgMenus(on: boolean) {
-    this.rpg = on;
-  }
-
   private makeTitle(): Screen {
     const s = this.screen('screen-title');
     const render = () => {
@@ -111,7 +102,6 @@ export class Menus {
       s.replaceChildren(el('h2', '', 'Paused'));
       const list = el('div', 'list');
       list.append(button('Resume', () => this.actions.resume()));
-      if (this.rpg) list.append(button('Character', () => this.actions.character()), button('Quest log', () => this.actions.questLog()));
       list.append(button('Settings', () => this.nav.push(this.settings)), button('Quit to title', () => this.actions.quitToTitle()));
       s.append(list);
     };
@@ -122,39 +112,34 @@ export class Menus {
     const s = this.screen('screen-settings');
     const render = () => {
       s.replaceChildren(el('h2', '', 'Settings'));
-      const list = el('div', 'list');
+      const list = el('div', 'list settings-list');
       const v = this.settingsValue;
-      const slider = (key: 'mouseSensitivity' | 'padSensitivity', label: string) => {
-        const b = button(`${label}: ${v[key].toFixed(1)}×`, () => this.adjustSetting(b, 1), 'btn slider');
-        b.dataset.setting = key;
-        return b;
-      };
-      const toggle = (key: 'invertY' | 'rumble' | 'shake', label: string) => {
-        const b = button(`${label}: ${v[key] ? 'On' : 'Off'}`, () => this.adjustSetting(b, 1), 'btn toggle');
-        b.dataset.setting = key;
-        return b;
-      };
-      list.append(
-        button('Controls', () => this.nav.push(this.controls)),
-        slider('mouseSensitivity', 'Mouse sensitivity'),
-        slider('padSensitivity', 'Stick sensitivity'),
-        toggle('invertY', 'Invert look Y'),
-        toggle('rumble', 'Rumble'),
-        toggle('shake', 'Camera shake'),
-        button('Back', () => this.nav.pop()),
-      );
+      list.append(button('Controls', () => this.nav.push(this.controls)));
+      for (const group of SETTING_GROUPS) {
+        list.append(el('h3', 'settings-group', group.title));
+        for (const row of group.rows) {
+          const b = button('', () => this.adjustSetting(b, 1, true), 'btn setting-row');
+          b.dataset.setting = row.key;
+          const value = el('span', 'value', row.text(v));
+          if (row.meter) {
+            const meter = el('i', 'meter');
+            meter.style.setProperty('--fill', String(row.meter(v)));
+            value.prepend(meter);
+          }
+          b.append(el('span', 'label', row.label), value);
+          list.append(b);
+        }
+      }
+      list.append(button('Back', () => this.nav.pop()));
       s.append(list, el('p', 'hint', '← → to change'));
     };
-    return { el: s, render, onAdjust: (item, dir) => this.adjustSetting(item, dir) };
+    return { el: s, render, onAdjust: (item, dir) => this.adjustSetting(item, dir, false) };
   }
 
-  private adjustSetting(item: HTMLElement, dir: -1 | 1): void {
-    const key = item.dataset.setting as keyof Settings | undefined;
-    if (!key) return;
-    const v = { ...this.settingsValue };
-    if (key === 'mouseSensitivity' || key === 'padSensitivity') {
-      v[key] = Math.round(Math.min(3, Math.max(0.2, v[key] + dir * 0.1)) * 10) / 10;
-    } else v[key] = !v[key];
+  private adjustSetting(item: HTMLElement, dir: -1 | 1, wrap: boolean): void {
+    const row = settingRow(item.dataset.setting ?? '');
+    if (!row) return;
+    const v = row.step(this.settingsValue, dir, wrap);
     this.settingsValue = v;
     this.actions.settingsChanged(v);
     this.nav.refresh();

@@ -21,11 +21,15 @@
  *   node tests/e2e/world.mjs --rpg-only           # just the M3 RPG loop
  *
  * M3 (RPG systems), pad only: talk to Elder Pepe (Y), read the dialogue and accept the quest (A);
- * the tracker and compass marker show it; the pause menu's Quest log lists it; the training yard
+ * the tracker and compass marker show it; the menu's Quests tab lists it; the training yard
  * trigger, three straw dummies (RB), the chest (Y) and the seed hand-in advance it; Trader Pepe's
  * shop opens and refuses a purchase you can't afford; the Shrine of First Light's Rest completes it
- * and Level up spends the point; the autosave is written. Then the page reloads, Continue is on
- * the title, and the level, XP, attributes and quest state come back at the shrine.
+ * and its Skills entry spends a skill point; the autosave is written. Then the page reloads, Continue
+ * is on the title, and the level, XP, skills and quest state come back at the shrine.
+ *
+ * C1 (the tabbed menu), pad only: Start opens it, LB / RB tour every tab, View opens it on Quests,
+ * the Skills tab spends a point, the Powers tab swaps a spell into a slot (it starts on cooldown)
+ * and the HUD shows it.
  */
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
@@ -48,7 +52,8 @@ const LAP = [[LO, LO], [HI, HI], [HI, LO], [LO, HI], [LO, LO]];
 const SPOTS = [
   { name: 'Sprout Hollow', x: 256, z: 58 },
   { name: 'Orchard Fields', x: 150, z: 200 },
-  { name: 'Thornwood', x: 300, z: 340 },
+  // Deep in the trees, out of aggro range of the patrols and the Gatekeeper.
+  { name: 'Thornwood', x: 262, z: 365 },
   { name: 'Old Quarry', x: 420, z: 440 },
 ];
 
@@ -123,7 +128,12 @@ async function shot(name) {
 
 /** Teleport, wait for ground under the player's 3 × 3, then let it settle. Returns the settled state. */
 async function teleport(x, z, settleFrames = 12) {
-  const ok = await page.evaluate(([x, z]) => window.__qa.teleport(x, z), [x, z]);
+  // The world has camps in it now: the tour stays healthy (QA cheat), it measures streaming, not fights.
+  const ok = await page.evaluate(([x, z]) => {
+    const v = window.__qa.app.sim?.playerEntity(0)?.vitals;
+    if (v) v.hp = v.hpMax;
+    return window.__qa.teleport(x, z);
+  }, [x, z]);
   if (!ok) throw new Error(`teleport to ${x}, ${z} refused`);
   await frames(2);
   await page.waitForFunction(() => {
@@ -249,21 +259,33 @@ async function rpgLoop() {
   check(s.markerShown, 'the compass shows the step\'s marker');
   await shot('w11-tracked');
 
-  // The quest log from the pause menu (Start → Quest log), and back.
+  // The tabbed menu: Start opens it, LB / RB tour every tab (and wrap), View opens it on Quests.
   await press('start');
   s = await state();
-  for (let i = 0; i < 4 && s.focused !== 'Quest log'; i++) {
-    await press('down');
-    s = await state();
+  check(s.state === 'paused' && s.screen === 'screen-menu' && s.menuTab === 'powers', 'Start opens the tabbed menu on Powers', `${s.state} ${s.screen} ${s.menuTab}`);
+  const toured = [s.menuTab];
+  for (let i = 0; i < 6; i++) {
+    await press('rb');
+    toured.push((await state()).menuTab);
   }
-  await press('a');
+  check(toured.join() === 'powers,skills,gear,quests,map,settings,powers', 'RB tours every tab and wraps', toured.join());
+  await press('lb');
   s = await state();
-  const logText = await page.evaluate(() => document.querySelector('#screen-quests')?.textContent ?? '');
-  check(s.screen === 'screen-quests' && /Wake Up, Sproto/.test(logText), 'Start → Quest log lists the quest', `${s.screen} ${logText.slice(0, 80)}`);
-  await press('b');
+  check(s.menuTab === 'settings', 'LB goes back a tab (and wraps)', s.menuTab);
+  await shot('w11b-menu-settings');
+  await press('start');
+  s = await until((q) => q.state === 'playing');
+  check(s.state === 'playing' && s.screen === null, 'Start closes the menu', `${s.state} ${s.screen}`);
+  await frames(6);
+  s = await state();
+  check(s.state === 'playing', 'the Start that closed the menu does not pause again', s.state);
+  await press('back');
+  s = await state();
+  const logText = await page.evaluate(() => document.querySelector('#screen-menu')?.textContent ?? '');
+  check(s.screen === 'screen-menu' && s.menuTab === 'quests' && /Wake Up, Sproto/.test(logText), 'View opens the menu on Quests, listing the quest', `${s.screen} ${s.menuTab} ${logText.slice(0, 80)}`);
   await press('b');
   s = await state();
-  check(s.state === 'playing', 'B, B back to play', s.state);
+  check(s.state === 'playing', 'B back to play', s.state);
 
   // Trader Pepe: the shop opens from his dialogue; buying what you can't afford is refused.
   await teleport(246, 71);
@@ -301,7 +323,13 @@ async function rpgLoop() {
     for (let i = 0; i < 16; i++) {
       e = (await state()).enemies.find((x) => x.id === d.id);
       if (!e || e.action === 'dead') break;
+      // Push the stick at the dummy while swinging: a swing goes where the stick points.
+      const me = await state();
+      const wx = d.pos.x - me.player.pos.x, wz = d.pos.z - me.player.pos.z, l = Math.hypot(wx, wz) || 1;
+      const sy = Math.sin(me.camYaw), cy = Math.cos(me.camYaw);
+      await page.evaluate(([a, b]) => window.__pad.axes(a, b), [(-cy * wx + sy * wz) / l, -(sy * wx + cy * wz) / l]);
       await press('rb');
+      await page.evaluate(() => window.__pad.axes(0, 0));
       await frames(10);
     }
     console.log(`  info straw dummy ${d.id}: walked to ${dist.toFixed(2)} m, hp ${d.hp} → ${e?.hp}, ${e?.action ?? 'gone'}`);
@@ -346,26 +374,94 @@ async function rpgLoop() {
   s = await until((q) => q.saves > savesBefore, 60);
   check(s.saves > savesBefore, 'the rest autosaves', `${savesBefore} → ${s.saves}`);
   await shot('w14-shrine');
+  check(s.rpg.points === 2 * (s.rpg.level - 1), 'each level-up gave 2 skill points', `level ${s.rpg.level}, points ${s.rpg.points}`);
   await press('down');
+  s = await state();
+  check(/^Skills/.test(s.focused ?? ''), 'the shrine offers Skills', JSON.stringify(s.focused));
+  await press('a');
+  s = await until((q) => q.menuTab === 'skills');
+  check(s.screen === 'screen-menu' && s.menuTab === 'skills', 'Skills opens the Skills tab', `${s.screen} ${s.menuTab}`);
+  check(/^Spell Power/.test(s.focused ?? ''), 'the tree starts on Spell Power', JSON.stringify(s.focused));
+  await shot('w14b-skills');
+  // The grid: right to the Combat branch (Attack), down to Defense, up again.
+  await press('right');
+  s = await state();
+  check(/^Attack/.test(s.focused ?? ''), 'D-pad right moves to the Combat branch', JSON.stringify(s.focused));
+  await press('down');
+  s = await state();
+  check(/^Defense/.test(s.focused ?? ''), 'D-pad down moves along the branch', JSON.stringify(s.focused));
+  await press('up');
+  const points = (await state()).rpg.points;
+  await press('a');
+  s = await until((q) => q.rpg.skills.attack > 0);
+  check(s.rpg.skills.attack === 1 && s.rpg.points === points - 1, 'A spends a skill point on Attack', `attack ${s.rpg.skills.attack}, points ${points} → ${s.rpg.points}`);
+
+  // The spell selector, pad only: learn a second spell (QA), pick a slot, pick a power, see it on the HUD.
+  await press('lb');
+  s = await state();
+  check(s.menuTab === 'powers', 'LB goes to the Powers tab', s.menuTab);
+  await shot('w14c-powers');
+  check(/Arcane Bolt/.test(s.focused ?? '') && s.rpg.loadout[0] === 'bolt', 'Powers starts on slot 1, holding Bolt', `${JSON.stringify(s.focused)} ${JSON.stringify(s.rpg.loadout)}`);
+  await press('right');
   await press('a');
   s = await state();
-  check(s.screen === 'screen-levelup', 'Level up opens the attribute screen', s.screen);
-  const might = s.rpg.attrs.might;
+  check(s.menuPick === 'slot:1', 'A picks slot 2', JSON.stringify(s.menuPick));
+  check(/Arcane Bolt/.test(s.focused ?? ''), 'the focus moves to the powers you know', JSON.stringify(s.focused));
   await press('a');
-  s = await until((q) => q.rpg.attrs.might > might);
-  check(s.rpg.attrs.might === might + 1 && s.rpg.points === 0, 'A spends the point on Might', `might ${might} → ${s.rpg.attrs.might}, points ${s.rpg.points}`);
-  await press('b');
+  s = await until((q) => q.rpg.loadout[1] === 'bolt');
+  check(s.rpg.loadout[1] === 'bolt' && s.rpg.loadout[0] === null, 'A on a power equips it: Bolt moves to slot 2', JSON.stringify(s.rpg.loadout));
+  check(s.menuPick === null, 'the pick is done', JSON.stringify(s.menuPick));
+  await press('b'); // the tabbed menu, back to the shrine's list
+  s = await until((q) => q.screen === 'screen-shrine');
+  check(s.screen === 'screen-shrine', 'B returns to the shrine menu', s.screen);
   await press('b');
   s = await until((q) => q.screen === null);
-  check(s.screen === null && s.rpg.atShrine === null, 'B, B leaves the shrine', `${s.screen} ${s.rpg.atShrine}`);
+  check(s.screen === null && s.rpg.atShrine === null, 'B leaves the shrine', `${s.screen} ${s.rpg.atShrine}`);
   check(s.saves > savesBefore + 1, 'spending the point autosaves too', `${savesBefore} → ${s.saves}`);
+  s = await until((q) => q.hudSlots?.[1] === 'bolt');
+  check(s.hudSlots?.[1] === 'bolt' && s.hudSlots?.[0] === null, 'the HUD shows the swapped loadout', JSON.stringify(s.hudSlots));
+  const hudName = await page.evaluate(() => [...document.querySelectorAll('.spell-bar .spell .name')].map((e) => e.textContent));
+  check(hudName[1] === 'Arcane Bolt' && hudName[0] === 'Empty', 'the HUD slots name what they hold', hudName.join(','));
+
+  // And away from a shrine: Start → Powers, a swap by pad works anywhere (Bolt back to slot 1).
+  await press('start');
+  s = await state();
+  check(s.state === 'paused' && s.screen === 'screen-menu' && s.menuTab === 'powers', 'Start reopens the menu on the tab it was left on', `${s.state} ${s.menuTab}`);
+  await press('left'); // the focus was left on slot 2: back over slot 1, above Bolt in the grid
+  await press('down');
+  s = await state();
+  check(/Arcane Bolt/.test(s.focused ?? ''), 'D-pad down reaches the powers grid', JSON.stringify(s.focused));
+  await press('a');
+  s = await state();
+  check(s.menuPick === 'spell:bolt', 'A picks the power first this time', JSON.stringify(s.menuPick));
+  await press('left');
+  await press('a');
+  s = await until((q) => q.rpg.loadout[0] === 'bolt');
+  check(s.rpg.loadout[0] === 'bolt' && s.rpg.loadout[1] === null, 'then a slot: the swap applies while paused', JSON.stringify(s.rpg.loadout));
+  await press('rb');
+  await press('rb');
+  s = await state();
+  check(s.menuTab === 'gear', 'RB reaches the Gear tab', s.menuTab);
+  const gearText = await page.evaluate(() => document.querySelector('#screen-menu')?.textContent ?? '');
+  check(/Sprout Staff/.test(gearText) && /Apprentice Robe/.test(gearText), 'the Gear tab lists what you wear', gearText.slice(0, 120));
+  await shot('w14d-gear');
+  await press('start');
+  s = await until((q) => q.state === 'playing');
+  check(s.state === 'playing', 'Start closes the menu again', s.state);
 
   // Save → reload → Continue.
   const want = await state();
   const stored = await page.evaluate(() => localStorage.getItem('sow.save'));
   check(!!stored && JSON.parse(stored).player.level === want.rpg.level, 'the save is in localStorage', stored ? `${stored.length} bytes` : 'missing');
-  await page.reload();
-  await page.waitForFunction(() => window.__qa?.ready && window.__qa.state().screen === 'screen-title', null, { timeout: 30000 });
+  // A QA edit of the save: Blast is known but not equipped, so the selector has a real swap to make.
+  await page.evaluate(() => {
+    const save = JSON.parse(localStorage.getItem('sow.save'));
+    save.player.spells.push('blast');
+    localStorage.setItem('sow.save', JSON.stringify(save));
+  });
+  // A CI runner's software GPU can spend more than 30 s tearing down and rebooting the game.
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 180000 });
+  await page.waitForFunction(() => window.__qa?.ready && window.__qa.state().screen === 'screen-title', null, { timeout: 180000 });
   await press('down');
   s = await state();
   check(s.focused === 'Continue', 'the title offers Continue first', JSON.stringify(s.focused));
@@ -374,12 +470,40 @@ async function rpgLoop() {
   await page.waitForFunction(() => !window.__qa.state().groundWait, null, { timeout: 30000 });
   await frames(20);
   s = await state();
-  check(s.rpg.level === want.rpg.level && s.rpg.xp === want.rpg.xp && s.rpg.attrs.might === want.rpg.attrs.might, 'Continue restores level, XP and attributes', `level ${s.rpg.level}/${want.rpg.level}, xp ${s.rpg.xp}/${want.rpg.xp}, might ${s.rpg.attrs.might}`);
+  check(s.rpg.level === want.rpg.level && s.rpg.xp === want.rpg.xp && s.rpg.skills.attack === want.rpg.skills.attack && s.rpg.points === want.rpg.points, 'Continue restores level, XP and skills', `level ${s.rpg.level}/${want.rpg.level}, xp ${s.rpg.xp}/${want.rpg.xp}, attack ${s.rpg.skills.attack}, points ${s.rpg.points}`);
+  check(JSON.stringify(s.rpg.loadout) === JSON.stringify(want.rpg.loadout), 'Continue restores the loadout', JSON.stringify(s.rpg.loadout));
   check(quest(s)?.status === 'complete' && s.rpg.lastShrine === 'shrine_first_light', 'Continue restores the quest and the respawn shrine', `${JSON.stringify(quest(s))} ${s.rpg.lastShrine}`);
   check(s.objects.find((o) => o.id === 'chest_training')?.used === true, 'the opened chest stays open after Continue');
   const d = Math.hypot(s.player.pos.x - 240, s.player.pos.z - 62);
   check(d < 4 && s.player.grounded, 'Continue wakes you at the last shrine', `${d.toFixed(1)} m from it, grounded ${s.player.grounded}`);
   await shot('w15-continue');
+
+  // A real swap by pad: Blast into slot 2, away from a shrine, so it starts on cooldown.
+  await press('start');
+  s = await state();
+  check(s.screen === 'screen-menu' && s.menuTab === 'powers', 'Start opens the Powers tab after Continue', `${s.screen} ${s.menuTab}`);
+  await press('right');
+  await press('a');
+  s = await state();
+  check(s.menuPick === 'slot:1', 'A picks the empty slot 2', JSON.stringify(s.menuPick));
+  await press('right');
+  s = await state();
+  check(/Blast/.test(s.focused ?? '') && /Swap in/.test(s.focused ?? ''), 'the grid offers Blast, saying what the swap costs', JSON.stringify(s.focused));
+  await shot('w16-swap');
+  await press('a');
+  s = await until((q) => q.rpg.loadout[1] === 'blast');
+  check(JSON.stringify(s.rpg.loadout) === '["bolt","blast",null,null]', 'A swaps Blast into slot 2 while paused', JSON.stringify(s.rpg.loadout));
+  check(s.player.cooldowns.blast >= 170 && s.player.cooldowns.blast <= 180, 'the swapped-in power starts on its cooldown', String(s.player.cooldowns.blast));
+  check(/Ready in 3 s/.test(s.focused ?? ''), 'its slot says when it will be ready', JSON.stringify(s.focused));
+  await press('start');
+  s = await until((q) => q.state === 'playing' && q.hudSlots?.[1] === 'blast');
+  check(s.hudSlots?.[1] === 'blast', 'the HUD shows Blast in slot 2', JSON.stringify(s.hudSlots));
+  const hud2 = await page.evaluate(() => {
+    const el = document.querySelectorAll('.spell-bar .spell')[1];
+    return { name: el.querySelector('.name')?.textContent, spell: el.dataset.spell, cooling: el.classList.contains('cooling') };
+  });
+  check(hud2.name === 'Blast' && hud2.spell === 'blast' && hud2.cooling, 'its HUD slot has the name and the cooldown sweep', JSON.stringify(hud2));
+  await shot('w17-hud-swap');
 }
 
 try {
@@ -498,6 +622,7 @@ try {
       new PerformanceObserver((l) => window.__long.push(...l.getEntries().map((e) => e.duration))).observe({ type: 'longtask', buffered: false });
     });
     const heaps = [];
+    const gpuTextures = [];
     const before = (await state()).world.counters;
     let notStanding = [];
     for (let lap = 1; lap <= LAPS; lap++) {
@@ -512,6 +637,7 @@ try {
       const h = await heap();
       heaps.push(h);
       const st = await state();
+      gpuTextures.push(st.gpuMemory.textures);
       const c = st.world.counters;
       console.log(`  info lap ${lap}: ${((Date.now() - t0) / 1000).toFixed(1)} s, heap ${h === null ? 'n/a' : `${(h / 1048576).toFixed(1)} MB`}, GPU geometries ${st.gpuMemory.geometries} textures ${st.gpuMemory.textures}, fetched ${c.fetched}, unloaded ${c.unloaded}, colliders +${c.collidersLoaded}/−${c.collidersUnloaded}, retries ${c.retries}`);
       if (lap === 1) await shot('w03-after-lap-1');
@@ -535,6 +661,8 @@ try {
     if (software && !strict) console.log(`  info long tasks during laps (software GPU, not asserted): ${longDetail}`);
     else check(over.length === 0, 'zero long tasks over 50 ms during the laps', longDetail);
 
+    // Enemy views come and go with distance: each must give back its GPU bone texture.
+    if (gpuTextures.length >= 2) check(gpuTextures.at(-1) <= gpuTextures[0] + 8, `GPU textures don't grow across ${gpuTextures.length} laps`, gpuTextures.join(' → '));
     if (heaps.every((h) => h !== null) && heaps.length >= 2) {
       const base = heaps[0];
       const drift = heaps.map((h) => (h - base) / base);

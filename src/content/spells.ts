@@ -1,16 +1,17 @@
 /**
- * The four starter spells (plan §4.4). Pure data. Damage = SPELL_BASE × staff.spellPower × mv
+ * The spells (plan §4.4; the C3 powers are in packs/c3.ts). Pure data. Damage = SPELL_BASE × staff.spellPower × mv
  * (× the §4.6 multipliers). Release and cooldown in 60 Hz ticks; woven casts (within
  * WOVEN.window ticks of landing a melee hit) release in half the time and hit 20% harder.
  */
+import { C3_SPELLS, type C3SpellId } from './packs/c3';
 import type { StatusId } from './statuses';
 
-export type SpellId = 'bolt' | 'blast' | 'frostNova' | 'chainZap';
+export type SpellId = 'bolt' | 'blast' | 'frostNova' | 'chainZap' | C3SpellId;
 
 export interface SpellDef {
   id: SpellId;
   name: string;
-  /** Spell slot 1–4 (keys 1–4, or LT + X/Y/B/A). */
+  /** Home slot 1–4: where it's equipped when learned, if free. The loadout decides what casts. */
   slot: 1 | 2 | 3 | 4;
   cost: number;
   release: number;
@@ -32,6 +33,8 @@ export interface SpellDef {
   knockdown?: boolean;
   /** Interrupts a ranged enemy's wind-up. */
   interruptsRanged?: boolean;
+  /** Paid for with the Surge meter instead of mana. */
+  meter?: boolean;
   poise: number;
 }
 
@@ -67,6 +70,18 @@ export const SPELLS: Record<SpellId, SpellDef> = {
     id: 'chainZap', name: 'Chain Zap', slot: 4, cost: 35, release: 18, wovenRelease: 9, cooldown: 360, mv: 1.0, clip: 'cast', recovery: 10,
     chain: { range: 15, jumps: 3, jumpRange: 8, falloff: 0.7 }, status: { id: 'shock', stacks: 1 }, poise: 12,
   },
+  ...C3_SPELLS,
 };
 
+/** Each spell's home slot: where a newly learned spell goes when that slot is free (and the v2 save layout). */
 export const SPELL_BY_SLOT: Record<1 | 2 | 3 | 4, SpellId> = { 1: 'bolt', 2: 'blast', 3: 'frostNova', 4: 'chainZap' };
+
+/** The loadout (expansion plan §1.1): four slots you fill from the spells you know. */
+export const LOADOUT_SLOTS = 4;
+export type Loadout = (SpellId | null)[];
+
+/** A power swapped into the loadout waits max(remaining, max(full cooldown, this)) ticks: at least 3 s. */
+export const SWAP_MIN_COOLDOWN = 180;
+
+/** The default loadout for a set of known spells: each in its home slot. */
+export const defaultLoadout = (known: readonly SpellId[]): Loadout => ([1, 2, 3, 4] as const).map((n) => (known.includes(SPELL_BY_SLOT[n]) ? SPELL_BY_SLOT[n] : null));

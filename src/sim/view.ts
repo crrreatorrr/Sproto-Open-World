@@ -1,3 +1,4 @@
+import type { AimRay } from './commands';
 import type { Entity, EntityId, PlayerId, WorldState } from './entity';
 import type { SimEvent } from './events';
 import type { Vec3 } from './math';
@@ -33,11 +34,15 @@ export interface ReadonlySimView {
    * What the player would interact with if they pressed Interact now (nearest in reach and in
    * front): an NPC to talk to, a shrine to rest at, a chest to open. Null when nothing is in reach.
    */
-  interactTarget(player: PlayerId): { entity: EntityId; id: string; kind: 'npc' | 'shrine' | 'chest'; name: string } | null;
+  interactTarget(player: PlayerId): { entity: EntityId; id: string; kind: 'npc' | 'shrine' | 'chest' | 'object'; name: string } | null;
+  /** The enemy under the centre of the screen, if any (the crosshair lights up on one). */
+  aimTarget(player: PlayerId, ray: AimRay): EntityId | null;
   /** The choices on the player's current dialogue node that pass their conditions (index = what to send). */
   dialogueChoices(player: PlayerId): { index: number; text: string }[];
   /** Where a content id is (an NPC, shrine, chest or trigger), for quest markers and the compass. */
   locate(id: string): Vec3 | null;
+  /** Gear changes are refused now: an enemy targeted the player in the last 5 s and they're not at a shrine. */
+  gearLocked(player: PlayerId): boolean;
   /** The wave runner's state (`?sandbox=1`), or null. */
   readonly wave: Readonly<{ index: number; loop: number; enemiesLeft: number; nextIn: number }> | null;
 }

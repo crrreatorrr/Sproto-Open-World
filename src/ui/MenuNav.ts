@@ -11,7 +11,18 @@ export interface Screen {
   onAdjust?(item: HTMLElement, dir: -1 | 1): void;
   /** While true, the screen is capturing a key or button (rebinding): navigation is off. */
   capturing?(): boolean;
+  /** A tabbed screen: LB / RB (Q / E) switch tabs. The screen re-renders itself on the new tab. */
+  onTab?(dir: -1 | 1): void;
+  /** The key focus is remembered under (one per tab), so switching back lands where you left. */
+  focusKey?(): string;
+  /**
+   * 2-D grid mode: while true, items with `data-gx` / `data-gy` are a grid, and up / down / left /
+   * right (D-pad, left stick, arrows, WASD) move the focus in that direction.
+   */
+  grid?(): boolean;
 }
+
+export type NavDir = 'up' | 'down' | 'left' | 'right';
 
 const REPEAT_DELAY = 0.38;
 const REPEAT_RATE = 0.09;
@@ -20,7 +31,8 @@ const REPEAT_RATE = 0.09;
  * Menu navigation for keyboard, mouse and gamepad (owner: pad support from the start). Items are
  * elements with `data-nav`; the focused one gets `.focused` and real DOM focus. Up/down (d-pad,
  * left stick, arrows, W/S) move with key repeat, left/right adjust, A/Enter/Space confirm, B/Esc
- * go back. Hovering with the mouse focuses too.
+ * go back. Hovering with the mouse focuses too. A tabbed screen switches tabs with LB/RB (Q/E),
+ * remembering the focus per tab; a grid screen moves in four directions (`Screen.grid`).
  */
 export class MenuNav {
   private readonly stack: Screen[] = [];
@@ -29,8 +41,10 @@ export class MenuNav {
   private index = 0;
   /** The pad press that woke the pad is ignored until every menu button is released. */
   private swallow = false;
-  private holdDir = 0;
+  private holdDir: NavDir | null = null;
   private holdTime = 0;
+  /** Focused index per `Screen.focusKey` (tabs). */
+  private readonly keyMemory = new Map<string, number>();
   /** Called after a confirm or a move (UI sounds and rumble hook in here). */
   onMove: (() => void) | null = null;
   onConfirm: (() => void) | null = null;
@@ -42,19 +56,24 @@ export class MenuNav {
       switch (e.code) {
         case 'ArrowUp':
         case 'KeyW':
-          this.move(-1);
+          this.dir('up');
           break;
         case 'ArrowDown':
         case 'KeyS':
-          this.move(1);
+          this.dir('down');
           break;
         case 'ArrowLeft':
         case 'KeyA':
-          this.adjust(-1);
+          this.dir('left');
           break;
         case 'ArrowRight':
         case 'KeyD':
-          this.adjust(1);
+          this.dir('right');
+          break;
+        case 'KeyQ':
+        case 'KeyE':
+          if (!this.top.onTab) return;
+          this.tab(e.code === 'KeyQ' ? -1 : 1);
           break;
         case 'Enter':
         case 'NumpadEnter':
@@ -96,11 +115,42 @@ export class MenuNav {
       this.focusMemory[this.stack.length - 1] = this.index;
     }
     this.stack.push(screen);
-    this.show(screen, 0);
+    this.show(screen, this.remembered(screen));
+  }
+
+  /** Where a tabbed screen's current tab was left (0 for others). */
+  private remembered(screen: Screen): number {
+    const k = screen.focusKey?.();
+    return k !== undefined ? (this.keyMemory.get(k) ?? 0) : 0;
+  }
+
+  private remember(): void {
+    const k = this.top?.focusKey?.();
+    if (k !== undefined) this.keyMemory.set(k, this.index);
+  }
+
+  /** Switch tabs on the top screen (LB / RB, Q / E), keeping each tab's focus. */
+  tab(dir: -1 | 1): void {
+    const s = this.top;
+    if (!s?.onTab) return;
+    this.remember();
+    s.onTab(dir);
+    this.show(s, this.remembered(s));
+    this.onMove?.();
+  }
+
+  /** The top screen re-rendered for a new tab chosen some other way (a click): restore its focus. */
+  retab(save: () => void): void {
+    const s = this.top;
+    if (!s) return;
+    this.remember();
+    save();
+    this.show(s, this.remembered(s));
   }
 
   /** Replace the whole stack with one screen. */
   reset(screen: Screen | null): void {
+    this.remember();
     for (const s of this.stack) s.el.classList.remove('active');
     this.stack.length = 0;
     this.focusMemory.length = 0;
@@ -108,6 +158,7 @@ export class MenuNav {
   }
 
   pop(): void {
+    this.remember();
     const s = this.stack.pop();
     s?.el.classList.remove('active');
     if (this.top) this.show(this.top, this.focusMemory[this.stack.length - 1] ?? 0);
@@ -135,6 +186,12 @@ export class MenuNav {
     return this.items()[this.index];
   }
 
+  /** Focus the first item that matches (after a re-render moved what matters). */
+  focusWhere(pred: (el: HTMLElement) => boolean): void {
+    const i = this.items().findIndex(pred);
+    if (i >= 0) this.focus(i);
+  }
+
   focus(i: number): void {
     const items = this.items();
     if (!items.length) return;
@@ -150,6 +207,42 @@ export class MenuNav {
     const n = this.items().length;
     if (!n) return;
     this.focus((this.index + dir + n) % n);
+    this.onMove?.();
+  }
+
+  /** A direction press: a grid moves in 2-D; a list moves up / down and adjusts left / right. */
+  dir(d: NavDir): void {
+    if (this.top?.grid?.() && this.focused()?.dataset.gx !== undefined) return this.move2d(d);
+    if (d === 'up') this.move(-1);
+    else if (d === 'down') this.move(1);
+    else this.adjust(d === 'left' ? -1 : 1);
+  }
+
+  /**
+   * Grid move: left / right go along the focused item's row (wrapping), up / down to the nearest
+   * row above or below (wrapping), landing on the item whose column is closest.
+   */
+  move2d(d: NavDir): void {
+    const items = this.items();
+    const at = (e: HTMLElement) => ({ x: Number(e.dataset.gx), y: Number(e.dataset.gy) });
+    const cells = items.map((e, i) => ({ i, ...at(e) })).filter((c) => Number.isFinite(c.x) && Number.isFinite(c.y));
+    const cur = cells.find((c) => c.i === this.index);
+    if (!cur) return;
+    let pick: number;
+    if (d === 'left' || d === 'right') {
+      const row = cells.filter((c) => c.y === cur.y).sort((a, b) => a.x - b.x);
+      if (row.length < 2) return;
+      const k = row.findIndex((c) => c.i === cur.i);
+      pick = row[(k + (d === 'right' ? 1 : -1) + row.length) % row.length].i;
+    } else {
+      const ys = [...new Set(cells.map((c) => c.y))].sort((a, b) => a - b);
+      if (ys.length < 2) return;
+      const k = ys.indexOf(cur.y);
+      const ty = ys[(k + (d === 'down' ? 1 : -1) + ys.length) % ys.length];
+      const row = cells.filter((c) => c.y === ty);
+      pick = row.reduce((b, c) => (Math.abs(c.x - cur.x) < Math.abs(b.x - cur.x) ? c : b)).i;
+    }
+    this.focus(pick);
     this.onMove?.();
   }
 
@@ -183,33 +276,41 @@ export class MenuNav {
     if (!s || s.capturing?.()) return;
     const pad = this.input.pad;
     pad.update();
-    const navButtons = ['a', 'b', 'up', 'down', 'left', 'right'];
+    const navButtons = ['a', 'b', 'up', 'down', 'left', 'right', 'lb', 'rb'];
     if (pad.justActivated) this.swallow = true; // the press that woke the pad is not also a menu action
     if (this.swallow) {
       if (pad.isDown(navButtons) || Math.hypot(pad.move.x, pad.move.y) > 0.3) return;
       this.swallow = false;
-      this.holdDir = 0;
+      this.holdDir = null;
     }
     if (pad.wasPressed(['a'])) this.confirm();
     else if (pad.wasPressed(['b'])) this.back();
-    let dir = 0;
-    if (pad.isDown(['up']) || pad.move.y < -0.55) dir = -1;
-    else if (pad.isDown(['down']) || pad.move.y > 0.55) dir = 1;
-    if (dir !== 0) {
+    else if (s.onTab && pad.wasPressed(['lb'])) this.tab(-1);
+    else if (s.onTab && pad.wasPressed(['rb'])) this.tab(1);
+    if (this.top !== s) return; // the press changed screens
+    const grid = !!s.grid?.();
+    let dir: NavDir | null = null;
+    if (pad.isDown(['up']) || pad.move.y < -0.55) dir = 'up';
+    else if (pad.isDown(['down']) || pad.move.y > 0.55) dir = 'down';
+    else if (grid && (pad.isDown(['left']) || pad.move.x < -0.6)) dir = 'left';
+    else if (grid && (pad.isDown(['right']) || pad.move.x > 0.6)) dir = 'right';
+    if (dir !== null) {
       if (dir !== this.holdDir) {
         this.holdDir = dir;
         this.holdTime = 0;
-        this.move(dir);
+        this.dir(dir);
       } else {
         this.holdTime += dt;
         if (this.holdTime > REPEAT_DELAY) {
           this.holdTime -= REPEAT_RATE;
-          this.move(dir);
+          this.dir(dir);
         }
       }
-    } else this.holdDir = 0;
-    if (pad.wasPressed(['left']) || (pad.move.x < -0.6 && this.lastX >= -0.6)) this.adjust(-1);
-    if (pad.wasPressed(['right']) || (pad.move.x > 0.6 && this.lastX <= 0.6)) this.adjust(1);
+    } else this.holdDir = null;
+    if (!grid) {
+      if (pad.wasPressed(['left']) || (pad.move.x < -0.6 && this.lastX >= -0.6)) this.adjust(-1);
+      if (pad.wasPressed(['right']) || (pad.move.x > 0.6 && this.lastX <= 0.6)) this.adjust(1);
+    }
     this.lastX = pad.move.x;
   }
 

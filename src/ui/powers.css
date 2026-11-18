@@ -1,0 +1,17 @@
+/* Sprout Surge's meter, just above the spell bar. */
+.surge-meter { display: none; position: absolute; left: 50%; bottom: 136px; transform: translateX(-50%); width: 240px; text-align: center; text-shadow: 0 1px 3px #000; pointer-events: none; }
+.surge-meter.active { display: block; }
+.surge-meter .label { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; color: #bff5a0; margin-bottom: 2px; }
+.surge-meter .track { position: relative; height: 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.22); overflow: hidden; }
+.surge-meter .fill { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0); background: linear-gradient(90deg, #5fd04e, #e8ff8a); }
+.surge-meter.full .label { color: #e8ff8a; }
+.surge-meter.full .track { border-color: #e8ff8a; animation: surge-ready 0.8s ease-in-out infinite alternate; }
+
+@keyframes surge-ready {
+  from { box-shadow: 0 0 4px rgba(200, 255, 138, 0.5); }
+  to { box-shadow: 0 0 14px rgba(200, 255, 138, 0.95); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surge-meter.full .track { animation: none; box-shadow: 0 0 10px rgba(200, 255, 138, 0.8); }
+}

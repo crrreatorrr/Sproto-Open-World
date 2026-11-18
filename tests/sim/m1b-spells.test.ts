@@ -8,7 +8,7 @@ import { evOf } from './m1bHelpers';
 
 /** Plan §4.4 spells, §4.5 mana, §4.6 spell damage. Spell buttons: spell1..4 = bolt, blast, frostNova, chainZap. */
 
-const BUTTON: Record<SpellId, number> = { bolt: BTN.spell1, blast: BTN.spell2, frostNova: BTN.spell3, chainZap: BTN.spell4 };
+const BUTTON: Record<string, number> = { bolt: BTN.spell1, blast: BTN.spell2, frostNova: BTN.spell3, chainZap: BTN.spell4 };
 const IDS: SpellId[] = ['bolt', 'blast', 'frostNova', 'chainZap'];
 const REGEN = PLAYER_STATS.manaRegen / 60;
 

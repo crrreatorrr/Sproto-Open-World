@@ -25,7 +25,7 @@ export const KEYS = {
   spell4: ['Digit4', 'KeyX'],
   interact: ['KeyF'],
   potion: ['KeyH'],
-  /** Straight to the quest log / the character screen (both also open from the pause menu). */
+  /** Straight to the tabbed menu's Quests / Gear tab. */
   questLog: ['KeyJ'],
   inventory: ['KeyI'],
   pause: ['Escape'],
@@ -43,7 +43,7 @@ export const PAD = {
   spellModifier: ['lt'],
   interact: ['y'],
   potion: ['up'],
-  /** View / Select: the quest log (pad players also reach it from the pause menu). */
+  /** View / Select: the tabbed menu on its Quests tab. */
   questLog: ['back'],
   pause: ['start'],
 };

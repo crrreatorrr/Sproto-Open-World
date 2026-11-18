@@ -1,9 +1,14 @@
 import * as THREE from 'three';
 import { AssetLoader } from '../assets/AssetLoader';
-import { MODELS, type ModelKey } from '../assets/manifest';
+import { MODELS, STAFF_BOOT_LOD, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
 import { CameraRig } from '../camera/CameraRig';
 import { ITEMS } from '../content/items';
+import { affixName } from '../content/packs/c4';
+import { SKYFIRE_END_CARD } from '../content/packs/c6';
+import { POWER } from '../content/packs/c3';
+import { PERKS, SKILLS, type PerkId, type SkillId } from '../content/progression';
+import { staffCostMult } from '../content/packs/c2';
 import { QUESTS } from '../content/quests';
 import { SANDBOX } from '../content/sandbox';
 import { SPELLS, WOVEN, type SpellId } from '../content/spells';
@@ -19,6 +24,8 @@ import { promptLabel } from '../input/glyphs';
 import { Input } from '../input/Input';
 import { RUMBLE, TRAUMA } from '../render/fx/feedback';
 import { HitFx, type SparkStyle } from '../render/fx/HitFx';
+import { isSoftPowerHit, powerSpark } from '../render/fx/powers';
+import { PortraitStudio } from '../render/PortraitStudio';
 import { Renderer } from '../render/Renderer';
 import { PlayerView } from '../render/views/PlayerView';
 import { WorldViews, enemyDef } from '../render/views/WorldViews';
@@ -30,17 +37,23 @@ import type { SimEvent } from '../sim/events';
 import { initPhysics } from '../sim/physics/PhysicsWorld';
 import { SimWorld } from '../sim/SimWorld';
 import type { ReadonlySimView } from '../sim/view';
+import { BossHud } from '../ui/BossHud';
 import { DamageNumbers, type NumberStyle, type Projector } from '../ui/DamageNumbers';
-import { Hud, type HudCombat, type HudStatus } from '../ui/Hud';
+import { GameMenu, type MenuTab } from '../ui/gameMenu';
+import { Hud, spellSlotGlyph, type HudCombat, type HudStatus } from '../ui/Hud';
 import { MenuNav, type Screen } from '../ui/MenuNav';
 import { Menus } from '../ui/menus';
 import { Panels } from '../ui/panels';
+import { Tutorial } from '../ui/tutorial';
 import { Reveals, affinityToast } from '../ui/Reveals';
 import { RpgHud, type HudRpgState } from '../ui/RpgHud';
 import { RpgMenus } from '../ui/rpgMenus';
 import { compassOffset, headingTo, interactLabel, trackedQuest } from '../ui/rpgText';
-import { loadSettings, saveSettings, type Settings } from '../ui/settings';
+import { loadSettings, motionScale, saveSettings, type Settings } from '../ui/settings';
+import { SurgeMeter } from '../ui/SurgeMeter';
 import { FixedLoop } from './loop';
+import { Polish } from './Polish';
+import { powerFeedback } from './powerFeedback';
 import { WorldSession } from './WorldSession';
 
 export type AppState = 'title' | 'loading' | 'playing' | 'paused' | 'error';
@@ -53,8 +66,10 @@ const ENEMY_BAR_MS = 6000;
 /** Combat sounds, loaded when play starts so the first hit isn't the one that waits on a file. */
 const COMBAT_SOUNDS = [
   'clash', 'hurt', 'dodge', 'shieldBlock', 'shieldPerfect', 'shieldUp', 'rugWhoosh', 'carpetWhoosh', 'pillarHit', 'lockBeep', 'stunCharge', 'bossSlam',
-  'boltCast', 'boltHit', 'blastExplode', 'noMana', 'roundLose',
+  'boltCast', 'boltHit', 'blastExplode', 'noMana',
 ] as const;
+/** Calm seconds before the boot staff sharpens into its full model. */
+const STAFF_SHARPEN_SEC = 10;
 const PARAMS = new URLSearchParams(location.search);
 /** `?sandbox=1`: the M1b wave runner (plan §9 M1b), on the flat yard level. */
 const WAVE_SANDBOX = PARAMS.get('sandbox') === '1';
@@ -78,11 +93,14 @@ export class App {
   readonly input: Input;
   readonly assets = new AssetLoader();
   readonly renderer: Renderer;
+  /** The dialogue panel's render-to-texture speaker portraits. */
+  readonly portraits: PortraitStudio;
   readonly rig: CameraRig;
   readonly nav: MenuNav;
   readonly menus: Menus;
   readonly panels: Panels;
   readonly hud: Hud;
+  readonly surgeMeter: SurgeMeter;
   readonly overlay: Overlay;
   readonly audio = new AudioManager();
   readonly loop = new FixedLoop();
@@ -92,6 +110,8 @@ export class App {
   readonly numbers: DamageNumbers;
   /** Weakness and resistance reveals and their toasts: remembered for the session (plan §4.6). */
   readonly reveals = new Reveals();
+  /** Impact and status visuals, music and beds, hit reactions, the death and rest screens (M6). */
+  readonly polish: Polish;
   sim: SimWorld | null = null;
   player: PlayerView | null = null;
   /** The local player's entity id. */
@@ -125,7 +145,16 @@ export class App {
   private frameCount = 0;
   /** The RPG HUD layer and menus (plan §5; world mode). */
   readonly rpgHud: RpgHud;
+  /** The boss bar, its intro card and the end card (M5). */
+  readonly bossHud: BossHud;
+  /** The last quest is done: the end card shows once any open menu has closed. */
+  private endCardPending = false;
+  /** Seconds left of a phase change's pull-back (the phase camera moment). */
+  private bossMoment = 0;
   readonly rpgMenus: RpgMenus;
+  private readonly tutorial = new Tutorial();
+  /** The one tabbed menu (C1): Powers, Skills, Gear, Quests, Settings (world mode). */
+  readonly gameMenu: GameMenu;
   /** The save found at boot (or on returning to the title): Continue loads it. */
   private bootSave: SaveFile | null = null;
   /** An event asked for a save; written once after this frame's ticks. */
@@ -134,8 +163,13 @@ export class App {
   private sinceSave = 0;
   /** Saves written this session (QA). */
   private saves = 0;
+  /** This frame's Start press closed the tabbed menu: it doesn't also pause. */
+  private startUsed = false;
   /** The staff model shown on the player, to swap it when the equipment changes. */
   private staffShown = '';
+  /** The full model to swap in for the small boot staff, once things have been calm for a while. */
+  private staffToSharpen: ModelKey | null = null;
+  private staffCalmSec = 0;
 
   constructor(host: HTMLElement, private readonly physicsReady: Promise<void>) {
     const canvas = document.createElement('canvas');
@@ -143,6 +177,7 @@ export class App {
     host.appendChild(canvas);
     this.input = new Input(canvas);
     this.renderer = new Renderer(canvas, this.assets);
+    this.portraits = new PortraitStudio(this.renderer.renderer, this.assets);
     this.world = new WorldViews(this.assets, this.fx);
     this.renderer.scene.add(this.world.root, this.fx.root);
     this.rig = new CameraRig(this.renderer.camera);
@@ -150,24 +185,27 @@ export class App {
     this.settings = loadSettings();
     const prefs = loadControlPrefs();
     applyControlPrefs(prefs);
-    this.applySettings(this.settings);
 
     const ui = document.createElement('div');
     ui.className = 'ui';
     host.appendChild(ui);
     this.numbers = new DamageNumbers(ui);
     this.hud = new Hud(ui);
+    this.surgeMeter = new SurgeMeter(this.hud.root);
     this.rpgHud = new RpgHud(this.hud.root);
     this.rpgHud.enabled = MODE === 'world';
+    this.bossHud = new BossHud(this.hud.root, ui);
+    this.bossHud.onContinue = () => this.resume();
     this.screenFlash = document.createElement('div');
     this.screenFlash.className = 'screen-flash';
     ui.appendChild(this.screenFlash);
+    // Before the menus: the death and rest screens sit under them.
+    this.polish = new Polish({ host: ui, audio: this.audio, fx: this.fx, world: this.world, renderer: this.renderer, ground: (x, z) => this.stream?.heightAt(x, z) ?? null, streamed: MODE === 'world' });
+    this.applySettings(this.settings);
     this.nav = new MenuNav(this.input);
     this.menus = new Menus(ui, this.nav, this.input, {
       play: () => void this.play(),
       continueGame: () => void this.play(this.bootSave),
-      character: () => this.nav.push(this.rpgMenus.character),
-      questLog: () => this.nav.push(this.rpgMenus.quests),
       resume: () => this.resume(),
       quitToTitle: () => this.quitToTitle(),
       settingsChanged: (s) => {
@@ -180,14 +218,29 @@ export class App {
         saveControlPrefs(p);
       },
     }, this.settings, prefs);
-    this.menus.rpgMenus = MODE === 'world';
     this.rpgMenus = new RpgMenus(ui, this.nav, {
       view: () => this.sim?.view() ?? null,
       player: () => this.sim?.playerEntity(LOCAL_PLAYER),
       choices: () => this.sim?.view().dialogueChoices(LOCAL_PLAYER) ?? [],
       send: (a) => this.sendUi(a),
       interactGlyph: () => promptLabel(this.input.pad.device, this.input.pad.style, KEYS.interact, PAD.interact),
-      resume: () => this.resume(),
+      // From the shrine (the sim's menu, play running): the tabbed menu stacks on it, Back returns.
+      openMenu: (tab) => {
+        this.gameMenu.open(tab);
+        this.nav.push(this.gameMenu.screen);
+      },
+      portrait: (npc) => this.portraits.show(npc),
+    });
+    this.gameMenu = new GameMenu(ui, this.nav, {
+      view: () => this.sim?.view() ?? null,
+      player: () => this.sim?.playerEntity(LOCAL_PLAYER),
+      send: (a) => this.sendUi(a),
+      gearLocked: () => this.sim?.view().gearLocked(LOCAL_PLAYER) ?? false,
+      prompt: (keys, padButtons) => promptLabel(this.input.pad.device, this.input.pad.style, keys, padButtons),
+      slotGlyph: (i) => spellSlotGlyph(i, this.input.pad.device, this.input.pad.style),
+      resume: () => this.closeGameMenu(),
+      quitToTitle: () => this.quitToTitle(),
+      openSettings: () => this.nav.push(this.menus.settings),
     });
     this.panels = new Panels(ui);
     this.overlay = new Overlay(ui);
@@ -196,12 +249,13 @@ export class App {
       this.audio.play('uiClick');
       this.input.pad.rumble(GAMEPAD.rumble.uiConfirm);
     };
+    this.nav.onBackSound = () => this.audio.play('uiClick', 0.8, 0.7);
 
     if (QA_LOG_ENABLED) this.bindQaLog();
     this.bindWindowEvents(canvas);
     window.addEventListener('resize', () => this.rpgHud.setCompassWidth(compassWidth()));
     this.rpgHud.setCompassWidth(compassWidth());
-    this.stream = MODE === 'world' ? new WorldSession(this.renderer, this.assets) : null;
+    this.stream = MODE === 'world' ? new WorldSession(this.renderer, this.assets, this.settings.grass) : null;
     if (!this.stream) {
       this.renderer.yardLook();
       this.renderer.buildLevel(SANDBOX);
@@ -221,8 +275,9 @@ export class App {
     this.toTitle();
     // Warm the player model while the title is up, so Play is quick.
     void this.assets.template('player');
-    void this.assets.template('staff_sproto');
-    void this.assets.template('brute');
+    // The world only needs the small starter staff here; enemies load when you get near them.
+    if (MODE === 'world') void this.assets.template(STAFF_BOOT_LOD.staff_sproto ?? 'staff_sproto');
+    else for (const k of ['staff_sproto', 'brute'] as const) void this.assets.template(k);
     if (WAVE_SANDBOX) for (const k of ['grunt', 'slinger', 'wisp'] as const) void this.assets.template(k);
     // The world streams in behind the title (around the player start), so Play is quick.
     this.stream?.load().catch((err: unknown) => console.warn('[world] the region manifest could not load yet', err));
@@ -234,6 +289,8 @@ export class App {
     this.rig.padScale = s.padSensitivity;
     this.rig.invertY = s.invertY;
     this.input.pad.rumbleEnabled = s.rumble;
+    this.stream?.setGrass(s.grass);
+    this.polish.apply(s);
   }
 
   private bindWindowEvents(canvas: HTMLCanvasElement): void {
@@ -374,13 +431,18 @@ export class App {
       }
       const view = new PlayerView(this.assets);
       const staff = this.staffModel(entity.progress?.equipment.staff);
-      await view.load(staff);
+      // The world boots with a staff's small model; the full one swaps in once things are calm.
+      const bootStaff = this.stream ? STAFF_BOOT_LOD[staff] : undefined;
+      await view.load(bootStaff ?? staff);
       this.staffShown = staff;
+      this.staffToSharpen = bootStaff ? staff : null;
+      this.staffCalmSec = 0;
       this.renderer.scene.add(view.root);
       this.sim = sim;
       this.player = view;
       this.playerId = entity.id;
       this.audio.preload(COMBAT_SOUNDS);
+      this.polish.begin(view);
       this.target.set(entity.tf.pos.x, entity.tf.pos.y, entity.tf.pos.z);
       this.rig.snap(this.target, entity.tf.yaw);
       this.loop.reset();
@@ -413,7 +475,17 @@ export class App {
       this.input.releaseLock();
     }
     this.hud.visible = false;
-    this.nav.reset(this.menus.pause);
+    // The world's pause is the tabbed menu (on the tab it was left on); the yard keeps the pause list.
+    if (this.mode === 'world') {
+      this.gameMenu.open();
+      this.nav.reset(this.gameMenu.screen);
+    } else this.nav.reset(this.menus.pause);
+  }
+
+  /** Close the tabbed menu: back to play, or (opened from a shrine) back to the shrine's menu. */
+  private closeGameMenu(): void {
+    if (this.state === 'paused') this.resume();
+    else if (this.nav.top === this.gameMenu.screen && this.nav.depth > 1) this.nav.pop();
   }
 
   resume(): void {
@@ -435,7 +507,10 @@ export class App {
     this.world.clear();
     this.fx.clear();
     this.numbers.clear();
-    this.hud.showDeath(false);
+    this.polish.end();
+    this.bossHud.update(null, 0);
+    this.endCardPending = false;
+    this.rig.distanceScale = 1;
     this.stream?.detach();
     this.groundWait = false;
     this.pendingDrop = null;
@@ -498,17 +573,25 @@ export class App {
       if (pad.wasPressed(['right', 'down'])) this.panels.move(1);
       if (pad.wasPressed(['a'])) this.panels.confirmError();
     } else if (this.nav.open) {
-      this.nav.frame(dt);
+      // Start (or Esc, through MenuNav's Back) closes the tabbed menu it opened.
+      if (this.nav.top === this.gameMenu.screen && pad.wasPressed(PAD.pause)) {
+        this.closeGameMenu();
+        this.startUsed = true;
+      } else this.nav.frame(dt);
       this.menus.frame(dt, pad);
       this.rpgMenus.frame(dt);
+      this.gameMenu.frame();
     }
     // An equip or a track chosen in the pause menu reaches the sim through one tick of its own.
     if (this.state === 'paused' && this.sim && this.commands.hasUi && !this.groundWait) this.pausedTick();
 
     if (this.state === 'playing' && this.sim && this.player) this.playFrame(dt);
     else this.idleFrame(dt);
+    this.polish.mix(this.state);
 
+    this.startUsed = false;
     this.frameCount++;
+    this.portraits.frame(dt, this.nav.top === this.rpgMenus.dialogue);
     this.renderer.render();
     this.hud.update(pad, this.input.locked);
     const p = this.sim?.playerEntity(LOCAL_PLAYER);
@@ -537,15 +620,15 @@ export class App {
     const view = this.player!;
     const simView = sim.view();
     const pad = this.input.pad;
-    if (this.input.wasPressed(KEYS.pause) || pad.wasPressed(PAD.pause)) {
+    if (this.input.wasPressed(KEYS.pause) || (pad.wasPressed(PAD.pause) && !this.startUsed)) {
       this.pause();
       return;
     }
     // Menus the sim opens (dialogue, shop, shrine) follow the player's progress.
     const menu = this.syncSimMenus(sim.playerEntity(LOCAL_PLAYER));
     if (!menu && this.mode === 'world') {
-      if (this.input.wasPressed(KEYS.questLog) || pad.wasPressed(PAD.questLog)) return this.openFromPlay(this.rpgMenus.quests);
-      if (this.input.wasPressed(KEYS.inventory)) return this.openFromPlay(this.rpgMenus.character);
+      if (this.input.wasPressed(KEYS.questLog) || pad.wasPressed(PAD.questLog)) return this.openFromPlay('quests');
+      if (this.input.wasPressed(KEYS.inventory)) return this.openFromPlay('gear');
     }
     if (this.overlay.open) {
       if (pad.wasPressed(['right'])) this.cycleClip(1);
@@ -573,7 +656,7 @@ export class App {
     const t0 = performance.now();
     for (let i = 0; i < ticks; i++) {
       // Behind the veil the player is frozen by the sim anyway; their input is dropped, not buffered.
-      const cmd = this.commands.take(this.rig.yaw);
+      const cmd = this.commands.take(this.rig.yaw, this.rig.aimRay());
       sim.tick(held ? new Map() : new Map([[LOCAL_PLAYER, cmd]]));
       this.afterTick(simView);
     }
@@ -583,6 +666,7 @@ export class App {
     if (!p) return;
     this.autosave(simView, p, dt, held);
     this.syncEquipment(p);
+    this.sharpenStaff(p, dt);
     view.update(p, this.loop.alpha, dt);
     const a = p.combat?.action;
     if (QA_LOG_ENABLED && a?.kind === 'attack' && view.attackShown && a !== this.posedAction) {
@@ -595,6 +679,7 @@ export class App {
     }
     this.world.sync(simView, this.loop.alpha, dt);
     this.fx.update(dt);
+    this.polish.frame(simView, p, dt);
     this.target.copy(view.root.position);
     this.rig.update(dt, this.target, simView, p.loco?.sprinting ?? false, this.speakerPoint(simView, p) ?? this.lockPoint(simView, p));
     this.renderer.follow(this.target);
@@ -602,7 +687,97 @@ export class App {
     this.renderer.camera.updateMatrixWorld();
     this.numbers.update(dt, this.project);
     this.hud.combat(this.hudCombat(simView, p), dt);
+    this.surgeMeter.update(!!p.progress?.spells.includes('sproutSurge'), (p.powers?.surge ?? 0) / POWER.surge.max);
     this.rpgFrame(simView, p, dt, !!menu);
+    this.bossFrame(simView, p, dt, !!menu);
+  }
+
+  /** The boss bar, the camera pull-back for giants, and the end card once the talk is over. */
+  private bossFrame(view: ReadonlySimView, p: Readonly<Entity>, dt: number, inMenu: boolean): void {
+    const boss = view.entities.find((e) => e.boss?.state === 'intro' || e.boss?.state === 'fight');
+    const def = enemyDef(boss);
+    this.bossHud.update(boss?.vitals && def?.boss ? { name: def.name, title: def.boss.title, hp: boss.vitals.hp, hpMax: boss.vitals.hpMax } : null, dt);
+    const locked = p.combat?.lock != null ? enemyDef(view.get(p.combat.lock)) : undefined;
+    this.bossMoment = Math.max(0, this.bossMoment - dt);
+    this.rig.distanceScale = (def?.cameraScale ?? locked?.cameraScale ?? 1) * (this.bossMoment > 0 ? 1.25 : 1);
+    if (this.endCardPending && !inMenu) this.showEndCard();
+    // Far off over the valley, the Drake calls as it passes.
+    if (this.world.flyover.takeCry()) this.audio.play('bossSlam', 0.5, 0.35);
+  }
+
+  /** The end card (plan §6.2): a menu screen over the paused game; Continue returns to play. */
+  private showEndCard(): void {
+    this.endCardPending = false;
+    this.state = 'paused';
+    this.commands.clear();
+    this.input.clearHeld();
+    if (this.input.locked) {
+      this.releasingLock = true;
+      this.input.releaseLock();
+    }
+    this.hud.visible = false;
+    this.nav.reset(this.bossHud.endCard);
+  }
+
+  /** Boss fight moments (M5): the intro card, the phase camera moment, impacts and the gate. */
+  private presentBoss(view: ReadonlySimView, e: SimEvent): void {
+    const pad = this.input.pad;
+    switch (e.type) {
+      case 'bossIntro': {
+        const def = enemyDef(view.get(e.boss));
+        if (def?.boss) this.bossHud.intro(def.name, def.boss.title);
+        if (def?.drake) this.hud.toast('Raise Mirror Ward as its fireball lands, and send it back.');
+        this.audio.play('bossSlam', 0.7);
+        this.shake(0.35);
+        return;
+      }
+      case 'bossPhase':
+        this.bossMoment = 1.1;
+        this.audio.play('bossSlam', 0.6);
+        this.shake(0.55);
+        this.flashScreen();
+        pad.rumble(RUMBLE.hurt, 1.4);
+        return;
+      case 'bossImpact':
+        this.audio.play('pillarHit', e.pillar ? 0.5 : 0.65);
+        this.shake(e.pillar ? 0.7 : 0.5);
+        pad.rumble(RUMBLE.heavyHit, 1.4);
+        return;
+      case 'bossSummon':
+        this.hud.toast(`${enemyDef(view.get(e.boss))?.name ?? 'The boss'} calls for help!`);
+        return;
+      case 'bossDefeated':
+        this.hud.waveBanner(`${enemyDef(view.get(e.boss))?.name ?? 'The boss'} falls`);
+        this.audio.play('bossSlam', 0.5);
+        this.shake(0.8);
+        return;
+      case 'rockLand': {
+        const at = this.player?.root.position;
+        const d = at ? Math.hypot(at.x - e.pos.x, at.z - e.pos.z) : BLAST_SHAKE_RANGE;
+        this.audio.play('pillarHit', 0.9);
+        this.shake(TRAUMA.blast * Math.max(0.25, 1 - d / BLAST_SHAKE_RANGE));
+        return;
+      }
+      case 'gateOpened':
+        this.hud.toast('The Quarry Gate grinds open.');
+        this.audio.play('bossSlam', 1.3, 0.7);
+        return;
+      case 'telegraph': {
+        // A charge or a dive has no decal of its own: it roars as it digs in. A burrow rumbles on its way up.
+        const move = enemyDef(view.get(e.entity))?.moves.find((m) => m.id === e.move);
+        if (move?.charge || move?.dive || move?.burrow === 'rise') this.audio.play('stunCharge', 0.8);
+        return;
+      }
+      case 'questComplete':
+        if (e.entity === this.playerId && e.quest === 'q_scrapjaw') this.endCardPending = true;
+        if (e.entity === this.playerId && e.quest === SKYFIRE_END_CARD.quest) {
+          this.bossHud.setEndCard(SKYFIRE_END_CARD.title, SKYFIRE_END_CARD.text);
+          this.endCardPending = true;
+        }
+        return;
+      default:
+        return;
+    }
   }
 
   /**
@@ -624,17 +799,18 @@ export class App {
       }
       return want;
     }
-    if (this.rpgMenus.isSimScreen(this.nav.top)) {
+    // Nothing the sim opened is wanted any more (also under the tabbed menu stacked on a shrine).
+    if (this.nav.open) {
       this.nav.reset(null);
       if (this.input.pad.device === 'kbm') this.input.requestLock();
     }
     return null;
   }
 
-  /** Character or Quest log straight from play (I, J, pad View): paused, and Back returns to play. */
-  private openFromPlay(screen: Screen): void {
+  /** The tabbed menu straight from play on a tab (J and pad View: Quests; I: Gear): paused, Back returns to play. */
+  private openFromPlay(tab: MenuTab): void {
+    this.gameMenu.open(tab);
     this.pause();
-    this.nav.reset(screen);
   }
 
   /** While paused, queued menu intents (equip, track) get one tick so the menu shows the result. */
@@ -643,6 +819,11 @@ export class App {
     this.commands.clear();
     sim.tick(new Map([[LOCAL_PLAYER, this.commands.take(this.rig.yaw)]]));
     this.afterTick(sim.view());
+    // A skill spent or a power swapped while paused is saved now: Quit to title may come next.
+    if (this.saveWanted && this.mode === 'world' && sim.playerEntity(LOCAL_PLAYER)?.combat?.action?.kind !== 'dead') {
+      this.saveWanted = false;
+      this.writeSaveNow();
+    }
   }
 
   /**
@@ -668,7 +849,19 @@ export class App {
     const key = this.staffModel(id);
     if (key === this.staffShown) return;
     this.staffShown = key;
+    this.staffToSharpen = null;
     void this.player.setStaff(key);
+  }
+
+  /** Swap the small boot staff for the full model after calm seconds: never in the middle of a fight. */
+  private sharpenStaff(p: Readonly<Entity>, dt: number): void {
+    const full = this.staffToSharpen;
+    if (!full || !this.player || !this.sim) return;
+    const calm = !p.combat?.action && !this.sim.view().gearLocked(LOCAL_PLAYER);
+    this.staffCalmSec = calm ? this.staffCalmSec + dt : 0;
+    if (this.staffCalmSec < STAFF_SHARPEN_SEC) return;
+    this.staffToSharpen = null;
+    void this.player.setStaff(full, 'later');
   }
 
   private staffModel(item: string | undefined): ModelKey {
@@ -747,7 +940,16 @@ export class App {
       // An attack's t is 0 only on the tick that started it (it advances before a new one starts).
       if (a?.kind === 'attack' && a.t === 0) qaLog.add({ kind: 'attackStart', tick: view.now, what: a.move });
     }
-    for (const e of view.events) this.present(view, e);
+    for (const e of view.events) {
+      this.present(view, e);
+      this.presentBoss(view, e);
+      this.polish.event(view, e, this.playerId);
+      // First-time hints teach the world's rules as they come up (not in the yard or the sandbox).
+      if (this.mode === 'world') {
+        const tip = this.tutorial.tip(e, this.playerId, this.input.pad.device === 'gamepad' ? 'pad' : 'kbm');
+        if (tip) this.hud.toast(tip);
+      }
+    }
   }
 
   /**
@@ -833,10 +1035,6 @@ export class App {
       }
       case 'death':
         if (e.entity === me) {
-          this.audio.play('roundLose');
-          // The world sends you back to the last shrine you rested at (plan §2.9).
-          if (this.mode === 'world') this.hud.showDeath(true, 'You fell', 'You will wake at the last shrine you rested at');
-          else this.hud.showDeath(true);
           pad.rumble(RUMBLE.hurt, 1.2);
           this.shake(TRAUMA.death);
         } else {
@@ -846,7 +1044,6 @@ export class App {
         return;
       case 'respawn':
         if (e.entity === me) {
-          this.hud.showDeath(false);
           const p = view.get(e.entity);
           if (p) {
             this.target.set(p.tf.pos.x, p.tf.pos.y, p.tf.pos.z);
@@ -856,6 +1053,18 @@ export class App {
         return;
       case 'lock':
         if (e.entity === me && e.target !== null) this.audio.play('lockBeep');
+        return;
+      case 'power':
+        this.world.event(view, e);
+        powerFeedback(e, { audio: this.audio, mine: e.entity === me, rumble: (r) => pad.rumble(r), shake: (t) => this.shake(t) });
+        return;
+      case 'plunge':
+        this.fx.ring({ x: e.pos.x, y: e.pos.y + 0.1, z: e.pos.z }, 0xffe2a8, 0.4, e.radius, 0.4);
+        this.audio.play('bossSlam', 1.15, 0.8);
+        if (e.entity === me) {
+          this.shake(TRAUMA.heavyHit);
+          pad.rumble(RUMBLE.heavyHit);
+        }
         return;
       default:
         this.presentSpell(view, e);
@@ -881,10 +1090,19 @@ export class App {
           this.audio.play('shieldUp', 1.7, 0.7);
         }
         return;
+      case 'boltCharge':
+        // Charged Bolt: a rune at the hands and a chime that climbs as the charge grows.
+        if (e.entity === me) {
+          const p = this.player?.root;
+          if (p) this.world.spells.rune({ x: p.position.x + Math.sin(p.rotation.y) * 0.5, y: p.position.y + 1.3, z: p.position.z + Math.cos(p.rotation.y) * 0.5 });
+          this.audio.play('shieldUp', 1.1 + e.frac, 0.6);
+        }
+        return;
       case 'cast':
         qa('cast', e.spell);
         if (e.spell === 'bolt') this.audio.play('boltCast', e.woven ? 1.15 : 1);
         else if (e.spell === 'blast') this.audio.play('boltCast', 0.62, 1.2);
+        else if (e.spell === 'staticSnare') this.audio.play('boltCast', 1.45, 0.9);
         if (e.entity === me) pad.rumble(RUMBLE.cast);
         return;
       case 'noMana':
@@ -985,7 +1203,8 @@ export class App {
         if (e.amount > 0) hud.feed(`+${e.amount} XP`, 'level');
         return;
       case 'levelUp':
-        this.hud.waveBanner('Level up!', `Level ${e.level} · spend your point at a shrine`);
+        this.hud.waveBanner('Level up!', `Level ${e.level} · +${e.points} skill points`);
+        this.hud.toast(`+${e.points} skill points: spend them on the Skills tab.`);
         hud.feed(`Reached level ${e.level}`, 'level');
         this.audio.play('shieldPerfect', 1.3);
         this.saveWanted = true;
@@ -1045,9 +1264,22 @@ export class App {
         hud.feed(`Learned ${SPELLS[e.spell as SpellId]?.name ?? e.spell}`, 'level');
         this.hud.toast(`New spell: ${SPELLS[e.spell as SpellId]?.name ?? e.spell}`);
         return;
-      case 'attrSpent':
-        // Spent at a shrine: saved like the rest that came before it, so a reload keeps it.
+      case 'skillSpent':
+      case 'skillsReset':
+      case 'spellEquipped':
+        if (e.type === 'skillSpent') hud.feed(`${SKILLS[e.skill as SkillId]?.name ?? e.skill} rank ${e.rank}`, 'level');
+        else if (e.type === 'skillsReset') hud.feed(`Skills reset: ${e.refunded} points back for ${e.cost} Sprouts`, 'level');
+        else hud.feed(`Slot ${e.slot + 1}: ${e.spell ? SPELLS[e.spell as SpellId]?.name ?? e.spell : 'empty'}${e.cooldown > 0 ? ` (ready in ${Math.ceil(e.cooldown / 60)} s)` : ''}`, 'info');
+        // Saved like a rest, so a reload keeps it.
         this.audio.play('uiClick', 1.1);
+        this.saveWanted = true;
+        return;
+      case 'perk':
+        this.hud.waveBanner('Perk unlocked', PERKS[e.perk as PerkId]?.name ?? e.perk);
+        hud.feed(PERKS[e.perk as PerkId]?.text ?? e.perk, 'level');
+        return;
+      case 'skillPoints':
+        hud.feed(`+${e.amount} skill ${e.amount === 1 ? 'point' : 'points'}`, 'level');
         this.saveWanted = true;
         return;
       default:
@@ -1067,15 +1299,17 @@ export class App {
     const qa = (kind: 'hit' | 'spark' | 'sound' | 'number' | 'hitstop') => QA_LOG_ENABLED && qaLog.add({ kind, tick: view.now, hit: n, what: kind === 'hit' ? e.move : undefined });
     qa('hit');
     // Damage numbers and sparks take their style from the hit's affinity (plan §4.6): Weak! and Resisted.
-    const style: NumberStyle = hurt ? 'hurt' : e.affinity === 'weak' ? 'weak' : e.affinity === 'resist' ? 'resist' : e.crit ? 'crit' : 'normal';
+    const style: NumberStyle = hurt ? 'hurt' : e.weakSpot || e.affinity === 'weak' ? 'weak' : e.affinity === 'resist' ? 'resist' : e.crit ? 'crit' : 'normal';
     // Spell hits (the sim names the move after the spell) spark in the spell's colour.
     const spell = e.move in SPELLS ? (e.move as SpellId) : null;
-    const spellSpark: SparkStyle | null = spell === 'blast' ? 'fire' : spell === 'chainZap' ? 'shock' : spell === 'frostNova' ? 'frost' : spell ? 'arcane' : null;
+    const spellSpark: SparkStyle | null = (spell && powerSpark(spell)) || (spell === 'blast' ? 'fire' : spell === 'chainZap' ? 'shock' : spell === 'frostNova' ? 'frost' : spell ? 'arcane' : null);
+    const soft = isSoftPowerHit(e.move);
     const spark: SparkStyle = style === 'normal' ? (spellSpark ?? (e.heavy ? 'heavy' : 'normal')) : style === 'weak' || style === 'resist' || !spellSpark ? style : spellSpark;
     if (this.fx.burst(e.pos, spark) > 0) qa('spark');
+    this.polish.hit(e, spark, soft);
     // Resisted hits sound dull (plan §4.6), weak and critical ones bright.
     const rate = e.affinity === 'resist' ? 0.7 : e.affinity === 'weak' ? 1.12 : e.crit ? 1.2 : 0.95 + Math.random() * 0.1;
-    if (this.audio.play(hurt ? 'hurt' : spell ? 'boltHit' : e.heavy ? 'pillarHit' : 'clash', hurt ? 1 : rate)) qa('sound');
+    if (this.audio.play(hurt ? 'hurt' : spell ? 'boltHit' : e.heavy ? 'pillarHit' : 'clash', hurt ? 1 : rate, soft ? 0.35 : 1)) qa('sound');
     if (!hurt) this.revealHit(view, e);
     this.numbers.spawn(e.pos, e.damage, style);
     qa('number');
@@ -1085,8 +1319,10 @@ export class App {
     if (mine) {
       this.lastHitEnemy = e.target;
       this.lastHitAt = performance.now();
-      this.shake(e.crit ? TRAUMA.crit : e.heavy ? TRAUMA.heavyHit : TRAUMA.lightHit);
-      this.input.pad.rumble(e.heavy || e.crit ? RUMBLE.heavyHit : RUMBLE.lightHit);
+      if (!soft) {
+        this.shake(e.crit ? TRAUMA.crit : e.heavy ? TRAUMA.heavyHit : TRAUMA.lightHit);
+        this.input.pad.rumble(e.heavy || e.crit ? RUMBLE.heavyHit : RUMBLE.lightHit);
+      }
     }
     if (hurt) {
       this.shake(TRAUMA.hurt);
@@ -1106,13 +1342,15 @@ export class App {
   }
 
   private shake(amount: number): void {
-    if (this.settings.shake) this.rig.addTrauma(amount);
+    this.rig.addTrauma(amount * motionScale(this.settings.shake));
   }
 
-  /** A white screen flash (parry); off with the shake setting (motion sensitivity). */
+  /** A white screen flash (parry), scaled by the screen flashes setting (motion sensitivity). */
   private flashScreen(): void {
-    if (!this.settings.shake) return;
+    const k = motionScale(this.settings.flash);
+    if (k <= 0) return;
     const el = this.screenFlash;
+    el.style.setProperty('--flash-peak', String(0.35 * k));
     el.classList.remove('go');
     void el.offsetWidth;
     el.classList.add('go');
@@ -1126,6 +1364,13 @@ export class App {
     if (!t) return null;
     const v = this.world.get(id);
     const pos = v?.root.position ?? t.tf.pos;
+    // A giant has a fixed lock point (expansion plan §3.3); everyone else locks at the chest.
+    const fixed = enemyDef(t)?.lockPoint;
+    if (fixed) {
+      const yaw = v?.root.rotation.y ?? t.tf.yaw;
+      const f = fixed.forward ?? 0;
+      return this.lockPos.set(pos.x + Math.sin(yaw) * f, pos.y + fixed.up, pos.z + Math.cos(yaw) * f);
+    }
     const h = v?.height ?? t.body?.height ?? 1.8;
     return this.lockPos.set(pos.x, pos.y + h * 0.6, pos.z);
   }
@@ -1144,13 +1389,14 @@ export class App {
     if (enemyId === null && this.lastHitEnemy !== null && performance.now() - this.lastHitAt < ENEMY_BAR_MS) enemyId = this.lastHitEnemy;
     let enemy: HudCombat['enemy'] = null;
     const t = enemyId !== null ? view.get(enemyId) : undefined;
-    if (t?.vitals && t.combat?.action?.kind !== 'dead') {
+    // A boss has the big bar along the bottom instead (BossHud).
+    if (t?.vitals && t.combat?.action?.kind !== 'dead' && !enemyDef(t)?.boss) {
       const tv = this.world.get(t.id);
       const pos = tv?.root.position ?? t.tf.pos;
       const h = tv?.height ?? t.body?.height ?? 1.8;
       const s = this.project({ x: pos.x, y: pos.y + h + 0.35, z: pos.z });
       const def = enemyDef(t);
-      enemy = { ...s, name: def?.name ?? 'Enemy', hp: t.vitals.hp, hpMax: t.vitals.hpMax, affinities: def ? this.reveals.list(def.id) : [], statuses: hudStatuses(t) };
+      enemy = { ...s, name: affixName(t.brain?.affix, def?.name ?? 'Enemy'), hp: t.vitals.hp, hpMax: t.vitals.hpMax, affinities: def ? this.reveals.list(def.id) : [], statuses: hudStatuses(t) };
     }
     const lp = this.lockPoint(view, p);
     const c = p.combat;
@@ -1159,11 +1405,18 @@ export class App {
       player: v ? { hp: v.hp, hpMax: v.hpMax, stamina: v.stamina, staminaMax: v.staminaMax, mana: v.mana, manaMax: v.manaMax } : null,
       enemy,
       reticle: lp ? this.project(lp) : null,
+      crosshair: this.crosshairState(view, lock),
       spells: v && c
-        ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window, learned: this.mode === 'world' ? p.progress?.spells : undefined }
+        ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window, learned: this.mode === 'world' ? p.progress?.spells : undefined, loadout: p.progress?.loadout, costMult: staffCostMult(p.progress?.equipment.staff), surge: p.powers?.surge ?? 0 }
         : null,
       wave: view.wave ? { ...view.wave } : null,
     };
+  }
+
+  private crosshairState(view: ReadonlySimView, lock: number | null): HudCombat['crosshair'] {
+    const ray = this.rig.aimRay();
+    if (lock !== null || this.nav.top || !ray) return 'off';
+    return view.aimTarget(LOCAL_PLAYER, ray) !== null ? 'enemy' : 'free';
   }
 
   /** QA timing hooks (dev and QA builds): presses latched and the ticks that took them. */
@@ -1302,12 +1555,16 @@ export class App {
       interact: this.sim?.view().interactTarget(LOCAL_PLAYER) ?? null,
       choices: this.sim?.view().dialogueChoices(LOCAL_PLAYER) ?? [],
       typing: this.rpgMenus.typing,
+      menuTab: this.nav.has(this.gameMenu.screen) ? this.gameMenu.tab : null,
+      menuPick: this.gameMenu.pending,
+      hudSlots: this.hud.slotSpells,
+      gearLocked: this.sim?.view().gearLocked(LOCAL_PLAYER) ?? false,
       tracker: this.rpgHud.trackerText,
       prompt: this.rpgHud.promptText,
       markerShown: this.rpgHud.markerShown,
       feed: this.rpgHud.feedText,
       saves: this.saves,
-      deathShown: this.hud.deathShown,
+      deathShown: this.polish.deathShown,
       objects: (this.sim?.entities ?? [])
         .filter((e) => e.npc || e.interactable || e.pickup)
         .map((e) => ({ id: e.npc?.id ?? e.interactable?.id ?? null, kind: e.npc ? 'npc' : (e.interactable?.kind ?? 'pickup'), used: e.interactable?.used ?? false, pos: { ...e.tf.pos }, viewShown: !!this.world.get(e.id) })),

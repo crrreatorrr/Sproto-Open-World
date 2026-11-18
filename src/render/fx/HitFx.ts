@@ -4,10 +4,12 @@ import { glowTexture } from './textures';
 export type SparkStyle =
   | 'normal' | 'heavy' | 'crit' | 'weak' | 'resist' | 'hurt' | 'block' | 'parry'
   // M1b spells and statuses: an arcane hit, Blast's fire, Frost Nova's ice, Chain Zap's sparks, the Wisp's hex.
-  | 'arcane' | 'fire' | 'frost' | 'shock' | 'hex';
+  | 'arcane' | 'fire' | 'frost' | 'shock' | 'hex'
+  // M6: the glowing ash a dissolving body sheds.
+  | 'ash';
 
-/** Count, speed (m/s), life (s) and colour of each burst style. */
-const STYLES: Record<SparkStyle, { n: number; speed: number; life: number; color: number; flash: number; flashSize: number }> = {
+/** Count, speed (m/s), life (s) and colour of each burst style. `gravity`: share of full gravity (default 1). */
+const STYLES: Record<SparkStyle, { n: number; speed: number; life: number; color: number; flash: number; flashSize: number; gravity?: number }> = {
   normal: { n: 14, speed: 5, life: 0.28, color: 0xffe9a8, flash: 0xfff2c8, flashSize: 0.7 },
   heavy: { n: 26, speed: 7, life: 0.36, color: 0xffd27a, flash: 0xffe0a0, flashSize: 1.1 },
   crit: { n: 30, speed: 8, life: 0.4, color: 0xfff6d0, flash: 0xffffff, flashSize: 1.3 },
@@ -21,6 +23,7 @@ const STYLES: Record<SparkStyle, { n: number; speed: number; life: number; color
   frost: { n: 22, speed: 5, life: 0.45, color: 0xbfe8ff, flash: 0xdff4ff, flashSize: 1 },
   shock: { n: 14, speed: 7, life: 0.2, color: 0xfff27a, flash: 0xfff8c0, flashSize: 0.8 },
   hex: { n: 16, speed: 4, life: 0.35, color: 0xc070ff, flash: 0xd8a0ff, flashSize: 1 },
+  ash: { n: 6, speed: 0.8, life: 1.3, color: 0xffa25a, flash: 0xffb070, flashSize: 0.4, gravity: 0.04 },
 };
 
 const MAX_SPARKS = 1024;
@@ -46,6 +49,11 @@ export class HitFx {
   private readonly base = new Float32Array(MAX_SPARKS * 3);
   private readonly age = new Float32Array(MAX_SPARKS);
   private readonly life = new Float32Array(MAX_SPARKS);
+  private readonly fall = new Float32Array(MAX_SPARKS);
+  /** Share of each burst's sparks that are drawn (graphics quality). */
+  density = 1;
+  /** Strength of the flash sprites (the screen flashes setting); 0 draws none. */
+  flashScale = 1;
   private next = 0;
   private readonly points: THREE.Points;
   private readonly sprites: (THREE.Sprite & { fx: Timed & { size: number } })[] = [];
@@ -97,7 +105,8 @@ export class HitFx {
   emit(p: { x: number; y: number; z: number }, style: SparkStyle, n: number, speed = 1, lift = 0): void {
     const s = STYLES[style];
     const c = this.tmp.setHex(s.color);
-    for (let k = 0; k < n; k++) {
+    const count = Math.ceil(n * this.density);
+    for (let k = 0; k < count; k++) {
       const i = this.next;
       this.next = (this.next + 1) % MAX_SPARKS;
       // A random direction, biased upward so sparks arc out instead of into the ground.
@@ -115,12 +124,14 @@ export class HitFx {
       this.base[i * 3 + 2] = c.b;
       this.age[i] = 0;
       this.life[i] = s.life * (0.6 + Math.random() * 0.6);
+      this.fall[i] = s.gravity ?? 1;
     }
     this.live = MAX_SPARKS;
   }
 
   /** A soft additive flash sprite. */
   flash(p: { x: number; y: number; z: number }, color: number, size: number, life: number): void {
+    if (this.flashScale <= 0) return;
     const s = this.sprites.find((x) => x.fx.age >= x.fx.life) ?? this.sprites[0];
     s.position.set(p.x, p.y, p.z);
     s.material.color.setHex(color);
@@ -152,7 +163,7 @@ export class HitFx {
         }
         alive++;
         this.age[i] += dt;
-        this.vel[i * 3 + 1] -= GRAVITY * dt;
+        this.vel[i * 3 + 1] -= GRAVITY * this.fall[i] * dt;
         const drag = Math.exp(-3 * dt);
         this.vel[i * 3] *= drag;
         this.vel[i * 3 + 2] *= drag;
@@ -179,7 +190,7 @@ export class HitFx {
       }
       const sc = s.fx.size * (0.6 + 0.4 * (1 - k));
       s.scale.set(sc, sc, 1);
-      s.material.opacity = k;
+      s.material.opacity = k * this.flashScale;
     }
     for (const m of this.rings) {
       if (!m.visible) continue;

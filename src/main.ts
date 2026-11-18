@@ -24,6 +24,11 @@ async function boot(): Promise<void> {
         app,
       });
     }
+    // The placement editor is for the dev server alone: QA and production builds never carry it.
+    if (import.meta.env.DEV) {
+      const { installPlacementEditor } = await import('./debug/placementEditor');
+      installPlacementEditor(app);
+    }
     splash?.remove();
   } catch (err) {
     if (splash) {

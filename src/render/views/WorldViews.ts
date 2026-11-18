@@ -1,17 +1,28 @@
 import * as THREE from 'three';
 import type { AssetLoader } from '../../assets/AssetLoader';
+import type { ModelKey } from '../../assets/manifest';
 import { ENEMIES, type EnemyDef, type EnemyMoveDef } from '../../content/enemies';
 import type { Entity, EntityId } from '../../sim/entity';
 import type { SimEvent } from '../../sim/events';
 import type { Vec3 } from '../../sim/math';
 import type { ReadonlySimView } from '../../sim/view';
 import type { HitFx } from '../fx/HitFx';
+import { PowerFx } from '../fx/powers';
 import { SpellFx } from '../fx/SpellFx';
+import { StatusFx } from '../fx/StatusFx';
+import { BodyGlow } from './BodyGlow';
+import { makeBossView } from './BossViews';
+import { makeBurrowmotherView } from './BurrowmotherView';
+import { DrakeFlyover, makeDrakeView } from './DrakeViews';
 import { BlastOrbView, BoltView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
-import { ChestView, NpcView, PickupView, ShrineView } from './RpgViews';
+import { ChestView, NpcView, PickupView, ShrineView, objectView } from './RpgViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
+import { wantsView } from './viewCull';
 
 const DECAL_COLOR: Record<DecalShape, number> = { circle: 0xffa23a, jagged: 0xff2a1a };
+
+/** Enemy models outside the critical download: fetched the first time one comes into range. */
+const LAZY_MODELS: ReadonlySet<string> = new Set<ModelKey>(['gatekeeper', 'grunt_vet', 'slinger_vet', 'big_coin', 'robot_shooter', 'robot_laser', 'scrapjaw', 'burrowmother', 'drake']);
 
 /** Seconds between status particles on a burning, shocked or chilled enemy. */
 const EMBER_EVERY = 0.07;
@@ -29,6 +40,11 @@ interface LiveDecal {
   landing: { x: number; y: number; z: number; yaw: number } | null;
 }
 
+/** A definition with its body scaled (a Colossal enemy): views fit the model and the health bar to it. */
+function scaledDef(def: EnemyDef | undefined, scale: number): EnemyDef | undefined {
+  return def && scale !== 1 ? { ...def, body: { radius: def.body.radius * scale, height: def.body.height * scale } } : def;
+}
+
 /** The enemy definition behind an entity, if it has a brain. */
 export function enemyDef(e: Readonly<Entity> | undefined): EnemyDef | undefined {
   const id = e?.brain?.def;
@@ -43,6 +59,14 @@ export function enemyDef(e: Readonly<Entity> | undefined): EnemyDef | undefined 
 export class WorldViews {
   readonly root = new THREE.Group();
   readonly spells = new SpellFx();
+  /** The C3 powers' visuals. */
+  readonly powers: PowerFx;
+  /** The Skyfire Drake's far passes over the valley before its fight (C6). */
+  readonly flyover: DrakeFlyover;
+  /** What statuses look like on a body (M6). */
+  readonly status = new StatusFx(this.spells);
+  /** The local player's drawn body (PlayerView's root), so statuses show on it too. */
+  playerBody: THREE.Object3D | null = null;
   private readonly views = new Map<EntityId, EntityView>();
   private readonly decals: LiveDecal[] = [];
   private readonly seen = new Set<EntityId>();
@@ -53,12 +77,24 @@ export class WorldViews {
   private readonly discovered = new Set<string>();
   /** Shrine views by content id (a rest pulses its shrine). */
   private readonly shrines = new Map<string, ShrineView>();
+  private rebuildViews = false;
+  /** Lazy enemy models: requested (false) and ready to draw (true). */
+  private readonly lazyModels = new Map<string, boolean>();
+  /** The size each view was made at: a camp's new affix (after a rest) can change it. */
+  private readonly viewScale = new Map<EntityId, number>();
 
   constructor(
     private readonly assets: AssetLoader,
     private readonly fx: HitFx | null = null,
   ) {
-    this.root.add(this.spells.root);
+    this.powers = new PowerFx(assets, fx);
+    this.flyover = new DrakeFlyover(assets);
+    this.root.add(this.spells.root, this.powers.root, this.flyover.root, this.status.root);
+    if (fx) BodyGlow.ash = (p) => fx.emit(p, 'ash', 1, 1, 1.2);
+    // A model that failed has arrived: rebuild the views, so stand-ins become the real thing.
+    this.assets.onRecovered(() => {
+      this.rebuildViews = true;
+    });
   }
 
   get(id: EntityId): EntityView | undefined {
@@ -67,35 +103,58 @@ export class WorldViews {
 
   /** Make, update and drop views to match the sim. Call once per rendered frame. */
   sync(view: ReadonlySimView, alpha: number, dt: number): void {
+    if (this.rebuildViews) {
+      this.rebuildViews = false;
+      for (const v of this.views.values()) v.dispose();
+      this.views.clear();
+      this.shrines.clear();
+    }
     this.seen.clear();
+    this.status.begin(dt);
+    const me = view.playerEntity(0);
     for (const e of view.entities) {
       if (e.kind === 'player') {
         // Single player for now: the one player's progress lights the shrines.
         const found = e.progress?.discoveredShrines;
         if (found && found.length !== this.discovered.size) for (const id of found) this.discovered.add(id);
+        if (this.playerBody) this.status.track(e, this.playerBody, e.body?.height ?? 1.8, e.body?.radius ?? 0.4, dt);
         continue;
       }
       let v = this.views.get(e.id);
+      if (v && (e.view.scale ?? 1) !== (this.viewScale.get(e.id) ?? 1)) {
+        v.dispose();
+        this.views.delete(e.id);
+        v = undefined;
+      }
+      // Not drawn (far away, not set down yet, a faded corpse): the sweep below drops any old view.
+      if (!wantsView(e, me, v !== undefined)) continue;
       if (!v) {
         const made = this.make(e);
         if (!made) continue;
         v = made;
         this.views.set(e.id, v);
+        this.viewScale.set(e.id, e.view.scale ?? 1);
         this.root.add(v.root);
       }
       this.seen.add(e.id);
       v.update(e, alpha, dt);
       if (e.statuses) this.statusParticles(e, v, dt);
+      if (e.combat) this.status.track(e, v.root, v.height, e.body?.radius ?? 0.4, dt);
     }
+    this.status.end((id) => this.views.get(id)?.root);
     for (const [id, v] of this.views) {
       if (this.seen.has(id)) continue;
       v.dispose();
       this.views.delete(id);
       this.statusClock.delete(id);
+      this.status.drop(id);
+      this.viewScale.delete(id);
       for (const [k, sv] of this.shrines) if (sv === v) this.shrines.delete(k);
     }
     this.updateDecals(view, dt);
     this.spells.update(dt);
+    this.powers.sync(view, alpha, dt);
+    this.flyover.update(view, me, dt);
   }
 
   /** React to a sim event (telegraphs, flinches and spell visuals; sounds and numbers live in the app). */
@@ -106,7 +165,8 @@ export class WorldViews {
         const move = enemyDef(ent)?.moves.find((m) => m.id === e.move);
         this.views.get(e.entity)?.telegraph?.(move, e.unblockable, e.ticks);
         const shape: DecalShape | null = e.decal ?? move?.decal ?? (e.unblockable ? 'jagged' : null);
-        if (shape && move) {
+        // A dive paints its own lane on the ground (DrakeView).
+        if (shape && move && !move.dive) {
           const decal = new TelegraphDecal(shape, DECAL_COLOR[shape]);
           this.root.add(decal.root);
           // Area attacks put their circle where they aim (the event's `at`, else the action's `aim`).
@@ -122,6 +182,9 @@ export class WorldViews {
         this.views.get(e.target)?.flinch?.(from, e.heavy);
         return;
       }
+      case 'stagger':
+        this.views.get(e.entity)?.reel?.();
+        return;
       case 'explode':
         // Blast (plan §4.4): a fireball flash the size of the blast, a ground ring, and fire.
         this.fx?.flash(e.pos, 0xffb060, e.radius * 1.6, 0.22);
@@ -146,6 +209,9 @@ export class WorldViews {
         }
         return;
       }
+      case 'power':
+        this.powers.event(view, e);
+        return;
       case 'zap':
         this.spells.zap(e.points);
         for (const p of e.points.slice(1)) this.fx?.burst(p, 'shock');
@@ -261,7 +327,20 @@ export class WorldViews {
     }
   }
 
+  /** Has this lazy model arrived? Asks for it the first time; `sync` retries every frame until then. */
+  private lazyReady(key: ModelKey): boolean {
+    const state = this.lazyModels.get(key);
+    if (state === undefined) {
+      this.lazyModels.set(key, false);
+      void this.assets.template(key).then(() => this.lazyModels.set(key, true));
+    }
+    return state === true;
+  }
+
   private make(e: Readonly<Entity>): EntityView | null {
+    if (LAZY_MODELS.has(e.view.model) && !this.lazyReady(e.view.model as ModelKey)) return null;
+    const bossView = makeBurrowmotherView(e, this.assets, this.fx) ?? makeDrakeView(e, this.assets, this.fx) ?? makeBossView(e, this.assets, this.fx);
+    if (bossView) return bossView;
     const pr = e.projectile;
     if (e.kind === 'projectile' || pr) {
       // Spell projectiles by their spell (the sim names the models 'bolt' and 'blastOrb'); enemy
@@ -271,24 +350,32 @@ export class WorldViews {
       if (pr?.homing || e.view.model === 'hex' || pr?.kind === 'arcane') return new HexView(this.fx);
       return new CoinView();
     }
-    // M3 world objects, by component (their model keys are placeholders until M4's art).
-    if (e.npc) return new NpcView(e);
-    if (e.interactable?.kind === 'shrine') {
-      const v = new ShrineView(e.interactable.id, this.discovered);
+    // World objects, by component (villagers by their `npc_*` model key; objects by theirs).
+    if (e.npc) return new NpcView(e, this.assets);
+    const kind: string | undefined = e.interactable?.kind;
+    if (e.interactable && kind === 'shrine') {
+      const v = new ShrineView(e.interactable.id, this.discovered, this.assets);
       this.shrines.set(e.interactable.id, v);
       return v;
     }
-    if (e.interactable?.kind === 'chest') return new ChestView();
-    if (e.pickup) return new PickupView(e);
-    const def = enemyDef(e);
+    if (kind === 'chest') return new ChestView(this.assets);
+    if (kind === 'object') return objectView(e.view.model);
+    if (e.pickup) return new PickupView(e, this.assets);
+    const def = scaledDef(enemyDef(e), e.view.scale ?? 1);
     switch (e.view.model) {
       case 'brute':
-        return def ? new BruteView(this.assets, def) : new FallbackView(e);
+      case 'gatekeeper':
+        return def ? new BruteView(this.assets, def, e.view.model) : new FallbackView(e);
       case 'dummy':
         return def ? new DummyView(def) : new FallbackView(e);
       case 'grunt':
       case 'slinger':
       case 'wisp':
+      case 'grunt_vet':
+      case 'slinger_vet':
+      case 'big_coin':
+      case 'robot_shooter':
+      case 'robot_laser':
         return def ? new HumanoidEnemyView(this.assets, def, e.view.model) : new FallbackView(e);
       default:
         return e.kind === 'enemy' || e.kind === 'boss' ? new FallbackView(e) : null;
@@ -300,10 +387,14 @@ export class WorldViews {
     for (const v of this.views.values()) v.dispose();
     this.views.clear();
     this.statusClock.clear();
+    this.viewScale.clear();
     this.shrines.clear();
     this.discovered.clear();
     for (const d of this.decals) d.decal.dispose();
     this.decals.length = 0;
     this.spells.clear();
+    this.powers.clear();
+    this.flyover.clear();
+    this.status.clear();
   }
 }

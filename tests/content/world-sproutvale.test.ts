@@ -155,7 +155,9 @@ describe('baked Sproutvale', () => {
   it('inside the border every slope is climbable, and the border cliff is not', () => {
     const inner = 8;
     let worstInside = 0;
-    for (let z = inner; z < D * CELL_SIZE - inner; z++) for (let x = inner; x < W * CELL_SIZE - inner; x++) worstInside = Math.max(worstInside, quadSlope(x, z));
+    // The Deep Seam is a pit with sheer walls on purpose: its ramp (a painted path, checked above) is the way in and out.
+    const inSeam = (x: number, z: number) => Math.hypot(x - 388, z - 469) <= 31;
+    for (let z = inner; z < D * CELL_SIZE - inner; z++) for (let x = inner; x < W * CELL_SIZE - inner; x++) if (!inSeam(x, z)) worstInside = Math.max(worstInside, quadSlope(x, z));
     expect(worstInside).toBeLessThanOrEqual(45);
     // Every edge column/row climbs a cliff steeper than the controller's slide angle.
     const n = W * CELL_SIZE;

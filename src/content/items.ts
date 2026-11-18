@@ -2,6 +2,12 @@
  * Items (plan §5): staffs, robes, charms, consumables and quest items, with fixed stats per item
  * (no procedural affixes). Pure data.
  */
+import { C2_ITEMS } from './packs/c2';
+import { C4_ITEMS } from './packs/c4';
+import { C5_ITEMS } from './packs/c5';
+import { C6_ITEMS } from './packs/c6';
+import type { SpellId } from './spells';
+
 export type ItemKind = 'staff' | 'robe' | 'charm' | 'consumable' | 'quest';
 export type Rarity = 'common' | 'rare' | 'epic';
 export type Slot = 'staff' | 'robe' | 'charm';
@@ -37,6 +43,8 @@ export interface ItemDef {
   price?: number;
   /** Stacks in the inventory (consumables, quest items). */
   stacks?: boolean;
+  /** A tome: buying it teaches this spell at once, and no item goes in the bags. */
+  teaches?: SpellId;
 }
 
 export const ITEMS: Record<string, ItemDef> = {
@@ -45,6 +53,8 @@ export const ITEMS: Record<string, ItemDef> = {
   staff_momentum: { id: 'staff_momentum', name: 'Momentum', kind: 'staff', rarity: 'rare', blurb: 'Quick in the hand.', staff: { damage: 22, spellPower: 0.9, model: 'staff_momentum' } },
   staff_nobu: { id: 'staff_nobu', name: 'Nobu', kind: 'staff', rarity: 'rare', blurb: 'Heavy, honest wood.', staff: { damage: 26, spellPower: 1.0, model: 'staff_nobu' }, price: 120 },
   staff_moonward: { id: 'staff_moonward', name: 'Moonward', kind: 'staff', rarity: 'rare', blurb: 'Hums with spellwork.', staff: { damage: 18, spellPower: 1.35, model: 'staff_moonward' } },
+  // S1's reward (plan §4.6): the Sprout Staff's model, tinted; its perk (L3 applies Burn) comes with C2's staff traits.
+  staff_gourd: { id: 'staff_gourd', name: 'Gourd Staff', kind: 'staff', rarity: 'rare', blurb: 'Smells faintly of pie.', staff: { damage: 22, spellPower: 1.0, model: 'staff_sproto' } },
   staff_fighters_might: { id: 'staff_fighters_might', name: "Fighter's Might", kind: 'staff', rarity: 'epic', blurb: 'Scrapjaw\'s bane.', staff: { damage: 32, spellPower: 1.1, model: 'staff_fighters_might' } },
   // Robes (tints of the player's material).
   robe_apprentice: { id: 'robe_apprentice', name: 'Apprentice Robe', kind: 'robe', rarity: 'common', blurb: 'Patched at the elbows.', robe: { physical: 0, arcane: 0, tint: 0x222222 } },
@@ -64,7 +74,12 @@ export const ITEMS: Record<string, ItemDef> = {
   stolen_pumpkin: { id: 'stolen_pumpkin', name: 'Stolen Pumpkin', kind: 'quest', rarity: 'common', blurb: "Farmer Broccoli's.", stacks: true },
   quarry_key: { id: 'quarry_key', name: 'Quarry Key', kind: 'quest', rarity: 'epic', blurb: 'Opens the Quarry Gate.' },
   sprout_seed: { id: 'sprout_seed', name: 'Sprout Seed', kind: 'quest', rarity: 'common', blurb: 'For the Elder.', stacks: true },
+  ...C2_ITEMS,
 };
+
+Object.assign(ITEMS, C4_ITEMS);
+Object.assign(ITEMS, C5_ITEMS);
+Object.assign(ITEMS, C6_ITEMS);
 
 export const STARTING_GEAR = { staff: 'staff_sproto', robe: 'robe_apprentice', charm: null } as const;
 

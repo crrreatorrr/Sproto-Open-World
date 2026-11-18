@@ -1,7 +1,9 @@
 import type { Affinity } from '../content/enemies';
+import { POWER } from '../content/packs/c3';
 import { SPELL_BY_SLOT, SPELLS, type SpellId } from '../content/spells';
 import { TICK_HZ } from '../content/tuning';
 import { WAVES } from '../content/waves';
+import { costText } from './rpgText';
 import { padGlyph, type GamepadInput } from '../input/Gamepad';
 import { KEYS, PAD } from '../input/bindings';
 import { keyLabel, promptLabel } from '../input/glyphs';
@@ -50,6 +52,12 @@ export interface HudSpells {
   woven: boolean;
   /** Spells the player has learned (M3 progress); absent means all four (the yard and the sandbox). */
   learned?: readonly SpellId[];
+  /** What each of the four slots holds (C1 loadout); absent means each spell in its home slot. */
+  loadout?: readonly (SpellId | null)[];
+  /** What the equipped staff multiplies spell costs by; absent means 1. */
+  costMult?: number;
+  /** The Surge meter (Sprout Surge is ready when it's full). */
+  surge?: number;
 }
 
 /** The wave runner (`?sandbox=1`): `index` into WAVES (the next wave between waves), `nextIn` in ticks (0 while fighting). */
@@ -66,15 +74,19 @@ export interface HudCombat {
   enemy: HudEnemy | null;
   /** Lock-on reticle on the locked target's chest. */
   reticle: HudPoint | null;
+  /** The dot at the centre of the screen: hidden while locked on or in a menu, lit on an enemy. */
+  crosshair: 'off' | 'free' | 'enemy';
   spells: HudSpells | null;
   wave: HudWave | null;
 }
 
 interface SpellSlot {
-  id: SpellId;
+  id: SpellId | null;
   root: HTMLElement;
   key: HTMLElement;
   cd: number;
+  /** The cooldown the sweep is drawn against: the spell's own, or a longer swap-in wait. */
+  cdFull: number;
   poor: boolean;
   casting: boolean;
   locked: boolean;
@@ -85,6 +97,14 @@ const SLOTS = [1, 2, 3, 4] as const;
 const SPELL_FACE = ['x', 'y', 'b', 'a'] as const;
 
 const icon = (id: IconId, cls: string, extra = '') => `<span class="ico ${cls}">${ICONS[id]}${extra}</span>`;
+
+/** A spell slot's button glyph on the active device: keys 1–4, or the modifier plus a face button (LT + X…). */
+export function spellSlotGlyph(slot: number, device: GamepadInput['device'], style: GamepadInput['style']): string {
+  return device === 'gamepad' ? `${padGlyph(PAD.spellModifier[0] ?? 'lt', style)}+${padGlyph(SPELL_FACE[slot], style)}` : keyLabel(KEYS[`spell${SLOTS[slot]}`][0] ?? '');
+}
+
+/** A spell's icon (or an empty slot's ring), for the HUD and the Powers tab. */
+export const spellIcon = (id: SpellId | null, cls = 'spell-ico'): string => (id ? icon(id, cls) : `<span class="ico ${cls} empty"></span>`);
 
 interface Bar {
   root: HTMLElement;
@@ -124,7 +144,7 @@ function bar(cls: string, label?: string): Bar {
 
 /**
  * The play HUD: vitals (top left), an enemy health bar and the lock-on reticle projected over the
- * world, a "You died" card, and control prompts that follow the last device used (keyboard +
+ * world, and control prompts that follow the last device used (keyboard +
  * mouse or a pad, with the pad's own glyphs), plus a "click to look" hint when the mouse isn't
  * captured. M1b adds the spell bar (costs, cooldown sweeps, device glyphs), status and
  * weakness/resistance icons on the enemy bar, the wave runner's counter and banners, and toasts.
@@ -143,7 +163,7 @@ export class Hud {
   private readonly enemyStatus: HTMLElement;
   private readonly enemyAffinity: HTMLElement;
   private readonly reticle: HTMLElement;
-  private readonly died: HTMLElement;
+  private readonly crosshair: HTMLElement;
   private readonly spellBar: HTMLElement;
   private readonly slots: SpellSlot[];
   private readonly waveInfo: HTMLElement;
@@ -156,8 +176,11 @@ export class Hud {
   private lastStatus = '';
   private lastAffinity = '';
   private lastGlyphs = '';
+  /** A slot was refilled: its key glyph must be written again. */
+  private slotsChanged = false;
   private lastWave = '';
   private woven = false;
+  private costMult = 1;
 
   constructor(host: HTMLElement) {
     this.root = document.createElement('div');
@@ -180,9 +203,8 @@ export class Hud {
     this.enemy.append(this.enemyName, barRow, this.enemyAffinity);
     this.reticle = document.createElement('div');
     this.reticle.className = 'reticle';
-    this.died = document.createElement('div');
-    this.died.className = 'died';
-    this.died.textContent = 'You died';
+    this.crosshair = document.createElement('div');
+    this.crosshair.className = 'crosshair';
     this.prompts = document.createElement('div');
     this.prompts.className = 'prompts';
     this.clickHint = document.createElement('div');
@@ -191,14 +213,12 @@ export class Hud {
     this.spellBar = document.createElement('div');
     this.spellBar.className = 'spell-bar';
     this.slots = SLOTS.map((n) => {
-      const id = SPELL_BY_SLOT[n];
-      const def = SPELLS[id];
       const root = document.createElement('div');
       root.className = 'spell';
-      root.dataset.spell = id;
-      root.innerHTML = `<div class="sweep"></div>${icon(id, 'spell-ico')}<div class="name">${def.name}</div><div class="cost">${def.cost}</div><kbd class="key"></kbd>`;
       this.spellBar.append(root);
-      return { id, root, key: root.querySelector('.key') as HTMLElement, cd: -1, poor: false, casting: false, locked: false };
+      const sl: SpellSlot = { id: null, root, key: root, cd: -1, cdFull: 1, poor: false, casting: false, locked: false };
+      this.fillSlot(sl, SPELL_BY_SLOT[n]);
+      return sl;
     });
     this.waveInfo = document.createElement('div');
     this.waveInfo.className = 'wave-info';
@@ -206,7 +226,7 @@ export class Hud {
     this.banner.className = 'wave-banner';
     this.toastEl = document.createElement('div');
     this.toastEl.className = 'toast';
-    this.root.append(vitals, this.enemy, this.reticle, this.died, this.waveInfo, this.banner, this.toastEl, this.spellBar, this.prompts, this.clickHint);
+    this.root.append(vitals, this.enemy, this.reticle, this.crosshair, this.waveInfo, this.banner, this.toastEl, this.spellBar, this.prompts, this.clickHint);
     host.appendChild(this.root);
   }
 
@@ -236,11 +256,10 @@ export class Hud {
     }
     this.clickHint.classList.toggle('active', d === 'kbm' && !mouseLocked);
     // Spell glyphs follow the device: keys 1–4, or the modifier plus a face button (LT + X…).
-    const glyphs = this.slots.map((_, i) =>
-      d === 'gamepad' ? `${padGlyph(PAD.spellModifier[0] ?? 'lt', s)}+${padGlyph(SPELL_FACE[i], s)}` : keyLabel(KEYS[`spell${SLOTS[i]}`][0] ?? ''),
-    );
+    const glyphs = this.slots.map((_, i) => spellSlotGlyph(i, d, s));
     const g = glyphs.join('|');
-    if (g !== this.lastGlyphs) {
+    if (g !== this.lastGlyphs || this.slotsChanged) {
+      this.slotsChanged = false;
       this.lastGlyphs = g;
       this.slots.forEach((sl, i) => (sl.key.textContent = glyphs[i]));
     }
@@ -272,6 +291,8 @@ export class Hud {
     this.spellBar.classList.toggle('active', !!c.spells);
     this.waveState(c.wave);
     this.toastTick(dt);
+    this.crosshair.classList.toggle('active', c.crosshair !== 'off');
+    this.crosshair.classList.toggle('on-enemy', c.crosshair === 'enemy');
     const r = c.reticle;
     const showReticle = !!r && r.visible;
     this.reticle.classList.toggle('active', showReticle);
@@ -308,17 +329,6 @@ export class Hud {
     return this.toastLeft > 0 ? this.toastEl.textContent : null;
   }
 
-  /** The death card; the world says "You fell" (you wake at a shrine), the yard "You died". */
-  showDeath(on: boolean, text = 'You died', sub = ''): void {
-    if (on) this.died.innerHTML = sub ? `<div>${text}<span class="sub">${sub}</span></div>` : text;
-    this.died.classList.toggle('active', on);
-  }
-
-  /** The death card is up (QA). */
-  get deathShown(): boolean {
-    return this.died.classList.contains('active');
-  }
-
   private enemyIcons(e: HudEnemy): void {
     const sk = e.statuses.map((x) => `${x.id}${x.stacks}`).join(',');
     if (sk !== this.lastStatus) {
@@ -337,16 +347,49 @@ export class Hud {
     }
   }
 
+  /** Show a spell (or an empty slot) in a HUD slot: name, icon, cost, a fresh sweep. */
+  private fillSlot(sl: SpellSlot, id: SpellId | null): void {
+    sl.id = id;
+    const def = id ? SPELLS[id] : null;
+    sl.root.dataset.spell = id ?? '';
+    sl.root.classList.toggle('empty', !id);
+    sl.root.innerHTML = `<div class="sweep"></div>${spellIcon(id)}<div class="name">${def?.name ?? 'Empty'}</div><div class="cost">${def && !def.meter ? costText(def.cost * this.costMult) : ''}</div><kbd class="key"></kbd>`;
+    sl.key = sl.root.querySelector('.key') as HTMLElement;
+    sl.cd = -1;
+    sl.cdFull = def?.cooldown ?? 1;
+    sl.poor = sl.casting = sl.locked = false;
+    sl.root.classList.remove('cooling', 'poor', 'casting', 'locked');
+    this.slotsChanged = true;
+  }
+
+  /** What the HUD's four slots show, in order (QA). */
+  get slotSpells(): (SpellId | null)[] {
+    return this.slots.map((s) => s.id);
+  }
+
   private spellState(sp: HudSpells): void {
+    const costMult = sp.costMult ?? 1;
+    if (costMult !== this.costMult) {
+      this.costMult = costMult;
+      for (const sl of this.slots) this.fillSlot(sl, sl.id);
+    }
+    this.slots.forEach((sl, i) => {
+      const want = sp.loadout ? (sp.loadout[i] ?? null) : SPELL_BY_SLOT[SLOTS[i]];
+      if (want !== sl.id) this.fillSlot(sl, want);
+    });
     for (const sl of this.slots) {
+      if (!sl.id) continue;
       const def = SPELLS[sl.id];
-      const cd = Math.round((Math.min(def.cooldown, sp.cooldowns[sl.id] ?? 0) / Math.max(1, def.cooldown)) * 100) / 100;
+      // A swapped-in power can wait longer than its own cooldown: the sweep runs over the whole wait.
+      const left = sp.cooldowns[sl.id] ?? 0;
+      sl.cdFull = left > 0 ? Math.max(sl.cdFull, left) : def.cooldown;
+      const cd = Math.round((left / Math.max(1, sl.cdFull)) * 100) / 100;
       if (cd !== sl.cd) {
         sl.cd = cd;
         sl.root.style.setProperty('--cd', String(cd));
         sl.root.classList.toggle('cooling', cd > 0);
       }
-      const poor = sp.mana < def.cost;
+      const poor = def.meter ? (sp.surge ?? 0) < POWER.surge.max : sp.mana < def.cost * costMult;
       if (poor !== sl.poor) {
         sl.poor = poor;
         sl.root.classList.toggle('poor', poor);

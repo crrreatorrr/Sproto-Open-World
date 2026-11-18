@@ -12,7 +12,8 @@ describe('entry rules pick the node by quest state', () => {
     ['no quest yet', undefined, 'intro'],
     ['quest active, step 0', { status: 'active', step: 0, progress: [0] }, 'busy'],
     ['quest active, step 3', { status: 'active', step: 3, progress: [0, 0] }, 'seed_return'],
-    ['quest complete', { status: 'complete', step: 5, progress: [] }, 'after'],
+    // M4: the Elder then offers the next main quest, Pest Control.
+    ['quest complete', { status: 'complete', step: 5, progress: [] }, 'pest_offer'],
   ];
   function setQuest(v: Awaited<ReturnType<typeof village>>, q: { status: 'active' | 'complete'; step: number; progress: number[] } | undefined) {
     if (q) v.prog().quests.q_wake_up = q;

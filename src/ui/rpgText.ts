@@ -1,13 +1,16 @@
 /**
  * The RPG HUD's and menus' words and numbers, worked out from sim state and content data (plan §5):
- * the XP bar, the quest tracker's lines, the compass bearings, interact prompts, what a level-up
- * point buys and the merchant's remaining stock. Pure (no DOM, no three.js), so tests/ui covers it.
+ * the XP bar, the quest tracker's lines, the compass bearings, interact prompts, what a skill rank
+ * buys, gear comparisons, spell cooldowns and the merchant's remaining stock. Pure (no DOM, no three.js), so tests/ui covers it.
  */
 import { ENEMIES } from '../content/enemies';
 import { ITEMS, type ItemDef, type ItemKind } from '../content/items';
 import { MERCHANTS } from '../content/loot';
+import { STAFF_TRAITS, staffTrait } from '../content/packs/c2';
 import { NPCS } from '../content/npcs';
-import { GROWTH, LEVEL_CAP, xpForLevel, xpToNext, type Attr } from '../content/progression';
+import { LEVEL_CAP, SKILL_EFFECT, xpForLevel, xpToNext, type SkillId } from '../content/progression';
+import { SPELLS, SWAP_MIN_COOLDOWN, type SpellId } from '../content/spells';
+import { TICK_HZ } from '../content/tuning';
 import { QUESTS, type Objective, type QuestDef, type QuestState } from '../content/quests';
 import type { Progress } from '../sim/entity';
 
@@ -160,8 +163,11 @@ export const compassOffset = (camYaw: number, heading: number): number => wrapAn
 // --- Prompts, level-ups, the shop ---------------------------------------------------------------
 
 /** The verb on the interact prompt ("[F] Talk to Elder Pepe"). */
-export function interactLabel(kind: 'npc' | 'shrine' | 'chest', name: string): string {
+export function interactLabel(kind: 'npc' | 'shrine' | 'chest' | 'object', name: string): string {
   switch (kind) {
+    case 'object':
+      // The sim names an object with its verb ("Light Watchtower Beacon").
+      return name;
     case 'npc':
       return `Talk to ${name}`;
     case 'shrine':
@@ -171,21 +177,68 @@ export function interactLabel(kind: 'npc' | 'shrine' | 'chest', name: string): s
   }
 }
 
-export const ATTR_NAMES: Record<Attr, string> = { might: 'Might', arcana: 'Arcana', vitality: 'Vitality', endurance: 'Endurance' };
+const pct = (f: number) => `${Math.round(f * 100)}%`;
 
-/** What one point in an attribute gives (GROWTH), for the shrine's Level up screen. */
-export function attrGain(attr: Attr): string {
-  const pct = (f: number) => `${Math.round(f * 100)}%`;
-  switch (attr) {
-    case 'might':
-      return `+${pct(GROWTH.mightPower)} melee damage`;
-    case 'arcana':
-      return `+${GROWTH.manaPerArcana} mana, +${pct(GROWTH.arcanaPower)} spell damage`;
-    case 'vitality':
-      return `+${GROWTH.hpPerVitality} health, +${GROWTH.vitalityDefense} defense`;
-    case 'endurance':
-      return `+${GROWTH.staminaPerEndurance} stamina`;
+/** What one rank of a skill gives (SKILL_EFFECT), for the Skills tab. */
+export function skillGain(skill: SkillId): string {
+  switch (skill) {
+    case 'spellPower':
+      return `+${pct(SKILL_EFFECT.spellPower)} spell damage`;
+    case 'protection':
+      return `+${pct(SKILL_EFFECT.protection)} protection spells (Frost Nova's push)`;
+    case 'focus':
+      return `+${SKILL_EFFECT.focusMana} mana, +${pct(SKILL_EFFECT.focusRegen)} mana regen`;
+    case 'attack':
+      return `+${pct(SKILL_EFFECT.attack)} melee damage`;
+    case 'defense':
+      return `+${SKILL_EFFECT.defense} defense, +${SKILL_EFFECT.defenseHp} health`;
+    case 'stamina':
+      return `+${SKILL_EFFECT.staminaMax} stamina`;
   }
+}
+
+/** "Ready in 3 s" for a cooldown in ticks (rounded up), or "Ready". */
+export function readyText(ticks: number): string {
+  return ticks > 0 ? `Ready in ${Math.ceil(ticks / TICK_HZ)} s` : 'Ready';
+}
+
+/** The swap rule in one line, for the Powers tab. */
+export const SWAP_RULE = `A power you swap in starts on cooldown (at least ${SWAP_MIN_COOLDOWN / TICK_HZ} s). Swaps at a shrine are free.`;
+
+/** The cooldown a power would get if swapped in now (the sim's rule, shown before you pick it). */
+export function swapCooldown(spell: SpellId, remaining: number, atShrine: boolean): number {
+  return atShrine ? remaining : Math.max(remaining, Math.max(SPELLS[spell].cooldown, SWAP_MIN_COOLDOWN));
+}
+
+export interface GearDelta {
+  label: string;
+  /** Candidate minus equipped. */
+  delta: number;
+  /** Shown as "+2" or "×1.35". */
+  text: string;
+}
+
+/** A side-by-side compare of a staff or robe against the one worn: each stat's change (green up, red down). */
+export function gearCompare(item: ItemDef, worn: ItemDef | undefined): GearDelta[] {
+  const sign = (d: number, digits = 0) => `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d).toFixed(digits)}`;
+  if (item.staff) {
+    const w = worn?.staff ?? { damage: 0, spellPower: 0 };
+    const dd = item.staff.damage - w.damage;
+    const ds = Math.round((item.staff.spellPower - w.spellPower) * 100) / 100;
+    return [
+      { label: 'Damage', delta: dd, text: sign(dd) },
+      { label: 'Spell power', delta: ds, text: sign(ds, 2) },
+    ];
+  }
+  if (item.robe) {
+    const w = worn?.robe ?? { physical: 0, arcane: 0 };
+    const dp = item.robe.physical - w.physical, da = item.robe.arcane - w.arcane;
+    return [
+      { label: 'Physical', delta: dp, text: sign(dp) },
+      { label: 'Arcane', delta: da, text: sign(da) },
+    ];
+  }
+  return [];
 }
 
 export interface StockLine {
@@ -203,6 +256,7 @@ export function shopStock(merchant: string, flags: Readonly<Record<string, numbe
   const m = MERCHANTS[merchant];
   if (!m) return [];
   return Object.entries(m.stock)
+    .filter(([id]) => !m.after?.[id] || !!flags[m.after[id]])
     .map(([id, count]) => ({ item: ITEMS[id], price: ITEMS[id]?.price ?? 0, left: Math.max(0, count - (flags[`bought:${merchant}:${id}`] ?? 0)) }))
     .filter((l) => !!l.item);
 }
@@ -223,6 +277,15 @@ export function inventoryGroups(p: Readonly<Progress>): { kind: ItemKind; items:
       .filter((x) => x.item?.kind === kind)
       .sort((a, b) => a.item.name.localeCompare(b.item.name)),
   })).filter((g) => g.items.length > 0);
+}
+
+/** A mana cost as the menus show it: Moonward's discount leaves at most one decimal. */
+export const costText = (cost: number): string => String(Math.round(cost * 10) / 10);
+
+/** A staff's trait in words for the Gear tab, or null (the Sprout Staff, anything that isn't a staff). */
+export function staffTraitText(item: ItemDef): string | null {
+  const trait = staffTrait(item.id);
+  return trait ? `${STAFF_TRAITS[trait].name}: ${STAFF_TRAITS[trait].text}` : null;
 }
 
 /** One line of an item's numbers for the inventory and the shop. */

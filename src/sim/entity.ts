@@ -1,8 +1,10 @@
 import type { DamageKind, PlayerMoveId } from '../content/combat';
-import type { Attr } from '../content/progression';
+import type { AffixId } from '../content/packs/c4';
+import type { SkillRanks } from '../content/progression';
 import type { QuestState } from '../content/quests';
 import type { SpellId } from '../content/spells';
 import type { StatusId } from '../content/statuses';
+import type { PowerArea, PowerState } from './combat/powers/state';
 import type { Vec3 } from './math';
 
 export type EntityId = number;
@@ -83,11 +85,21 @@ export type Action =
       release: number;
       woven: boolean;
       released: boolean;
+      /** Charged Bolt: ticks the release has been held back. */
+      charge?: number;
+      /** A held power (Ember Breath) after its release: ticks breathed, and the longest it can go. */
+      channel?: { t: number; dur: number };
     }
-  | { kind: 'dodge'; t: number; dir: { x: number; z: number } }
+  /** A roll, or with `back` a backstep (dodge with no stick direction): its frames are `dodgeFrames`. */
+  | { kind: 'dodge'; t: number; dir: { x: number; z: number }; back?: boolean }
+  /** The Momentum staff's blink: already moved, untouchable until it ends. */
+  | { kind: 'blink'; t: number }
+  /** The plunge attack: diving from `fromY`; `landT` counts from the landing (−1 while in the air). */
+  | { kind: 'plunge'; t: number; fromY: number; landT: number }
   | { kind: 'block'; t: number; parryTicks: number }
   | { kind: 'hitstun'; t: number; dur: number; knockdown: boolean }
-  | { kind: 'stagger'; t: number; dur: number }
+  /** `broken`: its poise broke (bosses take more damage). `stunned`: it ran into something (weak spots open). */
+  | { kind: 'stagger'; t: number; dur: number; reason?: 'broken' | 'stunned' }
   | { kind: 'frozen'; t: number; dur: number }
   /** Drinking a Sprout Tonic: locked for TONIC.lockTicks, healing over TONIC.healTicks. */
   | { kind: 'drink'; t: number; healPerTick: number }
@@ -131,6 +143,10 @@ export interface Combat {
   lastHitTick: number;
   /** Spell cooldowns: ticks left per spell. */
   cooldowns: Partial<Record<SpellId, number>>;
+  /** The last tick an enemy targeted this entity (the gear lock, expansion plan §1.1). */
+  targetedAt: number;
+  /** The Momentum staff's blink is ready again from this tick. */
+  blinkReadyAt?: number;
 }
 
 /** The player's RPG state (plan §5). Saved in the SaveFile. */
@@ -138,14 +154,18 @@ export interface Progress {
   level: number;
   /** Total XP earned. */
   xp: number;
-  attrs: Record<Attr, number>;
-  /** Attribute points to spend at a shrine. */
+  /** Skill ranks (expansion plan §7): Magic (Spell Power, Protection, Focus) and Combat (Attack, Defense, Stamina). */
+  skills: SkillRanks;
+  /** Skill points to spend (anywhere, on the Skills tab). */
   points: number;
   sprouts: number;
   equipment: { staff: string; robe: string; charm: string | null };
   /** Item id → count. */
   inventory: Record<string, number>;
+  /** Known spells. */
   spells: SpellId[];
+  /** The four equipped spell slots (expansion plan §1.1): each null or a known spell, no duplicates. */
+  loadout: (SpellId | null)[];
   tonics: { charges: number; max: number };
   quests: Record<string, QuestState>;
   tracked: string | null;
@@ -156,7 +176,7 @@ export interface Progress {
   dialogue: { npc: string; node: string } | null;
   /** An open merchant shop (buy commands are accepted only while it is open). */
   shop: string | null;
-  /** At a shrine (Rest / Level up menu): which one. */
+  /** At a shrine (Rest / Skills menu): which one. */
   atShrine: string | null;
 }
 
@@ -167,14 +187,15 @@ export interface WorldState {
   killedUniques: string[];
 }
 
-export type InteractKind = 'shrine' | 'chest';
+/** `object`: a one-use world object a quest points at (a beacon, a lever, a tome). */
+export type InteractKind = 'shrine' | 'chest' | 'object';
 
 /** Something the player can interact with (F / pad Y) in reach. */
 export interface Interactable {
   /** Content id (the shrine's or chest's id). */
   id: string;
   kind: InteractKind;
-  /** Chests: opened already (then not interactable). */
+  /** Chests and objects: used already (then not interactable). */
   used: boolean;
 }
 
@@ -221,6 +242,78 @@ export interface EnemyBrain {
   meleeHitsTaken: number;
   /** Close to this gap (m) before attacking, for a short-reach move; 0 = attack from here; unset = not decided yet. */
   stepIn?: number;
+  /** The world camp it belongs to (M4): stays dead until the player rests or respawns. */
+  camp?: string;
+  /** A unique (named) enemy: once killed it never comes back (`WorldState.killedUniques`). */
+  unique?: string;
+  /** The stat affix its camp rolled (expansion plan §3.6). */
+  affix?: AffixId;
+  /** Called in by a boss: gone for good once dead, and gone when the fight resets. */
+  summoned?: boolean;
+}
+
+/** A boss fight in progress (plan §4.10). Lives on the boss, so snapshots and hashes carry it. */
+export interface BossState {
+  state: 'idle' | 'intro' | 'fight' | 'dead';
+  /** Ticks in the intro. */
+  t: number;
+  phase: number;
+  /** Falling rocks stop at this tick; the next one may start at `nextRock`. */
+  rocksUntil: number;
+  nextRock: number;
+  /** The add wave has been called. */
+  summoned: boolean;
+  /** Underground (dormant, or mid-burrow): nothing can touch it, and it has no collider. */
+  under?: boolean;
+  /** A boss that flies (the Skyfire Drake): where it is in the air. */
+  flight?: DrakeFlight;
+}
+
+/** The Skyfire Drake's flight (expansion plan §3.5). */
+export interface DrakeFlight {
+  /** `orbit`: circling the player. `dive`: on a lane. `glide`: Broken, low over the field. `stall`: held by a stagger. */
+  mode: 'orbit' | 'dive' | 'glide' | 'stall';
+  /** The circle it flies: where on it (radians), which way round (+1 / -1) and its centre. */
+  angle: number;
+  dir: number;
+  cx: number;
+  cz: number;
+  /** The ground under it, smoothed (m). */
+  ground: number;
+  /** The dive's line on the ground: its two ends and the ground height along it, end to end. */
+  lane: { ax: number; az: number; bx: number; bz: number; ys: number[] } | null;
+  /** The line of a Broken glide. */
+  glide: { ax: number; az: number; bx: number; bz: number } | null;
+}
+
+/** A danger on the ground that belongs to a boss (plan §4.10). */
+export interface Hazard {
+  /** `rock`: lands after `fuse` ticks and hits once. `burn`: burns whoever stands in it until `life` runs out. */
+  kind: 'rock' | 'burn';
+  owner: EntityId;
+  radius: number;
+  /** Ticks until a rock lands (0 once it has). */
+  fuse: number;
+  /** The fuse at the start (the telegraph's fill). */
+  fuseMax: number;
+  /** Ticks until it is removed. */
+  life: number;
+  damage: number;
+}
+
+/**
+ * A static collider that can come and go (expansion plan §3.3): a gate barrier that stands until its
+ * world flag is set, or a pillar a boss's charge can smash. Rapier's copy is derived from this.
+ */
+export interface Obstacle {
+  id: string;
+  shape: { kind: 'box'; half: [number, number, number]; yaw: number } | { kind: 'cylinder'; radius: number; height: number };
+  /** The world flag that opens it for good (a gate). */
+  openFlag?: string;
+  /** A boss's charge smashes it. */
+  breakable?: boolean;
+  /** Smashed: no collider, until the fight resets. */
+  broken: boolean;
 }
 
 export interface Projectile {
@@ -246,6 +339,8 @@ export interface Projectile {
   interrupts?: boolean;
   knockdown?: boolean;
   woven?: boolean;
+  /** Parried back into `shooter`: takes this fraction of its max HP and staggers it (Scrap Throw). */
+  reflectBonus?: { hpFrac: number; stagger: number; shooter: EntityId; poiseFrac?: number; homing?: number };
 }
 
 /**
@@ -263,11 +358,23 @@ export interface Entity {
   brain?: EnemyBrain;
   projectile?: Projectile;
   statuses?: Statuses;
+  /** Running C3 power effects (a ward, a root, the Surge meter). */
+  powers?: PowerState;
+  /** This entity is a C3 power's ground effect (a thorn wall, a flower patch, a surge wave). */
+  powerArea?: PowerArea;
   progress?: Progress;
   interactable?: Interactable;
   npc?: Npc;
   pickup?: Pickup;
+  boss?: BossState;
+  hazard?: Hazard;
+  obstacle?: Obstacle;
   owner?: PlayerId;
+  /**
+   * Placed by content at a guessed height: set down on the ground (a raycast) on the tick its cell's
+   * colliders are built (M4 camps, villagers, objects). Cleared once settled.
+   */
+  settle?: true;
   /** Presentation hint only: which model to draw. */
-  view: { model: string; tint?: number };
+  view: { model: string; tint?: number; scale?: number };
 }

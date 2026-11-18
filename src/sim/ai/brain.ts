@@ -4,9 +4,12 @@ import { flatDist, toWorld, yawTo } from '../combat/geometry';
 import type { CombatCtx } from '../combat/playerCombat';
 import { clockTicks, moveScale } from '../combat/statuses';
 import type { Entity } from '../entity';
+import { affixSpeed } from '../systems/affixes';
 import { turnToward, wrapAngle } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
+import { bossAttackTick, bossPreTick, bossSpeed, bossThink, type BossHost } from '../systems/boss';
+import { drakeTick } from '../systems/drake';
 
 /** Spawns one projectile for an enemy's ranged move (provided by SimWorld). `angle` fans it out. */
 export type SpawnProjectile = (owner: Entity, move: EnemyMoveDef, target: Entity, angle: number) => void;
@@ -25,7 +28,7 @@ const MIN_GAP = 0.6;
  * pick an attack by distance band and weight (never one move three times running), sometimes
  * circle after recovering, and leash home if pulled too far. Chill slows their clock and feet.
  */
-export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld, spawnProjectile: SpawnProjectile): void {
+export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld, spawnProjectile: SpawnProjectile, bossHost?: BossHost): void {
   for (const e of ctx.entities) {
     const b = e.brain;
     const c = e.combat;
@@ -35,6 +38,12 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
     const still = () => ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
     if (ctx.frozen.has(e.id)) {
       still();
+      continue;
+    }
+
+    // The Skyfire Drake flies its whole fight itself (expansion plan §3.5).
+    if (def.drake && bossHost) {
+      drakeTick(ctx, e, def, physics, rng, bossHost, { target: () => pickTarget(ctx, e, def), start: startAttack, run: (t) => runAttack(ctx, e, def, t, spawnProjectile, rng) });
       continue;
     }
 
@@ -61,18 +70,22 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
 
     const target = pickTarget(ctx, e, def);
     b.target = target?.id ?? null;
+    const boss = def.boss && bossHost ? bossHost : null;
+    if (boss) bossPreTick(ctx, e, def, target, rng, boss);
 
     if (a?.kind === 'attack') {
       runAttack(ctx, e, def, target, spawnProjectile, rng);
+      if (boss) bossAttackTick(ctx, e, def, boss);
       continue;
     }
 
     if (def.dummy) dummyThink(ctx, e, def, target);
+    else if (boss) bossThink(ctx, e, def, target, rng, boss, startAttack);
     else fighterThink(ctx, e, def, target, rng);
-    // Chill slows movement too.
+    // Chill slows movement too, and an affix can speed it up or slow it down.
     const m = ctx.motion.get(e.id);
     if (m) {
-      const k = moveScale(e);
+      const k = moveScale(e) * affixSpeed(e);
       m.vx *= k;
       m.vz *= k;
     }
@@ -156,9 +169,21 @@ function runAttack(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | nu
     motion.vx = Math.sin(e.tf.yaw) * speed;
     motion.vz = Math.cos(e.tf.yaw) * speed;
   }
+  // A boss's charge runs straight along its committed facing.
+  if (move.charge && a.t >= move.windup && a.t < move.windup + move.active) {
+    const speed = move.charge.speed * bossSpeed(e, def) * moveScale(e);
+    motion.vx = Math.sin(e.tf.yaw) * speed;
+    motion.vz = Math.cos(e.tf.yaw) * speed;
+  }
   ctx.motion.set(e.id, motion);
   if (a.t >= move.windup + move.active + move.recovery) {
     e.combat!.action = null;
+    // A string (the Gatekeeper's 3-hit): the next move starts at once, still holding its token.
+    const next = move.followUp ? def.moves.find((m) => m.id === move.followUp) : undefined;
+    if (next && target) {
+      startAttack(ctx, e, next, target);
+      return;
+    }
     // After an attack, sometimes back off and circle for a moment.
     if (!def.dummy && rngNext(rng) < 0.4) {
       e.brain!.circle = rngRange(rng, 30, 70);
@@ -189,6 +214,8 @@ function dummyThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | n
 }
 
 function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | null, rng: RngState): void {
+  // Moves the AI picks itself (a string's later hits only come as follow-ups).
+  const picks = def.moves.filter((m) => !m.chainOnly);
   const b = e.brain!;
   const home = b.home;
   const fromHome = flatDist(e.tf.pos, home);
@@ -246,11 +273,11 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
   const thirdInARow = (m: EnemyMoveDef) => b.recent.length === 2 && b.recent.every((r) => r === m.id);
   // No move three times running, unless nothing else is usable from here (a Grunt too close to
   // leap must still swipe).
-  const noRepeat = def.moves.some((m) => offCooldown(m) && inRange(m) && !thirdInARow(m));
+  const noRepeat = picks.some((m) => offCooldown(m) && inRange(m) && !thirdInARow(m));
   const ready = (m: EnemyMoveDef) => offCooldown(m) && (!noRepeat || !thirdInARow(m));
   // Token-less melee enemies hang back in the waiting band and circle, feinting in and out (plan
   // §4.8), instead of standing in your face waiting for a slot.
-  if (!def.keepRange && def.usesTokens && !def.moves.some((m) => hasToken(ctx, e, def, m, target))) {
+  if (!def.keepRange && def.usesTokens && !picks.some((m) => hasToken(ctx, e, def, m, target))) {
     const [lo, hi] = WAIT_BAND;
     const radial = gap < lo ? -def.moveSpeed * 0.7 : gap > hi ? def.moveSpeed * 0.7 : Math.sin((ctx.now + e.id * 37) / 25) * 1.2;
     strafe(target, b.circleDir, CIRCLE_SPEED, radial);
@@ -270,15 +297,15 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
   }
   // Sometimes step in for a shorter-reach move instead of always swinging from the longest reach,
   // so a player who stands still still sees the whole moveset.
-  if (!def.keepRange && b.stepIn === undefined && def.moves.length > 1) {
-    const shortest = def.moves.reduce((m, x) => (x.range < m.range ? x : m));
+  if (!def.keepRange && b.stepIn === undefined && picks.length > 1) {
+    const shortest = picks.reduce((m, x) => (x.range < m.range ? x : m));
     b.stepIn = ready(shortest) && gap > shortest.range && rngNext(rng) < 0.35 ? shortest.range - 0.2 : 0;
   }
   if (b.stepIn && gap > b.stepIn) {
     go(target.tf.pos.x, target.tf.pos.z, def.moveSpeed);
     return;
   }
-  const options = def.moves.filter((m) => inRange(m) && ready(m));
+  const options = picks.filter((m) => inRange(m) && ready(m));
   const facing = Math.abs(wrapAngle(yawTo(e.tf.pos, target.tf.pos) - e.tf.yaw)) < 0.6;
   const allowed = options.filter((m) => hasToken(ctx, e, def, m, target));
   if (allowed.length && facing) {
@@ -304,7 +331,7 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
     return;
   }
   // Close in until just inside the shortest reach, then turn to face.
-  const want = Math.min(...def.moves.map((m) => m.range)) - MIN_GAP;
+  const want = Math.min(...picks.map((m) => m.range)) - MIN_GAP;
   if (gap > want) go(target.tf.pos.x, target.tf.pos.z, def.moveSpeed);
   else {
     faceTarget(target);

@@ -4,14 +4,17 @@ import { ENEMIES } from '../../content/enemies';
 import { HEART_HEAL, INVENTORY_CAP, ITEMS, STARTING_GEAR, TONIC, type Slot } from '../../content/items';
 import { DROPS, MERCHANTS } from '../../content/loot';
 import { NPCS } from '../../content/npcs';
-import { GROWTH, LEVEL_CAP, xpForLevel, type Attr } from '../../content/progression';
+import { OBJECTS, usedFlag } from '../../content/objects';
+import { GROWTH, LEVEL_CAP, SKILL_EFFECT, SKILL_POINTS_PER_LEVEL, noSkills, xpForLevel } from '../../content/progression';
 import { QUESTS, type Condition, type Effect, type Objective } from '../../content/quests';
-import { SPELLS, type SpellId } from '../../content/spells';
+import { SPELLS, defaultLoadout, type SpellId } from '../../content/spells';
 import { BTN, type UiAction } from '../commands';
 import { angleTo, flatDist } from '../combat/geometry';
-import type { Entity, Progress, WorldState } from '../entity';
+import type { Entity, InteractKind, Progress, WorldState } from '../entity';
 import type { SimEvent } from '../events';
 import type { Vec3 } from '../math';
+import { affixXp } from './affixes';
+import { equipSpell, gearLocked, grantSkillPoints, learnIntoLoadout, respecSkills, spendSkill } from './loadout';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
 
 /**
@@ -34,10 +37,10 @@ export interface RpgCtx {
 
 export function newProgress(spells: SpellId[]): Progress {
   return {
-    level: 1, xp: 0, attrs: { might: 0, arcana: 0, vitality: 0, endurance: 0 }, points: 0, sprouts: 0,
+    level: 1, xp: 0, skills: noSkills(), points: 0, sprouts: 0,
     equipment: { staff: STARTING_GEAR.staff, robe: STARTING_GEAR.robe, charm: STARTING_GEAR.charm },
     inventory: { [STARTING_GEAR.staff]: 1, [STARTING_GEAR.robe]: 1 },
-    spells: [...spells], tonics: { charges: TONIC.charges, max: TONIC.charges },
+    spells: [...spells], loadout: defaultLoadout(spells), tonics: { charges: TONIC.charges, max: TONIC.charges },
     quests: {}, tracked: null, lastShrine: null, discoveredShrines: [], dialogue: null, shop: null, atShrine: null,
   };
 }
@@ -45,16 +48,17 @@ export function newProgress(spells: SpellId[]): Progress {
 export const charmOf = (p: Progress) => (p.equipment.charm ? ITEMS[p.equipment.charm]?.charm : undefined);
 export const staffOf = (p: Progress) => ITEMS[p.equipment.staff]?.staff ?? ITEMS[STARTING_GEAR.staff].staff!;
 
-/** Re-derive max HP/stamina/mana, defense and tonic charges from level, attributes and gear. */
+/** Re-derive max HP/stamina/mana, defense and tonic charges from level, skills and gear. */
 export function recompute(e: Entity): void {
   const p = e.progress;
   const v = e.vitals;
   const c = e.combat;
   if (!p || !v || !c) return;
   const above = p.level - 1;
-  const hpMax = PLAYER_STATS.hp + GROWTH.hpPerLevel * above + GROWTH.hpPerVitality * p.attrs.vitality;
-  const stMax = PLAYER_STATS.stamina + GROWTH.staminaPerLevel * above + GROWTH.staminaPerEndurance * p.attrs.endurance;
-  const mpMax = PLAYER_STATS.mana + GROWTH.manaPerLevel * above + GROWTH.manaPerArcana * p.attrs.arcana;
+  const sk = p.skills;
+  const hpMax = PLAYER_STATS.hp + GROWTH.hpPerLevel * above + SKILL_EFFECT.defenseHp * sk.defense;
+  const stMax = PLAYER_STATS.stamina + GROWTH.staminaPerLevel * above + SKILL_EFFECT.staminaMax * sk.stamina;
+  const mpMax = PLAYER_STATS.mana + GROWTH.manaPerLevel * above + SKILL_EFFECT.focusMana * sk.focus;
   // Growing a maximum grows the current value with it (a level-up feels like one).
   v.hp = Math.min(hpMax, v.hp + Math.max(0, hpMax - v.hpMax));
   v.stamina = Math.min(stMax, v.stamina + Math.max(0, stMax - v.staminaMax));
@@ -64,7 +68,7 @@ export function recompute(e: Entity): void {
   v.manaMax = mpMax;
   const robe = ITEMS[p.equipment.robe]?.robe ?? { physical: 0, arcane: 0 };
   const charm = charmOf(p);
-  const vit = p.attrs.vitality * GROWTH.vitalityDefense;
+  const vit = sk.defense * SKILL_EFFECT.defense;
   const k = charm?.defense ?? 1;
   c.defense = { physical: Math.round((robe.physical + vit) * k), arcane: Math.round((robe.arcane + vit) * k) };
   c.level = p.level;
@@ -80,8 +84,8 @@ export function grantXp(ctx: RpgCtx, e: Entity, amount: number): void {
   ctx.events.push({ type: 'xp', entity: e.id, amount, total: p.xp });
   while (p.level < LEVEL_CAP && p.xp >= xpForLevel(p.level + 1)) {
     p.level++;
-    p.points++;
-    ctx.events.push({ type: 'levelUp', entity: e.id, level: p.level });
+    p.points += SKILL_POINTS_PER_LEVEL;
+    ctx.events.push({ type: 'levelUp', entity: e.id, level: p.level, points: SKILL_POINTS_PER_LEVEL });
   }
   recompute(e);
 }
@@ -118,6 +122,8 @@ export function checkCondition(c: Condition, p: Progress, world: WorldState): bo
     return c.step === undefined || q?.step === c.step;
   }
   if ('flag' in c) return c.value === undefined ? (world.flags[c.flag] ?? 0) !== 0 : world.flags[c.flag] === c.value;
+  if ('level' in c) return p.level >= c.level;
+  if ('questDone' in c) return p.quests[c.questDone]?.status === 'complete';
   return (p.inventory[c.hasItem] ?? 0) >= (c.count ?? 1);
 }
 
@@ -131,6 +137,7 @@ export function applyEffects(ctx: RpgCtx, e: Entity, effects: readonly Effect[] 
     else if ('learnSpell' in fx) {
       if (!p.spells.includes(fx.learnSpell)) {
         p.spells.push(fx.learnSpell);
+        learnIntoLoadout(p, fx.learnSpell);
         ctx.events.push({ type: 'spellLearned', entity: e.id, spell: fx.learnSpell });
       }
     } else if ('setFlag' in fx) ctx.world.flags[fx.setFlag] = fx.value ?? 1;
@@ -138,7 +145,11 @@ export function applyEffects(ctx: RpgCtx, e: Entity, effects: readonly Effect[] 
     else if ('currency' in fx) addSprouts(ctx, e, fx.currency);
     else if ('openShop' in fx) p.shop = fx.openShop;
     else if ('spawnUnique' in fx) ctx.world.flags[`unique:${fx.spawnUnique}`] = 1;
-    else if ('openGate' in fx) ctx.world.flags[`gate:${fx.openGate}`] = 1;
+    else if ('openGate' in fx) {
+      ctx.world.flags[`gate:${fx.openGate}`] = 1;
+      ctx.events.push({ type: 'gateOpened', gate: fx.openGate });
+    }
+    else if ('skillPoints' in fx) grantSkillPoints(ctx, e, fx.skillPoints);
   }
 }
 
@@ -153,7 +164,7 @@ export function startQuest(ctx: RpgCtx, e: Entity, id: string): void {
   ctx.events.push({ type: 'questStarted', entity: e.id, quest: id });
 }
 
-const target = (o: Objective) => (o.kind === 'kill' || o.kind === 'collect' ? o.count : 1);
+const target = (o: Objective) => (o.kind === 'kill' || o.kind === 'collect' || o.kind === 'feat' ? o.count : 1);
 
 /** Match this tick's events against every active quest's current step; complete steps and quests. */
 export function questTick(ctx: RpgCtx, e: Entity): void {
@@ -170,6 +181,10 @@ export function questTick(ctx: RpgCtx, e: Entity): void {
         const before = q.progress[i];
         q.progress[i] = Math.min(target(o), before + countFor(o, ctx.events, e, ctx.entities));
         if (o.kind === 'collect') q.progress[i] = Math.min(target(o), p.inventory[o.item] ?? 0);
+        // What the world already remembers counts, so doing things out of order never soft-locks a
+        // quest: a chest opened or an object used before the quest, a unique killed before it.
+        if (o.kind === 'interact' && ((ctx.world.flags[usedFlag(o.object)] ?? 0) !== 0 || ctx.world.openedChests.includes(o.object))) q.progress[i] = 1;
+        if (o.kind === 'kill' && ctx.world.killedUniques.includes(o.tag)) q.progress[i] = o.count;
         if (q.progress[i] !== before) changed = true;
       });
       if (changed) ctx.events.push({ type: 'questProgress', entity: e.id, quest: id, step: q.step, progress: [...q.progress] });
@@ -199,8 +214,14 @@ function countFor(o: Objective, events: readonly SimEvent[], e: Entity, entities
       case 'kill':
         if (ev.type === 'death' && ev.killer === e.id) {
           const dead = entities.find((x) => x.id === ev.entity);
-          if (dead?.brain?.def === o.tag) n++;
+          const def = dead?.brain ? ENEMIES[dead.brain.def] : undefined;
+          if (def && (def.id === o.tag || def.tags?.includes(o.tag))) n++;
         }
+        break;
+      case 'feat':
+        if (o.feat === 'heavyHit' && ev.type === 'hit' && ev.attacker === e.id && ev.heavy) n++;
+        else if (o.feat === 'perfectDodge' && ev.type === 'dodgePerfect' && ev.entity === e.id) n++;
+        else if (o.feat === 'parry' && ev.type === 'parry' && ev.target === e.id) n++;
         break;
       case 'talk':
         if (ev.type === 'talk' && ev.entity === e.id && ev.npc === o.npc && (!o.node || ev.node === o.node)) n++;
@@ -220,28 +241,29 @@ function countFor(o: Objective, events: readonly SimEvent[], e: Entity, entities
 
 // ---------------------------------------------------------------- interaction, dialogue, menus
 
-const REACH = { npc: 2.6, shrine: 3, chest: 2.4 } as const;
+const REACH = { npc: 2.6, shrine: 3, chest: 2.4, object: 2.4 } as const;
 const FRONT = (80 * Math.PI) / 180;
 
 /** The nearest NPC, shrine or unopened chest within reach and roughly in front of the player. */
-export function interactTarget(player: Entity, entities: readonly Entity[]): { e: Entity; id: string; kind: 'npc' | 'shrine' | 'chest'; name: string } | null {
-  let best: { e: Entity; id: string; kind: 'npc' | 'shrine' | 'chest'; name: string } | null = null;
+export function interactTarget(player: Entity, entities: readonly Entity[]): { e: Entity; id: string; kind: 'npc' | InteractKind; name: string } | null {
+  let best: { e: Entity; id: string; kind: 'npc' | InteractKind; name: string } | null = null;
   let bestD = Infinity;
   for (const e of entities) {
-    let kind: 'npc' | 'shrine' | 'chest';
+    let kind: 'npc' | InteractKind;
     let id: string;
     let name: string;
     if (e.npc) {
       kind = 'npc';
       id = e.npc.id;
       name = NPCS[id]?.name ?? id;
-    } else if (e.interactable && !(e.interactable.kind === 'chest' && e.interactable.used)) {
+    } else if (e.interactable && !(e.interactable.kind !== 'shrine' && e.interactable.used)) {
       kind = e.interactable.kind;
       id = e.interactable.id;
-      name = kind === 'shrine' ? shrineName(id) : 'Old chest';
+      name = kind === 'shrine' ? shrineName(id) : kind === 'object' ? `${OBJECTS[id]?.verb ?? 'Use'} ${OBJECTS[id]?.name ?? id}` : 'Old chest';
     } else continue;
     const d = flatDist(player.tf.pos, e.tf.pos);
-    if (d > REACH[kind] || Math.abs(player.tf.pos.y - e.tf.pos.y) > 2.5) continue;
+    // An object can stand on top of its prop (the beacon, about 4 m above the ground around it).
+    if (d > REACH[kind] || Math.abs(player.tf.pos.y - e.tf.pos.y) > (kind === 'object' ? 6 : 2.5)) continue;
     if (d > 0.8 && angleTo(player.tf.pos, player.tf.yaw, e.tf.pos) > FRONT) continue;
     if (d < bestD) {
       bestD = d;
@@ -320,6 +342,20 @@ function openChest(ctx: RpgCtx, e: Entity, chest: Entity, contents: { items: { i
   if (contents?.sprouts) addSprouts(ctx, e, contents.sprouts);
 }
 
+/** Use a one-use world object (M4): it stays used (a world flag) and applies its effects. */
+function useObject(ctx: RpgCtx, e: Entity, obj: Entity): void {
+  const ia = obj.interactable!;
+  const def = OBJECTS[ia.id];
+  if (def && !checkAll(def.requires, e.progress!, ctx.world)) {
+    ctx.events.push({ type: 'refused', entity: e.id, action: 'interact', reason: def.refusal ?? "You can't use that yet." });
+    return;
+  }
+  ia.used = true;
+  ctx.world.flags[usedFlag(ia.id)] = 1;
+  ctx.events.push({ type: 'interact', entity: e.id, object: ia.id, kind: 'object' });
+  applyEffects(ctx, e, OBJECTS[ia.id]?.effects);
+}
+
 /**
  * Interact presses, potion presses and menu intents for one player. `chests` maps a chest id to
  * its contents. Returns true while the player is in a menu or talking (their gameplay input is
@@ -339,15 +375,14 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
       case 'equip':
         equip(ctx, e, a.item);
         break;
-      case 'spendAttr':
-        if (!p.atShrine) ctx.events.push({ type: 'refused', entity: e.id, action: 'spendAttr', reason: 'Spend points at a shrine.' });
-        else if (p.points <= 0) ctx.events.push({ type: 'refused', entity: e.id, action: 'spendAttr', reason: 'No points to spend.' });
-        else {
-          p.points--;
-          p.attrs[a.attr as Attr]++;
-          recompute(e);
-          ctx.events.push({ type: 'attrSpent', entity: e.id, attr: a.attr, value: p.attrs[a.attr as Attr] });
-        }
+      case 'equipSpell':
+        equipSpell(ctx, e, a.slot, a.spell);
+        break;
+      case 'spendSkill':
+        spendSkill(ctx, e, a.skill);
+        break;
+      case 'respecSkills':
+        respecSkills(ctx, e);
         break;
       case 'rest':
         if (p.atShrine) rest(ctx, e, p.atShrine);
@@ -368,6 +403,7 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
     const t = interactTarget(e, ctx.entities);
     if (t?.kind === 'npc') startTalk(ctx, e, t.id);
     else if (t?.kind === 'chest') openChest(ctx, e, t.e, chests.get(t.id));
+    else if (t?.kind === 'object') useObject(ctx, e, t.e);
     else if (t?.kind === 'shrine') {
       if (!p.discoveredShrines.includes(t.id)) p.discoveredShrines.push(t.id);
       p.atShrine = t.id;
@@ -412,6 +448,11 @@ function equip(ctx: RpgCtx, e: Entity, item: string): void {
     ctx.events.push({ type: 'refused', entity: e.id, action: 'equip', reason: "You don't have that." });
     return;
   }
+  // Gear changes only out of combat, or at a shrine (expansion plan §1.1).
+  if (gearLocked(e, ctx.now)) {
+    ctx.events.push({ type: 'refused', entity: e.id, action: 'equip', reason: "You can't change gear in combat." });
+    return;
+  }
   const slot = def.kind as Slot;
   // Toggling a charm off: equipping the one already worn removes it.
   if (slot === 'charm' && p.equipment.charm === item) p.equipment.charm = null;
@@ -431,9 +472,14 @@ function buy(ctx: RpgCtx, e: Entity, merchant: string, item: string): void {
   const key = `bought:${merchant}:${item}`;
   const sold = ctx.world.flags[key] ?? 0;
   if (sold >= stock) return refuse('Sold out.');
+  const flag = m.after?.[item];
+  if (flag && !ctx.world.flags[flag]) return refuse('Not for sale yet.');
   const price = ITEMS[item]?.price ?? 0;
   if (p.sprouts < price) return refuse('Not enough Sprouts.');
-  if (!giveItem(ctx, e, item, 1)) return;
+  const teaches = ITEMS[item]?.teaches;
+  if (teaches && p.spells.includes(teaches)) return refuse('You already know that spell.');
+  if (teaches) applyEffects(ctx, e, [{ learnSpell: teaches }]);
+  else if (!giveItem(ctx, e, item, 1)) return;
   p.sprouts -= price;
   ctx.world.flags[key] = sold + 1;
   ctx.events.push({ type: 'bought', entity: e.id, merchant, item, price });
@@ -448,14 +494,18 @@ const PICKUP_RADIUS = 1.3;
 export function onKill(ctx: RpgCtx, killer: Entity, dead: Entity): void {
   const def = dead.brain ? ENEMIES[dead.brain.def] : undefined;
   if (!def || !killer.progress) return;
-  grantXp(ctx, killer, def.xp);
+  grantXp(ctx, killer, Math.round(def.xp * affixXp(dead)));
   const table = DROPS[def.id];
   if (!table) return;
   const at = (k: number) => ({ x: dead.tf.pos.x + Math.cos(k * 2.1) * 0.6, y: dead.tf.pos.y + 0.3, z: dead.tf.pos.z + Math.sin(k * 2.1) * 0.6 });
   ctx.spawnPickup(at(0), { kind: 'sprouts', amount: rngRange(ctx.rng, table.sprouts[0], table.sprouts[1]), life: PICKUP_LIFE });
   if (rngNext(ctx.rng) < table.heartChance) ctx.spawnPickup(at(1), { kind: 'heart', amount: 1, life: PICKUP_LIFE });
   let k = 2;
-  for (const it of table.items ?? []) if (rngNext(ctx.rng) < it.chance) ctx.spawnPickup(at(k++), { kind: 'item', item: it.item, amount: 1, life: PICKUP_LIFE });
+  for (const it of table.items ?? []) {
+    // Gear is found once: a piece you own doesn't drop again. The roll still happens, so the loot stream stays in step.
+    const owned = !ITEMS[it.item]?.stacks && (killer.progress.inventory[it.item] ?? 0) > 0;
+    if (rngNext(ctx.rng) < it.chance && !owned) ctx.spawnPickup(at(k++), { kind: 'item', item: it.item, amount: 1, life: PICKUP_LIFE });
+  }
 }
 
 /** Walk over a pickup to take it; old ones fade. Returns the ids to remove. */
@@ -478,12 +528,13 @@ export function pickups(ctx: RpgCtx): number[] {
 }
 
 /** Trigger volumes: an event when a player enters (not every tick while inside). */
-export function triggers(ctx: RpgCtx, list: readonly { id: string; pos: [number, number, number]; radius: number }[], inside: Set<string>): void {
+export function triggers(ctx: RpgCtx, list: readonly { id: string; pos: [number, number, number]; radius: number; halfHeight?: number }[], inside: Set<string>): void {
   for (const e of ctx.entities) {
     if (!e.progress) continue;
     for (const t of list) {
       const key = `${e.id}:${t.id}`;
-      const inNow = Math.hypot(e.tf.pos.x - t.pos[0], e.tf.pos.z - t.pos[2]) <= t.radius && Math.abs(e.tf.pos.y - t.pos[1]) < 4;
+      // A vertical cylinder: height only counts when the trigger says so (M4 volumes sit on terrain).
+      const inNow = Math.hypot(e.tf.pos.x - t.pos[0], e.tf.pos.z - t.pos[2]) <= t.radius && (t.halfHeight === undefined || Math.abs(e.tf.pos.y - t.pos[1]) < t.halfHeight);
       if (inNow && !inside.has(key)) {
         inside.add(key);
         ctx.events.push({ type: 'trigger', entity: e.id, trigger: t.id });
