@@ -54,6 +54,7 @@ export class PhysicsWorld {
   readonly world: RAPIER.World;
   private readonly controller: RAPIER.KinematicCharacterController;
   private readonly characters = new Map<EntityId, CharacterBody>();
+  private readonly barriers = new Map<EntityId, RAPIER.Collider>();
 
   /** Call after `initPhysics()` has resolved. */
   constructor(level: LevelDef) {
@@ -190,6 +191,32 @@ export class PhysicsWorld {
     const moved = { x: m.x, y: m.y, z: m.z };
     c.collider.setTranslation({ x: feet.x + moved.x, y: feet.y + moved.y + c.centerOffset, z: feet.z + moved.z });
     return { moved, grounded: this.controller.computedGrounded() };
+  }
+
+  /**
+   * A temporary solid box (Bramble Wall). It's in the world's collision group, so characters, spell
+   * lines and projectiles all stop on it. Queries see it from the next `step()`.
+   */
+  addBarrier(id: EntityId, centre: Readonly<Vec3>, half: readonly [number, number, number], yaw: number): void {
+    this.removeBarrier(id);
+    const collider = this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(half[0], half[1], half[2])
+        .setTranslation(centre.x, centre.y, centre.z)
+        .setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) })
+        .setCollisionGroups(groups(GROUP.WORLD, 0xffff)),
+    );
+    this.barriers.set(id, collider);
+  }
+
+  removeBarrier(id: EntityId): void {
+    const c = this.barriers.get(id);
+    if (!c) return;
+    this.world.removeCollider(c, false);
+    this.barriers.delete(id);
+  }
+
+  removeAllBarriers(): void {
+    for (const id of [...this.barriers.keys()]) this.removeBarrier(id);
   }
 
   /** Place a character instantly (spawn, respawn, snapshot restore). */

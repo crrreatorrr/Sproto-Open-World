@@ -6,6 +6,7 @@ import { AFFINITY_MULT, ENEMIES, type Affinity, type EnemyMoveDef } from '../../
 import { PERK_EFFECT, SKILL_EFFECT, hasPerk } from '../../content/progression';
 import { STATUS } from '../../content/statuses';
 import { charmOf, staffOf } from '../systems/rpg';
+import { rootedMult } from './powers/snare';
 import { applyStatus } from './statuses';
 import type { Entity } from '../entity';
 import type { Vec3 } from '../math';
@@ -63,7 +64,7 @@ export function computeDamage(attacker: Entity, target: Entity, info: HitInfo): 
   const lv = Math.max(0.8, Math.min(1.2, 1 + 0.05 * ((attacker.combat?.level ?? 1) - tc.level)));
   // A melee hit on a chilled target shatters the chill for ×1.3 (consumed in resolveHit).
   const shatter = !info.projectile && info.kind === 'physical' && !!target.statuses?.chill;
-  const mult = (crit ? 1.5 : 1) * (frozen ? STATUS.chill.frozenDamage : 1) * (shatter ? STATUS.chill.meleeBonus : 1) * lv * AFFINITY_MULT[affinity];
+  const mult = (crit ? 1.5 : 1) * (frozen ? STATUS.chill.frozenDamage : 1) * (shatter ? STATUS.chill.meleeBonus : 1) * rootedMult(target) * lv * AFFINITY_MULT[affinity];
   return { damage: Math.max(1, Math.round(mitig * mult)), crit, affinity };
 }
 

@@ -3,6 +3,7 @@ import type { SkillRanks } from '../content/progression';
 import type { QuestState } from '../content/quests';
 import type { SpellId } from '../content/spells';
 import type { StatusId } from '../content/statuses';
+import type { PowerArea, PowerState } from './combat/powers/state';
 import type { Vec3 } from './math';
 
 export type EntityId = number;
@@ -83,6 +84,8 @@ export type Action =
       release: number;
       woven: boolean;
       released: boolean;
+      /** A held power (Ember Breath) after its release: ticks breathed, and the longest it can go. */
+      channel?: { t: number; dur: number };
     }
   | { kind: 'dodge'; t: number; dir: { x: number; z: number } }
   | { kind: 'block'; t: number; parryTicks: number }
@@ -274,6 +277,10 @@ export interface Entity {
   brain?: EnemyBrain;
   projectile?: Projectile;
   statuses?: Statuses;
+  /** Running C3 power effects (a ward, a root, the Surge meter). */
+  powers?: PowerState;
+  /** This entity is a C3 power's ground effect (a thorn wall, a flower patch, a surge wave). */
+  powerArea?: PowerArea;
   progress?: Progress;
   interactable?: Interactable;
   npc?: Npc;

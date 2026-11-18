@@ -9,6 +9,8 @@ import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { bodySegment, flatDist, segmentSegmentDistSq } from './geometry';
 import { resolveHit, type HitInfo } from './hits';
 import type { CombatCtx } from './playerCombat';
+import { wardProjectile } from './powers/mirrorWard';
+import { snareHit } from './powers/snare';
 import { applyStatus } from './statuses';
 
 /**
@@ -25,6 +27,12 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
     if (pr.homing && pr.target !== undefined) steer(e, ctx.get(pr.target));
     const from = { ...e.tf.pos };
     const to = { x: from.x + e.tf.vel.x * DT, y: from.y + e.tf.vel.y * DT, z: from.z + e.tf.vel.z * DT };
+    const ward = wardProjectile(ctx, e, from, to);
+    if (ward === 'reflected') continue;
+    if (ward === 'blocked') {
+      dead.push(e.id);
+      continue;
+    }
     const seg = { x: to.x - from.x, y: to.y - from.y, z: to.z - from.z };
     const segLen = Math.hypot(seg.x, seg.y, seg.z);
     const wall = segLen > 1e-6 ? physics.raycast(from, seg, segLen + pr.radius) : null;
@@ -50,6 +58,7 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
         break;
       }
       if (out === 'hit' && pr.status && !isDead(tgt)) applyStatus(ctx, tgt, pr.status.id, pr.status.stacks, owner.id);
+      if (out === 'hit' && pr.spell === 'staticSnare') snareHit(ctx, tgt, owner.id);
       consumed = true;
       break;
     }
@@ -114,7 +123,7 @@ function steer(e: Entity, target: Entity | undefined): void {
   e.tf.vel = { x: (nx / nl) * speed, y: (ny / nl) * speed, z: (nz / nl) * speed };
 }
 
-function reflect(e: Entity, parrier: Entity, ctx: CombatCtx): void {
+export function reflect(e: Entity, parrier: Entity, ctx: CombatCtx): void {
   const pr = e.projectile!;
   const shooter = ctx.get(pr.owner);
   const speed = Math.hypot(e.tf.vel.x, e.tf.vel.y, e.tf.vel.z) * BLOCK.reflect;
