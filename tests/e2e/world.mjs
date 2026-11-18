@@ -48,6 +48,8 @@ const STEP_M = 64;
 /** Lap corners, 24 m inside the region's edge (the soft wall sits 8 m in). */
 const LO = 24, HI = 512 - 24;
 const LAP = [[LO, LO], [HI, HI], [HI, LO], [LO, HI], [LO, LO]];
+/** The Quarry pillar nearest the lap's diagonal (src/content/packs/m5.ts). */
+const QUARRY_PILLAR = [447.4, 444.6];
 /** Budget spots (plan §3.5): the hub, the orchard, Thornwood, the quarry. */
 const SPOTS = [
   { name: 'Sprout Hollow', x: 256, z: 58 },
@@ -176,6 +178,10 @@ function lapPoints() {
     for (let k = 0; k < n; k++) pts.push([ax + ((bx - ax) * k) / n, az + ((bz - az) * k) / n]);
   }
   pts.push(LAP[LAP.length - 1]);
+  // A Quarry pillar stands on this stretch of the diagonal: step aside rather than teleport into it.
+  for (const pt of pts) {
+    if (Math.hypot(pt[0] - QUARRY_PILLAR[0], pt[1] - QUARRY_PILLAR[1]) < 6) pt.splice(0, 2, pt[0] - 8, pt[1] - 8);
+  }
   return pts;
 }
 
