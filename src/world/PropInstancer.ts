@@ -68,6 +68,9 @@ interface PropCell {
  * and every Visual-ring cell), else hidden unless a landmark. Templates are refcounted by the
  * cells that want or show them and disposed 10 s after the last one lets go.
  */
+/** Kinds that skip the shadow pass: the quarry's rock walls alone cost 158k shadow triangles. */
+const NO_SHADOW: ReadonlySet<string> = new Set(['quarry_rock']);
+
 export class PropInstancer {
   readonly root = new THREE.Group();
   private readonly templates = new Map<string, Template>();
@@ -201,7 +204,7 @@ export class PropInstancer {
       m.visible = false;
       // One mesh spans every loaded cell, so culling it as a whole would almost never cull.
       m.frustumCulled = false;
-      m.castShadow = bucket === 0;
+      m.castShadow = bucket === 0 && !NO_SHADOW.has(key);
       m.receiveShadow = true;
       m.name = `${key}:${BUCKET_NAMES[bucket]}:${i}`;
       this.root.add(m);

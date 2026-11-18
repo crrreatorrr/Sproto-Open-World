@@ -157,21 +157,23 @@ try {
   await settle();
 
   console.log('  -- the boot staff sharpens when calm');
+  // Game time can't pass faster than 0.1 s a frame, so on a CI runner's software GPU the staff's ten
+  // calm seconds take minutes.
   let s = await state();
   check(s.staffMounted, 'the player holds a staff from the first frame');
-  await page.waitForFunction(() => performance.getEntriesByType('resource').some((e) => e.name.endsWith('/staffs/staff_sproto.glb')), null, { timeout: 60000, polling: 500 });
-  await page.waitForFunction(() => window.__qa.app.assets.isReal('staff_sproto'), null, { timeout: 60000, polling: 500 });
+  await page.waitForFunction(() => performance.getEntriesByType('resource').some((e) => e.name.endsWith('/staffs/staff_sproto.glb')), null, { timeout: 300000, polling: 500 });
+  await page.waitForFunction(() => window.__qa.app.assets.isReal('staff_sproto'), null, { timeout: 300000, polling: 500 });
   await frames(10);
   s = await state();
   check(s.staffMounted, 'the full staff is in hand after a calm moment');
 
   console.log('  -- a failed model recovers by itself');
   await teleport(70, 84);
-  await page.waitForFunction(() => window.__qa.state().enemies.some((e) => e.def === 'grunt_orchard' && e.viewShown), null, { timeout: 60000, polling: 250 });
+  await page.waitForFunction(() => window.__qa.state().enemies.some((e) => e.def === 'grunt_orchard' && e.viewShown), null, { timeout: 300000, polling: 250 });
   check(!(await page.evaluate(() => window.__qa.app.assets.isReal('grunt'))), 'with its file blocked, the Grunt is a stand-in');
   check((await state()).state === 'playing', 'the game keeps running');
   await page.unroute(/models\/enemies\/grunt\.glb/);
-  await page.waitForFunction(() => window.__qa.app.assets.isReal('grunt'), null, { timeout: 75000, polling: 500 });
+  await page.waitForFunction(() => window.__qa.app.assets.isReal('grunt'), null, { timeout: 300000, polling: 500 });
   blocking = false;
   await heal();
   await frames(6);

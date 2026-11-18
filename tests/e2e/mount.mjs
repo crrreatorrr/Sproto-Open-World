@@ -72,10 +72,10 @@ function check(ok, what, detail = '') {
 
 try {
   await page.goto(server.resolvedUrls.local[0]);
-  await page.waitForFunction(() => window.__qa?.ready && window.__qa.state().screen === 'screen-title', null, { timeout: 60000 });
+  await page.waitForFunction(() => window.__qa?.ready && window.__qa.state().screen === 'screen-title', null, { timeout: 180000 });
   await press('down');
   await press('a');
-  await page.waitForFunction(() => window.__qa.state().state === 'playing' && !window.__qa.state().groundWait, null, { timeout: 60000 });
+  await page.waitForFunction(() => window.__qa.state().state === 'playing' && !window.__qa.state().groundWait, null, { timeout: 180000 });
   await frames(30);
 
   // Walk up to the bull, east of the start.

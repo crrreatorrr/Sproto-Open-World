@@ -18,7 +18,7 @@ import { DrakeFlyover, makeDrakeView } from './DrakeViews';
 import { BlastOrbView, BoltView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
 import { ChestView, NpcView, PickupView, ShrineView, objectView } from './RpgViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
-import { wantsView } from './viewCull';
+import { castsShadow, wantsView } from './viewCull';
 
 const DECAL_COLOR: Record<DecalShape, number> = { circle: 0xffa23a, jagged: 0xff2a1a };
 
@@ -86,6 +86,9 @@ export class WorldViews {
   private readonly lazyModels = new Map<string, boolean>();
   /** The size each view was made at: a camp's new affix (after a rest) can change it. */
   private readonly viewScale = new Map<EntityId, number>();
+  /** Which enemy views cast a shadow now (near the player only). */
+  private readonly shadowCast = new Map<EntityId, boolean>();
+  private frame = 0;
 
   constructor(
     private readonly assets: AssetLoader,
@@ -105,6 +108,20 @@ export class WorldViews {
     return this.views.get(id);
   }
 
+  /** Far enemies skip the shadow pass. Re-applied now and then: a lazy model arrives after its view. */
+  private enemyShadow(e: Readonly<Entity>, v: EntityView, me: Readonly<Entity> | undefined): void {
+    const was = this.shadowCast.get(e.id) ?? true;
+    const on = castsShadow(e, me, was);
+    if (on === was && this.shadowCast.has(e.id) && this.frame % 20 !== e.id % 20) return;
+    this.shadowCast.set(e.id, on);
+    v.root.traverse((o) => {
+      if (!(o as THREE.Mesh).isMesh) return;
+      // Parts that never cast (rings, glows) stay that way.
+      o.userData.castsShadow ??= o.castShadow;
+      o.castShadow = on && (o.userData.castsShadow as boolean);
+    });
+  }
+
   /** How far this mount's saddle has moved from its idle height (m), for the rider. */
   saddleLift(id: EntityId): number {
     const v = this.views.get(id);
@@ -113,6 +130,7 @@ export class WorldViews {
 
   /** Make, update and drop views to match the sim. Call once per rendered frame. */
   sync(view: ReadonlySimView, alpha: number, dt: number): void {
+    this.frame++;
     if (this.rebuildViews) {
       this.rebuildViews = false;
       for (const v of this.views.values()) v.dispose();
@@ -150,6 +168,7 @@ export class WorldViews {
       // Skinned meshes aren't frustum culled: a bull left far behind shouldn't cost a draw.
       if (e.mount && me) v.root.visible = Math.hypot(e.tf.pos.x - me.tf.pos.x, e.tf.pos.z - me.tf.pos.z) <= MOUNT_DRAW_RANGE;
       v.update(e, alpha, dt);
+      if (e.brain) this.enemyShadow(e, v, me);
       if (e.statuses) this.statusParticles(e, v, dt);
       if (e.combat) this.status.track(e, v.root, v.height, e.body?.radius ?? 0.4, dt);
     }
@@ -159,6 +178,7 @@ export class WorldViews {
       v.dispose();
       this.views.delete(id);
       this.statusClock.delete(id);
+      this.shadowCast.delete(id);
       this.status.drop(id);
       this.viewScale.delete(id);
       for (const [k, sv] of this.shrines) if (sv === v) this.shrines.delete(k);
