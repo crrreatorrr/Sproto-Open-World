@@ -2,6 +2,7 @@ import {
   BLOCK, BUFFER, CHARGE, LUNGE, PLAYER_MOVES, PLAYER_STATS, ROLL, SOFT_TARGET, clipReach, clipTiming, type PlayerMoveId,
 } from '../../content/combat';
 import { TONIC } from '../../content/items';
+import { TRAIT } from '../../content/packs/c2';
 import { CAST_WALK_SCALE } from '../../content/spells';
 import { charmOf } from '../systems/rpg';
 import { slotSpell } from '../systems/loadout';
@@ -13,6 +14,7 @@ import { turnToward } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { angleTo, flatDist, yawTo } from './geometry';
 import { advanceCast, castFacing, startCast, type SpawnSpellProjectile } from './spells';
+import { brawlerChains, tryBlink } from './staffTraits';
 
 /** Per-tick motion an action asks for: planar velocity (m/s), and whether input steers it. */
 export interface Motion {
@@ -51,13 +53,13 @@ export function inHitstopOrStun(a: Action | null): boolean {
   return a?.kind === 'hitstun' || a?.kind === 'stagger' || a?.kind === 'frozen' || a?.kind === 'dead';
 }
 
-/** Is the entity invulnerable this tick (roll i-frames)? */
+/** Is the entity invulnerable this tick (roll i-frames, or a blink)? */
 export function iframes(a: Action | null): boolean {
-  return a?.kind === 'dodge' && a.t >= ROLL.iframeStart && a.t <= ROLL.iframeEnd;
+  return a?.kind === 'blink' || (a?.kind === 'dodge' && a.t >= ROLL.iframeStart && a.t <= ROLL.iframeEnd);
 }
 
 /** Light attacks a spell may cancel from activeEnd (plan §4.4: never a heavy). */
-const LIGHTS = new Set<string>(['light1', 'light2', 'light3', 'rollAttack']);
+const LIGHTS = new Set<string>(['light1', 'light2', 'light3', 'light4', 'rollAttack']);
 const SPELL_BUTTONS = [BTN.spell1, BTN.spell2, BTN.spell3, BTN.spell4] as const;
 
 /** Player moves: buffer presses, advance the current action, start the next one (plan §4.2–4.4). */
@@ -84,7 +86,7 @@ export function playerCombat(ctx: CombatCtx, commands: CommandMap, physics: Phys
     for (const k of Object.keys(c.cooldowns) as (keyof typeof c.cooldowns)[]) if (c.cooldowns[k]! > 0) c.cooldowns[k]!--;
     if (c.action?.kind === 'cast') advanceCast(ctx, p, cmd, physics, spawn);
     else advance(p, cmd, ctx);
-    tryConsume(p, cmd, ctx);
+    tryConsume(p, cmd, ctx, physics);
     updateBlock(p, cmd, ctx);
     tickBuffer(c);
     setMotion(p, cmd, ctx);
@@ -143,15 +145,26 @@ function advance(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
         return;
       }
       a.t++;
-      a.clipT++;
-      if (def.chargeable && heavyHeld && a.clipT === tm.chargeStart && a.charge === 0) a.charging = true;
-      if (a.clipT === tm.activeStart) ctx.events.push({ type: 'swing', entity: p.id, move: a.move, heavy: def.mv >= 2 });
-      if (a.clipT >= tm.end) c.action = null;
+      // A faster move covers two clip ticks on some sim ticks, so the clip stays on whole ticks.
+      const steps = def.rate ? Math.floor(a.t * def.rate) - Math.floor((a.t - 1) * def.rate) : 1;
+      for (let i = 0; i < steps; i++) {
+        a.clipT++;
+        if (def.chargeable && heavyHeld && a.clipT === tm.chargeStart && a.charge === 0) a.charging = true;
+        if (a.clipT === tm.activeStart) ctx.events.push({ type: 'swing', entity: p.id, move: a.move, heavy: def.mv >= 2 });
+        if (a.clipT >= tm.end) {
+          c.action = null;
+          return;
+        }
+      }
       return;
     }
     case 'dodge':
       a.t++;
       if (a.t >= ROLL.ticks) c.action = null;
+      return;
+    case 'blink':
+      a.t++;
+      if (a.t >= TRAIT.blink.ticks) c.action = null;
       return;
     case 'block':
       a.t++;
@@ -175,7 +188,7 @@ function advance(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
 }
 
 /** Use the buffered press on the first tick it is legal. */
-function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
+function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: PhysicsWorld): void {
   const c = p.combat!;
   const b = c.buffer;
   if (!b) return;
@@ -188,7 +201,7 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
       ctx.events.push({ type: 'noStamina', entity: p.id });
       return;
     }
-    startRoll(p, cmd, ctx);
+    startRoll(p, cmd, ctx, physics);
     return;
   }
   if (b.action.startsWith('spell')) {
@@ -210,7 +223,7 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
   } else if (a.kind === 'attack') {
     const def = PLAYER_MOVES[a.move as PlayerMoveId];
     if (a.clipT < clipTiming(def.clip).cancel) return;
-    move = (b.action === 'light' ? def.next?.light : def.next?.heavy) ?? null;
+    move = (b.action === 'light' ? (brawlerChains(p, a.move) ? 'light4' : def.next?.light) : def.next?.heavy) ?? null;
     if (b.action === 'heavy' && ctx.now < c.riposteUntil) move = 'riposte';
   } else if (a.kind === 'dodge') {
     if (a.t < ROLL.attackFrom) return;
@@ -277,11 +290,11 @@ function startAttack(p: Entity, move: PlayerMoveId, cmd: InputCommand, ctx: Comb
     }
     lunge = LUNGE.noTarget;
   }
-  const startup = Math.max(1, tm.activeStart - def.entry);
+  const startup = Math.max(1, Math.ceil((tm.activeStart - def.entry) / (def.rate ?? 1)));
   c.action = { kind: 'attack', move, t: 0, clipT: def.entry, charge: 0, charging: false, charged: false, hit: [], lunge: lunge / startup, lungeDir: dir };
 }
 
-function startRoll(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
+function startRoll(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: PhysicsWorld): void {
   const c = p.combat!;
   const v = p.vitals!;
   // Quick Step makes rolls cheaper.
@@ -291,6 +304,7 @@ function startRoll(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
   const w = wishDir(cmd);
   const dir = w.mag > 0.2 ? { x: w.x / w.mag, z: w.z / w.mag } : { x: Math.sin(p.tf.yaw), z: Math.cos(p.tf.yaw) };
   p.tf.yaw = Math.atan2(dir.x, dir.z);
+  if (tryBlink(ctx, p, cmd, dir, physics)) return;
   c.action = { kind: 'dodge', t: 0, dir };
   ctx.events.push({ type: 'dodge', entity: p.id });
 }

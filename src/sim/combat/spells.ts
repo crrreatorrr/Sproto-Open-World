@@ -2,6 +2,7 @@ import { STAFFS } from '../../content/combat';
 import { PERK_EFFECT, PROTECTION_SPELLS, SKILL_EFFECT, hasPerk, protectionMult } from '../../content/progression';
 import { charmOf, knowsSpell, staffOf } from '../systems/rpg';
 import { ENEMIES } from '../../content/enemies';
+import { staffCostMult, staffSpellMult } from '../../content/packs/c2';
 import { SPELL_BASE, SPELLS, WOVEN, type SpellId } from '../../content/spells';
 import { DT } from '../../content/tuning';
 import { idleInput, type InputCommand } from '../commands';
@@ -12,6 +13,7 @@ import { angleTo, flatDist, toWorld, yawTo } from './geometry';
 import { resolveHit, type HitInfo } from './hits';
 import type { CombatCtx } from './playerCombat';
 import { wishDir } from './playerCombat';
+import { castChargeMult, holdChargedBolt } from './staffTraits';
 import { applyStatus } from './statuses';
 
 /** Spawns a projectile entity (SimWorld owns ids). */
@@ -23,13 +25,13 @@ const SPELL_CONE = (60 * Math.PI) / 180;
 const chest = (e: Entity): Vec3 => ({ x: e.tf.pos.x, y: e.tf.pos.y + (e.body?.height ?? 1.8) * 0.55, z: e.tf.pos.z });
 const enemyOf = (p: Entity, e: Entity) => !!e.combat && !!e.body && e.combat.team !== p.combat!.team && e.combat.action?.kind !== 'dead';
 
-/** Spell power: SPELL_BASE × the staff's spellPower × (1 + 0.04 · Spell Power) × MV, ×1.2 when woven (more with Scholar's Knot). */
+/** Spell power: SPELL_BASE × the staff's spellPower (and trait) × (1 + 0.04 · Spell Power) × MV, ×1.2 when woven (more with Scholar's Knot). */
 export function spellPower(id: SpellId, woven: boolean, caster?: Entity): number {
   const p = caster?.progress;
   const staff = p ? staffOf(p) : STAFFS.staff_sproto;
   const skill = 1 + SKILL_EFFECT.spellPower * (p?.skills.spellPower ?? 0);
   const wovenMult = WOVEN.damage + (p ? (charmOf(p)?.wovenBonus ?? 0) : 0);
-  return SPELL_BASE * staff.spellPower * skill * SPELLS[id].mv * (woven ? wovenMult : 1);
+  return SPELL_BASE * staff.spellPower * staffSpellMult(p?.equipment.staff) * skill * SPELLS[id].mv * (woven ? wovenMult : 1);
 }
 
 /**
@@ -61,9 +63,9 @@ export function startCast(ctx: CombatCtx, p: Entity, id: SpellId): boolean {
   return true;
 }
 
-/** Mana for a cast: the spell's cost, 15% less for a woven cast with the Magic 10 perk. */
+/** Mana for a cast: the spell's cost (less with Moonward), 15% less for a woven cast with the Magic 10 perk. */
 export function spellCost(p: Entity, id: SpellId, woven: boolean): number {
-  const cost = SPELLS[id].cost;
+  const cost = SPELLS[id].cost * staffCostMult(p.progress?.equipment.staff);
   return woven && hasPerk(p.progress?.skills, 'magic10') ? cost * PERK_EFFECT.wovenCost : cost;
 }
 
@@ -109,6 +111,7 @@ export function advanceCast(ctx: CombatCtx, p: Entity, cmd: InputCommand, physic
   const c = p.combat!;
   const a = c.action;
   if (a?.kind !== 'cast') return;
+  if (holdChargedBolt(ctx, p, cmd, a, spellCost(p, a.spell, a.woven))) return;
   const def = SPELLS[a.spell];
   const target = spellTarget(ctx, p, cmd ?? idleInput(p.tf.yaw), def.chain?.range ?? SPELL_TARGET_RANGE);
   a.t++;
@@ -132,7 +135,7 @@ function spellInfo(id: SpellId, base: number, from: Vec3): HitInfo {
 
 function fire(ctx: CombatCtx, p: Entity, id: SpellId, woven: boolean, target: Entity | null, physics: PhysicsWorld, spawn: SpawnSpellProjectile): void {
   const def = SPELLS[id];
-  const power = spellPower(id, woven, p);
+  const power = spellPower(id, woven, p) * castChargeMult(p);
   if (def.projectile) {
     const from = toWorld(p.tf.pos, p.tf.yaw, [0, 1.35, 0.6]);
     const aim = target ? chest(target) : toWorld(p.tf.pos, p.tf.yaw, [0, 1.35, 10]);

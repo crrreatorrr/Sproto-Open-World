@@ -83,8 +83,12 @@ export type Action =
       release: number;
       woven: boolean;
       released: boolean;
+      /** Charged Bolt: ticks the release has been held back. */
+      charge?: number;
     }
   | { kind: 'dodge'; t: number; dir: { x: number; z: number } }
+  /** The Momentum staff's blink: already moved, untouchable until it ends. */
+  | { kind: 'blink'; t: number }
   | { kind: 'block'; t: number; parryTicks: number }
   | { kind: 'hitstun'; t: number; dur: number; knockdown: boolean }
   | { kind: 'stagger'; t: number; dur: number }
@@ -133,6 +137,8 @@ export interface Combat {
   cooldowns: Partial<Record<SpellId, number>>;
   /** The last tick an enemy targeted this entity (the gear lock, expansion plan §1.1). */
   targetedAt: number;
+  /** The Momentum staff's blink is ready again from this tick. */
+  blinkReadyAt?: number;
 }
 
 /** The player's RPG state (plan §5). Saved in the SaveFile. */

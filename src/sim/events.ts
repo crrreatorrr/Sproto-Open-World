@@ -51,6 +51,8 @@ export type SimEvent =
   | { type: 'frozen'; entity: EntityId; ticks: number }
   | { type: 'interrupt'; entity: EntityId; by: EntityId }
   | { type: 'blink'; entity: EntityId; from: Vec3; to: Vec3 }
+  /** Charged Bolt: a pulse while the charge grows; `frac` is how full it is (0..1). */
+  | { type: 'boltCharge'; entity: EntityId; frac: number }
   | { type: 'wave'; wave: number; loop: number; enemies: number }
   | { type: 'waveClear'; wave: number }
   // RPG systems (M3).

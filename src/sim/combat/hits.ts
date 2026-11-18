@@ -7,6 +7,7 @@ import { PERK_EFFECT, SKILL_EFFECT, hasPerk } from '../../content/progression';
 import { STATUS } from '../../content/statuses';
 import { charmOf, staffOf } from '../systems/rpg';
 import { applyStatus } from './statuses';
+import { staffAfterReaction, staffOnHit, staffPoiseMult, staffPushback, staffStaggerBonus } from './staffTraits';
 import type { Entity } from '../entity';
 import type { Vec3 } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
@@ -77,6 +78,9 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   const ta = tc.action;
   const chest = { x: target.tf.pos.x, y: target.tf.pos.y + (target.body?.height ?? 1.8) * 0.6, z: target.tf.pos.z };
 
+  // The Momentum staff's blink can't be touched.
+  if (ta?.kind === 'blink') return 'dodged';
+
   // Roll i-frames; a hit early in them is a perfect dodge.
   if (ta?.kind === 'dodge' && ta.t >= ROLL.iframeStart && ta.t <= ROLL.iframeEnd) {
     if (ta.t <= ROLL.perfectEnd) {
@@ -133,7 +137,7 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
     ctx.events.push({ type: 'statusEnd', entity: target.id, status: 'chill' });
   }
   tv.hp -= damage;
-  const poiseDmg = info.poise * (crit ? 1.5 : 1) * AFFINITY_MULT[affinity];
+  const poiseDmg = info.poise * (crit ? 1.5 : 1) * AFFINITY_MULT[affinity] * staffPoiseMult(attacker);
   tc.poise -= poiseDmg;
   tc.poiseDelay = POISE_REGEN_DELAY;
   if (ac && !info.projectile) {
@@ -152,6 +156,8 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
     return 'hit';
   }
 
+  staffOnHit(ctx, attacker, target, info);
+
   // Reactions: a poise break staggers anyone; otherwise hitstun unless elite or armored. A frozen
   // target stays frozen (the hit lands, it doesn't flinch).
   const def = target.brain ? ENEMIES[target.brain.def] : undefined;
@@ -163,7 +169,7 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   // The player has no poise: every normal hit is the plan's fixed 18-tick hitstun.
   if (tc.poise <= 0 && target.kind !== 'player') {
     tc.poise = tc.poiseMax;
-    const ticks = def?.staggerTicks ?? 40;
+    const ticks = (def?.staggerTicks ?? 40) + staffStaggerBonus(attacker, info);
     tc.action = { kind: 'stagger', t: 0, dur: ticks };
     ctx.events.push({ type: 'stagger', entity: target.id, ticks });
     pushed = true;
@@ -176,11 +182,13 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
     pushed = true;
   }
   if (wasWindingUp && tc.action?.kind !== 'attack') ctx.events.push({ type: 'interrupt', entity: target.id, by: attacker.id });
-  if (pushed && info.pushback > 0 && target.body && (!def || !def.dummy)) {
+  const pushback = staffPushback(attacker, target, info);
+  if (pushed && pushback > 0 && target.body && (!def || !def.dummy)) {
     const dx = target.tf.pos.x - info.from.x, dz = target.tf.pos.z - info.from.z;
     const d = Math.hypot(dx, dz) || 1;
-    tc.push = { x: (dx / d) * (info.pushback / PUSH_TICKS), z: (dz / d) * (info.pushback / PUSH_TICKS), ticks: PUSH_TICKS };
+    tc.push = { x: (dx / d) * (pushback / PUSH_TICKS), z: (dz / d) * (pushback / PUSH_TICKS), ticks: PUSH_TICKS };
   }
+  staffAfterReaction(ctx, attacker, target, info);
   return 'hit';
 }
 

@@ -6,7 +6,7 @@ import { PLAYER_HITBOXES, STAFF_CAPSULE_RADIUS } from './generated/playerHitboxe
 import { PLAYER_MOVE_TIMING, type PlayerClip } from './generated/playerMoveTiming';
 
 export type DamageKind = 'physical' | 'arcane';
-export type PlayerMoveId = 'light1' | 'light2' | 'light3' | 'heavy' | 'comboHeavy' | 'riposte' | 'rollAttack';
+export type PlayerMoveId = 'light1' | 'light2' | 'light3' | 'light4' | 'heavy' | 'comboHeavy' | 'riposte' | 'rollAttack';
 
 export interface PlayerMoveDef {
   id: PlayerMoveId;
@@ -34,6 +34,8 @@ export interface PlayerMoveDef {
   chargeable?: boolean;
   /** What a light / heavy press chains into once `cancel` opens. */
   next?: { light?: PlayerMoveId; heavy?: PlayerMoveId };
+  /** Clip ticks played per sim tick, when faster than the clip (the clip stays on whole ticks). */
+  rate?: number;
 }
 
 /** Clip markers (clip ticks) for a clip: start, activeStart, activeEnd, cancel, end, … */
@@ -57,6 +59,8 @@ export const PLAYER_MOVES: Record<PlayerMoveId, PlayerMoveDef> = {
   light1: { id: 'light1', clip: 'attack_light_1', entry: 0, mv: 1.0, hitstun: 20, pushback: 0.3, poise: 10, stamina: 8, hitstop: 3, mana: 4, next: { light: 'light2', heavy: 'comboHeavy' } },
   light2: { id: 'light2', clip: 'attack_light_2', entry: 0, mv: 1.1, hitstun: 20, pushback: 0.3, poise: 12, stamina: 8, hitstop: 3, mana: 4, next: { light: 'light3', heavy: 'comboHeavy' } },
   light3: { id: 'light3', clip: 'attack_light_3', entry: 0, mv: 1.6, hitstun: 45, knockdown: true, pushback: 2.0, poise: 30, stamina: 10, hitstop: 8, mana: 4, next: { light: 'light1', heavy: 'heavy' } },
+  // Brawler's fourth hit (the Fighter staff, expansion plan §2.1): the third hit's clip, played faster.
+  light4: { id: 'light4', clip: 'attack_light_3', entry: 0, mv: 1.3, hitstun: 30, pushback: 1.5, poise: 20, stamina: 10, hitstop: 6, mana: 4, rate: 1.5, next: { light: 'light1', heavy: 'heavy' } },
   heavy: { id: 'heavy', clip: 'attack_heavy', entry: 0, mv: 2.2, hitstun: 28, pushback: 1.0, poise: 35, stamina: 18, hitstop: 6, mana: 8, hyperArmorFrom: HEAVY.chargeStart, chargeable: true, next: { light: 'light1', heavy: 'heavy' } },
   comboHeavy: { id: 'comboHeavy', clip: 'attack_heavy', entry: HEAVY.chargeStart, mv: 2.4, hitstun: 28, pushback: 1.0, poise: 40, stamina: 18, hitstop: 6, mana: 8, hyperArmorFrom: HEAVY.chargeStart, next: { light: 'light1', heavy: 'heavy' } },
   riposte: { id: 'riposte', clip: 'attack_heavy', entry: HEAVY.chargeStart, mv: 2.5, hitstun: 30, pushback: 1.5, poise: 80, stamina: 0, hitstop: 8, mana: 8, crit: true, hyperArmorFrom: HEAVY.chargeStart, next: { light: 'light1', heavy: 'heavy' } },

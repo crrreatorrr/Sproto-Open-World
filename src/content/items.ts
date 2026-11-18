@@ -2,6 +2,8 @@
  * Items (plan §5): staffs, robes, charms, consumables and quest items, with fixed stats per item
  * (no procedural affixes). Pure data.
  */
+import { C2_ITEMS } from './packs/c2';
+
 export type ItemKind = 'staff' | 'robe' | 'charm' | 'consumable' | 'quest';
 export type Rarity = 'common' | 'rare' | 'epic';
 export type Slot = 'staff' | 'robe' | 'charm';
@@ -66,6 +68,7 @@ export const ITEMS: Record<string, ItemDef> = {
   stolen_pumpkin: { id: 'stolen_pumpkin', name: 'Stolen Pumpkin', kind: 'quest', rarity: 'common', blurb: "Farmer Broccoli's.", stacks: true },
   quarry_key: { id: 'quarry_key', name: 'Quarry Key', kind: 'quest', rarity: 'epic', blurb: 'Opens the Quarry Gate.' },
   sprout_seed: { id: 'sprout_seed', name: 'Sprout Seed', kind: 'quest', rarity: 'common', blurb: 'For the Elder.', stacks: true },
+  ...C2_ITEMS,
 };
 
 export const STARTING_GEAR = { staff: 'staff_sproto', robe: 'robe_apprentice', charm: null } as const;
