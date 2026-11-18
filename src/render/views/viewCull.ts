@@ -14,6 +14,8 @@ export const CORPSE_TICKS = 180;
  */
 export function wantsView(e: Readonly<Entity>, player: Readonly<Entity> | undefined, hasView: boolean): boolean {
   if (e.settle) return false;
+  // The Skyfire Drake isn't in the world until the bait brings it down (and its model stays unloaded).
+  if (e.view.model === 'drake' && e.boss?.state === 'idle') return false;
   // Gate barriers and a boss's pillars are drawn only near the player too.
   if (!e.brain && !e.obstacle) return true;
   const a = e.combat?.action;

@@ -9,6 +9,7 @@ import { turnToward, wrapAngle } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
 import { bossAttackTick, bossPreTick, bossSpeed, bossThink, type BossHost } from '../systems/boss';
+import { drakeTick } from '../systems/drake';
 
 /** Spawns one projectile for an enemy's ranged move (provided by SimWorld). `angle` fans it out. */
 export type SpawnProjectile = (owner: Entity, move: EnemyMoveDef, target: Entity, angle: number) => void;
@@ -37,6 +38,12 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
     const still = () => ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
     if (ctx.frozen.has(e.id)) {
       still();
+      continue;
+    }
+
+    // The Skyfire Drake flies its whole fight itself (expansion plan §3.5).
+    if (def.drake && bossHost) {
+      drakeTick(ctx, e, def, physics, rng, bossHost, { target: () => pickTarget(ctx, e, def), start: startAttack, run: (t) => runAttack(ctx, e, def, t, spawnProjectile, rng) });
       continue;
     }
 

@@ -5,6 +5,7 @@ import { AudioManager } from '../audio/AudioManager';
 import { CameraRig } from '../camera/CameraRig';
 import { ITEMS } from '../content/items';
 import { affixName } from '../content/packs/c4';
+import { SKYFIRE_END_CARD } from '../content/packs/c6';
 import { POWER } from '../content/packs/c3';
 import { PERKS, SKILLS, type PerkId, type SkillId } from '../content/progression';
 import { staffCostMult } from '../content/packs/c2';
@@ -682,6 +683,8 @@ export class App {
     this.bossMoment = Math.max(0, this.bossMoment - dt);
     this.rig.distanceScale = (def?.cameraScale ?? locked?.cameraScale ?? 1) * (this.bossMoment > 0 ? 1.25 : 1);
     if (this.endCardPending && !inMenu) this.showEndCard();
+    // Far off over the valley, the Drake calls as it passes.
+    if (this.world.flyover.takeCry()) this.audio.play('bossSlam', 0.5, 0.35);
   }
 
   /** The end card (plan §6.2): a menu screen over the paused game; Continue returns to play. */
@@ -705,6 +708,7 @@ export class App {
       case 'bossIntro': {
         const def = enemyDef(view.get(e.boss));
         if (def?.boss) this.bossHud.intro(def.name, def.boss.title);
+        if (def?.drake) this.hud.toast('Raise Mirror Ward as its fireball lands, and send it back.');
         this.audio.play('bossSlam', 0.7);
         this.shake(0.35);
         return;
@@ -741,13 +745,17 @@ export class App {
         this.audio.play('bossSlam', 1.3, 0.7);
         return;
       case 'telegraph': {
-        // A charge has no decal of its own: it roars as it digs in. A burrow rumbles on its way up.
+        // A charge or a dive has no decal of its own: it roars as it digs in. A burrow rumbles on its way up.
         const move = enemyDef(view.get(e.entity))?.moves.find((m) => m.id === e.move);
-        if (move?.charge || move?.burrow === 'rise') this.audio.play('stunCharge', 0.8);
+        if (move?.charge || move?.dive || move?.burrow === 'rise') this.audio.play('stunCharge', 0.8);
         return;
       }
       case 'questComplete':
         if (e.entity === this.playerId && e.quest === 'q_scrapjaw') this.endCardPending = true;
+        if (e.entity === this.playerId && e.quest === SKYFIRE_END_CARD.quest) {
+          this.bossHud.setEndCard(SKYFIRE_END_CARD.title, SKYFIRE_END_CARD.text);
+          this.endCardPending = true;
+        }
         return;
       default:
         return;

@@ -5,6 +5,7 @@
  */
 import { C4_DIALOGUE, C4_DIALOGUE_PATCHES } from './packs/c4';
 import { registerC5Dialogue } from './packs/c5';
+import { registerDrakeDialogue } from './packs/c6';
 import { registerScrapjawDialogue } from './packs/m5';
 import type { Condition, Effect } from './quests';
 
@@ -191,3 +192,4 @@ for (const patch of C4_DIALOGUE_PATCHES) {
 }
 registerScrapjawDialogue(DIALOGUE);
 registerC5Dialogue(DIALOGUE);
+registerDrakeDialogue(DIALOGUE);

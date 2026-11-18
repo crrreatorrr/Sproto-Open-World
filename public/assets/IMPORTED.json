@@ -235,6 +235,20 @@
       "sourceSha256": "545ad6ea2e066edf2761647b68330175bfd0d0c970f2f0d3c940ff9e0d79d5da",
       "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
     },
+    "models/bosses/drake_far.glb": {
+      "repo": "sproto-shooter-bosses",
+      "path": "dist/assets/models/characters/dragon.glb",
+      "commit": "18a3420397146dafa6fdb675f81770d902148862",
+      "sourceSha256": "11703697ef4fe8064a0c8b4afb292ada8cf690c6d325a3d29cbaac42bedd5b64",
+      "derived": "clips fly + resample + static channels dropped + far LOD: flat colours + position weld + simplify(0.1, error 0.3) + meshopt"
+    },
+    "models/bosses/drake.glb": {
+      "repo": "sproto-shooter-bosses",
+      "path": "dist/assets/models/characters/dragon.glb",
+      "commit": "18a3420397146dafa6fdb675f81770d902148862",
+      "sourceSha256": "11703697ef4fe8064a0c8b4afb292ada8cf690c6d325a3d29cbaac42bedd5b64",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
     "models/bosses/scrapjaw.glb": {
       "repo": "sproto-shooter-bosses",
       "path": "dist/assets/models/characters/car_monster.glb",

@@ -8,6 +8,7 @@ import type { Entity } from '../../sim/entity';
 import { Animator } from '../anim/Animator';
 import { glowTexture } from '../fx/textures';
 import { GateLockView } from './BossViews';
+import { drakeObjectView } from './DrakeViews';
 import type { EntityView } from './EnemyViews';
 import { placeEntity } from './interp';
 
@@ -662,6 +663,8 @@ export class TomeView implements EntityView {
 
 /** An `object` interactable's view by its model key (beacon, lever, tome; anything else reads as a tome). */
 export function objectView(model: string): EntityView {
+  const drakeQuest = drakeObjectView(model);
+  if (drakeQuest) return drakeQuest;
   if (model === 'beacon') return new BeaconView();
   if (model === 'lever') return new LeverView();
   if (model === 'gate_lock') return new GateLockView();

@@ -233,6 +233,16 @@
     { "id": "bramble_east", "kind": "camp", "at": [476, 386], "clear": 4 },
     { "id": "bramble_east#0", "kind": "enemy", "at": [476, 386], "clear": 2 },
     { "id": "bramble_east#1", "kind": "enemy", "at": [471, 389], "clear": 2 },
-    { "id": "bramble_east#2", "kind": "enemy", "at": [471, 383], "clear": 2 }
+    { "id": "bramble_east#2", "kind": "enemy", "at": [471, 383], "clear": 2 },
+    { "id": "drake_arena", "kind": "arena", "at": [126, 160], "clear": 30 },
+    { "id": "drake_bait_post", "kind": "object", "at": [126, 160], "yaw": 0, "clear": 2.5 },
+    { "id": "burning_hay_1", "kind": "object", "at": [92, 122], "yaw": 0, "clear": 2.5 },
+    { "id": "burning_hay_2", "kind": "object", "at": [118, 120], "yaw": 0, "clear": 2.5 },
+    { "id": "burning_hay_3", "kind": "object", "at": [152, 118], "yaw": 0, "clear": 2.5 },
+    { "id": "burning_hay_4", "kind": "object", "at": [166, 152], "yaw": 0, "clear": 2.5 },
+    { "id": "burning_hay_5", "kind": "object", "at": [88, 176], "yaw": 0, "clear": 2.5 },
+    { "id": "sheep_decoy_1", "kind": "object", "at": [184, 138], "yaw": 0, "clear": 2.5 },
+    { "id": "sheep_decoy_2", "kind": "object", "at": [62, 178], "yaw": 0, "clear": 2.5 },
+    { "id": "sheep_decoy_3", "kind": "object", "at": [142, 216], "yaw": 0, "clear": 2.5 }
   ]
 }

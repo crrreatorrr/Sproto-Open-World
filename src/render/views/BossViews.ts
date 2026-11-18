@@ -43,7 +43,7 @@ function fogTexture(): THREE.CanvasTexture {
   return fogTex;
 }
 
-function fogMaterial(color: number): THREE.MeshBasicMaterial {
+export function fogMaterial(color: number): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({ map: fogTexture(), color, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
 }
 
