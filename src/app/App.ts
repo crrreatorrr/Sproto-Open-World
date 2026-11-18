@@ -701,6 +701,8 @@ export class App {
     const locked = p.combat?.lock != null ? enemyDef(view.get(p.combat.lock)) : undefined;
     this.bossMoment = Math.max(0, this.bossMoment - dt);
     this.rig.distanceScale = (def?.cameraScale ?? locked?.cameraScale ?? 1) * (this.bossMoment > 0 ? 1.25 : 1);
+    const solid = (p.combat?.lock != null ? view.get(p.combat.lock) : undefined) ?? boss;
+    this.rig.solid = solid?.body && !solid.boss?.under ? { ...solid.tf.pos, radius: solid.body.radius, height: solid.body.height } : null;
     if (this.endCardPending && !inMenu) this.showEndCard();
     // Far off over the valley, the Drake calls as it passes.
     if (this.world.flyover.takeCry()) this.audio.play('bossSlam', 0.5, 0.35);

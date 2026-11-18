@@ -10,6 +10,13 @@ export const CORPSE_TICKS = 180;
 export const SHADOW_ON_RANGE = 35;
 /** It stops beyond this one: the gap keeps a shadow from flickering at the edge. */
 export const SHADOW_OFF_RANGE = 42;
+/** Bodies taller than this (m) stay drawn and shadowed further out: a giant is seen from further away. */
+const TALL_FROM = 3;
+/** ...up to this many times the usual distance. */
+const TALL_REACH = 1.25;
+
+/** How much further than usual this body is worth drawing. */
+const reachFor = (e: Readonly<Entity>): number => Math.min(TALL_REACH, Math.max(1, (e.body?.height ?? 0) / TALL_FROM));
 
 /**
  * Should this entity be drawn this frame? About 60 camp enemies exist across the map from the first
@@ -25,7 +32,7 @@ export function wantsView(e: Readonly<Entity>, player: Readonly<Entity> | undefi
   const a = e.combat?.action;
   if (e.brain?.camp && a?.kind === 'dead' && a.t > CORPSE_TICKS) return false;
   if (!player) return true;
-  const range = hasView ? VIEW_DROP_RANGE : VIEW_MAKE_RANGE;
+  const range = (hasView ? VIEW_DROP_RANGE : VIEW_MAKE_RANGE) * reachFor(e);
   const dx = e.tf.pos.x - player.tf.pos.x, dz = e.tf.pos.z - player.tf.pos.z;
   return dx * dx + dz * dz <= range * range;
 }
@@ -36,7 +43,7 @@ export function wantsView(e: Readonly<Entity>, player: Readonly<Entity> | undefi
  */
 export function castsShadow(e: Readonly<Entity>, player: Readonly<Entity> | undefined, was: boolean): boolean {
   if (e.boss || !player) return true;
-  const range = was ? SHADOW_OFF_RANGE : SHADOW_ON_RANGE;
+  const range = (was ? SHADOW_OFF_RANGE : SHADOW_ON_RANGE) * reachFor(e);
   const dx = e.tf.pos.x - player.tf.pos.x, dz = e.tf.pos.z - player.tf.pos.z;
   return dx * dx + dz * dz <= range * range;
 }

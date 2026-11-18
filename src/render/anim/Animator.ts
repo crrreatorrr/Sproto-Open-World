@@ -13,6 +13,8 @@ export interface LocomotionPose {
   /** Planar speed (m/s). */
   speed: number;
   sprinting: boolean;
+  /** The slowest the legs may play (default 0.55): a giant's long stride covers its ground slowly. */
+  minRate?: number;
   /**
    * Locked on and not sprinting: the body keeps facing the target, so the legs follow the
    * velocity relative to facing (strafe_l / strafe_r / run_back / run). Local velocity, m/s:
@@ -141,7 +143,7 @@ export class Animator {
       this.loop('idle');
       return;
     }
-    const scale = Math.min(1.6, Math.max(0.55, pose.speed / RUN_CLIP_SPEED));
+    const scale = Math.min(1.6, Math.max(pose.minRate ?? 0.55, pose.speed / RUN_CLIP_SPEED));
     let clip = 'run';
     const s = pose.strafe;
     if (s && !pose.sprinting) {

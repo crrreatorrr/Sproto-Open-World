@@ -3,6 +3,7 @@
  * Enemy hitboxes are defined by hand: a sphere at `forward` / `up` metres from the feet.
  */
 import type { DamageKind } from './combat';
+import { ENEMY_SIZES, scaleEnemy } from './enemyScale';
 import { C4_ENEMIES } from './packs/c4';
 import { BURROWMOTHER } from './packs/c5';
 import { DRAKE, type DrakeDef } from './packs/c6';
@@ -151,6 +152,8 @@ export interface EnemyDef {
   /** XP for the kill (plan §5). */
   xp: number;
   body: { radius: number; height: number };
+  /** How many times its authored size it stands (enemyScale.ts; absent: 1). */
+  size?: number;
   defense: { physical: number; arcane: number };
   profile: { damage: Record<DamageKind, Affinity>; status: { burn: Affinity; chill: Affinity; shock: Affinity } };
   level: number;
@@ -391,5 +394,8 @@ ENEMIES.scrapjaw = SCRAPJAW;
 ENEMIES.burrowmother = BURROWMOTHER;
 // C6: the boss over the Orchard.
 ENEMIES.skyfire_drake = DRAKE;
+
+// The very strong tower over the player: every elite and boss, grown as a whole (enemyScale.ts).
+for (const [id, k] of Object.entries(ENEMY_SIZES)) ENEMIES[id] = scaleEnemy(ENEMIES[id], k);
 
 export type EnemyId = keyof typeof ENEMIES;

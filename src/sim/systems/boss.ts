@@ -130,7 +130,7 @@ export function bossThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Enti
     return;
   }
   face(target);
-  if (gap > CLOSE_ENOUGH) {
+  if (gap > CLOSE_ENOUGH * (def.size ?? 1)) {
     const speed = def.moveSpeed * bossSpeed(e, def);
     ctx.motion.set(e.id, { vx: Math.sin(e.tf.yaw) * speed, vz: Math.cos(e.tf.yaw) * speed, inputScale: 0 });
   }
