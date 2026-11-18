@@ -75,12 +75,12 @@ function charging(ctx: CombatCtx, w: Entity, e: Entity): boolean {
 /** Thorns bite whoever touches the wall; a charge into it stuns the charger. True when it withers. */
 export function stepWall(ctx: CombatCtx, w: Entity): boolean {
   const a = w.powerArea as WallArea;
-  if (++a.age >= a.life) {
+  const owner = ctx.get(a.owner);
+  // A wall withers with its caster.
+  if (++a.age >= a.life || !owner || !alive(owner)) {
     ctx.events.push({ type: 'power', fx: 'wallEnd', entity: a.owner, pos: { ...w.tf.pos } });
     return true;
   }
-  const owner = ctx.get(a.owner);
-  if (!owner) return true;
   const pulse = --a.pulse <= 0;
   if (pulse) a.pulse = W.pulseTicks;
   const from = { ...w.tf.pos };
