@@ -10,11 +10,21 @@
  */
 import type { ChestDef } from '../loot';
 import { C4_WORLD } from '../packs/c4';
+import { addScrapjawContent } from '../packs/m5';
 
 export interface Placement {
   id: string;
   pos: [number, number, number];
   yaw: number;
+}
+
+/** A static collider that can open (a gate barrier, by world flag) or break (a boss's pillar). */
+export interface ObstaclePlacement extends Placement {
+  /** View model key. */
+  model: string;
+  shape: { kind: 'box'; half: [number, number, number]; yaw: number } | { kind: 'cylinder'; radius: number; height: number };
+  openFlag?: string;
+  breakable?: boolean;
 }
 
 /** A camp (plan §6.5): enemies around a centre, sharing a leash; it comes back when you rest. */
@@ -31,6 +41,7 @@ export interface RegionContent {
   chests: (Placement & { chest: ChestDef })[];
   /** One-use quest objects (`content/objects.ts`). */
   objects?: Placement[];
+  obstacles?: ObstaclePlacement[];
   enemies: (Placement & { def: string })[];
   camps?: CampDef[];
   /** Trigger volumes: a vertical cylinder (only x and z count unless `halfHeight` is given). */
@@ -139,3 +150,4 @@ function addContent(into: RegionContent, pack: Partial<RegionContent>): void {
 }
 
 addContent(SPROUTVALE_CONTENT, C4_WORLD);
+addScrapjawContent(SPROUTVALE_CONTENT);

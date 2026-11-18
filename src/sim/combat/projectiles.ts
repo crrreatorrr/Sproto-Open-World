@@ -50,7 +50,15 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
         consumed = true;
         break;
       }
-      const out = resolveHit(ctx, owner, tgt, info(e, from));
+      // A parried Scrap Throw back into its shooter: a fixed share of its health, and a stagger.
+      const bonus = pr.reflected && pr.reflectBonus?.shooter === tgt.id ? pr.reflectBonus : null;
+      const hit = info(e, from);
+      if (bonus) hit.fixedDamage = tgt.vitals!.hpMax * bonus.hpFrac;
+      const out = resolveHit(ctx, owner, tgt, hit);
+      if (out === 'hit' && bonus && !isDead(tgt)) {
+        tgt.combat.action = { kind: 'stagger', t: 0, dur: bonus.stagger };
+        ctx.events.push({ type: 'stagger', entity: tgt.id, ticks: bonus.stagger });
+      }
       if (out === 'dodged') continue; // flies on through the roll
       if (out === 'parried') {
         reflect(e, tgt, ctx);

@@ -36,6 +36,10 @@ export interface HitInfo {
   /** Where the hit comes from (attacker position, or the projectile's). */
   from: Vec3;
   projectile: boolean;
+  /** The swing's capsule this tick, for weak spots (default: a small ball at `from`). */
+  contact?: { a: Vec3; b: Vec3; radius: number };
+  /** Exactly this much damage, whatever the formula says (a parried Scrap Throw). */
+  fixedDamage?: number;
 }
 
 export type HitOutcome = 'dodged' | 'parried' | 'blocked' | 'hit';
@@ -54,11 +58,34 @@ function affinityOf(target: Entity, kind: DamageKind): Affinity {
   return def ? affixAffinity(target, def.profile.damage[kind]) : 'normal';
 }
 
-/** Plan §4.6 damage formula (no random variance, no random crits). */
-export function computeDamage(attacker: Entity, target: Entity, info: HitInfo): { damage: number; crit: boolean; affinity: Affinity } {
+/**
+ * The best weak spot a hit touches (expansion plan §3.3): spheres in the target's facing frame, its
+ * own and those of the move it is doing, checked only here, when damage resolves. 1 = none.
+ */
+function weakSpotMult(target: Entity, info: HitInfo): number {
+  const def = target.brain ? ENEMIES[target.brain.def] : undefined;
+  if (!def) return 1;
+  const a = target.combat?.action;
+  const during = a?.kind === 'attack' ? enemyMove(target, a.move)?.weakSpots : undefined;
+  const spots = during ? [...(def.weakSpots ?? []), ...during] : def.weakSpots;
+  if (!spots?.length) return 1;
+  const c = info.contact ?? { a: info.from, b: info.from, radius: 0.3 };
+  let best = 1;
+  for (const s of spots) {
+    if (s.when === 'stunned' && !(a?.kind === 'stagger' && a.reason === 'stunned')) continue;
+    const centre = toWorld(target.tf.pos, target.tf.yaw, [0, s.up, s.forward]);
+    const r = s.radius + c.radius;
+    if (segmentSegmentDistSq(c.a, c.b, centre, centre) <= r * r) best = Math.max(best, s.mult);
+  }
+  return best;
+}
+
+/** Plan §4.6 damage formula (no random variance, no random crits). `weakSpot` multiplies it (see above). */
+export function computeDamage(attacker: Entity, target: Entity, info: HitInfo, weakSpot = 1): { damage: number; crit: boolean; affinity: Affinity } {
   const tc = target.combat!;
   const crit = info.crit;
   const affinity = affinityOf(target, info.kind);
+  if (info.fixedDamage !== undefined) return { damage: Math.max(1, Math.round(info.fixedDamage)), crit, affinity };
   const mitig = (info.base * 100) / (100 + tc.defense[info.kind]);
   // "Stunned" means frozen (a status), not a stagger: a riposte on a parried enemy is the table's
   // 75, not 75 × 1.25.
@@ -66,7 +93,9 @@ export function computeDamage(attacker: Entity, target: Entity, info: HitInfo): 
   const lv = Math.max(0.8, Math.min(1.2, 1 + 0.05 * ((attacker.combat?.level ?? 1) - tc.level)));
   // A melee hit on a chilled target shatters the chill for ×1.3 (consumed in resolveHit).
   const shatter = !info.projectile && info.kind === 'physical' && !!target.statuses?.chill;
-  const mult = (crit ? 1.5 : 1) * (frozen ? STATUS.chill.frozenDamage : 1) * (shatter ? STATUS.chill.meleeBonus : 1) * rootedMult(target) * lv * AFFINITY_MULT[affinity];
+  // Broken (its poise broke): a boss takes more damage until it recovers (plan §4.10).
+  const broken = tc.action?.kind === 'stagger' && tc.action.reason === 'broken' && target.brain ? (ENEMIES[target.brain.def].brokenDamage ?? 1) : 1;
+  const mult = (crit ? 1.5 : 1) * (frozen ? STATUS.chill.frozenDamage : 1) * (shatter ? STATUS.chill.meleeBonus : 1) * rootedMult(target) * lv * AFFINITY_MULT[affinity] * broken * weakSpot;
   return { damage: Math.max(1, Math.round(mitig * mult)), crit, affinity };
 }
 
@@ -133,7 +162,8 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   const ac = attacker.combat;
   const crit = info.crit || (!info.projectile && !!ac?.critNext);
   if (ac && crit && ac.critNext) ac.critNext = false;
-  const { damage, affinity } = computeDamage(attacker, target, { ...info, crit });
+  const weakSpot = weakSpotMult(target, info);
+  const { damage, affinity } = computeDamage(attacker, target, { ...info, crit }, weakSpot);
   if (!info.projectile && info.kind === 'physical' && target.statuses?.chill) {
     delete target.statuses.chill;
     ctx.events.push({ type: 'statusEnd', entity: target.id, status: 'chill' });
@@ -151,6 +181,7 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   addHitstop(target, info.hitstop);
   ctx.events.push({
     type: 'hit', attacker: attacker.id, target: target.id, move: info.move, damage, kind: info.kind, affinity, crit, heavy: info.heavy, pos: chest, hitstop: info.hitstop,
+    ...(weakSpot > 1 ? { weakSpot: true } : {}),
   });
 
   if (tv.hp <= 0) {
@@ -172,7 +203,7 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   if (tc.poise <= 0 && target.kind !== 'player') {
     tc.poise = tc.poiseMax;
     const ticks = (def?.staggerTicks ?? 40) + staffStaggerBonus(attacker, info);
-    tc.action = { kind: 'stagger', t: 0, dur: ticks };
+    tc.action = { kind: 'stagger', t: 0, dur: ticks, reason: 'broken' };
     ctx.events.push({ type: 'stagger', entity: target.id, ticks });
     pushed = true;
   } else if (target.kind === 'player' && !armored) {
@@ -243,7 +274,7 @@ export function resolveAttacks(ctx: CombatCtx, physics: PhysicsWorld): void {
       // An area attack lands where its circle is: a pillar between the caster and you doesn't save you.
       if (!shape.area && !lineOfSight(physics, att, tgt)) continue;
       a.hit.push(tgt.id);
-      resolveHit(ctx, att, tgt, shape.info);
+      resolveHit(ctx, att, tgt, { ...shape.info, contact: { a: shape.a, b: shape.b, radius: shape.radius } });
     }
   }
 }
@@ -303,12 +334,19 @@ function attackShape(e: Entity): AttackShape | null {
     };
   }
   const move = enemyMove(e, a.move);
-  if (!move || move.projectile) return null;
+  if (!move || move.projectile || move.noHit) return null;
   if (a.t < move.windup || a.t >= move.windup + move.active) return null;
   // An area attack is a short upright capsule on the circle placed at wind-up start.
   const area = move.area && a.aim;
-  const centre = area ? { x: a.aim!.x, y: a.aim!.y + 0.2, z: a.aim!.z } : toWorld(e.tf.pos, e.tf.yaw, [0, move.hitbox.up, move.hitbox.forward]);
-  const top = area ? { x: centre.x, y: centre.y + 1.2, z: centre.z } : centre;
+  // A big swing sweeps its sphere along a short path over the active ticks (expansion plan §3.3).
+  const along = (t: number): readonly [number, number, number] => {
+    const s = move.sweep;
+    const u = Math.min(1, t / Math.max(1, move.active));
+    return s ? [0, move.hitbox.up + (s.up - move.hitbox.up) * u, move.hitbox.forward + (s.forward - move.hitbox.forward) * u] : [0, move.hitbox.up, move.hitbox.forward];
+  };
+  const swing = a.t - move.windup;
+  const centre = area ? { x: a.aim!.x, y: a.aim!.y + 0.2, z: a.aim!.z } : toWorld(e.tf.pos, e.tf.yaw, along(swing));
+  const top = area ? { x: centre.x, y: centre.y + 1.2, z: centre.z } : toWorld(e.tf.pos, e.tf.yaw, along(swing + 1));
   return {
     a: centre,
     b: top,

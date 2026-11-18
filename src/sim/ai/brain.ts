@@ -8,6 +8,7 @@ import { affixSpeed } from '../systems/affixes';
 import { turnToward, wrapAngle } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
+import { bossAttackTick, bossPreTick, bossSpeed, bossThink, type BossHost } from '../systems/boss';
 
 /** Spawns one projectile for an enemy's ranged move (provided by SimWorld). `angle` fans it out. */
 export type SpawnProjectile = (owner: Entity, move: EnemyMoveDef, target: Entity, angle: number) => void;
@@ -26,7 +27,7 @@ const MIN_GAP = 0.6;
  * pick an attack by distance band and weight (never one move three times running), sometimes
  * circle after recovering, and leash home if pulled too far. Chill slows their clock and feet.
  */
-export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld, spawnProjectile: SpawnProjectile): void {
+export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld, spawnProjectile: SpawnProjectile, bossHost?: BossHost): void {
   for (const e of ctx.entities) {
     const b = e.brain;
     const c = e.combat;
@@ -62,13 +63,17 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
 
     const target = pickTarget(ctx, e, def);
     b.target = target?.id ?? null;
+    const boss = def.boss && bossHost ? bossHost : null;
+    if (boss) bossPreTick(ctx, e, def, target, rng, boss);
 
     if (a?.kind === 'attack') {
       runAttack(ctx, e, def, target, spawnProjectile, rng);
+      if (boss) bossAttackTick(ctx, e, def, boss);
       continue;
     }
 
     if (def.dummy) dummyThink(ctx, e, def, target);
+    else if (boss) bossThink(ctx, e, def, target, rng, boss, startAttack);
     else fighterThink(ctx, e, def, target, rng);
     // Chill slows movement too, and an affix can speed it up or slow it down.
     const m = ctx.motion.get(e.id);
@@ -154,6 +159,12 @@ function runAttack(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | nu
   // Leaps travel during the active ticks.
   if (move.leap && a.t >= move.windup && a.t < move.windup + move.active) {
     const speed = (move.leap.distance / (move.active * DT)) * moveScale(e);
+    motion.vx = Math.sin(e.tf.yaw) * speed;
+    motion.vz = Math.cos(e.tf.yaw) * speed;
+  }
+  // A boss's charge runs straight along its committed facing.
+  if (move.charge && a.t >= move.windup && a.t < move.windup + move.active) {
+    const speed = move.charge.speed * bossSpeed(e, def) * moveScale(e);
     motion.vx = Math.sin(e.tf.yaw) * speed;
     motion.vz = Math.cos(e.tf.yaw) * speed;
   }

@@ -337,3 +337,26 @@ h2 { margin: 0 0 4px; font-size: 34px; }
   .slot-row, .power-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .skill-tree { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* M5: the boss bar, the intro card and the end card. */
+.boss-bar { display: none; position: absolute; left: 50%; bottom: 62px; transform: translateX(-50%); width: min(760px, 72vw); text-shadow: 0 1px 3px #000; }
+.boss-bar.active { display: block; animation: boss-bar-in 0.6s ease-out; }
+.boss-bar .name { display: inline-block; font-size: 20px; font-weight: 800; letter-spacing: 0.04em; color: var(--ink); }
+.boss-bar .title { display: inline-block; margin-left: 10px; font-size: 13px; font-weight: 600; color: var(--ink-dim); }
+.boss-bar .track { position: relative; height: 14px; margin-top: 4px; border-radius: 3px; overflow: hidden; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.3); }
+.boss-bar .fill, .boss-bar .lag { position: absolute; inset: 0; transform-origin: left center; }
+.boss-bar .lag { background: rgba(255, 236, 190, 0.85); }
+.boss-bar .fill { background: linear-gradient(#e0472f, #8f1f14); }
+@keyframes boss-bar-in { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%); } }
+.boss-intro { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%); text-align: center; opacity: 0; pointer-events: none; white-space: nowrap; }
+.boss-intro .name { font-size: clamp(44px, 7vw, 88px); font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); text-shadow: 0 4px 0 #3a1208, 0 0 40px rgba(0, 0, 0, 0.7); }
+.boss-intro .title { font-size: clamp(16px, 2vw, 24px); font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: var(--accent); text-shadow: 0 2px 4px #000; }
+.boss-intro.go { animation: boss-intro 3.2s ease-out forwards; }
+@keyframes boss-intro {
+  0% { opacity: 0; letter-spacing: 0.2em; }
+  18% { opacity: 1; letter-spacing: 0.08em; }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.screen.end-card { justify-content: center; gap: 22px; text-align: center; padding: 24px; background: rgba(8, 10, 6, 0.86); }
+.screen.end-card .tagline { font-size: 18px; max-width: 560px; }

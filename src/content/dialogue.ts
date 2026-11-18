@@ -4,6 +4,7 @@
  * later localization.
  */
 import { C4_DIALOGUE, C4_DIALOGUE_PATCHES } from './packs/c4';
+import { registerScrapjawDialogue } from './packs/m5';
 import type { Condition, Effect } from './quests';
 
 export interface DialogueChoice {
@@ -187,3 +188,4 @@ for (const patch of C4_DIALOGUE_PATCHES) {
   graph.entry.splice(graph.entry.findIndex((r) => r.node === patch.before), 0, ...patch.entry);
   Object.assign(graph.nodes, patch.nodes);
 }
+registerScrapjawDialogue(DIALOGUE);

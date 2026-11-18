@@ -38,8 +38,8 @@ import sharp from 'sharp';
 import zlib from 'node:zlib';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-// SIBLING_REPOS: where the sibling repos are when this checkout isn't next to them (a git worktree).
-const GAMES = process.env.SIBLING_REPOS ? path.resolve(process.env.SIBLING_REPOS) : path.resolve(ROOT, '..');
+// SIBLING_REPOS or SPROTO_GAMES: where the sibling repos are when this checkout isn't next to them (a git worktree).
+const GAMES = path.resolve(process.env.SIBLING_REPOS ?? process.env.SPROTO_GAMES ?? path.join(ROOT, '..'));
 const OUT = path.join(ROOT, 'public', 'assets');
 const force = process.argv.includes('--force');
 
@@ -118,6 +118,8 @@ const FILES = [
   [SHOOTER, 'public/assets/models/characters/monster.glb', 'models/elites/gatekeeper.glb', { tex: 512 }],
   // C4: the robot elites (lazy-loaded; their maps at 512 px).
   ...['robot_shooter', 'robot_laser'].map((id) => [SHOOTER_BOSSES, `dist/assets/models/characters/${id}.glb`, `models/elites/${id}.glb`, { tex: 512 }]),
+  // M5: Scrapjaw, the Quarry Beast (20.1k triangles; every boss clip; lazy-loaded at the quarry).
+  [SHOOTER_BOSSES, 'dist/assets/models/characters/car_monster.glb', 'models/bosses/scrapjaw.glb', { tex: 512 }],
   // M4: Sproutvale's villagers.
   [SHOOTER, 'public/assets/models/characters/pepe-general.glb', 'models/npcs/pepe_general.glb', PEPE],
   [SHOOTER, 'public/assets/models/characters/pepe.glb', 'models/npcs/pepe.glb', PEPE],

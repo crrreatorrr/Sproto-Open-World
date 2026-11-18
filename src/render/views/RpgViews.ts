@@ -7,6 +7,7 @@ import { TICK_HZ } from '../../content/tuning';
 import type { Entity } from '../../sim/entity';
 import { Animator } from '../anim/Animator';
 import { glowTexture } from '../fx/textures';
+import { GateLockView } from './BossViews';
 import type { EntityView } from './EnemyViews';
 import { placeEntity } from './interp';
 
@@ -663,5 +664,6 @@ export class TomeView implements EntityView {
 export function objectView(model: string): EntityView {
   if (model === 'beacon') return new BeaconView();
   if (model === 'lever') return new LeverView();
+  if (model === 'gate_lock') return new GateLockView();
   return new TomeView();
 }

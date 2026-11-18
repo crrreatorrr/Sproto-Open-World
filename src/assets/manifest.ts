@@ -38,6 +38,8 @@ export const GATEKEEPER_CLIPS = ['idle', 'walk', 'run', 'smash'] as const;
 /** The robot elites (sproto-shooter-bosses): `cast_big` is the Rivet Gunner's alone. */
 export const ROBOT_SHOOTER_CLIPS = ['idle', 'run', 'cast', 'cast_big', 'stun'] as const;
 export const ROBOT_LASER_CLIPS = ['idle', 'run', 'cast', 'stun'] as const;
+/** Scrapjaw (sproto-shooter-bosses' `car_monster`): every boss action has its own clip. */
+export const SCRAPJAW_CLIPS = ['idle', 'walk', 'smash', 'slam', 'charge_start', 'charge', 'stunned', 'roar', 'throw_start', 'throw_loop'] as const;
 
 /** Villagers keep only their idle (the importer drops the rest). */
 export const NPC_CLIPS = ['idle'] as const;
@@ -76,6 +78,10 @@ export const MODELS = {
   /** C4's robot elites: outside the critical download, they face +Z and their clips are in place. */
   robot_shooter: { path: 'models/elites/robot_shooter.glb', rigged: true, clips: ROBOT_SHOOTER_CLIPS, fitHeight: 2.0, rotationY: 0, inPlace: true },
   robot_laser: { path: 'models/elites/robot_laser.glb', rigged: true, clips: ROBOT_LASER_CLIPS, fitHeight: 2.1, rotationY: 0, inPlace: true },
+  /** M5: the boss (faces +Z, in-place clips), lazy-loaded. Fitted to its 5.4 m EnemyDef body. */
+  scrapjaw: { path: 'models/bosses/scrapjaw.glb', rigged: true, clips: SCRAPJAW_CLIPS, fitHeight: 5.4, rotationY: 0, inPlace: true },
+  /** The Old Quarry's breakable pillars (the sim's obstacles; the same rock as the quarry's rim). */
+  quarry_pillar: { path: 'models/props/rock_outcrop.glb' },
   /**
    * M4 villagers (NpcDef.model), fitted to 1.8 m (views rescale to the NPC's body). The Miller is
    * the Trader's model, tinted by the view.

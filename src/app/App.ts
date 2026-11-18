@@ -35,6 +35,7 @@ import type { SimEvent } from '../sim/events';
 import { initPhysics } from '../sim/physics/PhysicsWorld';
 import { SimWorld } from '../sim/SimWorld';
 import type { ReadonlySimView } from '../sim/view';
+import { BossHud } from '../ui/BossHud';
 import { DamageNumbers, type NumberStyle, type Projector } from '../ui/DamageNumbers';
 import { GameMenu, type MenuTab } from '../ui/gameMenu';
 import { Hud, spellSlotGlyph, type HudCombat, type HudStatus } from '../ui/Hud';
@@ -135,6 +136,12 @@ export class App {
   private frameCount = 0;
   /** The RPG HUD layer and menus (plan §5; world mode). */
   readonly rpgHud: RpgHud;
+  /** The boss bar, its intro card and the end card (M5). */
+  readonly bossHud: BossHud;
+  /** The last quest is done: the end card shows once any open menu has closed. */
+  private endCardPending = false;
+  /** Seconds left of a phase change's pull-back (the phase camera moment). */
+  private bossMoment = 0;
   readonly rpgMenus: RpgMenus;
   private readonly tutorial = new Tutorial();
   /** The one tabbed menu (C1): Powers, Skills, Gear, Quests, Settings (world mode). */
@@ -175,6 +182,8 @@ export class App {
     this.surgeMeter = new SurgeMeter(this.hud.root);
     this.rpgHud = new RpgHud(this.hud.root);
     this.rpgHud.enabled = MODE === 'world';
+    this.bossHud = new BossHud(this.hud.root, ui);
+    this.bossHud.onContinue = () => this.resume();
     this.screenFlash = document.createElement('div');
     this.screenFlash.className = 'screen-flash';
     ui.appendChild(this.screenFlash);
@@ -477,6 +486,9 @@ export class App {
     this.fx.clear();
     this.numbers.clear();
     this.hud.showDeath(false);
+    this.bossHud.update(null, 0);
+    this.endCardPending = false;
+    this.rig.distanceScale = 1;
     this.stream?.detach();
     this.groundWait = false;
     this.pendingDrop = null;
@@ -651,6 +663,86 @@ export class App {
     this.hud.combat(this.hudCombat(simView, p), dt);
     this.surgeMeter.update(!!p.progress?.spells.includes('sproutSurge'), (p.powers?.surge ?? 0) / POWER.surge.max);
     this.rpgFrame(simView, p, dt, !!menu);
+    this.bossFrame(simView, p, dt, !!menu);
+  }
+
+  /** The boss bar, the camera pull-back for giants, and the end card once the talk is over. */
+  private bossFrame(view: ReadonlySimView, p: Readonly<Entity>, dt: number, inMenu: boolean): void {
+    const boss = view.entities.find((e) => e.boss?.state === 'intro' || e.boss?.state === 'fight');
+    const def = enemyDef(boss);
+    this.bossHud.update(boss?.vitals && def?.boss ? { name: def.name, title: def.boss.title, hp: boss.vitals.hp, hpMax: boss.vitals.hpMax } : null, dt);
+    const locked = p.combat?.lock != null ? enemyDef(view.get(p.combat.lock)) : undefined;
+    this.bossMoment = Math.max(0, this.bossMoment - dt);
+    this.rig.distanceScale = (def?.cameraScale ?? locked?.cameraScale ?? 1) * (this.bossMoment > 0 ? 1.25 : 1);
+    if (this.endCardPending && !inMenu) this.showEndCard();
+  }
+
+  /** The end card (plan §6.2): a menu screen over the paused game; Continue returns to play. */
+  private showEndCard(): void {
+    this.endCardPending = false;
+    this.state = 'paused';
+    this.commands.clear();
+    this.input.clearHeld();
+    if (this.input.locked) {
+      this.releasingLock = true;
+      this.input.releaseLock();
+    }
+    this.hud.visible = false;
+    this.nav.reset(this.bossHud.endCard);
+  }
+
+  /** Boss fight moments (M5): the intro card, the phase camera moment, impacts and the gate. */
+  private presentBoss(view: ReadonlySimView, e: SimEvent): void {
+    const pad = this.input.pad;
+    switch (e.type) {
+      case 'bossIntro': {
+        const def = enemyDef(view.get(e.boss));
+        if (def?.boss) this.bossHud.intro(def.name, def.boss.title);
+        this.audio.play('bossSlam', 0.7);
+        this.shake(0.35);
+        return;
+      }
+      case 'bossPhase':
+        this.bossMoment = 1.1;
+        this.audio.play('bossSlam', 0.6);
+        this.shake(0.55);
+        this.flashScreen();
+        pad.rumble(RUMBLE.hurt, 1.4);
+        return;
+      case 'bossImpact':
+        this.audio.play('pillarHit', e.pillar ? 0.5 : 0.65);
+        this.shake(e.pillar ? 0.7 : 0.5);
+        pad.rumble(RUMBLE.heavyHit, 1.4);
+        return;
+      case 'bossSummon':
+        this.hud.toast('Scrapjaw calls for help!');
+        return;
+      case 'bossDefeated':
+        this.hud.waveBanner('Scrapjaw falls');
+        this.audio.play('bossSlam', 0.5);
+        this.shake(0.8);
+        return;
+      case 'rockLand': {
+        const at = this.player?.root.position;
+        const d = at ? Math.hypot(at.x - e.pos.x, at.z - e.pos.z) : BLAST_SHAKE_RANGE;
+        this.audio.play('pillarHit', 0.9);
+        this.shake(TRAUMA.blast * Math.max(0.25, 1 - d / BLAST_SHAKE_RANGE));
+        return;
+      }
+      case 'gateOpened':
+        this.hud.toast('The Quarry Gate grinds open.');
+        this.audio.play('bossSlam', 1.3, 0.7);
+        return;
+      case 'telegraph':
+        // A charge has no decal of its own: it roars as it digs in.
+        if (enemyDef(view.get(e.entity))?.moves.find((m) => m.id === e.move)?.charge) this.audio.play('stunCharge', 0.8);
+        return;
+      case 'questComplete':
+        if (e.entity === this.playerId && e.quest === 'q_scrapjaw') this.endCardPending = true;
+        return;
+      default:
+        return;
+    }
   }
 
   /**
@@ -803,6 +895,7 @@ export class App {
     }
     for (const e of view.events) {
       this.present(view, e);
+      this.presentBoss(view, e);
       // First-time hints teach the world's rules as they come up (not in the yard or the sandbox).
       if (this.mode === 'world') {
         const tip = this.tutorial.tip(e, this.playerId, this.input.pad.device === 'gamepad' ? 'pad' : 'kbm');
@@ -1155,7 +1248,7 @@ export class App {
     const qa = (kind: 'hit' | 'spark' | 'sound' | 'number' | 'hitstop') => QA_LOG_ENABLED && qaLog.add({ kind, tick: view.now, hit: n, what: kind === 'hit' ? e.move : undefined });
     qa('hit');
     // Damage numbers and sparks take their style from the hit's affinity (plan §4.6): Weak! and Resisted.
-    const style: NumberStyle = hurt ? 'hurt' : e.affinity === 'weak' ? 'weak' : e.affinity === 'resist' ? 'resist' : e.crit ? 'crit' : 'normal';
+    const style: NumberStyle = hurt ? 'hurt' : e.weakSpot || e.affinity === 'weak' ? 'weak' : e.affinity === 'resist' ? 'resist' : e.crit ? 'crit' : 'normal';
     // Spell hits (the sim names the move after the spell) spark in the spell's colour.
     const spell = e.move in SPELLS ? (e.move as SpellId) : null;
     const spellSpark: SparkStyle | null = (spell && powerSpark(spell)) || (spell === 'blast' ? 'fire' : spell === 'chainZap' ? 'shock' : spell === 'frostNova' ? 'frost' : spell ? 'arcane' : null);
@@ -1217,6 +1310,13 @@ export class App {
     if (!t) return null;
     const v = this.world.get(id);
     const pos = v?.root.position ?? t.tf.pos;
+    // A giant has a fixed lock point (expansion plan §3.3); everyone else locks at the chest.
+    const fixed = enemyDef(t)?.lockPoint;
+    if (fixed) {
+      const yaw = v?.root.rotation.y ?? t.tf.yaw;
+      const f = fixed.forward ?? 0;
+      return this.lockPos.set(pos.x + Math.sin(yaw) * f, pos.y + fixed.up, pos.z + Math.cos(yaw) * f);
+    }
     const h = v?.height ?? t.body?.height ?? 1.8;
     return this.lockPos.set(pos.x, pos.y + h * 0.6, pos.z);
   }
@@ -1235,7 +1335,8 @@ export class App {
     if (enemyId === null && this.lastHitEnemy !== null && performance.now() - this.lastHitAt < ENEMY_BAR_MS) enemyId = this.lastHitEnemy;
     let enemy: HudCombat['enemy'] = null;
     const t = enemyId !== null ? view.get(enemyId) : undefined;
-    if (t?.vitals && t.combat?.action?.kind !== 'dead') {
+    // A boss has the big bar along the bottom instead (BossHud).
+    if (t?.vitals && t.combat?.action?.kind !== 'dead' && !enemyDef(t)?.boss) {
       const tv = this.world.get(t.id);
       const pos = tv?.root.position ?? t.tf.pos;
       const h = tv?.height ?? t.body?.height ?? 1.8;

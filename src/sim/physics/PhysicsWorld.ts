@@ -2,8 +2,10 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { KCC } from '../../content/tuning';
 import type { LevelDef } from '../../content/sandbox';
 import { CELL_RES, CELL_SIZE, type CellColliders, type ColliderShape } from '../../content/world/format';
-import type { Body, EntityId } from '../entity';
+import type { Body, EntityId, Obstacle } from '../entity';
 import type { Vec3 } from '../math';
+
+type ObstacleShape = Obstacle['shape'];
 
 /**
  * The only place the sim touches Rapier (plan §2.2, checked by tests/architecture.test.ts).
@@ -148,6 +150,40 @@ export class PhysicsWorld {
 
   hasCell(key: string): boolean {
     return this.cells.has(key);
+  }
+
+  // ---------------------------------------------------------------- obstacles
+
+  /** Gate barriers and breakable pillars, by entity id: free-standing colliders the sim adds and drops. */
+  private readonly obstacles = new Map<EntityId, RAPIER.Collider>();
+
+  /** Add an obstacle's collider. `feet` is the ground under it; it reaches a little below that. */
+  addObstacle(id: EntityId, feet: Vec3, shape: ObstacleShape): void {
+    this.removeObstacle(id);
+    const SINK = 1;
+    const desc =
+      shape.kind === 'cylinder'
+        ? RAPIER.ColliderDesc.cylinder(shape.height / 2, shape.radius).setTranslation(feet.x, feet.y + shape.height / 2 - SINK, feet.z)
+        : RAPIER.ColliderDesc.cuboid(shape.half[0], shape.half[1], shape.half[2])
+            .setTranslation(feet.x, feet.y + shape.half[1] - SINK, feet.z)
+            .setRotation({ x: 0, y: Math.sin(shape.yaw / 2), z: 0, w: Math.cos(shape.yaw / 2) });
+    this.obstacles.set(id, this.world.createCollider(desc.setCollisionGroups(groups(GROUP.WORLD, 0xffff))));
+  }
+
+  removeObstacle(id: EntityId): void {
+    const c = this.obstacles.get(id);
+    if (!c) return;
+    this.world.removeCollider(c, false);
+    this.obstacles.delete(id);
+  }
+
+  hasObstacle(id: EntityId): boolean {
+    return this.obstacles.has(id);
+  }
+
+  /** Every obstacle with a collider now (a restored snapshot may have dropped some of their entities). */
+  obstacleIds(): EntityId[] {
+    return [...this.obstacles.keys()];
   }
 
   addCharacter(id: EntityId, body: Body, feet: Vec3): void {
