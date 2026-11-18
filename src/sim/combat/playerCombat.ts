@@ -1,5 +1,5 @@
 import {
-  AIM, BLOCK, BUFFER, CHARGE, LUNGE, PLAYER_MOVES, PLAYER_STATS, ROLL, SOFT_TARGET, clipReach, clipTiming, type PlayerMoveId,
+  AIM, BLOCK, BUFFER, CHARGE, LUNGE, PLAYER_MOVES, PLAYER_STATS, ROLL, SOFT_TARGET, SWING_STEER, clipReach, clipTiming, type PlayerMoveDef, type PlayerMoveId,
 } from '../../content/combat';
 import { TONIC } from '../../content/items';
 import { TRAIT } from '../../content/packs/c2';
@@ -8,11 +8,11 @@ import { BACKSTEP, dodgeFrames } from '../../content/packs/m7';
 import { CAST_WALK_SCALE } from '../../content/spells';
 import { charmOf } from '../systems/rpg';
 import { slotSpell } from '../systems/loadout';
-import { DT } from '../../content/tuning';
+import { DT, MOVE } from '../../content/tuning';
 import { BTN, idleInput, type CommandMap, type InputCommand } from '../commands';
 import type { Action, Buffered, BufferedAction, Entity } from '../entity';
 import type { SimEvent } from '../events';
-import { turnToward } from '../math';
+import { turnToward, wrapAngle } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { aimSwingDir, resolveAim } from './aim';
 import { angleTo, flatDist, yawTo } from './geometry';
@@ -63,7 +63,7 @@ export function iframes(a: Action | null): boolean {
 }
 
 /** Light attacks a spell may cancel from activeEnd (plan §4.4: never a heavy). */
-const LIGHTS = new Set<string>(['light1', 'light2', 'light3', 'light4', 'rollAttack']);
+const LIGHTS = new Set<string>(['light1', 'light2', 'light3', 'light4', 'rollAttack', 'sprintLight', 'counterLight']);
 const SPELL_BUTTONS = [BTN.spell1, BTN.spell2, BTN.spell3, BTN.spell4] as const;
 
 /** Player moves: buffer presses, advance the current action, start the next one (plan §4.2–4.4). */
@@ -132,7 +132,7 @@ function bufferPresses(p: Entity, cmd: InputCommand, frozen: boolean): void {
     const def = PLAYER_MOVES[a.move as PlayerMoveId];
     // Presses are read before this tick's advance: unless frozen, the action is about to be on clipT + 1.
     const clipNow = frozen ? a.clipT : a.clipT + 1;
-    if (def && clipNow >= clipTiming(def.clip).activeStart) untilCancel = true;
+    if (def && clipNow >= clipTiming(def.clip).activeStart - BUFFER.earlyHold) untilCancel = true;
   }
   c.buffer = { action: pressed, ttl: pressed === 'dodge' ? BUFFER.dodgeTicks : BUFFER.attackTicks, untilCancel } satisfies Buffered;
 }
@@ -173,6 +173,8 @@ function advance(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
         if (a.clipT === tm.activeStart) ctx.events.push({ type: 'swing', entity: p.id, move: a.move, heavy: def.mv >= 2 });
         if (a.clipT >= tm.end) {
           c.action = null;
+          c.comboFrom = a.move as PlayerMoveId;
+          c.comboUntil = ctx.now + BUFFER.chainGrace;
           return;
         }
       }
@@ -214,7 +216,7 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: Physi
   if (!b) return;
   const a = c.action;
   if (b.action === 'dodge') {
-    const legal = !a || a.kind === 'block' || (a.kind === 'plunge' && plungeCancels(a)) || (a.kind === 'attack' && a.clipT >= clipTiming(PLAYER_MOVES[a.move as PlayerMoveId].clip).activeEnd);
+    const legal = !a || a.kind === 'block' || (a.kind === 'plunge' && plungeCancels(a)) || (a.kind === 'attack' && a.clipT >= dodgeCancelFrom(a));
     if (!legal) return;
     c.buffer = null;
     if (p.vitals!.stamina <= 0) {
@@ -243,12 +245,18 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: Physi
   }
   // Light or heavy.
   let move: PlayerMoveId | null;
-  if (!a || a.kind === 'block') {
-    move = b.action === 'light' ? 'light1' : ctx.now < c.riposteUntil ? 'riposte' : ctx.now < c.guardCounterUntil ? 'guardCounter' : 'heavy';
+  const counter = counterMove(p, b.action, ctx);
+  // A riposte or guard counter on offer beats every other heavy: the player earned it with the guard.
+  const reply = b.action !== 'heavy' ? null : ctx.now < c.riposteUntil ? 'riposte' : ctx.now < c.guardCounterUntil ? 'guardCounter' : null;
+  if (reply && (!a || a.kind === 'block')) {
+    move = reply;
+  } else if (counter && (!a || a.kind === 'block' || (a.kind === 'dodge' && a.t > dodgeFrames(a).perfectEnd))) {
+    move = counter;
+  } else if (!a || a.kind === 'block') {
+    move = (a ? null : freeOpener(p, b.action, ctx)) ?? (b.action === 'light' ? 'light1' : 'heavy');
   } else if (a.kind === 'attack') {
-    const def = PLAYER_MOVES[a.move as PlayerMoveId];
-    if (a.clipT < clipTiming(def.clip).cancel) return;
-    move = (b.action === 'light' ? (brawlerChains(p, a.move) ? 'light4' : def.next?.light) : def.next?.heavy) ?? null;
+    if (a.clipT < chainFrom(a)) return;
+    move = chainMove(p, a.move as PlayerMoveId, b.action);
     if (b.action === 'heavy' && ctx.now < c.riposteUntil) move = 'riposte';
   } else if (a.kind === 'dodge') {
     if (a.t < dodgeFrames(a).attackFrom) return;
@@ -265,6 +273,66 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: Physi
   }
   startAttack(p, move, cmd, ctx, physics);
 }
+
+type AttackAction = Extract<Action, { kind: 'attack' }>;
+
+/** The clip tick a dodge may cancel this swing from: its active frames always play out, a whiff longer. */
+function dodgeCancelFrom(a: AttackAction): number {
+  const def = PLAYER_MOVES[a.move as PlayerMoveId];
+  return clipTiming(def.clip).activeEnd + (a.connected ? 0 : (def.whiffLock ?? 0));
+}
+
+/** The clip tick the next attack of the string may start from: a little sooner when this one connected. */
+function chainFrom(a: AttackAction): number {
+  const tm = clipTiming(PLAYER_MOVES[a.move as PlayerMoveId].clip);
+  return a.connected ? Math.max(tm.activeEnd, tm.cancel - BUFFER.hitChainEarly) : tm.cancel;
+}
+
+/** What a press chains into from `from`. */
+function chainMove(p: Entity, from: PlayerMoveId, press: BufferedAction): PlayerMoveId | null {
+  const next = PLAYER_MOVES[from].next;
+  return (press === 'light' ? (brawlerChains(p, from) ? 'light4' : next?.light) : next?.heavy) ?? null;
+}
+
+/** The counter a press becomes just after a perfect dodge (a riposte, when one is open, goes first). */
+function counterMove(p: Entity, press: BufferedAction, ctx: CombatCtx): PlayerMoveId | null {
+  const c = p.combat!;
+  if (ctx.now >= (c.counterUntil ?? 0) || (press === 'heavy' && ctx.now < c.riposteUntil)) return null;
+  return press === 'light' ? 'counterLight' : 'counterHeavy';
+}
+
+/** Is the player on foot and running at sprint pace (or just letting go of it)? */
+function carriesSprint(p: Entity): boolean {
+  const l = p.loco;
+  return !p.riding && !!l?.grounded && (l.sprinting || l.speed > MOVE.runSpeed + LUNGE.sprintCarry);
+}
+
+/** An attack from free: out of a sprint, or the next hit of the string that has only just finished. */
+function freeOpener(p: Entity, press: BufferedAction, ctx: CombatCtx): PlayerMoveId | null {
+  const c = p.combat!;
+  if (press === 'heavy' && ctx.now < c.riposteUntil) return null;
+  if (carriesSprint(p)) return press === 'light' ? 'sprintLight' : 'sprintHeavy';
+  return c.comboFrom && ctx.now < (c.comboUntil ?? 0) ? chainMove(p, c.comboFrom, press) : null;
+}
+
+/** The clip tick a move's lunge stops at: a driving strike carries on through its active frames. */
+const lungeEnd = (def: PlayerMoveDef): number => {
+  const tm = clipTiming(def.clip);
+  return def.drive ? tm.activeEnd : tm.activeStart;
+};
+
+/** Sim ticks from clip tick `from` until the lunge stops. */
+const lungeTicks = (def: PlayerMoveDef, from: number): number => Math.max(1, Math.ceil((lungeEnd(def) - from) / (def.rate ?? 1)));
+
+/** Sim ticks from clip tick `from` until a lunge at a target should be in reach: a driving strike arrives mid-swing. */
+function closeTicks(def: PlayerMoveDef, from: number): number {
+  const tm = clipTiming(def.clip);
+  const by = def.drive ? Math.ceil((tm.activeStart + tm.activeEnd) / 2) : tm.activeStart;
+  return Math.max(1, Math.ceil((by - from) / (def.rate ?? 1)));
+}
+
+/** How far from the target's centre the swing should stop: its body, less the staff's real reach. */
+const lungeGap = (def: PlayerMoveDef, target: Entity, d: number): number => d - (target.body?.radius ?? 0) - clipReach(def.clip) + LUNGE.overlap;
 
 /** Best enemy for a soft target: locked target, else the nearest in a cone of the input or facing. */
 function softTarget(p: Entity, cmd: InputCommand, ctx: CombatCtx, swing?: { x: number; z: number }, onCrosshair?: Entity | null): Entity | null {
@@ -319,13 +387,13 @@ function startAttack(p: Entity, move: PlayerMoveId, cmd: InputCommand, ctx: Comb
   const c = p.combat!;
   const v = p.vitals!;
   const def = PLAYER_MOVES[move];
-  const tm = clipTiming(def.clip);
   v.stamina = Math.max(0, v.stamina - def.stamina);
   v.staminaDelay = PLAYER_STATS.staminaDelay;
   // A riposte goes for the enemy the parry stunned, whatever else is near.
   const stunned = move === 'riposte' && c.riposteTarget !== null ? ctx.get(c.riposteTarget) : undefined;
   if (move === 'riposte') c.riposteUntil = 0;
   c.guardCounterUntil = 0;
+  if (move === 'counterLight' || move === 'counterHeavy') c.counterUntil = 0;
   // Committed: the stun holds through the swing's last active tick (brains run before hits land).
   const stun = stunned?.combat?.action;
   if (stun?.kind === 'stagger' && (stun.reason === 'parried' || stun.reason === 'broken')) stun.dur = Math.max(stun.dur, stun.t + BLOCK.riposteReach + 1);
@@ -335,25 +403,63 @@ function startAttack(p: Entity, move: PlayerMoveId, cmd: InputCommand, ctx: Comb
   const swing = cmd.aim && aimed ? aimSwingDir(p, cmd.aim, aimed.point) : undefined;
   const inReach = stunned?.body && stunned.combat?.action?.kind !== 'dead' && flatDist(p.tf.pos, stunned.tf.pos) - stunned.body.radius <= SOFT_TARGET.meleeRange;
   const target = inReach ? stunned! : softTarget(p, cmd, ctx, swing, aimed?.target);
-  let lunge: number;
   let dir = swing ?? { x: Math.sin(p.tf.yaw), z: Math.cos(p.tf.yaw) };
   if (target) {
     const dx = target.tf.pos.x - p.tf.pos.x, dz = target.tf.pos.z - p.tf.pos.z;
     const d = Math.hypot(dx, dz);
     if (d > 1e-4) dir = { x: dx / d, z: dz / d };
-    // Close the gap until the staff's real reach for this clip overlaps the target's body.
-    lunge = Math.max(0, Math.min(LUNGE.max, d - (target.body?.radius ?? 0) - clipReach(def.clip) + LUNGE.overlap));
-  } else {
-    if (!swing && w.mag > 0.2) {
-      dir = { x: w.x / w.mag, z: w.z / w.mag };
-      p.tf.yaw = Math.atan2(dir.x, dir.z); // attacks go where you push, without a target
-    }
-    lunge = LUNGE.noTarget;
+  } else if (!swing && w.mag > 0.2) {
+    dir = { x: w.x / w.mag, z: w.z / w.mag };
+    p.tf.yaw = Math.atan2(dir.x, dir.z); // attacks go where you push, without a target
   }
   // Aimed swings turn to the crosshair at once: the hit must land where the player is looking.
   if (swing) p.tf.yaw = p.tf.prevYaw = Math.atan2(dir.x, dir.z);
-  const startup = Math.max(1, Math.ceil((tm.activeStart - def.entry) / (def.rate ?? 1)));
-  c.action = { kind: 'attack', move, t: 0, clipT: def.entry, charge: 0, charging: false, charged: false, hit: [], lunge: lunge / startup, lungeDir: dir };
+  c.action = {
+    kind: 'attack', move, t: 0, clipT: def.entry, charge: 0, charging: false, charged: false, hit: [],
+    // With a target the lunge is worked out tick by tick (setMotion), so it follows a moving enemy.
+    lunge: target ? 0 : freeLunge(def, def.entry),
+    lungeDir: dir,
+    ...(target ? { lungeTarget: target.id, lungeLeft: def.lungeMax ?? LUNGE.max } : {}),
+  };
+}
+
+/** Metres per tick of a swing with nobody to lunge at. */
+const freeLunge = (def: PlayerMoveDef, from: number): number => (def.drive ?? LUNGE.noTarget) / lungeTicks(def, from);
+
+/**
+ * The swing's wind-up: the stick turns it, a soft target pulls it round, and the lunge closes on where
+ * the target is now. Returns the metres to travel this tick. Nothing here runs once the swing is active.
+ */
+function steerSwing(p: Entity, a: AttackAction, def: PlayerMoveDef, cmd: InputCommand, ctx: CombatCtx): number {
+  const c = p.combat!;
+  const startup = a.clipT < clipTiming(def.clip).activeStart;
+  let target = a.lungeTarget !== undefined ? ctx.get(a.lungeTarget) : undefined;
+  if (target?.combat?.action?.kind === 'dead') target = undefined;
+  const w = wishDir(cmd);
+  // In the saddle the stick steers the bull, not the swing.
+  if (startup && c.lock === null && !p.riding && w.mag > SWING_STEER.minStick) {
+    const stick = Math.atan2(w.x, w.z);
+    const release = (SWING_STEER.releaseDeg * Math.PI) / 180;
+    if (target && Math.abs(wrapAngle(yawTo(p.tf.pos, target.tf.pos) - stick)) > release) target = undefined;
+    if (!target) {
+      const yaw = turnToward(Math.atan2(a.lungeDir.x, a.lungeDir.z), stick, SWING_STEER.turnRate * DT);
+      a.lungeDir = { x: Math.sin(yaw), z: Math.cos(yaw) };
+    }
+  }
+  if (a.lungeTarget !== undefined && !target) {
+    // The target is gone (dead, or steered away from): carry on as a swing with nobody to lunge at.
+    delete a.lungeTarget;
+    delete a.lungeLeft;
+    a.lunge = freeLunge(def, a.clipT);
+  }
+  if (!target) return a.lunge;
+  const dx = target.tf.pos.x - p.tf.pos.x, dz = target.tf.pos.z - p.tf.pos.z;
+  const d = Math.hypot(dx, dz);
+  if (startup && d > 1e-4) a.lungeDir = { x: dx / d, z: dz / d };
+  const left = a.lungeLeft ?? 0;
+  const step = Math.max(0, Math.min(left, lungeGap(def, target, d))) / closeTicks(def, a.clipT);
+  a.lungeLeft = left - step;
+  return step;
 }
 
 function startRoll(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: PhysicsWorld): void {
@@ -407,13 +513,16 @@ function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
       const def = PLAYER_MOVES[a.move as PlayerMoveId];
       const tm = clipTiming(def.clip);
       let vx = 0, vz = 0;
-      if (a.clipT < tm.activeStart && !a.charging) {
-        vx = (a.lungeDir.x * a.lunge) / DT;
-        vz = (a.lungeDir.z * a.lunge) / DT;
-        // Turn toward the target during startup (720°/s), or the lock.
-        const target = c.lock !== null ? ctx.get(c.lock) : undefined;
-        const want = target ? yawTo(p.tf.pos, target.tf.pos) : Math.atan2(a.lungeDir.x, a.lungeDir.z);
-        p.tf.yaw = turnToward(p.tf.yaw, want, SOFT_TARGET.turnRate * DT);
+      if (a.clipT < lungeEnd(def) && !a.charging && !a.connected) {
+        const step = steerSwing(p, a, def, cmd, ctx);
+        vx = (a.lungeDir.x * step) / DT;
+        vz = (a.lungeDir.z * step) / DT;
+        if (a.clipT < tm.activeStart) {
+          // Turn toward the target during startup (720°/s), or the lock.
+          const target = c.lock !== null ? ctx.get(c.lock) : undefined;
+          const want = target ? yawTo(p.tf.pos, target.tf.pos) : Math.atan2(a.lungeDir.x, a.lungeDir.z);
+          p.tf.yaw = turnToward(p.tf.yaw, want, SOFT_TARGET.turnRate * DT);
+        }
       } else if (a.charging && cmd.aim && c.lock === null) {
         // A charging heavy turns with the stick, else follows the screen's centre, until released.
         const w = wishDir(cmd);

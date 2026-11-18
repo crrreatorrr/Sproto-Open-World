@@ -1,5 +1,5 @@
 import {
-  BLOCK, CHARGED_HEAVY, HITSTOP_CAP, MANA, PLAYER_MOVES, PLAYER_STATS, STAFFS, clipTiming, type DamageKind, type PlayerMoveId,
+  BACKSTAB, BLOCK, BREAK_CRIT, CHARGED_HEAVY, COUNTER, CRIT_HITSTOP, HITSTOP_CAP, MANA, PLAYER_MOVES, PLAYER_STATS, STAFFS, clipTiming, type DamageKind, type PlayerMoveId,
 } from '../../content/combat';
 import { dodgeFrames } from '../../content/packs/m7';
 import { PLAYER_HITBOXES, STAFF_CAPSULE_RADIUS } from '../../content/generated/playerHitboxes';
@@ -11,7 +11,8 @@ import { charmOf, staffOf } from '../systems/rpg';
 import { rootedMult } from './powers/snare';
 import { applyStatus } from './statuses';
 import { staffAfterReaction, staffOnHit, staffPoiseMult, staffPushback, staffStaggerBonus } from './staffTraits';
-import type { Entity } from '../entity';
+import type { Action, Entity } from '../entity';
+import type { MeleeStrike } from '../events';
 import type { Vec3 } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import type { CombatCtx } from './playerCombat';
@@ -43,6 +44,8 @@ export interface HitInfo {
   fixedDamage?: number;
   /** A blast on a circle on the ground: its owner may be far away, so parrying it stuns nobody. */
   area?: boolean;
+  /** The player's staff swing: only these can be a break critical or a backstab. */
+  melee?: boolean;
 }
 
 export type HitOutcome = 'dodged' | 'parried' | 'blocked' | 'hit';
@@ -83,8 +86,34 @@ function weakSpotMult(target: Entity, info: HitInfo): number {
   return best;
 }
 
-/** Plan §4.6 damage formula (no random variance, no random crits). `weakSpot` multiplies it (see above). */
-export function computeDamage(attacker: Entity, target: Entity, info: HitInfo, weakSpot = 1): { damage: number; crit: boolean; affinity: Affinity } {
+/** Is this action the stagger of a broken poise? */
+const isBroken = (a: Action | null): boolean => a?.kind === 'stagger' && a.reason === 'broken';
+
+const isBoss = (e: Entity): boolean => !!e.boss || e.kind === 'boss';
+
+/**
+ * What a swing earned. The first melee hit on a broken enemy is its break critical (one per break);
+ * otherwise a melee hit from behind on a non-boss that isn't attacking you is a backstab.
+ */
+function meleeStrike(attacker: Entity, target: Entity, info: HitInfo): MeleeStrike | null {
+  if (!info.melee) return null;
+  const ta = target.combat!.action;
+  if (ta?.kind === 'stagger' && ta.reason === 'broken' && !ta.critTaken) return 'breakCrit';
+  // A riposte has its own bonus: from behind it is no bigger.
+  if (isBoss(target) || info.move === 'riposte') return null;
+  if (ta?.kind === 'attack' && (target.brain?.target ?? attacker.id) === attacker.id) return null;
+  const behind = Math.PI - ((BACKSTAB.arcDeg / 2) * Math.PI) / 180;
+  return angleTo(target.tf.pos, target.tf.yaw, info.from) >= behind ? 'backstab' : null;
+}
+
+/** The damage multiplier a strike adds. */
+function strikeDamage(target: Entity, strike: MeleeStrike | null): number {
+  if (strike === 'breakCrit') return isBoss(target) ? BREAK_CRIT.bossDamage : BREAK_CRIT.damage;
+  return strike === 'backstab' ? BACKSTAB.damage : 1;
+}
+
+/** Plan §4.6 damage formula (no random variance, no random crits). `bonus` multiplies it: a weak spot, a strike. */
+export function computeDamage(attacker: Entity, target: Entity, info: HitInfo, bonus = 1): { damage: number; crit: boolean; affinity: Affinity } {
   const tc = target.combat!;
   const crit = info.crit;
   const affinity = affinityOf(target, info.kind);
@@ -97,10 +126,9 @@ export function computeDamage(attacker: Entity, target: Entity, info: HitInfo, w
   const shatter = !info.projectile && info.kind === 'physical' && !!target.statuses?.chill;
   // Broken (its poise broke): a boss takes more damage until it recovers (plan §4.10).
   const broken = tc.action?.kind === 'stagger' && tc.action.reason === 'broken' && target.brain ? (ENEMIES[target.brain.def].brokenDamage ?? 1) : 1;
-  // A riposte on the enemy its parry stunned (or broke) is the biggest hit the staff has.
-  const reeling = tc.action?.kind === 'stagger' && (tc.action.reason === 'parried' || tc.action.reason === 'broken');
-  const riposte = info.move === 'riposte' && reeling ? BLOCK.riposteBonus : 1;
-  const mult = riposte * (crit ? 1.5 : 1) * (frozen ? STATUS.chill.frozenDamage : 1) * (shatter ? STATUS.chill.meleeBonus : 1) * rootedMult(target) * lv * AFFINITY_MULT[affinity] * broken * weakSpot;
+  // A riposte on the enemy its parry stunned. On a broken enemy the break critical is the bonus instead.
+  const riposte = info.move === 'riposte' && tc.action?.kind === 'stagger' && tc.action.reason === 'parried' ? BLOCK.riposteBonus : 1;
+  const mult = riposte * (crit ? 1.5 : 1) * (frozen ? STATUS.chill.frozenDamage : 1) * (shatter ? STATUS.chill.meleeBonus : 1) * rootedMult(target) * lv * AFFINITY_MULT[affinity] * broken * bonus;
   return { damage: Math.max(1, Math.round(mitig * mult)), crit, affinity };
 }
 
@@ -149,6 +177,7 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
       tv.stamina = Math.min(tv.staminaMax, tv.stamina + dodgeFrames(ta).stamina);
       tv.mana = Math.min(tv.manaMax, tv.mana + MANA.perfectDodge);
       tc.critNext = true;
+      tc.counterUntil = ctx.now + COUNTER.window;
       ctx.events.push({ type: 'dodgePerfect', entity: target.id, attacker: attacker.id });
     }
     return 'dodged';
@@ -190,28 +219,37 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   }
 
   const ac = attacker.combat;
-  const crit = info.crit || (!info.projectile && !!ac?.critNext);
-  if (ac && crit && ac.critNext) ac.critNext = false;
+  const strike = meleeStrike(attacker, target, info);
+  // A break critical is its own reward: a perfect dodge's critical waits for the next hit.
+  const earned = !info.projectile && !!ac?.critNext && strike !== 'breakCrit';
+  const crit = info.crit || earned || strike === 'breakCrit';
+  if (ac && crit && ac.critNext && strike !== 'breakCrit') ac.critNext = false;
+  if (strike === 'breakCrit' && ta?.kind === 'stagger') ta.critTaken = true;
   const weakSpot = weakSpotMult(target, info);
-  const { damage, affinity } = computeDamage(attacker, target, { ...info, crit }, weakSpot);
+  const { damage, affinity } = computeDamage(attacker, target, { ...info, crit }, weakSpot * strikeDamage(target, strike));
   if (!info.projectile && info.kind === 'physical' && target.statuses?.chill) {
     delete target.statuses.chill;
     ctx.events.push({ type: 'statusEnd', entity: target.id, status: 'chill' });
   }
   tv.hp -= damage;
-  const poiseDmg = info.poise * (crit ? 1.5 : 1) * AFFINITY_MULT[affinity] * staffPoiseMult(attacker);
+  // Poise that just broke can't break again until the stagger is over.
+  const wasBroken = isBroken(ta);
+  const wasParried = ta?.kind === 'stagger' && ta.reason === 'parried';
+  const poiseDmg = wasBroken ? 0 : info.poise * (crit ? 1.5 : 1) * (strike === 'backstab' ? BACKSTAB.poise : 1) * AFFINITY_MULT[affinity] * staffPoiseMult(attacker);
   tc.poise -= poiseDmg;
   tc.poiseDelay = POISE_REGEN_DELAY;
+  const hitstop = Math.min(HITSTOP_CAP, strike === 'breakCrit' ? Math.max(info.hitstop, BREAK_CRIT.hitstop) : strike === 'backstab' ? Math.max(info.hitstop, BACKSTAB.hitstop) : earned ? info.hitstop + CRIT_HITSTOP : info.hitstop);
   if (ac && !info.projectile) {
     ac.lastHitTick = ctx.now;
     const bonus = attacker.progress ? (charmOf(attacker.progress)?.manaPerHit ?? 0) : 0;
     if (attacker.vitals) attacker.vitals.mana = Math.min(attacker.vitals.manaMax, attacker.vitals.mana + info.mana + bonus);
-    addHitstop(attacker, info.hitstop);
+    addHitstop(attacker, hitstop);
   }
-  addHitstop(target, info.hitstop);
+  addHitstop(target, hitstop);
   ctx.events.push({
-    type: 'hit', attacker: attacker.id, target: target.id, move: info.move, damage, kind: info.kind, affinity, crit, heavy: info.heavy, pos: chest, hitstop: info.hitstop,
+    type: 'hit', attacker: attacker.id, target: target.id, move: info.move, damage, kind: info.kind, affinity, crit, heavy: info.heavy, pos: chest, hitstop,
     ...(weakSpot > 1 ? { weakSpot: true } : {}),
+    ...(strike ? { strike } : {}),
   });
 
   if (tv.hp <= 0) {
@@ -240,8 +278,11 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
     tc.action = { kind: 'hitstun', t: 0, dur: PLAYER_STATS.hitstun, knockdown: false };
     tc.buffer = null;
     pushed = true;
+  } else if (wasBroken || wasParried) {
+    // A break or a parry stun runs its full length: blows that land on it shove the body but never cut it short.
+    pushed = true;
   } else if (!def?.elite && !affixElite(target) && !armored) {
-    tc.action = { kind: 'hitstun', t: 0, dur: info.hitstun, knockdown: info.knockdown };
+    tc.action = { kind: 'hitstun', t: 0, dur: strike === 'backstab' ? Math.max(info.hitstun, BACKSTAB.hitstun) : info.hitstun, knockdown: info.knockdown };
     pushed = true;
   }
   if (wasWindingUp && tc.action?.kind !== 'attack') ctx.events.push({ type: 'interrupt', entity: target.id, by: attacker.id });
@@ -304,7 +345,8 @@ export function resolveAttacks(ctx: CombatCtx, physics: PhysicsWorld): void {
       // An area attack lands where its circle is: a pillar between the caster and you doesn't save you.
       if (!shape.area && !lineOfSight(physics, att, tgt)) continue;
       a.hit.push(tgt.id);
-      resolveHit(ctx, att, tgt, { ...shape.info, contact: { a: shape.a, b: shape.b, radius: shape.radius } });
+      const outcome = resolveHit(ctx, att, tgt, { ...shape.info, contact: { a: shape.a, b: shape.b, radius: shape.radius } });
+      if (outcome === 'hit' && att.kind === 'player') a.connected = true;
       // Parried: the blow is over, for everyone else it was about to reach too.
       if (c.action !== a) break;
     }
@@ -362,6 +404,7 @@ function attackShape(e: Entity): AttackShape | null {
         mana: def.mana,
         from: { ...e.tf.pos },
         projectile: false,
+        melee: true,
       },
     };
   }

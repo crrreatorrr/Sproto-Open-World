@@ -22,7 +22,7 @@ import { CommandBuilder } from '../input/CommandBuilder';
 import { applyControlPrefs, loadControlPrefs, saveControlPrefs } from '../input/controlPrefs';
 import { promptLabel } from '../input/glyphs';
 import { Input } from '../input/Input';
-import { CAMERA_KICK, RUMBLE, TRAUMA } from '../render/fx/feedback';
+import { CAMERA_KICK, HIT_FEEL, RUMBLE, TRAUMA, hitTier, kickScale } from '../render/fx/feedback';
 import { HitFx, type SparkStyle } from '../render/fx/HitFx';
 import { isSoftPowerHit, powerSpark } from '../render/fx/powers';
 import { PortraitStudio } from '../render/PortraitStudio';
@@ -1009,7 +1009,7 @@ export class App {
         if (e.target === me) {
           pad.rumble(RUMBLE.parry);
           this.shake(TRAUMA.parry);
-          this.rig.kick(CAMERA_KICK.parry * motionScale(this.settings.shake));
+          this.rig.kick(0, 0, 0, CAMERA_KICK.parry * motionScale(this.settings.shake));
           this.flashScreen(0.65);
         }
         return;
@@ -1311,13 +1311,14 @@ export class App {
     const qa = (kind: 'hit' | 'spark' | 'sound' | 'number' | 'hitstop') => QA_LOG_ENABLED && qaLog.add({ kind, tick: view.now, hit: n, what: kind === 'hit' ? e.move : undefined });
     qa('hit');
     // Damage numbers and sparks take their style from the hit's affinity (plan §4.6): Weak! and Resisted.
-    const style: NumberStyle = hurt ? 'hurt' : e.weakSpot || e.affinity === 'weak' ? 'weak' : e.affinity === 'resist' ? 'resist' : e.crit ? 'crit' : 'normal';
+    const style: NumberStyle = hurt ? 'hurt' : e.strike ? 'crit' : e.weakSpot || e.affinity === 'weak' ? 'weak' : e.affinity === 'resist' ? 'resist' : e.crit ? 'crit' : 'normal';
     // Spell hits (the sim names the move after the spell) spark in the spell's colour.
     const spell = e.move in SPELLS ? (e.move as SpellId) : null;
     const spellSpark: SparkStyle | null = (spell && powerSpark(spell)) || (spell === 'blast' ? 'fire' : spell === 'chainZap' ? 'shock' : spell === 'frostNova' ? 'frost' : spell ? 'arcane' : null);
     const soft = isSoftPowerHit(e.move);
-    const spark: SparkStyle = style === 'normal' ? (spellSpark ?? (e.heavy ? 'heavy' : 'normal')) : style === 'weak' || style === 'resist' || !spellSpark ? style : spellSpark;
+    const spark: SparkStyle = e.strike ?? (style === 'normal' ? (spellSpark ?? (e.heavy ? 'heavy' : 'normal')) : style === 'weak' || style === 'resist' || !spellSpark ? style : spellSpark);
     if (this.fx.burst(e.pos, spark) > 0) qa('spark');
+    if (e.strike) this.fx.strike(e.pos, e.strike);
     this.polish.hit(e, spark, soft);
     // Resisted hits sound dull (plan §4.6), weak and critical ones bright.
     const rate = e.affinity === 'resist' ? 0.7 : e.affinity === 'weak' ? 1.12 : e.crit ? 1.2 : 0.95 + Math.random() * 0.1;
@@ -1332,8 +1333,17 @@ export class App {
       this.lastHitEnemy = e.target;
       this.lastHitAt = performance.now();
       if (!soft) {
-        this.shake(e.crit ? TRAUMA.crit : e.heavy ? TRAUMA.heavyHit : TRAUMA.lightHit);
-        this.input.pad.rumble(e.heavy || e.crit ? RUMBLE.heavyHit : RUMBLE.lightHit);
+        const feel = HIT_FEEL[hitTier(e)];
+        this.shake(feel.trauma);
+        this.input.pad.rumble(feel.rumble);
+        // The staff's own blows also move the camera and come back up the player's arms.
+        const from = e.attacker === me && !spell ? view.get(e.attacker)?.tf.pos : undefined;
+        if (from) {
+          const k = motionScale(this.settings.shake);
+          this.rig.kick(e.pos.x - from.x, e.pos.z - from.z, feel.kick * kickScale(e.hitstop) * k, feel.fov * k);
+          this.player?.strikeRecoil(e.pos, feel.recoil);
+        }
+        if (e.strike === 'breakCrit') this.flashScreen();
       }
     }
     if (hurt) {

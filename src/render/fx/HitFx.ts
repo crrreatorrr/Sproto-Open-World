@@ -3,6 +3,8 @@ import { glowTexture } from './textures';
 
 export type SparkStyle =
   | 'normal' | 'heavy' | 'crit' | 'weak' | 'resist' | 'hurt' | 'block' | 'parry'
+  // A blow from behind, and the critical on a broken enemy.
+  | 'backstab' | 'breakCrit'
   // M1b spells and statuses: an arcane hit, Blast's fire, Frost Nova's ice, Chain Zap's sparks, the Wisp's hex.
   | 'arcane' | 'fire' | 'frost' | 'shock' | 'hex'
   // M6: the glowing ash a dissolving body sheds.
@@ -18,6 +20,8 @@ const STYLES: Record<SparkStyle, { n: number; speed: number; life: number; color
   hurt: { n: 16, speed: 5, life: 0.3, color: 0xff6a5a, flash: 0xff8070, flashSize: 0.8 },
   block: { n: 12, speed: 4, life: 0.25, color: 0x9fd0ff, flash: 0xc0e0ff, flashSize: 0.7 },
   parry: { n: 48, speed: 9, life: 0.5, color: 0xd8f4ff, flash: 0xffffff, flashSize: 2.4 },
+  backstab: { n: 34, speed: 8, life: 0.42, color: 0xff5a3c, flash: 0xff8a60, flashSize: 1.5 },
+  breakCrit: { n: 56, speed: 10, life: 0.55, color: 0xffe58a, flash: 0xffffff, flashSize: 2.8 },
   arcane: { n: 16, speed: 5, life: 0.3, color: 0x7ff4ff, flash: 0xb8fbff, flashSize: 0.9 },
   fire: { n: 40, speed: 8, life: 0.5, color: 0xff8a2a, flash: 0xffc070, flashSize: 2.2 },
   frost: { n: 22, speed: 5, life: 0.45, color: 0xbfe8ff, flash: 0xdff4ff, flashSize: 1 },
@@ -94,8 +98,19 @@ export class HitFx {
   burst(p: { x: number; y: number; z: number }, style: SparkStyle): number {
     const s = STYLES[style];
     this.emit(p, style, s.n);
-    this.flash(p, s.flash, s.flashSize, style === 'parry' ? 0.22 : 0.12);
+    this.flash(p, s.flash, s.flashSize, style === 'parry' || style === 'breakCrit' ? 0.22 : 0.12);
     return s.n;
+  }
+
+  /** The extra show on top of the burst of a backstab or a break critical. */
+  strike(p: { x: number; y: number; z: number }, kind: 'backstab' | 'breakCrit'): void {
+    if (kind === 'backstab') {
+      this.ring(p, 0xff6a48, 0.2, 1.8, 0.26);
+      return;
+    }
+    this.ring(p, 0xffe9a0, 0.3, 3.2, 0.36);
+    this.ring(p, 0xffffff, 0.2, 1.8, 0.22);
+    this.emit(p, 'breakCrit', 24, 1.3, 2);
   }
 
   /**

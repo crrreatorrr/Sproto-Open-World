@@ -18,6 +18,14 @@ export const CAM = {
   maxShakeOffset: 0.3,
   maxShakeRoll: 0.035,
   shakeDecay: 1.7,
+  /** The kick of a landed blow: a stiff spring that throws the camera along it and brings it back. */
+  kickStiffness: 150,
+  kickDamping: 17,
+  /** Launch speed per metre of kick asked for, so the spring peaks about there. */
+  kickImpulse: 24,
+  maxKick: 0.22,
+  /** How fast the punch-in of the field of view lets go. */
+  fovKickSharpness: 9,
   closeRise: 0.6,
   jumpRiseSharpness: 5,
   jumpMaxLag: 0.6,
@@ -68,10 +76,12 @@ export class CameraRig {
   private shoulder: number = CAM.shoulder;
   private rise = 0;
   private fovBoost = 0;
-  /** A sharp punch-in (degrees) that eases back out: `kick`. */
-  private fovKick = 0;
   private time = 0;
   private padHeldEdge = 0;
+  private readonly kickAt = new THREE.Vector3();
+  private readonly kickVel = new THREE.Vector3();
+  /** A sharp punch-in (degrees) that eases back out: `kick`. */
+  private fovKick = 0;
   private readonly pivot = new THREE.Vector3();
   private readonly desired = new THREE.Vector3();
   private readonly forward = new THREE.Vector3();
@@ -136,9 +146,14 @@ export class CameraRig {
     this.trauma = Math.min(1, this.trauma + amount);
   }
 
-  /** Punch the view in by `degrees` for a moment (a parry). */
-  kick(degrees: number): void {
-    this.fovKick = Math.max(this.fovKick, degrees);
+  /** A blow landed along (dx, dz): lurch that way by about `metres` and punch in by `fov` degrees. */
+  kick(dx: number, dz: number, metres: number, fov = 0): void {
+    const d = Math.hypot(dx, dz);
+    if (d > 1e-4) {
+      this.kickVel.x += (dx / d) * metres * CAM.kickImpulse;
+      this.kickVel.z += (dz / d) * metres * CAM.kickImpulse;
+    }
+    this.fovKick = Math.max(this.fovKick, fov);
   }
 
   /**
@@ -214,12 +229,18 @@ export class CameraRig {
     cam.position.addScaledVector(this.right, (Math.sin(t * 1.1) + Math.sin(t * 2.3 + 1.7) * 0.5) * shake * CAM.maxShakeOffset);
     cam.position.y += (Math.sin(t * 1.3 + 4.1) + Math.sin(t * 2.9) * 0.5) * shake * CAM.maxShakeOffset;
 
+    // Stepped no coarser than 30 Hz: a long frame must not fling the spring.
+    const h = Math.min(dt, 1 / 30);
+    this.kickVel.addScaledVector(this.kickAt, -CAM.kickStiffness * h).multiplyScalar(Math.exp(-CAM.kickDamping * h));
+    this.kickAt.addScaledVector(this.kickVel, h).clampLength(0, CAM.maxKick);
+    cam.position.add(this.kickAt);
+
     this.tmp.copy(cam.position).add(this.forward);
     cam.lookAt(this.tmp);
     cam.rotateZ((Math.sin(t * 0.9 + 2.2) + Math.sin(t * 1.9) * 0.5) * shake * CAM.maxShakeRoll);
 
     this.fovBoost = damp(this.fovBoost, sprinting ? CAM.sprintFovBoost : 0, 8, dt);
-    this.fovKick = damp(this.fovKick, 0, 11, dt);
+    this.fovKick = damp(this.fovKick, 0, CAM.fovKickSharpness, dt);
     const fov = CAM.fov + this.fovBoost - this.fovKick;
     if (Math.abs(cam.fov - fov) > 0.01) {
       cam.fov = fov;
