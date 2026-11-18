@@ -77,6 +77,8 @@ export function playerCombat(ctx: CombatCtx, commands: CommandMap, physics: Phys
 
     if (c.action?.kind === 'dead') {
       if (!frozen) c.action.t++;
+      // No motion would mean "free": the body would keep walking on the stick.
+      ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: 0 });
       continue;
     }
 
