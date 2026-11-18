@@ -8,7 +8,7 @@ import { affixSpeed } from '../systems/affixes';
 import { turnToward, wrapAngle } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
-import { bossAttackTick, bossPreTick, bossSpeed, bossThink, type BossHost } from '../systems/boss';
+import { bossAttackTick, bossEngaged, bossPreTick, bossSpeed, bossThink, type BossHost } from '../systems/boss';
 import { drakeTick } from '../systems/drake';
 
 /** Spawns one projectile for an enemy's ranged move (provided by SimWorld). `angle` fans it out. */
@@ -29,6 +29,7 @@ const MIN_GAP = 0.6;
  * circle after recovering, and leash home if pulled too far. Chill slows their clock and feet.
  */
 export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld, spawnProjectile: SpawnProjectile, bossHost?: BossHost): void {
+  const duels = ctx.entities.filter((e) => bossEngaged(e));
   for (const e of ctx.entities) {
     const b = e.brain;
     const c = e.combat;
@@ -43,7 +44,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
 
     // The Skyfire Drake flies its whole fight itself (expansion plan §3.5).
     if (def.drake && bossHost) {
-      drakeTick(ctx, e, def, physics, rng, bossHost, { target: () => pickTarget(ctx, e, def), start: startAttack, run: (t) => runAttack(ctx, e, def, t, spawnProjectile, rng) });
+      drakeTick(ctx, e, def, physics, rng, bossHost, { target: () => pickTarget(ctx, e, def, duels), start: startAttack, run: (t) => runAttack(ctx, e, def, t, spawnProjectile, rng) });
       continue;
     }
 
@@ -68,7 +69,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
       continue;
     }
 
-    const target = pickTarget(ctx, e, def);
+    const target = pickTarget(ctx, e, def, duels);
     b.target = target?.id ?? null;
     const boss = def.boss && bossHost ? bossHost : null;
     if (boss) bossPreTick(ctx, e, def, target, rng, boss);
@@ -92,11 +93,18 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
   }
 }
 
-function pickTarget(ctx: CombatCtx, e: Entity, def: EnemyDef): Entity | null {
+/** A player sealed in with a boss: the fight is between the two of them (and the boss's own adds). */
+function inDuel(p: Entity, duels: readonly Entity[]): boolean {
+  return duels.some((b) => flatDist(p.tf.pos, b.brain!.home) <= ENEMIES[b.brain!.def].boss!.arenaRadius + 1);
+}
+
+function pickTarget(ctx: CombatCtx, e: Entity, def: EnemyDef, duels: readonly Entity[]): Entity | null {
   let best: Entity | null = null;
   let bestD = def.aggroRange;
+  const outsider = !e.boss && !e.brain!.summoned;
   for (const p of ctx.entities) {
     if (p.kind !== 'player' || p.combat?.action?.kind === 'dead') continue;
+    if (outsider && inDuel(p, duels)) continue;
     const fromHome = flatDist(p.tf.pos, e.brain!.home);
     if (fromHome > def.leashRange) continue;
     const d = flatDist(p.tf.pos, e.tf.pos);
