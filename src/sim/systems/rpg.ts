@@ -545,7 +545,16 @@ export function pickups(ctx: RpgCtx): number[] {
   return gone;
 }
 
-/** Trigger volumes: an event when a player enters (not every tick while inside). */
+/** An active quest's current step still asks the player to reach this volume. */
+function awaitsTrigger(p: Progress, trigger: string): boolean {
+  return Object.entries(p.quests).some(([id, q]) =>
+    q.status === 'active' && QUESTS[id].steps[q.step].objectives.some((o, i) => o.kind === 'reach' && o.trigger === trigger && q.progress[i] < 1));
+}
+
+/**
+ * Trigger volumes: an event when a player enters (not every tick while inside), or while they stand
+ * in one a quest step has just come to ask for: walking out and back in is no objective.
+ */
 export function triggers(ctx: RpgCtx, list: readonly { id: string; pos: [number, number, number]; radius: number; halfHeight?: number }[], inside: Set<string>): void {
   for (const e of ctx.entities) {
     if (!e.progress) continue;
@@ -553,7 +562,7 @@ export function triggers(ctx: RpgCtx, list: readonly { id: string; pos: [number,
       const key = `${e.id}:${t.id}`;
       // A vertical cylinder: height only counts when the trigger says so (M4 volumes sit on terrain).
       const inNow = Math.hypot(e.tf.pos.x - t.pos[0], e.tf.pos.z - t.pos[2]) <= t.radius && (t.halfHeight === undefined || Math.abs(e.tf.pos.y - t.pos[1]) < t.halfHeight);
-      if (inNow && !inside.has(key)) {
+      if (inNow && (!inside.has(key) || awaitsTrigger(e.progress, t.id))) {
         inside.add(key);
         ctx.events.push({ type: 'trigger', entity: e.id, trigger: t.id });
       } else if (!inNow) inside.delete(key);

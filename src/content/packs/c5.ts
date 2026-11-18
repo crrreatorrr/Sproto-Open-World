@@ -226,6 +226,7 @@ const C5_DIALOGUE: Record<string, DialogueGraph> = {
   miner_bram: {
     id: 'miner_bram',
     entry: [
+      { if: [{ quest: 'q_smoke_hills', status: 'complete' }], node: 'after_quiet' },
       { if: [{ quest: 'q_deep_seam', status: 'complete' }], node: 'after' },
       { if: [{ quest: 'q_deep_seam', status: 'active' }], node: 'go' },
       { if: [{ quest: 'q_deep_seam', status: 'available' }], node: 'a9_offer' },
@@ -256,6 +257,7 @@ const C5_DIALOGUE: Record<string, DialogueGraph> = {
       },
       go: { speaker: 'Foreman Bram', text: 'The ramp is the only way back up from the pit floor. Rest before you go down.' },
       after: { speaker: 'Foreman Bram', text: 'The ground has gone still. First quiet shift we have had in years. There is smoke over the Orchard, though. Farmer Broccoli could use you.' },
+      after_quiet: { speaker: 'Foreman Bram', text: 'The ground has gone still and the sky has cleared. First quiet shift we have had in years.' },
     },
   },
   miner_ketta: {
