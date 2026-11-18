@@ -222,6 +222,7 @@ const C5_DIALOGUE: Record<string, DialogueGraph> = {
     entry: [
       { if: [{ quest: 'q_deep_seam', status: 'complete' }], node: 'after' },
       { if: [{ quest: 'q_deep_seam', status: 'active' }], node: 'go' },
+      { if: [{ quest: 'q_deep_seam', status: 'available' }], node: 'a9_offer' },
       { if: [{ quest: T, status: 'active', step: 1 }], node: 'go' },
       { if: [{ quest: T, status: 'active' }], node: 'a8_bram' },
       { if: [{ quest: T, status: 'available' }], node: 'offer' },
@@ -238,8 +239,17 @@ const C5_DIALOGUE: Record<string, DialogueGraph> = {
         ],
       },
       a8_bram: { speaker: 'Foreman Bram', text: 'It comes in waves, and it moves. Ketta is over by the road and Old Odo is up the north slope. They have felt it closer than I have.' },
+      // Finishing Tremors starts A9 by itself; this is the giver's own offer of it.
+      a9_offer: {
+        speaker: 'Foreman Bram',
+        text: 'Whatever is shaking my quarry sleeps on the floor of that pit. Will you go down and end it?',
+        choices: [
+          { text: "I'll go down.", do: [{ startQuest: 'q_deep_seam' }], next: 'go' },
+          { text: 'Not yet.' },
+        ],
+      },
       go: { speaker: 'Foreman Bram', text: 'The ramp is the only way back up from the pit floor. Rest before you go down.' },
-      after: { speaker: 'Foreman Bram', text: 'The ground has gone still. First quiet shift we have had in years.' },
+      after: { speaker: 'Foreman Bram', text: 'The ground has gone still. First quiet shift we have had in years. There is smoke over the Orchard, though. Farmer Broccoli could use you.' },
     },
   },
   miner_ketta: {

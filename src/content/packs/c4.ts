@@ -374,13 +374,14 @@ export const C4_DIALOGUE: Record<string, DialogueGraph> = {
       { if: [{ quest: 'q_rivet_volley', status: 'active', step: 3 }], node: 'a1_done' },
       { if: [{ quest: 'q_rivet_volley', status: 'active' }], node: 'a1_busy' },
       { if: [{ quest: 'q_iron_gallery', status: 'active', step: 2 }], node: 'a3_done' },
+      // The offers come before the busy lines, so one job under way never hides the other.
+      { if: [{ quest: 'q_lens_flare', status: 'available' }, { quest: 'q_iron_gallery', status: 'available' }], node: 'next_offer' },
+      { if: [{ quest: 'q_lens_flare', status: 'available' }], node: 'a2_offer' },
+      { if: [{ quest: 'q_iron_gallery', status: 'available' }], node: 'a3_offer' },
       { if: [{ quest: 'q_iron_gallery', status: 'active' }], node: 'a3_busy' },
       { if: [{ quest: 'q_lens_flare', status: 'active' }], node: 'a2_busy' },
       { if: [{ quest: 'q_rivet_volley', status: 'available' }], node: 'a1_offer' },
       { if: [{ quest: 'q_rivet_volley', status: 'locked' }], node: 'early' },
-      { if: [{ quest: 'q_lens_flare', status: 'available' }, { quest: 'q_iron_gallery', status: 'available' }], node: 'next_offer' },
-      { if: [{ quest: 'q_lens_flare', status: 'available' }], node: 'a2_offer' },
-      { if: [{ quest: 'q_iron_gallery', status: 'available' }], node: 'a3_offer' },
       { node: 'after' },
     ],
     nodes: {
@@ -487,11 +488,17 @@ export interface DialoguePatch {
 }
 
 export const C4_DIALOGUE_PATCHES: DialoguePatch[] = [
+  // A turn-in goes ahead of every busy line, so another job under way never blocks handing this in.
+  {
+    graph: 'farmer_broccoli',
+    before: 'pumpkins_busy',
+    entry: [{ if: [{ quest: 'q_pumpkin_strength', status: 'active', step: 1 }], node: 'a4_done' }],
+    nodes: {},
+  },
   {
     graph: 'farmer_broccoli',
     before: 'after',
     entry: [
-      { if: [{ quest: 'q_pumpkin_strength', status: 'active', step: 1 }], node: 'a4_done' },
       { if: [{ quest: 'q_pumpkin_strength', status: 'active' }], node: 'a4_busy' },
       { if: [{ quest: 'q_pumpkin_strength', status: 'available' }], node: 'a4_offer' },
     ],

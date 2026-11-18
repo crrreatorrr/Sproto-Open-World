@@ -229,16 +229,17 @@ export const SKYFIRE_END_CARD = {
 /** Farmer Broccoli gives A10 and A11; Elder Pepe closes A12. Call after M5's and C4's dialogue is in. */
 export function registerDrakeDialogue(d: Record<string, DialogueGraph>): void {
   const farmer = d.farmer_broccoli;
-  // Ahead of A4's standing offer, so turning that down never hides these.
-  const at = farmer.entry.findIndex((r) => r.node === 'a4_offer' || r.node === 'after');
+  // Ahead of the pumpkin jobs' busy lines and A4's standing offer: an unfinished side job never hides
+  // the road to the Drake.
+  const at = farmer.entry.findIndex((r) => r.node === 'pumpkins_busy');
   farmer.entry.splice(
     at, 0,
     { if: [{ quest: 'q_smoke_hills', status: 'active', step: 1 }], node: 'a10_done' },
+    { if: [{ quest: 'q_smoke_hills', status: 'available' }], node: 'a10_offer' },
+    { if: [{ quest: 'q_bait', status: 'available' }], node: 'a11_offer' },
     { if: [{ quest: 'q_smoke_hills', status: 'active' }], node: 'a10_busy' },
     { if: [{ quest: 'q_bait', status: 'active', step: 1 }], node: 'a11_post' },
     { if: [{ quest: 'q_bait', status: 'active' }], node: 'a11_busy' },
-    { if: [{ quest: 'q_bait', status: 'available' }], node: 'a11_offer' },
-    { if: [{ quest: 'q_smoke_hills', status: 'available' }], node: 'a10_offer' },
   );
   Object.assign(farmer.nodes, {
     a10_offer: {
@@ -264,11 +265,15 @@ export function registerDrakeDialogue(d: Record<string, DialogueGraph>): void {
   } satisfies DialogueGraph['nodes']);
 
   const elder = d.elder_pepe;
-  // Before the Scrap Rumble's closing line, which would otherwise answer first for good.
-  elder.entry.splice(Math.max(0, elder.entry.findIndex((r) => r.node === 'scrapjaw_after')), 0, { if: [{ quest: 'q_skyfire', status: 'complete' }], node: 'a12_after' });
+  // After A5's rules, so the Drake's busy line never hides the garden, and before the Scrap Rumble's
+  // closing line, which would otherwise answer first for good.
+  elder.entry.splice(
+    Math.max(0, elder.entry.findIndex((r) => r.node === 'scrapjaw_after')), 0,
+    { if: [{ quest: 'q_skyfire', status: 'active' }], node: 'a12_busy' },
+    { if: [{ quest: 'q_skyfire', status: 'complete' }], node: 'a12_after' },
+  );
   elder.entry.unshift(
     { if: [{ quest: 'q_skyfire', status: 'active', step: 1 }], node: 'a12_return' },
-    { if: [{ quest: 'q_skyfire', status: 'active' }], node: 'a12_busy' },
     { if: [{ quest: 'q_skyfire', status: 'available' }], node: 'a12_offer' },
   );
   Object.assign(elder.nodes, {
