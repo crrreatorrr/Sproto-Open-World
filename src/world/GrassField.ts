@@ -45,6 +45,10 @@ function tuftGeometry(): THREE.BufferGeometry {
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  // Lit straight up. Without a normal attribute three.js shades flat, and the shader's vNormal doesn't exist.
+  const up = new Float32Array(positions.length);
+  for (let i = 1; i < up.length; i += 3) up[i] = 1;
+  g.setAttribute('normal', new THREE.BufferAttribute(up, 3));
   g.setIndex(index);
   return g;
 }
@@ -130,6 +134,7 @@ export class GrassField {
   private makeSlot(i: number): Slot {
     const geometry = new THREE.InstancedBufferGeometry();
     geometry.setAttribute('position', this.base.getAttribute('position'));
+    geometry.setAttribute('normal', this.base.getAttribute('normal'));
     geometry.setIndex(this.base.getIndex());
     const place = new THREE.InstancedBufferAttribute(new Float32Array(GRASS_CANDIDATES * 4), 4);
     const shape = new THREE.InstancedBufferAttribute(new Float32Array(GRASS_CANDIDATES * 2), 2);
