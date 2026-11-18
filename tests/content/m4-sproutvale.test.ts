@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DIALOGUE } from '../../src/content/dialogue';
 import { ENEMIES } from '../../src/content/enemies';
@@ -18,6 +18,10 @@ const markById = new Map(marks.map((m) => [m.id, m]));
 const camps = C.camps ?? [];
 
 describe('placements', () => {
+  it('the world map image the Map tab shows is committed (the bake leaves it alone, so a merge can lose it)', () => {
+    expect(existsSync('public/world/sproutvale/map.webp')).toBe(true);
+  });
+
   it('every villager, chest, object, camp and camp member has a mark at its position (so props keep off it)', () => {
     const want: [string, number, number][] = [
       ...C.npcs.map((n): [string, number, number] => [n.id, n.pos[0], n.pos[2]]),
