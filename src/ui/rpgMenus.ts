@@ -7,6 +7,7 @@ import type { ReadonlySimView } from '../sim/view';
 import type { MenuNav, Screen } from './MenuNav';
 import type { MenuTab } from './gameMenu';
 import { itemStats, shopStock } from './rpgText';
+import './portrait.css';
 
 /** What the RPG menus read and how they act: the sim's view, the local player, and the command queue. */
 export interface RpgSource {
@@ -20,6 +21,8 @@ export interface RpgSource {
   interactGlyph(): string;
   /** Open the tabbed menu over this one, on a tab (the shrine's Skills and Powers). */
   openMenu(tab: MenuTab): void;
+  /** The speaker's portrait for the dialogue panel, if one can be shown. */
+  portrait?(npc: string): HTMLElement | null;
 }
 
 /** Typewriter speed (characters per second). */
@@ -183,6 +186,11 @@ export class RpgMenus {
       const panel = el('div', 'dialogue-panel');
       const text = n?.node?.text ?? '…';
       if (n && n.key !== this.talk.key) this.talk = { key: n.key, text, shown: 0, typing: true };
+      const portrait = n ? this.src.portrait?.(n.npc) : null;
+      if (portrait) {
+        panel.classList.add('with-portrait');
+        panel.append(portrait);
+      }
       panel.append(el('div', 'speaker', n?.node?.speaker ?? NPCS[n?.npc ?? '']?.name ?? ''));
       this.talkText = el('p', 'line');
       this.talkText.textContent = this.talk.typing ? text.slice(0, Math.floor(this.talk.shown)) : text;

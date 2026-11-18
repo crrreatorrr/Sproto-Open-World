@@ -22,6 +22,7 @@ import { promptLabel } from '../input/glyphs';
 import { Input } from '../input/Input';
 import { RUMBLE, TRAUMA } from '../render/fx/feedback';
 import { HitFx, type SparkStyle } from '../render/fx/HitFx';
+import { PortraitStudio } from '../render/PortraitStudio';
 import { Renderer } from '../render/Renderer';
 import { PlayerView } from '../render/views/PlayerView';
 import { WorldViews, enemyDef } from '../render/views/WorldViews';
@@ -83,6 +84,8 @@ export class App {
   readonly input: Input;
   readonly assets = new AssetLoader();
   readonly renderer: Renderer;
+  /** The dialogue panel's render-to-texture speaker portraits. */
+  readonly portraits: PortraitStudio;
   readonly rig: CameraRig;
   readonly nav: MenuNav;
   readonly menus: Menus;
@@ -153,6 +156,7 @@ export class App {
     host.appendChild(canvas);
     this.input = new Input(canvas);
     this.renderer = new Renderer(canvas, this.assets);
+    this.portraits = new PortraitStudio(this.renderer.renderer, this.assets);
     this.world = new WorldViews(this.assets, this.fx);
     this.renderer.scene.add(this.world.root, this.fx.root);
     this.rig = new CameraRig(this.renderer.camera);
@@ -199,6 +203,7 @@ export class App {
         this.gameMenu.open(tab);
         this.nav.push(this.gameMenu.screen);
       },
+      portrait: (npc) => this.portraits.show(npc),
     });
     this.gameMenu = new GameMenu(ui, this.nav, {
       view: () => this.sim?.view() ?? null,
@@ -551,6 +556,7 @@ export class App {
 
     this.startUsed = false;
     this.frameCount++;
+    this.portraits.frame(dt, this.nav.top === this.rpgMenus.dialogue);
     this.renderer.render();
     this.hud.update(pad, this.input.locked);
     const p = this.sim?.playerEntity(LOCAL_PLAYER);
