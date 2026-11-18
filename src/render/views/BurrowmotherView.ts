@@ -8,8 +8,8 @@ import { ScrapjawView } from './BossViews';
 import { attackClipTime, type EntityView } from './EnemyViews';
 import { placeEntity } from './interp';
 
-/** How far under the ground her body goes (m): past her own height, so nothing shows. */
-const DEPTH = 5.6;
+/** How far under the ground her body goes, per metre of her height: past her own height, so nothing shows. */
+const DEPTH_PER_HEIGHT = 1.12;
 /** How quickly the body follows the depth it should be at (1/s). */
 const DEPTH_RATE = 12;
 /** Where the slam's blow lands in its clip (the boss views' CONTACT table). */
@@ -24,7 +24,9 @@ const DUST_COLOR = 0xb8a68c;
  * coming up, and bursts when she breaks the surface.
  */
 class BurrowmotherView extends ScrapjawView {
-  private depth = DEPTH;
+  /** How far down she goes (m). */
+  private readonly deepest = this.def.body.height * DEPTH_PER_HEIGHT;
+  private depth = this.deepest;
   private wasUnder = true;
   private dust = 0;
   private readonly at = { x: 0, y: 0, z: 0 };
@@ -52,11 +54,12 @@ class BurrowmotherView extends ScrapjawView {
   protected burrowDepth(e: Readonly<Entity>, dt: number): number {
     const a = e.combat?.action;
     const mv = a?.kind === 'attack' ? this.def.moves.find((m) => m.id === a.move) : undefined;
-    let want = e.boss?.under ? DEPTH : 0;
+    const deepest = this.deepest;
+    let want = e.boss?.under ? deepest : 0;
     // Digging in: she goes down through the wind-up, slowly at first.
-    if (a?.kind === 'attack' && mv?.burrow === 'sink' && a.t < mv.windup) want = DEPTH * (a.t / mv.windup) ** 2;
+    if (a?.kind === 'attack' && mv?.burrow === 'sink' && a.t < mv.windup) want = deepest * (a.t / mv.windup) ** 2;
     this.depth += (want - this.depth) * (1 - Math.exp(-DEPTH_RATE * dt));
-    this.body.visible = this.depth < DEPTH - 0.1;
+    this.body.visible = this.depth < deepest - 0.1;
     return this.depth;
   }
 
@@ -92,7 +95,7 @@ class BurrowmotherView extends ScrapjawView {
     this.at.x = p.x;
     this.at.y = p.y + 0.2;
     this.at.z = p.z;
-    this.fx?.ring(this.at, DUST_COLOR, 0.6, 7 * size, 0.45);
+    this.fx?.ring(this.at, DUST_COLOR, 0.6, 7 * size * (this.def.size ?? 1), 0.45);
     this.fx?.emit(this.at, 'resist', Math.round(60 * size), 3.2, 3.5);
     this.fx?.emit(this.at, 'heavy', Math.round(18 * size), 1.6, 3);
   }

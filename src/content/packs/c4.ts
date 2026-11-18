@@ -199,7 +199,7 @@ export interface AffixDef {
 }
 
 export const AFFIXES: Record<AffixId, AffixDef> = {
-  colossal: { id: 'colossal', name: 'Colossal', hp: 2, speed: 0.8, scale: 1.5, elite: true, champion: true },
+  colossal: { id: 'colossal', name: 'Colossal', hp: 2, speed: 0.8, scale: 2, elite: true, champion: true },
   swift: { id: 'swift', name: 'Swift', hp: 0.8, speed: 1.3 },
   hardy: { id: 'hardy', name: 'Hardy', hardy: true },
   frail: { id: 'frail', name: 'Frail', hp: 0.7, xp: 1.2 },

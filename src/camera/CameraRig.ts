@@ -44,7 +44,24 @@ export const CAM = {
   /** A locked target high in the air: the camera tips up to keep it this far (radians) below the top of the view. */
   lockAirMargin: 0.42,
   lockAirMaxPitch: (55 * Math.PI) / 180,
+  /** A locked body taller than this (m) lifts the pivot, this much per metre, up to the most it may rise (m). */
+  lockTallFrom: 3.2,
+  lockTallLift: 0.28,
+  lockTallMax: 1.5,
+  /** Only bodies at least this tall (m) count as big: the camera works around them. */
+  solidFrom: 3,
+  /** The camera and the pivot keep this far off a big body's capsule (m). */
+  solidMargin: 0.45,
 } as const;
+
+/** A big body the camera must not end up inside: the locked target, or the boss of the fight. */
+export interface CameraSolid {
+  x: number;
+  y: number;
+  z: number;
+  radius: number;
+  height: number;
+}
 
 const damp = (a: number, b: number, sharpness: number, dt: number) => a + (b - a) * (1 - Math.exp(-sharpness * dt));
 /** Damp an angle along the short way round. */
@@ -72,7 +89,10 @@ export class CameraRig {
   distance: number = CAM.distance;
   /** Giants pull the camera back (EnemyDef.cameraScale): the follow distance's multiplier, eased. */
   distanceScale = 1;
+  /** The body to keep out of (App sets it every frame). */
+  solid: CameraSolid | null = null;
   private scaleNow = 1;
+  private lift = 0;
   private shoulder: number = CAM.shoulder;
   private rise = 0;
   private fovBoost = 0;
@@ -142,6 +162,32 @@ export class CameraRig {
     return { from, dir };
   }
 
+  /**
+   * How far back the camera may sit on the boom from `from`: short of a big body behind the player, or
+   * out past it when the boom starts inside one. The world's colliders don't include characters.
+   */
+  private clearOfSolid(from: THREE.Vector3, dist: number): number {
+    const s = this.solid;
+    if (!s || s.height < CAM.solidFrom) return dist;
+    const R = s.radius + CAM.solidMargin;
+    const dx = -this.forward.x, dz = -this.forward.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-4) return dist;
+    const ux = dx / len, uz = dz / len;
+    const ox = from.x - s.x, oz = from.z - s.z;
+    const b = ox * ux + oz * uz;
+    const disc = b * b - (ox * ox + oz * oz - R * R);
+    if (disc <= 0) return dist;
+    const root = Math.sqrt(disc);
+    // Along the boom, in metres of boom rather than of flat ground.
+    const enter = (-b - root) / len, leave = (-b + root) / len;
+    if (leave <= 0) return dist;
+    const yAt = (t: number) => from.y - this.forward.y * t;
+    const inHeight = (t: number) => yAt(t) >= s.y - 0.5 && yAt(t) <= s.y + s.height + CAM.solidMargin;
+    if (enter <= 0) return inHeight(leave) ? Math.max(dist, leave + 0.05) : dist;
+    return enter < dist && inHeight(Math.min(dist, leave)) ? Math.max(0, enter - 0.05) : dist;
+  }
+
   addTrauma(amount: number): void {
     this.trauma = Math.min(1, this.trauma + amount);
   }
@@ -164,10 +210,18 @@ export class CameraRig {
   update(dt: number, target: THREE.Vector3, view: ReadonlySimView, sprinting: boolean, lockOn: THREE.Vector3 | null = null): void {
     this.time += dt;
     this.trauma = Math.max(0, this.trauma - CAM.shakeDecay * dt);
-    this.tmp.set(target.x, target.y + CAM.height, target.z);
+    // Locked onto a giant standing on the same ground: rise, so its head stays in the picture.
+    const big = this.solid && this.solid.height >= CAM.solidFrom ? this.solid : null;
+    const body = lockOn ? big : null;
+    const tall = body && Math.abs(body.y - target.y) < body.height ? (body.height - CAM.lockTallFrom) * CAM.lockTallLift : 0;
+    this.lift = damp(this.lift, Math.min(CAM.lockTallMax, Math.max(0, tall)), 5, dt);
+    this.tmp.set(target.x, target.y + CAM.height + this.lift, target.z);
     if (lockOn) {
       const dx = lockOn.x - target.x, dz = lockOn.z - target.z;
-      const shift = Math.min(CAM.lockPivot, CAM.lockPivotMax / Math.max(1e-3, Math.hypot(dx, dz)));
+      const flat = Math.max(1e-3, Math.hypot(dx, dz));
+      // The pivot leans toward the target, but never into its body.
+      const room = body ? Math.max(0, flat - body.radius - CAM.solidMargin) / flat : 1;
+      const shift = Math.min(CAM.lockPivot, CAM.lockPivotMax / flat, room);
       this.tmp.x += dx * shift;
       this.tmp.z += dz * shift;
       if (dx * dx + dz * dz > 0.04) this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), CAM.lockYawSharpness, dt);
@@ -207,7 +261,7 @@ export class CameraRig {
     const reach = CAM.distance * this.scaleNow;
     this.desired.copy(this.forward).multiplyScalar(-reach);
     const backHit = view.sphereCast(shoulder, this.desired, r);
-    const maxDist = backHit ? Math.max(0, backHit.distance - 0.02) : reach;
+    const maxDist = this.clearOfSolid(shoulder, backHit ? Math.max(0, backHit.distance - 0.02) : reach);
     // Pull in instantly when blocked, ease back out.
     this.distance = maxDist < this.distance ? maxDist : damp(this.distance, maxDist, 6, dt);
 

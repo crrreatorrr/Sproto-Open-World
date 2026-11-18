@@ -4,6 +4,7 @@ import {
 import { dodgeFrames } from '../../content/packs/m7';
 import { PLAYER_HITBOXES, STAFF_CAPSULE_RADIUS } from '../../content/generated/playerHitboxes';
 import { AFFINITY_MULT, ENEMIES, type Affinity, type EnemyMoveDef } from '../../content/enemies';
+import { affixedMove } from '../../content/enemyScale';
 import { PERK_EFFECT, SKILL_EFFECT, hasPerk } from '../../content/progression';
 import { STATUS } from '../../content/statuses';
 import { affixAffinity, affixElite } from '../systems/affixes';
@@ -166,7 +167,10 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   const tc = target.combat!;
   const tv = target.vitals!;
   const ta = tc.action;
-  const chest = { x: target.tf.pos.x, y: target.tf.pos.y + (target.body?.height ?? 1.8) * 0.6, z: target.tf.pos.z };
+  // Sparks and numbers show at the chest, or where the blow landed on a body too tall to reach that high.
+  const chestY = target.tf.pos.y + (target.body?.height ?? 1.8) * 0.6;
+  const reached = target.kind !== 'player' && info.contact ? Math.max(info.contact.a.y, info.contact.b.y) + info.contact.radius : chestY;
+  const chest = { x: target.tf.pos.x, y: Math.min(chestY, reached), z: target.tf.pos.z };
 
   // The Momentum staff's blink can't be touched, and neither can a boss underground.
   if (ta?.kind === 'blink' || target.boss?.under) return 'dodged';
@@ -408,8 +412,9 @@ function attackShape(e: Entity): AttackShape | null {
       },
     };
   }
-  const move = enemyMove(e, a.move);
-  if (!move || move.projectile || move.noHit) return null;
+  const base = enemyMove(e, a.move);
+  if (!base || base.projectile || base.noHit) return null;
+  const move = affixedMove(base, e.view.scale ?? 1);
   if (a.t < move.windup || a.t >= move.windup + move.active) return null;
   // An area attack is a short upright capsule on the circle placed at wind-up start.
   const area = move.area && a.aim;

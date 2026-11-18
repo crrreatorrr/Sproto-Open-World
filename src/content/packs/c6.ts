@@ -18,6 +18,8 @@ export interface DrakeDef {
   orbitRadius: number;
   orbitSpeed: number;
   altitude: readonly [number, number];
+  /** Its flight stays this far inside the arena's wall (m). */
+  arenaMargin: number;
   /** How much further (flat, m) spells reach it up there. */
   spellReach: number;
   /** Broken: ticks to come down, then ticks gliding `height` m above the field at `speed` m/s (the melee window). */
@@ -111,6 +113,7 @@ export const DRAKE: EnemyDef = {
     orbitRadius: 14,
     orbitSpeed: 9,
     altitude: [12, 20],
+    arenaMargin: 3,
     spellReach: 8,
     glide: { descendTicks: DESCEND_TICKS, ticks: GLIDE_TICKS, height: 0.35, speed: 3.4 },
     wakeFlag: DRAKE_WAKE_FLAG,

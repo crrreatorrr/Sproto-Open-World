@@ -84,7 +84,8 @@ describe('Brute', () => {
 
   it('kited: once the player is beyond the leash it stops chasing and goes home', async () => {
     const home = { x: 6, y: 0, z: 0 }; // x = 6: a lane clear of the step boxes and pillars
-    const { w, p } = await combatWorld({ pos: { x: 6, y: 0, z: 5 } });
+    // Beyond its longest reach, so it starts chasing rather than swinging.
+    const { w, p } = await combatWorld({ pos: { x: 6, y: 0, z: 7 } });
     const b = w.spawnEnemy('brute', home, 0);
     step(w);
     expect(b.brain!.state).toBe('engage');

@@ -1,5 +1,6 @@
 import { PLAYER_STATS } from '../content/combat';
 import { ENEMIES, type EnemyMoveDef } from '../content/enemies';
+import { affixedMove } from '../content/enemyScale';
 import type { LevelDef } from '../content/sandbox';
 import { WAVE_CENTRE, WAVE_GAP, WAVES } from '../content/waves';
 import { cellKey, cellOf, type CellColliders } from '../content/world/format';
@@ -418,7 +419,7 @@ export class SimWorld {
 
   private spawnProjectile(owner: Entity, move: EnemyMoveDef, target: Entity, angle = 0): void {
     if (!move.projectile) return;
-    const from = muzzle(owner, move);
+    const from = muzzle(owner, affixedMove(move, owner.view.scale ?? 1));
     const aim = { x: target.tf.pos.x, y: target.tf.pos.y + (target.body?.height ?? 1.8) * 0.55, z: target.tf.pos.z };
     let d = { x: aim.x - from.x, y: aim.y - from.y, z: aim.z - from.z };
     if (angle) {
