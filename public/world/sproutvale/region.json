@@ -132,7 +132,7 @@
       "cz": 2,
       "bin": "world/sproutvale/cells/c_0_2.bin",
       "json": "world/sproutvale/cells/c_0_2.json",
-      "bytes": 26181
+      "bytes": 25948
     },
     {
       "cx": 1,
@@ -160,7 +160,7 @@
       "cz": 2,
       "bin": "world/sproutvale/cells/c_4_2.bin",
       "json": "world/sproutvale/cells/c_4_2.json",
-      "bytes": 25478
+      "bytes": 25737
     },
     {
       "cx": 5,
