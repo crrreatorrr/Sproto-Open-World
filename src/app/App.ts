@@ -511,7 +511,10 @@ export class App {
     this.nav.reset(null);
     this.state = 'playing';
     this.hud.visible = !this.groundWait;
-    if (this.groundWait) this.panels.showVeil('Loading Sproutvale…');
+    if (this.groundWait) {
+      this.panels.showVeil('Loading Sproutvale…');
+      this.stream?.restartVeilClock();
+    }
     this.loop.reset();
     this.commands.clear();
     if (this.input.pad.device === 'kbm') this.input.requestLock();
@@ -592,12 +595,14 @@ export class App {
     const pad = this.input.pad;
     pad.update();
 
+    // Tracked all the time: a stick already held when the panel opens isn't a push.
+    const stick = Math.abs(pad.move.x) > Math.abs(pad.move.y) ? pad.move.x : pad.move.y;
+    const push = stick > 0.6 ? 1 : stick < -0.6 ? -1 : 0;
+    const pushed = push !== this.panelStick;
+    this.panelStick = push;
     if (this.panels.errorOpen) {
-      const stick = Math.abs(pad.move.x) > Math.abs(pad.move.y) ? pad.move.x : pad.move.y;
-      const push = stick > 0.6 ? 1 : stick < -0.6 ? -1 : 0;
-      if (pad.wasPressed(['left', 'up']) || (push < 0 && this.panelStick >= 0)) this.panels.move(-1);
-      if (pad.wasPressed(['right', 'down']) || (push > 0 && this.panelStick <= 0)) this.panels.move(1);
-      this.panelStick = push;
+      if (pad.wasPressed(['left', 'up']) || (push < 0 && pushed)) this.panels.move(-1);
+      if (pad.wasPressed(['right', 'down']) || (push > 0 && pushed)) this.panels.move(1);
       if (pad.wasPressed(['a'])) this.panels.confirmError();
     } else if (this.nav.open) {
       // Start (or Esc, through MenuNav's Back) closes the tabbed menu it opened.

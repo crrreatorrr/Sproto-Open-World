@@ -38,13 +38,13 @@ export class Panels {
       case 'ArrowUp':
       case 'KeyA':
       case 'KeyW':
-        this.move(-1);
+        if (!e.repeat) this.move(-1);
         break;
       case 'ArrowRight':
       case 'ArrowDown':
       case 'KeyD':
       case 'KeyS':
-        this.move(1);
+        if (!e.repeat) this.move(1);
         break;
       case 'Enter':
       case 'NumpadEnter':

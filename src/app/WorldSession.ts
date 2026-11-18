@@ -142,6 +142,11 @@ export class WorldSession {
     return now - this.veilSince >= VEIL_TIMEOUT_MS ? 'timeout' : 'loading';
   }
 
+  /** Back from a pause: nothing loads colliders meanwhile, so the veil's 15 s start over. */
+  restartVeilClock(): void {
+    if (this.veilSince !== null) this.veilSince = performance.now();
+  }
+
   /** The veil's Retry: failed cells fetch again and the 15 s clock restarts. */
   retry(): void {
     this.streamer?.retryFailed();
