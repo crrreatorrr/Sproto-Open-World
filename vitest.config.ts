@@ -8,5 +8,6 @@ export default defineConfig({
     exclude: ['**/node_modules/**', '**/.claude/**', '**/dist/**'],
     // Long sim runs and the baked-world scans outlast the default 5 s on a busy machine.
     testTimeout: 30_000,
+    setupFiles: ['tests/setup/yieldBetweenTests.ts'],
   },
 });
