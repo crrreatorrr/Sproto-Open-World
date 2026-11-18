@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { ITEMS } from '../../src/content/items';
 import { NPCS } from '../../src/content/npcs';
 import { QUESTS } from '../../src/content/quests';
+import { SPELLS } from '../../src/content/spells';
 import { SPROUTVALE_CONTENT as C } from '../../src/content/world/sproutvaleContent';
 import { migrate } from '../../src/save/migrations';
 import type { SimWorld } from '../../src/sim/SimWorld';
-import { bakedWorld, die, hunt, playQuest, prog, reload, rest, statusOf, talk, tick, use } from './quests-helpers';
+import { bakedWorld, buy, die, hunt, playQuest, prog, reload, rest, statusOf, talk, tick, use } from './quests-helpers';
 
 /** The order a player meets them in: every quest in the game, from a fresh save. */
 const ORDER = [
@@ -55,6 +57,7 @@ describe('every quest, start to finish, on the baked world', () => {
     let seed = 1;
     const w = await playAll({ onStep: (x) => reload(x, ++seed) });
     expectAllDone(w);
+    expect(seed, 'reloads').toBeGreaterThan(50);
     w.dispose();
   }, 600_000);
 
@@ -86,6 +89,20 @@ describe('every quest, start to finish, on the baked world', () => {
       },
     });
     expectAllDone(w);
+    w.dispose();
+  }, 300_000);
+
+  it('every power and staff the plan promises can be had (Alien Ray waits for area 2)', async () => {
+    const w = await playAll();
+    use(w, 'frost_tome');
+    use(w, 'chest_thornwood');
+    prog(w).sprouts += 1000;
+    buy(w, 'tome_seeker_swarm');
+    buy(w, 'staff_nobu');
+    const p = prog(w);
+    expect([...p.spells].sort()).toEqual(Object.keys(SPELLS).sort());
+    const staffs = Object.values(ITEMS).filter((i) => i.kind === 'staff' && i.id !== 'staff_alien_ray');
+    for (const s of staffs) expect(p.inventory[s.id], s.id).toBeGreaterThan(0);
     w.dispose();
   }, 300_000);
 

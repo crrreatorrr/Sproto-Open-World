@@ -120,6 +120,20 @@ function closeMenu(w: SimWorld): void {
   tick(w, c);
 }
 
+/** Open Trader Pepe's shop, buy one thing, and close it again. */
+export function buy(w: SimWorld, item: string): SimEvent[] {
+  standBy(w, 'merchant_village');
+  const out = [...tick(w, press(BTN.interact))];
+  const open = idleInput(w0Yaw);
+  open.ui = [{ kind: 'dialogueChoose', choice: 0 }];
+  out.push(...tick(w, open));
+  const c = idleInput(w0Yaw);
+  c.ui = [{ kind: 'buy', merchant: 'merchant_village', item }];
+  out.push(...tick(w, c));
+  closeMenu(w);
+  return out;
+}
+
 export function use(w: SimWorld, id: string): SimEvent[] {
   standBy(w, id);
   return [...tick(w, press(BTN.interact))];
