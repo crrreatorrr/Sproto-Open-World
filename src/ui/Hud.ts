@@ -1,4 +1,5 @@
 import type { Affinity } from '../content/enemies';
+import { POWER } from '../content/packs/c3';
 import { SPELL_BY_SLOT, SPELLS, type SpellId } from '../content/spells';
 import { TICK_HZ } from '../content/tuning';
 import { WAVES } from '../content/waves';
@@ -52,6 +53,8 @@ export interface HudSpells {
   learned?: readonly SpellId[];
   /** What each of the four slots holds (C1 loadout); absent means each spell in its home slot. */
   loadout?: readonly (SpellId | null)[];
+  /** The Surge meter (Sprout Surge is ready when it's full). */
+  surge?: number;
 }
 
 /** The wave runner (`?sandbox=1`): `index` into WAVES (the next wave between waves), `nextIn` in ticks (0 while fighting). */
@@ -354,7 +357,7 @@ export class Hud {
     const def = id ? SPELLS[id] : null;
     sl.root.dataset.spell = id ?? '';
     sl.root.classList.toggle('empty', !id);
-    sl.root.innerHTML = `<div class="sweep"></div>${spellIcon(id)}<div class="name">${def?.name ?? 'Empty'}</div><div class="cost">${def?.cost ?? ''}</div><kbd class="key"></kbd>`;
+    sl.root.innerHTML = `<div class="sweep"></div>${spellIcon(id)}<div class="name">${def?.name ?? 'Empty'}</div><div class="cost">${def?.meter ? '' : (def?.cost ?? '')}</div><kbd class="key"></kbd>`;
     sl.key = sl.root.querySelector('.key') as HTMLElement;
     sl.cd = -1;
     sl.cdFull = def?.cooldown ?? 1;
@@ -385,7 +388,7 @@ export class Hud {
         sl.root.style.setProperty('--cd', String(cd));
         sl.root.classList.toggle('cooling', cd > 0);
       }
-      const poor = sp.mana < def.cost;
+      const poor = def.meter ? (sp.surge ?? 0) < POWER.surge.max : sp.mana < def.cost;
       if (poor !== sl.poor) {
         sl.poor = poor;
         sl.root.classList.toggle('poor', poor);

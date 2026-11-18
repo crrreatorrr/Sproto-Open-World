@@ -4,6 +4,7 @@ import { MODELS, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
 import { CameraRig } from '../camera/CameraRig';
 import { ITEMS } from '../content/items';
+import { POWER } from '../content/packs/c3';
 import { PERKS, SKILLS, type PerkId, type SkillId } from '../content/progression';
 import { QUESTS } from '../content/quests';
 import { SANDBOX } from '../content/sandbox';
@@ -44,6 +45,7 @@ import { RpgHud, type HudRpgState } from '../ui/RpgHud';
 import { RpgMenus } from '../ui/rpgMenus';
 import { compassOffset, headingTo, interactLabel, trackedQuest } from '../ui/rpgText';
 import { loadSettings, saveSettings, type Settings } from '../ui/settings';
+import { SurgeMeter } from '../ui/SurgeMeter';
 import { FixedLoop } from './loop';
 import { powerFeedback } from './powerFeedback';
 import { WorldSession } from './WorldSession';
@@ -88,6 +90,7 @@ export class App {
   readonly menus: Menus;
   readonly panels: Panels;
   readonly hud: Hud;
+  readonly surgeMeter: SurgeMeter;
   readonly overlay: Overlay;
   readonly audio = new AudioManager();
   readonly loop = new FixedLoop();
@@ -167,6 +170,7 @@ export class App {
     host.appendChild(ui);
     this.numbers = new DamageNumbers(ui);
     this.hud = new Hud(ui);
+    this.surgeMeter = new SurgeMeter(this.hud.root);
     this.rpgHud = new RpgHud(this.hud.root);
     this.rpgHud.enabled = MODE === 'world';
     this.screenFlash = document.createElement('div');
@@ -640,6 +644,7 @@ export class App {
     this.renderer.camera.updateMatrixWorld();
     this.numbers.update(dt, this.project);
     this.hud.combat(this.hudCombat(simView, p), dt);
+    this.surgeMeter.update(!!p.progress?.spells.includes('sproutSurge'), (p.powers?.surge ?? 0) / POWER.surge.max);
     this.rpgFrame(simView, p, dt, !!menu);
   }
 
@@ -1233,7 +1238,7 @@ export class App {
       enemy,
       reticle: lp ? this.project(lp) : null,
       spells: v && c
-        ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window, learned: this.mode === 'world' ? p.progress?.spells : undefined, loadout: p.progress?.loadout }
+        ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window, learned: this.mode === 'world' ? p.progress?.spells : undefined, loadout: p.progress?.loadout, surge: p.powers?.surge ?? 0 }
         : null,
       wave: view.wave ? { ...view.wave } : null,
     };
