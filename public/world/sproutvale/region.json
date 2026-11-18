@@ -83,14 +83,14 @@
       "cz": 1,
       "bin": "world/sproutvale/cells/c_1_1.bin",
       "json": "world/sproutvale/cells/c_1_1.json",
-      "bytes": 26180
+      "bytes": 26315
     },
     {
       "cx": 2,
       "cz": 1,
       "bin": "world/sproutvale/cells/c_2_1.bin",
       "json": "world/sproutvale/cells/c_2_1.json",
-      "bytes": 25889
+      "bytes": 25957
     },
     {
       "cx": 3,
@@ -132,21 +132,21 @@
       "cz": 2,
       "bin": "world/sproutvale/cells/c_0_2.bin",
       "json": "world/sproutvale/cells/c_0_2.json",
-      "bytes": 26114
+      "bytes": 26181
     },
     {
       "cx": 1,
       "cz": 2,
       "bin": "world/sproutvale/cells/c_1_2.bin",
       "json": "world/sproutvale/cells/c_1_2.json",
-      "bytes": 26158
+      "bytes": 26208
     },
     {
       "cx": 2,
       "cz": 2,
       "bin": "world/sproutvale/cells/c_2_2.bin",
       "json": "world/sproutvale/cells/c_2_2.json",
-      "bytes": 26263
+      "bytes": 26084
     },
     {
       "cx": 3,
@@ -202,7 +202,7 @@
       "cz": 3,
       "bin": "world/sproutvale/cells/c_2_3.bin",
       "json": "world/sproutvale/cells/c_2_3.json",
-      "bytes": 26505
+      "bytes": 26539
     },
     {
       "cx": 3,
@@ -574,7 +574,7 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 56
+      "capacity": 47
     },
     "grove_hay": {
       "path": "models/props/grove_hay.glb",
@@ -613,7 +613,7 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 31
+      "capacity": 27
     },
     "grove_reeds": {
       "path": "models/props/grove_reeds.glb",
@@ -642,7 +642,7 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 4
+      "capacity": 3
     },
     "grove_shed": {
       "path": "models/props/grove_shed.glb",
