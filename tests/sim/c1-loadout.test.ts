@@ -211,12 +211,14 @@ describe('the gear lock (expansion plan §1.1)', () => {
     w.dispose();
   });
 
-  it('a passive training dummy is not combat', async () => {
-    const { w, p } = await owningNobu();
-    w.spawnEnemy('dummy_passive', { x: p.tf.pos.x, y: VILLAGE_Y, z: p.tf.pos.z + 2 }, Math.PI);
-    tick1(w);
-    expect(w.view().gearLocked(0)).toBe(false);
-    w.dispose();
+  it('a training dummy is not combat, even one that swings at you', async () => {
+    for (const def of ['dummy_passive', 'dummy_swing', 'dummy_shooter']) {
+      const { w, p } = await owningNobu();
+      w.spawnEnemy(def, { x: p.tf.pos.x, y: VILLAGE_Y, z: p.tf.pos.z + 2 }, Math.PI);
+      for (let i = 0; i < 90; i++) tick1(w);
+      expect(w.view().gearLocked(0), def).toBe(false);
+      w.dispose();
+    }
   });
 
   it('at a shrine, gear changes even in combat', async () => {
