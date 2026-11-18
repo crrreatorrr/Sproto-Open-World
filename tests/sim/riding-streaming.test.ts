@@ -239,6 +239,26 @@ describe('the baked Sproutvale at a gallop', () => {
     }
   }, 120_000);
 
+  it.each(lines)('on foot, running and jumping at %s stays on the map too', async (_name, x, z, yaw) => {
+    const all = allBaked();
+    const [cx, cz] = cellOf(x, z);
+    const y = sampleHeight(all.get(cellKey(cx, cz))!.heights, cx, cz, x, z);
+    for (const jumpEvery of [0, 20, 30, 47]) {
+      const { w, p } = await rider([...all.values()].map((c) => c.colliders), x, y + 0.1, z);
+      const bull = w.entities.find((e) => e.mount)!;
+      delete p.riding;
+      bull.mount!.rider = null;
+      while ([...all.keys()].some((k) => { const [a, b] = k.split(',').map(Number); return !w.cellReady(a, b); })) w.tick(new Map([[0, idleInput(yaw)]]));
+      let left = false;
+      for (let i = 0; i < 2400 && !left; i++) {
+        w.tick(new Map([[0, go(yaw, jumpEvery && i % jumpEvery === 0 ? BTN.jump : 0)]]));
+        left = !inRegion(...cellOf(p.tf.pos.x, p.tf.pos.z));
+      }
+      w.dispose();
+      expect(left, `jumping every ${jumpEvery} ticks`).toBe(false);
+    }
+  }, 120_000);
+
   it('crosses the map through the woods without sinking into the ground', async () => {
     for (const [x, z, yaw] of [[30, 30, Math.PI / 4], [480, 40, -Math.PI / 4], [100, 470, (3 * Math.PI) / 4], [256, 20, 0]] as const) {
       const r = await run(x, z, yaw, 1800);

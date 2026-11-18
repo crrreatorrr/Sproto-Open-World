@@ -110,8 +110,9 @@ try {
   const backToBull = () => page.evaluate(() => window.__qa.teleport(272, 55.6));
   await backToBull();
   await press('l3');
-  await until((q) => q.player.speed > 8.5, 'trotting again', 900);
-  await frames(40);
+  // Wait on the speed, not a frame count: a slow software GPU covers many metres per rendered frame.
+  await until((q) => q.player.speed > 8.5 && q.player.speed < 10, 'trotting again', 900);
+  await frames(4);
   s = await state();
   check(s.player.speed > 8.5 && s.player.speed < 10, 'the next press slows to a trot', `${s.player.speed.toFixed(1)} m/s`);
   await backToBull();

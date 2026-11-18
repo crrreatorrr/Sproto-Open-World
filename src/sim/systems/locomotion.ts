@@ -100,13 +100,13 @@ export function locomotion(
     else tf.vel.y = 0; // snap-to-ground keeps the capsule on slopes; a downward push sinks it into the skin
 
     const want = { x: (tf.vel.x + px) * DT, y: tf.vel.y * DT, z: (tf.vel.z + pz) * DT };
-    // The bull won't leave the built world: it runs along the map's edge, or a cell still loading.
-    if (e.riding) {
+    // A player won't leave the built world: they run along the map's edge, or a cell still loading.
+    if (isPlayer) {
       if (!hasGround(tf.pos.x + want.x, tf.pos.z)) want.x = 0;
       if (!hasGround(tf.pos.x + want.x, tf.pos.z + want.z)) want.z = 0;
     }
     let res = physics.moveCharacter(e.id, tf.pos, want);
-    if (e.riding && !hasGround(tf.pos.x + res.moved.x, tf.pos.z + res.moved.z)) {
+    if (isPlayer && !hasGround(tf.pos.x + res.moved.x, tf.pos.z + res.moved.z)) {
       // A slope slid it over the line after all: this tick it stays where it was.
       physics.teleport(e.id, tf.pos);
       res = { moved: { x: 0, y: 0, z: 0 }, grounded: loco.grounded };
