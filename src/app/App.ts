@@ -1622,9 +1622,13 @@ export function startPhysics(): Promise<void> {
   return initPhysics();
 }
 
-/** The compass bar's width: 440 px, narrower on a small window (App passes it to the HUD on resize). */
+/**
+ * The compass bar's width: 440 px, narrower on a small window so it clears the health bar (App passes
+ * it to the HUD on resize). The same sum as `.compass` in styles.css.
+ */
 function compassWidth(): number {
-  return Math.min(440, Math.round(window.innerWidth * 0.6));
+  const w = window.innerWidth;
+  return Math.max(200, Math.min(440, Math.round(w * 0.6), w - 590));
 }
 
 function errorText(err: unknown): string {
