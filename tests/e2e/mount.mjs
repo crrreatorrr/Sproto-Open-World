@@ -64,6 +64,26 @@ async function until(pred, what, maxFrames = 600) {
   }
   throw new Error(`timed out waiting for ${what}`);
 }
+/**
+ * Note the rider's state on every rendered frame. The game runs at most 5 ticks a frame, so on a slow
+ * software GPU climbing on or off lasts about 8 frames and can pass between two polls of `until`.
+ */
+const watchRiding = () => page.evaluate(() => {
+  window.__ridingSeen = new Set();
+  const look = () => {
+    const p = window.__qa.app.sim.playerEntity(0);
+    if (p?.riding) window.__ridingSeen.add(`${p.riding.state}/${p.combat?.action?.kind ?? 'none'}`);
+    requestAnimationFrame(look);
+  };
+  requestAnimationFrame(look);
+});
+async function sawRiding(state, maxFrames = 600) {
+  for (let i = 0; i < maxFrames; i += 3) {
+    if (await page.evaluate((k) => window.__ridingSeen.has(k), state)) return true;
+    await frames(3);
+  }
+  return false;
+}
 let failures = 0;
 function check(ok, what, detail = '') {
   console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? `  (${detail})` : ''}`);
@@ -77,6 +97,7 @@ try {
   await press('a');
   await page.waitForFunction(() => window.__qa.state().state === 'playing' && !window.__qa.state().groundWait, null, { timeout: 180000 });
   await frames(30);
+  await watchRiding();
 
   // Walk up to the bull, east of the start.
   await page.evaluate(() => window.__qa.teleport(272, 55.6));
@@ -86,8 +107,7 @@ try {
   await shot('b1-prompt');
 
   await press('y');
-  s = await until((q) => q.player.riding === 'mounting', 'mounting');
-  check(s.player.action === 'mounting', 'Y starts climbing on', s.player.action);
+  check(await sawRiding('mounting/mounting'), 'Y starts climbing on');
   await frames(6);
   await shot('b2-mounting');
   s = await until((q) => q.player.riding === 'riding', 'the saddle');
@@ -174,8 +194,7 @@ try {
   await frames(6);
 
   await press('y');
-  s = await until((q) => q.player.riding === 'dismounting', 'dismounting');
-  check(s.player.action === 'mounting', 'Y climbs down');
+  check(await sawRiding('dismounting/mounting'), 'Y climbs down');
   await frames(8);
   await shot('b7-dismounting');
   s = await until((q) => q.player.riding === null, 'the ground');

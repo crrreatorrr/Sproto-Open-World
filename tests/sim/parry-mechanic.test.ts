@@ -50,6 +50,8 @@ async function swungAt(def: string, move: string, dist: number) {
   const setup = async () => {
     const { w, p } = await combatWorld();
     const e = w.spawnEnemy(def, { x: 0, y: 0, z: dist }, Math.PI);
+    // A boss only swings once its fight is on: until then it heals to full every tick it is free.
+    if (e.boss) e.boss.state = 'fight';
     forceEnemyAttack(e, move);
     return { w, p, e };
   };

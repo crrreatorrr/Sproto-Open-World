@@ -61,8 +61,8 @@ export function recompute(e: Entity): void {
   const hpMax = PLAYER_STATS.hp + GROWTH.hpPerLevel * above + SKILL_EFFECT.defenseHp * sk.defense;
   const stMax = PLAYER_STATS.stamina + GROWTH.staminaPerLevel * above + SKILL_EFFECT.staminaMax * sk.stamina;
   const mpMax = PLAYER_STATS.mana + GROWTH.manaPerLevel * above + SKILL_EFFECT.focusMana * sk.focus;
-  // Growing a maximum grows the current value with it (a level-up feels like one).
-  v.hp = Math.min(hpMax, v.hp + Math.max(0, hpMax - v.hpMax));
+  // Growing a maximum grows the current value with it (a level-up feels like one). The dead stay at 0.
+  if (c.action?.kind !== 'dead') v.hp = Math.min(hpMax, v.hp + Math.max(0, hpMax - v.hpMax));
   v.stamina = Math.min(stMax, v.stamina + Math.max(0, stMax - v.staminaMax));
   v.mana = Math.min(mpMax, v.mana + Math.max(0, mpMax - v.manaMax));
   v.hpMax = hpMax;
@@ -75,8 +75,28 @@ export function recompute(e: Entity): void {
   c.defense = { physical: Math.round((robe.physical + vit) * k), arcane: Math.round((robe.arcane + vit) * k) };
   c.level = p.level;
   const max = TONIC.charges + (charm?.tonicCharges ?? 0) + (p.inventory.tonic_upgrade ? 1 : 0);
-  p.tonics.charges = Math.min(max, p.tonics.charges + Math.max(0, max - p.tonics.max));
-  p.tonics.max = max;
+  resizeTonics(p.tonics, max);
+}
+
+/**
+ * A charge comes and goes with the maximum. One taken from an empty flask is owed and paid back first
+ * when the maximum grows: otherwise taking a Second Wind off and on again would refill it for free.
+ */
+function resizeTonics(t: Progress['tonics'], max: number): void {
+  const grew = max - t.max;
+  const taken = Math.min(t.charges, Math.max(0, -grew));
+  const paid = Math.min(t.owed ?? 0, Math.max(0, grew));
+  const owed = (t.owed ?? 0) - paid + Math.max(0, -grew) - taken;
+  t.charges += Math.max(0, grew) - paid - taken;
+  t.max = max;
+  if (owed > 0) t.owed = owed;
+  else delete t.owed;
+}
+
+/** Rest or respawn: a full flask, nothing owed. */
+export function refillTonics(t: Progress['tonics']): void {
+  t.charges = t.max;
+  delete t.owed;
 }
 
 export function grantXp(ctx: RpgCtx, e: Entity, amount: number): void {
@@ -398,11 +418,17 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
         respecSkills(ctx, e);
         break;
       case 'rest':
-        if (p.atShrine) rest(ctx, e, p.atShrine);
+        // A shrine's rest doesn't raise the dead: the respawn does.
+        if (dead) ctx.events.push({ type: 'refused', entity: e.id, action: 'rest', reason: "You can't rest now." });
+        else if (p.atShrine) rest(ctx, e, p.atShrine);
         break;
       case 'closeMenu':
         p.shop = null;
         p.atShrine = null;
+        if (p.dialogue) {
+          ctx.events.push({ type: 'dialogueEnd', entity: e.id, npc: p.dialogue.npc });
+          p.dialogue = null;
+        }
         break;
       case 'track':
         if (p.quests[a.quest]?.status === 'active') p.tracked = a.quest;
@@ -446,7 +472,7 @@ export function rest(ctx: RpgCtx, e: Entity, shrine: string): void {
   v.hp = v.hpMax;
   v.mana = v.manaMax;
   v.stamina = v.staminaMax;
-  p.tonics.charges = p.tonics.max;
+  refillTonics(p.tonics);
   p.lastShrine = shrine;
   if (!p.discoveredShrines.includes(shrine)) p.discoveredShrines.push(shrine);
   delete e.statuses;
@@ -541,7 +567,16 @@ export function pickups(ctx: RpgCtx): number[] {
   return gone;
 }
 
-/** Trigger volumes: an event when a player enters (not every tick while inside). */
+/** An active quest's current step still asks the player to reach this volume. */
+function awaitsTrigger(p: Progress, trigger: string): boolean {
+  return Object.entries(p.quests).some(([id, q]) =>
+    q.status === 'active' && QUESTS[id].steps[q.step].objectives.some((o, i) => o.kind === 'reach' && o.trigger === trigger && q.progress[i] < 1));
+}
+
+/**
+ * Trigger volumes: an event when a player enters (not every tick while inside), or while they stand
+ * in one a quest step has just come to ask for: walking out and back in is no objective.
+ */
 export function triggers(ctx: RpgCtx, list: readonly { id: string; pos: [number, number, number]; radius: number; halfHeight?: number }[], inside: Set<string>): void {
   for (const e of ctx.entities) {
     if (!e.progress) continue;
@@ -549,7 +584,7 @@ export function triggers(ctx: RpgCtx, list: readonly { id: string; pos: [number,
       const key = `${e.id}:${t.id}`;
       // A vertical cylinder: height only counts when the trigger says so (M4 volumes sit on terrain).
       const inNow = Math.hypot(e.tf.pos.x - t.pos[0], e.tf.pos.z - t.pos[2]) <= t.radius && (t.halfHeight === undefined || Math.abs(e.tf.pos.y - t.pos[1]) < t.halfHeight);
-      if (inNow && !inside.has(key)) {
+      if (inNow && (!inside.has(key) || awaitsTrigger(e.progress, t.id))) {
         inside.add(key);
         ctx.events.push({ type: 'trigger', entity: e.id, trigger: t.id });
       } else if (!inNow) inside.delete(key);

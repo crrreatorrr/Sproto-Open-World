@@ -358,7 +358,7 @@ export const C4_QUESTS: Record<string, QuestDef> = {
     prereq: [{ flag: 'boss.scrapjaw.dead' }],
     steps: [
       { id: 'brief', text: 'Hear out Tansy the Weaver.', objectives: [{ kind: 'talk', npc: 'weaver_tansy', node: 'a7_brief' }], marker: 'weaver_tansy' },
-      { id: 'seeds', text: 'Collect 4 Thorn Seeds from Hex Wisps in the Thornwood.', objectives: [{ kind: 'collect', item: 'thorn_seed', count: 4, consume: true }], marker: 'thornwood_clearing' },
+      { id: 'seeds', text: 'Collect 4 Thorn Seeds from Hex Wisps in the Thornwood.', objectives: [{ kind: 'collect', item: 'thorn_seed', count: 4, consume: true }], marker: 'wisp_wood' },
       { id: 'return', text: 'Bring the seeds to Tansy.', objectives: [{ kind: 'talk', npc: 'weaver_tansy', node: 'a7_done' }], marker: 'weaver_tansy' },
     ],
     rewards: [{ learnSpell: spell('brambleWall') }, { xp: 1100 }, { currency: 90 }],
@@ -414,7 +414,7 @@ export const C4_DIALOGUE: Record<string, DialogueGraph> = {
           { text: 'Not yet.' },
         ],
       },
-      a2_brief: { speaker: 'Watch Captain', text: 'Roll through the beam or ward it, then hit the thing with your staff. Spells barely scratch that lens. Bring me word of what it was looking at.' },
+      a2_brief: { speaker: 'Watch Captain', text: 'Roll through the beam or ward it, then hit the thing with your staff. Spells barely scratch that lens. Then study it, and see what it was looking at.' },
       a2_busy: { speaker: 'Watch Captain', text: 'The ridge behind the Old Mill, east of the river. Staff, not spells.' },
       a3_offer: {
         speaker: 'Watch Captain',
@@ -568,5 +568,7 @@ export const C4_WORLD: Required<Pick<RegionContent, 'npcs' | 'chests' | 'objects
     { id: 'giant_track_2', pos: [150, G, 330], radius: 7 },
     { id: 'giant_track_3', pos: [105, G, 300], radius: 7 },
     { id: 'giant_track_4', pos: [66, G, 296], radius: 7 },
+    // A7's marker: the Wisps of the Thornwood's middle patrol.
+    { id: 'wisp_wood', pos: [300, G, 330], radius: 20 },
   ],
 };

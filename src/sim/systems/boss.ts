@@ -76,6 +76,8 @@ export function bossThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Enti
   // Free to act but still under: whatever it was coming up for has gone (its target died mid-burrow).
   if (boss.under && boss.state !== 'idle') delete boss.under;
   if (boss.state === 'idle') {
+    // The fight only counts inside the arena: shots from beyond its wall don't wear it down.
+    e.vitals!.hp = e.vitals!.hpMax;
     // Dormant: asleep under the ground until its quest wakes it, and nobody's enemy until then.
     if (cfg.wakeFlag && !host.flag(cfg.wakeFlag)) {
       boss.under = true;

@@ -9,7 +9,7 @@ import { affixSpeed } from '../systems/affixes';
 import { turnToward, wrapAngle } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
-import { bossAttackTick, bossPreTick, bossSpeed, bossThink, type BossHost } from '../systems/boss';
+import { bossAttackTick, bossEngaged, bossPreTick, bossSpeed, bossThink, type BossHost } from '../systems/boss';
 import { drakeTick } from '../systems/drake';
 import { drive, fightClock, groundAt, lookForTarget, newFight, nextBeat, readTarget, ringSlots, slotPull } from './tactics';
 
@@ -34,6 +34,11 @@ const FEINT_AT = 0.55;
 const FEINT_REST: [number, number] = [12, 22];
 /** Ranged: with no clear shot for this long it stops sidestepping and walks in (ticks). */
 const BLIND_LIMIT = 180;
+/** A walk home gets this many times the ticks it should take (plus a moment), then the enemy is put back there. */
+const LEASH_PATIENCE = 3;
+const LEASH_GRACE = 60;
+/** A blink looks for the ground this far above where it starts (m), and twice as far down. */
+const BLINK_GROUND_RAY = 5;
 
 /**
  * Enemy brains (plan §4.8). Dummies run fixed timers. Fighters approach (melee) or hold a distance
@@ -44,6 +49,7 @@ const BLIND_LIMIT = 180;
  */
 export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld, spawnProjectile: SpawnProjectile, bossHost?: BossHost): void {
   const slots = ringSlots(ctx);
+  const duels = ctx.entities.filter((e) => bossEngaged(e));
   for (const e of ctx.entities) {
     const b = e.brain;
     const c = e.combat;
@@ -59,7 +65,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
 
     // The Skyfire Drake flies its whole fight itself (expansion plan §3.5).
     if (def.drake && bossHost) {
-      drakeTick(ctx, e, def, physics, rng, bossHost, { target: () => pickTarget(ctx, e, def), start: startAttack, run: (t) => runAttack(ctx, e, def, t, spawnProjectile, rng) });
+      drakeTick(ctx, e, def, physics, rng, bossHost, { target: () => pickTarget(ctx, e, def, duels), start: startAttack, run: (t) => runAttack(ctx, e, def, t, spawnProjectile, rng) });
       continue;
     }
 
@@ -85,7 +91,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
       continue;
     }
 
-    const target = pickTarget(ctx, e, def);
+    const target = pickTarget(ctx, e, def, duels);
     b.target = target?.id ?? null;
     const boss = def.boss && bossHost ? bossHost : null;
     if (boss) bossPreTick(ctx, e, def, target, rng, boss);
@@ -109,11 +115,19 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
   }
 }
 
-function pickTarget(ctx: CombatCtx, e: Entity, def: EnemyDef): Entity | null {
+/** A player sealed in with a boss: the fight is between the two of them (and the boss's own adds). */
+function inDuel(p: Entity, duels: readonly Entity[]): boolean {
+  return duels.some((b) => flatDist(p.tf.pos, b.brain!.home) <= ENEMIES[b.brain!.def].boss!.arenaRadius + 1);
+}
+
+function pickTarget(ctx: CombatCtx, e: Entity, def: EnemyDef, duels: readonly Entity[]): Entity | null {
   let best: Entity | null = null;
-  let bestD = def.aggroRange;
+  // Hurt by someone beyond its sight: it comes for them, anywhere inside its leash.
+  let bestD = !def.dummy && e.vitals!.hp < e.vitals!.hpMax ? Infinity : def.aggroRange;
+  const outsider = !e.boss && !e.brain!.summoned;
   for (const p of ctx.entities) {
     if (p.kind !== 'player' || p.combat?.action?.kind === 'dead') continue;
+    if (outsider && inDuel(p, duels)) continue;
     const fromHome = flatDist(p.tf.pos, e.brain!.home);
     if (fromHome > def.leashRange) continue;
     const d = flatDist(p.tf.pos, e.tf.pos);
@@ -300,14 +314,26 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
 
   // Leash: pulled too far from home, or the player it was fighting got away: walk back fast,
   // healing, ignoring the player.
-  if (!target && b.state === 'engage' && fromHome > 1) b.state = 'leash';
-  if (b.state === 'leash' || fromHome > def.leashRange) {
+  if (b.state !== 'leash' && ((!target && b.state === 'engage' && fromHome > 1) || fromHome > def.leashRange)) {
     b.state = 'leash';
+    b.timer = Math.ceil(fromHome / (def.moveSpeed * 2 * DT)) * LEASH_PATIENCE + LEASH_GRACE;
+  }
+  if (b.state === 'leash') {
     e.vitals!.hp = Math.min(e.vitals!.hpMax, e.vitals!.hp + e.vitals!.hpMax * 0.02);
-    if (fromHome < 1) {
-      b.state = 'idle';
-      e.vitals!.hp = e.vitals!.hpMax;
-    } else go(home.x, home.z, def.moveSpeed * 2);
+    if (fromHome >= 1 && --b.timer > 0) {
+      go(home.x, home.z, def.moveSpeed * 2);
+      return;
+    }
+    // Home, or something stands in the way of the straight walk there: it mustn't run at it forever.
+    if (fromHome >= 1) {
+      e.tf.pos = { ...home };
+      e.tf.prevPos = { ...home };
+      e.tf.vel = { x: 0, y: 0, z: 0 };
+      physics.teleport(e.id, e.tf.pos);
+    }
+    b.state = 'idle';
+    e.vitals!.hp = e.vitals!.hpMax;
+    ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
     return;
   }
   if (!target) {
@@ -515,7 +541,11 @@ function blink(ctx: CombatCtx, e: Entity, def: EnemyDef, physics: PhysicsWorld):
     const yaw = away + off;
     const dir = { x: Math.sin(yaw), y: 0, z: Math.cos(yaw) };
     if (physics.raycast({ x: from.x, y: from.y + 1, z: from.z }, dir, dist + 0.6)) continue;
-    e.tf.pos = { x: from.x + dir.x * dist, y: from.y, z: from.z + dir.z * dist };
+    const x = from.x + dir.x * dist, z = from.z + dir.z * dist;
+    // On the ground there: uphill, its old height is inside the hill, and a body inside the ground falls through it.
+    const ground = physics.raycast({ x, y: from.y + BLINK_GROUND_RAY, z }, { x: 0, y: -1, z: 0 }, BLINK_GROUND_RAY * 2);
+    if (!ground) continue;
+    e.tf.pos = { x, y: ground.point.y + 0.02, z };
     e.tf.prevPos = { ...e.tf.pos };
     physics.teleport(e.id, e.tf.pos);
     ctx.events.push({ type: 'blink', entity: e.id, from, to: { ...e.tf.pos } });

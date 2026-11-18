@@ -27,6 +27,34 @@ export class Panels {
     h.textContent = 'Something went wrong';
     this.error.append(h, this.errorText, this.buttons);
     host.append(this.veil, this.error);
+    window.addEventListener('keydown', (e) => this.onKey(e), { capture: true });
+  }
+
+  /** The keyboard on the error panel: arrows or WASD move between the actions, Enter or Space confirms. */
+  private onKey(e: KeyboardEvent): void {
+    if (!this.errorOpen) return;
+    switch (e.code) {
+      case 'ArrowLeft':
+      case 'ArrowUp':
+      case 'KeyA':
+      case 'KeyW':
+        if (!e.repeat) this.move(-1);
+        break;
+      case 'ArrowRight':
+      case 'ArrowDown':
+      case 'KeyD':
+      case 'KeyS':
+        if (!e.repeat) this.move(1);
+        break;
+      case 'Enter':
+      case 'NumpadEnter':
+      case 'Space':
+        if (!e.repeat) this.confirmError();
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
   }
 
   showVeil(text: string): void {

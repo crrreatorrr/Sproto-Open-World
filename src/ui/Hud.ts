@@ -124,6 +124,9 @@ interface Bar {
   lagValue: number;
 }
 
+/** Classes that play a CSS animation once (banners, the boss card, flashes and pulses). */
+const ONE_SHOT_CLASSES = ['go', 'bump', 'flash', 'flash-mana', 'flash-cd', 'pulse'];
+
 /** How long a toast stays up (s). */
 const TOAST_SEC = 5;
 
@@ -250,6 +253,9 @@ export class Hud {
     this.counterEl.append(this.counterKey, this.counterText, this.counterTime);
     this.root.append(vitals, this.enemy, this.reticle, this.crosshair, this.waveInfo, this.banner, this.toastEl, this.counterEl, this.spellBar, this.prompts, this.clickHint);
     host.appendChild(this.root);
+    // The HUD hides under every menu, and showing it again restarts any animation still on an element:
+    // a one-shot's class goes as soon as it has played, so an old banner doesn't come back on resume.
+    this.root.addEventListener('animationend', (e) => (e.target as HTMLElement).classList.remove(...ONE_SHOT_CLASSES));
   }
 
   set visible(v: boolean) {

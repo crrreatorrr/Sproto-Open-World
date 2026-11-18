@@ -107,7 +107,7 @@ export function locomotion(
     }
     let res = physics.moveCharacter(e.id, tf.pos, want);
     if (isPlayer && !hasGround(tf.pos.x + res.moved.x, tf.pos.z + res.moved.z)) {
-      // A slope slid it over the line after all: this tick it stays where it was.
+      // A slope slid them over the line after all: this tick they stay where they were.
       physics.teleport(e.id, tf.pos);
       res = { moved: { x: 0, y: 0, z: 0 }, grounded: loco.grounded };
     }

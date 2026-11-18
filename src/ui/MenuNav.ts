@@ -26,6 +26,7 @@ export type NavDir = 'up' | 'down' | 'left' | 'right';
 
 const REPEAT_DELAY = 0.38;
 const REPEAT_RATE = 0.09;
+const ONE_SHOT_KEYS: ReadonlySet<string> = new Set(['Enter', 'NumpadEnter', 'Space', 'Escape', 'KeyQ', 'KeyE']);
 
 /**
  * Menu navigation for keyboard, mouse and gamepad (owner: pad support from the start). Items are
@@ -49,10 +50,17 @@ export class MenuNav {
   onMove: (() => void) | null = null;
   onConfirm: (() => void) | null = null;
   onBackSound: (() => void) | null = null;
+  /** While true something covers the menus (the error panel): they take no keys. */
+  blocked: (() => boolean) | null = null;
 
   constructor(private readonly input: Input) {
     window.addEventListener('keydown', (e) => {
-      if (!this.top || this.top.capturing?.()) return;
+      if (!this.top || this.top.capturing?.() || this.blocked?.()) return;
+      // Holding a key repeats moves only: one press is one confirm, one Back, one tab.
+      if (e.repeat && ONE_SHOT_KEYS.has(e.code) && (this.top.onTab || (e.code !== 'KeyQ' && e.code !== 'KeyE'))) {
+        e.preventDefault();
+        return;
+      }
       switch (e.code) {
         case 'ArrowUp':
         case 'KeyW':
