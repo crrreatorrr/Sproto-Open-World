@@ -82,6 +82,9 @@ export const MODELS = {
   pickup_gem: { path: 'models/pickups/gem.glb' },
   pickup_heart: { path: 'models/pickups/heart.glb' },
   pickup_potion: { path: 'models/pickups/potion.glb' },
+  /** World props the C3 powers grow, tinted by their views: Bramble Wall's roots, Healing Bloom's flowers. */
+  prop_root_wall: { path: 'models/props/grove_root_wall.glb' },
+  prop_crops: { path: 'models/props/grove_crops.glb' },
 } satisfies Record<string, ModelEntry>;
 
 export type ModelKey = keyof typeof MODELS;

@@ -65,7 +65,9 @@ export class PlayerView {
     const a = e.combat?.action;
     if (a?.kind === 'cast') {
       const def = SPELLS[a.spell];
-      this.castShown = anim.upper(def.clip, castClipTime(CAST_PEAKS.player, def.clip, a.t, a.release, def.recovery), CAST_IN_FADE);
+      // A channel holds the hands at the release pose for as long as it lasts.
+      const t = a.channel ? Math.min(a.t, a.release) : a.t;
+      this.castShown = anim.upper(def.clip, castClipTime(CAST_PEAKS.player, def.clip, t, a.release, def.recovery), CAST_IN_FADE);
     } else {
       this.castShown = false;
       anim.upperOff(a ? ENTRY_FADE : CAST_OUT_FADE);

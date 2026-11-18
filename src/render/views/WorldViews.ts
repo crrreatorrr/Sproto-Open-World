@@ -7,6 +7,7 @@ import type { SimEvent } from '../../sim/events';
 import type { Vec3 } from '../../sim/math';
 import type { ReadonlySimView } from '../../sim/view';
 import type { HitFx } from '../fx/HitFx';
+import { PowerFx } from '../fx/powers';
 import { SpellFx } from '../fx/SpellFx';
 import { BlastOrbView, BoltView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
 import { ChestView, NpcView, PickupView, ShrineView, objectView } from './RpgViews';
@@ -48,6 +49,8 @@ export function enemyDef(e: Readonly<Entity> | undefined): EnemyDef | undefined 
 export class WorldViews {
   readonly root = new THREE.Group();
   readonly spells = new SpellFx();
+  /** The C3 powers' visuals. */
+  readonly powers: PowerFx;
   private readonly views = new Map<EntityId, EntityView>();
   private readonly decals: LiveDecal[] = [];
   private readonly seen = new Set<EntityId>();
@@ -65,7 +68,8 @@ export class WorldViews {
     private readonly assets: AssetLoader,
     private readonly fx: HitFx | null = null,
   ) {
-    this.root.add(this.spells.root);
+    this.powers = new PowerFx(assets, fx);
+    this.root.add(this.spells.root, this.powers.root);
   }
 
   get(id: EntityId): EntityView | undefined {
@@ -106,6 +110,7 @@ export class WorldViews {
     }
     this.updateDecals(view, dt);
     this.spells.update(dt);
+    this.powers.sync(view, alpha, dt);
   }
 
   /** React to a sim event (telegraphs, flinches and spell visuals; sounds and numbers live in the app). */
@@ -156,6 +161,9 @@ export class WorldViews {
         }
         return;
       }
+      case 'power':
+        this.powers.event(view, e);
+        return;
       case 'zap':
         this.spells.zap(e.points);
         for (const p of e.points.slice(1)) this.fx?.burst(p, 'shock');
@@ -332,5 +340,6 @@ export class WorldViews {
     for (const d of this.decals) d.decal.dispose();
     this.decals.length = 0;
     this.spells.clear();
+    this.powers.clear();
   }
 }
