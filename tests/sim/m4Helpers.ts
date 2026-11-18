@@ -58,7 +58,8 @@ export function slay(w: SimWorld, target: Entity, max = 400): SimEvent[] {
       target.vitals!.hp = Math.min(target.vitals!.hp, 1);
     }
     const c: InputCommand = idleInput(p.tf.yaw);
-    if (i % 30 === 0) {
+    // Swing whenever free: a press made during hitstun is dropped, and a camp can keep you in it.
+    if (!p.combat!.action) {
       c.pressed = BTN.light;
       c.held = BTN.light;
     }
