@@ -1,4 +1,5 @@
 import { BLOCK, CHARGE, PLAYER_MOVES, ROLL, clipTiming, type PlayerMoveId } from '../content/combat';
+import { PLUNGE } from '../content/packs/m7';
 import { SPELLS, WOVEN, type SpellId } from '../content/spells';
 import type { Entity } from '../sim/entity';
 
@@ -50,6 +51,8 @@ export function frameDataLines(e: Readonly<Entity> | undefined, now = 0): string
     lines.push(`action: dodge   t ${a.t}/${ROLL.ticks}   ${inv ? (a.t <= ROLL.perfectEnd ? 'I-FRAMES (perfect)' : 'I-FRAMES') : 'vulnerable'}`);
     lines.push(`|${bar.join('')}|`, ` ${' '.repeat(Math.min(ROLL.ticks, a.t))}^`);
     lines.push(`P perfect [${ROLL.iframeStart},${ROLL.perfectEnd}]   I i-frames ≤${ROLL.iframeEnd}   c roll attack ≥${ROLL.attackFrom}`);
+  } else if (a.kind === 'plunge') {
+    lines.push(a.landT < 0 ? `action: plunge   diving   t ${a.t}   from y ${a.fromY.toFixed(1)}` : `action: plunge   recovery ${a.landT}/${PLUNGE.recovery}   cancel ≥${PLUNGE.cancelFrom}`);
   } else if (a.kind === 'block') {
     const parry = Math.max(0, a.parryTicks - a.t);
     lines.push(`action: block   t ${a.t}   ${parry > 0 ? `PARRY window ${parry} left (of ${a.parryTicks})` : 'guarding'}   raised ≥${BLOCK.raised}`);

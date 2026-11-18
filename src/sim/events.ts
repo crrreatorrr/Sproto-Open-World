@@ -53,6 +53,8 @@ export type SimEvent =
   | { type: 'blink'; entity: EntityId; from: Vec3; to: Vec3 }
   /** Charged Bolt: a pulse while the charge grows; `frac` is how full it is (0..1). */
   | { type: 'boltCharge'; entity: EntityId; frac: number }
+  /** A plunge attack hit the ground at `pos`; `hits` is how many enemies it caught. */
+  | { type: 'plunge'; entity: EntityId; pos: Vec3; radius: number; hits: number }
   | { type: 'wave'; wave: number; loop: number; enemies: number }
   | { type: 'waveClear'; wave: number }
   // RPG systems (M3).

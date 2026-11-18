@@ -90,6 +90,8 @@ export type Action =
   | { kind: 'dodge'; t: number; dir: { x: number; z: number } }
   /** The Momentum staff's blink: already moved, untouchable until it ends. */
   | { kind: 'blink'; t: number }
+  /** The plunge attack: diving from `fromY`; `landT` counts from the landing (−1 while in the air). */
+  | { kind: 'plunge'; t: number; fromY: number; landT: number }
   | { kind: 'block'; t: number; parryTicks: number }
   | { kind: 'hitstun'; t: number; dur: number; knockdown: boolean }
   | { kind: 'stagger'; t: number; dur: number }

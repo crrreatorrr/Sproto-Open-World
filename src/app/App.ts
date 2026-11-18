@@ -912,6 +912,14 @@ export class App {
       case 'lock':
         if (e.entity === me && e.target !== null) this.audio.play('lockBeep');
         return;
+      case 'plunge':
+        this.fx.ring({ x: e.pos.x, y: e.pos.y + 0.1, z: e.pos.z }, 0xffe2a8, 0.4, e.radius, 0.4);
+        this.audio.play('bossSlam', 1.15, 0.8);
+        if (e.entity === me) {
+          this.shake(TRAUMA.heavyHit);
+          pad.rumble(RUMBLE.heavyHit);
+        }
+        return;
       default:
         this.presentSpell(view, e);
         return;

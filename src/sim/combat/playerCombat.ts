@@ -13,6 +13,7 @@ import type { SimEvent } from '../events';
 import { turnToward } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { angleTo, flatDist, yawTo } from './geometry';
+import { advancePlunge, plungeCancels, plungeMotion, tryPlunge } from './plunge';
 import { advanceCast, castFacing, startCast, type SpawnSpellProjectile } from './spells';
 import { brawlerChains, tryBlink } from './staffTraits';
 
@@ -85,6 +86,7 @@ export function playerCombat(ctx: CombatCtx, commands: CommandMap, physics: Phys
 
     for (const k of Object.keys(c.cooldowns) as (keyof typeof c.cooldowns)[]) if (c.cooldowns[k]! > 0) c.cooldowns[k]!--;
     if (c.action?.kind === 'cast') advanceCast(ctx, p, cmd, physics, spawn);
+    else if (c.action?.kind === 'plunge') advancePlunge(ctx, p, physics);
     else advance(p, cmd, ctx);
     tryConsume(p, cmd, ctx, physics);
     updateBlock(p, cmd, ctx);
@@ -194,7 +196,7 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: Physi
   if (!b) return;
   const a = c.action;
   if (b.action === 'dodge') {
-    const legal = !a || a.kind === 'block' || (a.kind === 'attack' && a.clipT >= clipTiming(PLAYER_MOVES[a.move as PlayerMoveId].clip).activeEnd);
+    const legal = !a || a.kind === 'block' || (a.kind === 'plunge' && plungeCancels(a)) || (a.kind === 'attack' && a.clipT >= clipTiming(PLAYER_MOVES[a.move as PlayerMoveId].clip).activeEnd);
     if (!legal) return;
     c.buffer = null;
     if (p.vitals!.stamina <= 0) {
@@ -216,6 +218,11 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: Physi
     else ctx.events.push({ type: 'refused', entity: p.id, action: 'cast', reason: `No power in slot ${slot + 1}. Equip one in the Powers tab.` });
     return;
   }
+  // A heavy pressed while falling from a height is a plunge attack.
+  if (b.action === 'heavy' && !a && tryPlunge(ctx, p, physics)) {
+    c.buffer = null;
+    return;
+  }
   // Light or heavy.
   let move: PlayerMoveId | null;
   if (!a || a.kind === 'block') {
@@ -228,6 +235,9 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: Physi
   } else if (a.kind === 'dodge') {
     if (a.t < ROLL.attackFrom) return;
     move = b.action === 'light' ? 'rollAttack' : 'heavy';
+  } else if (a.kind === 'plunge') {
+    if (!plungeCancels(a)) return;
+    move = b.action === 'light' ? 'light1' : 'heavy';
   } else return;
   if (!move) return;
   c.buffer = null;
@@ -358,6 +368,9 @@ function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
       ctx.motion.set(p.id, { vx: a.dir.x * speed, vz: a.dir.z * speed, inputScale: 0 });
       return;
     }
+    case 'plunge':
+      ctx.motion.set(p.id, plungeMotion(p, a, wishDir(cmd), faceLock));
+      return;
     case 'block':
       ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: BLOCK.walkScale, faceYaw: faceLock ?? p.tf.yaw });
       return;
