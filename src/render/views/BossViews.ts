@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { AssetLoader, ModelInstance } from '../../assets/AssetLoader';
+import type { ModelKey } from '../../assets/manifest';
 import { ENEMIES, type EnemyDef, type EnemyMoveDef } from '../../content/enemies';
 import { TICK_HZ } from '../../content/tuning';
 import type { Entity } from '../../sim/entity';
@@ -54,10 +55,10 @@ function fogMaterial(color: number): THREE.MeshBasicMaterial {
 export class ScrapjawView implements EntityView {
   readonly root = new THREE.Group();
   readonly height: number;
-  private readonly body = new THREE.Group();
+  protected readonly body = new THREE.Group();
   private readonly glow = new BodyGlow();
   private model: ModelInstance | null = null;
-  private animator: Animator | null = null;
+  protected animator: Animator | null = null;
   private readonly recoil = { x: 0, v: 0 };
   private lean = 0;
   private disposed = false;
@@ -68,7 +69,7 @@ export class ScrapjawView implements EntityView {
   private wallOn = 0;
   private time = 0;
 
-  constructor(assets: AssetLoader, readonly def: EnemyDef) {
+  constructor(assets: AssetLoader, readonly def: EnemyDef, modelKey: ModelKey = 'scrapjaw') {
     this.height = def.body.height;
     this.root.add(this.body, this.glow.glint);
     this.glow.glint.position.set(0, this.height * 0.88, 0.8);
@@ -82,7 +83,7 @@ export class ScrapjawView implements EntityView {
     const r = def.boss?.arenaRadius ?? 20;
     this.wall = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 7, 64, 1, true), this.wallMat);
     this.wall.visible = false;
-    void assets.instance('scrapjaw').then((m) => {
+    void assets.instance(modelKey).then((m) => {
       if (this.disposed) {
         m.dispose();
         return;
@@ -104,8 +105,13 @@ export class ScrapjawView implements EntityView {
     this.recoil.v -= heavy ? 1.2 : 0.6;
   }
 
+  /** How far under the ground the body is drawn (m): the Burrowmother's burrow. */
+  protected burrowDepth(_e: Readonly<Entity>, _dt: number): number {
+    return 0;
+  }
+
   /** One attack's clip at tick `t` of the move. */
-  private playAttack(mv: EnemyMoveDef, t: number): void {
+  protected playAttack(mv: EnemyMoveDef, t: number): void {
     const anim = this.animator;
     if (!anim) return;
     const total = mv.windup + mv.active + mv.recovery;
@@ -160,7 +166,7 @@ export class ScrapjawView implements EntityView {
     this.lean += (lean - this.lean) * (1 - Math.exp(-14 * dt));
     spring(this.recoil, 160, 14, dt);
     this.body.rotation.x = this.lean + this.recoil.x;
-    this.body.position.y = -sink * SINK_DEPTH;
+    this.body.position.y = -sink * SINK_DEPTH - this.burrowDepth(e, dt);
     this.glow.setOpacity(1 - sink);
     this.root.visible = sink < 1;
     this.glow.setStatus(glowStatusOf(e));

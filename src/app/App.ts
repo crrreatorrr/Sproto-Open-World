@@ -715,10 +715,10 @@ export class App {
         pad.rumble(RUMBLE.heavyHit, 1.4);
         return;
       case 'bossSummon':
-        this.hud.toast('Scrapjaw calls for help!');
+        this.hud.toast(`${enemyDef(view.get(e.boss))?.name ?? 'The boss'} calls for help!`);
         return;
       case 'bossDefeated':
-        this.hud.waveBanner('Scrapjaw falls');
+        this.hud.waveBanner(`${enemyDef(view.get(e.boss))?.name ?? 'The boss'} falls`);
         this.audio.play('bossSlam', 0.5);
         this.shake(0.8);
         return;
@@ -733,10 +733,12 @@ export class App {
         this.hud.toast('The Quarry Gate grinds open.');
         this.audio.play('bossSlam', 1.3, 0.7);
         return;
-      case 'telegraph':
-        // A charge has no decal of its own: it roars as it digs in.
-        if (enemyDef(view.get(e.entity))?.moves.find((m) => m.id === e.move)?.charge) this.audio.play('stunCharge', 0.8);
+      case 'telegraph': {
+        // A charge has no decal of its own: it roars as it digs in. A burrow rumbles on its way up.
+        const move = enemyDef(view.get(e.entity))?.moves.find((m) => m.id === e.move);
+        if (move?.charge || move?.burrow === 'rise') this.audio.play('stunCharge', 0.8);
         return;
+      }
       case 'questComplete':
         if (e.entity === this.playerId && e.quest === 'q_scrapjaw') this.endCardPending = true;
         return;

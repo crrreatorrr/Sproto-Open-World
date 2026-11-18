@@ -10,6 +10,7 @@ import type { HitFx } from '../fx/HitFx';
 import { PowerFx } from '../fx/powers';
 import { SpellFx } from '../fx/SpellFx';
 import { makeBossView } from './BossViews';
+import { makeBurrowmotherView } from './BurrowmotherView';
 import { BlastOrbView, BoltView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
 import { ChestView, NpcView, PickupView, ShrineView, objectView } from './RpgViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
@@ -306,7 +307,7 @@ export class WorldViews {
 
   private make(e: Readonly<Entity>): EntityView | null {
     if (LAZY_MODELS.has(e.view.model) && !this.lazyReady(e.view.model as ModelKey)) return null;
-    const bossView = makeBossView(e, this.assets, this.fx);
+    const bossView = makeBurrowmotherView(e, this.assets, this.fx) ?? makeBossView(e, this.assets, this.fx);
     if (bossView) return bossView;
     const pr = e.projectile;
     if (e.kind === 'projectile' || pr) {
