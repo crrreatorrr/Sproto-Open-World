@@ -13,6 +13,7 @@ import { SAVE_SCHEMA, type SaveFile } from '../save/schema';
 import { idleInput, type InputCommand } from './commands';
 import {
   ALL_SPELLS, availableChoices, interactTarget, newProgress, onKill, pickups, playerRpg, questTick, recompute, triggers, type RpgCtx,
+  refillTonics,
 } from './systems/rpg';
 import { DT, MOVE, PLAYER_BODY } from '../content/tuning';
 import { enemyBrains, muzzle } from './ai/brain';
@@ -750,7 +751,7 @@ export class SimWorld {
       const shrine = player.progress?.lastShrine ? this.places.get(player.progress.lastShrine) : undefined;
       this.reset(player, shrine ? { x: shrine.x + 1.5, y: shrine.y + 0.05, z: shrine.z + 1.5 } : this.spawnPoint(), this.level.spawn.yaw);
       if (player.progress) {
-        player.progress.tonics.charges = player.progress.tonics.max;
+        refillTonics(player.progress.tonics);
         player.progress.dialogue = player.progress.shop = player.progress.atShrine = null;
       }
       if (this.wave) {

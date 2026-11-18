@@ -75,10 +75,28 @@ export function recompute(e: Entity): void {
   c.defense = { physical: Math.round((robe.physical + vit) * k), arcane: Math.round((robe.arcane + vit) * k) };
   c.level = p.level;
   const max = TONIC.charges + (charm?.tonicCharges ?? 0) + (p.inventory.tonic_upgrade ? 1 : 0);
-  // A charge comes and goes with the maximum, but an empty flask stays empty: otherwise taking a
-  // Second Wind off and on again would refill it for free.
-  p.tonics.charges = p.tonics.charges > 0 ? Math.max(0, Math.min(max, p.tonics.charges + max - p.tonics.max)) : 0;
-  p.tonics.max = max;
+  resizeTonics(p.tonics, max);
+}
+
+/**
+ * A charge comes and goes with the maximum. One taken from an empty flask is owed and paid back first
+ * when the maximum grows: otherwise taking a Second Wind off and on again would refill it for free.
+ */
+function resizeTonics(t: Progress['tonics'], max: number): void {
+  const grew = max - t.max;
+  const taken = Math.min(t.charges, Math.max(0, -grew));
+  const paid = Math.min(t.owed ?? 0, Math.max(0, grew));
+  const owed = (t.owed ?? 0) - paid + Math.max(0, -grew) - taken;
+  t.charges += Math.max(0, grew) - paid - taken;
+  t.max = max;
+  if (owed > 0) t.owed = owed;
+  else delete t.owed;
+}
+
+/** Rest or respawn: a full flask, nothing owed. */
+export function refillTonics(t: Progress['tonics']): void {
+  t.charges = t.max;
+  delete t.owed;
 }
 
 export function grantXp(ctx: RpgCtx, e: Entity, amount: number): void {
@@ -454,7 +472,7 @@ export function rest(ctx: RpgCtx, e: Entity, shrine: string): void {
   v.hp = v.hpMax;
   v.mana = v.manaMax;
   v.stamina = v.staminaMax;
-  p.tonics.charges = p.tonics.max;
+  refillTonics(p.tonics);
   p.lastShrine = shrine;
   if (!p.discoveredShrines.includes(shrine)) p.discoveredShrines.push(shrine);
   delete e.statuses;

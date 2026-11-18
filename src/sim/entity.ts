@@ -168,7 +168,8 @@ export interface Progress {
   spells: SpellId[];
   /** The four equipped spell slots (expansion plan §1.1): each null or a known spell, no duplicates. */
   loadout: (SpellId | null)[];
-  tonics: { charges: number; max: number };
+  /** `owed`: charges a smaller flask took that weren't there (see `resizeTonics`). */
+  tonics: { charges: number; max: number; owed?: number };
   quests: Record<string, QuestState>;
   tracked: string | null;
   /** The shrine the player last rested at (respawn point), and every shrine found. */
