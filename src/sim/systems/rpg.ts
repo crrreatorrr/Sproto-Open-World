@@ -501,7 +501,11 @@ export function onKill(ctx: RpgCtx, killer: Entity, dead: Entity): void {
   ctx.spawnPickup(at(0), { kind: 'sprouts', amount: rngRange(ctx.rng, table.sprouts[0], table.sprouts[1]), life: PICKUP_LIFE });
   if (rngNext(ctx.rng) < table.heartChance) ctx.spawnPickup(at(1), { kind: 'heart', amount: 1, life: PICKUP_LIFE });
   let k = 2;
-  for (const it of table.items ?? []) if (rngNext(ctx.rng) < it.chance) ctx.spawnPickup(at(k++), { kind: 'item', item: it.item, amount: 1, life: PICKUP_LIFE });
+  for (const it of table.items ?? []) {
+    // Gear is found once: a piece you own doesn't drop again. The roll still happens, so the loot stream stays in step.
+    const owned = !ITEMS[it.item]?.stacks && (killer.progress.inventory[it.item] ?? 0) > 0;
+    if (rngNext(ctx.rng) < it.chance && !owned) ctx.spawnPickup(at(k++), { kind: 'item', item: it.item, amount: 1, life: PICKUP_LIFE });
+  }
 }
 
 /** Walk over a pickup to take it; old ones fade. Returns the ids to remove. */

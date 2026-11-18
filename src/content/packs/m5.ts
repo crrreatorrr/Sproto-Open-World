@@ -123,7 +123,8 @@ export const Q_SCRAPJAW: QuestDef = {
     },
     { id: 'elder', text: 'Tell Elder Pepe the quarry is quiet.', objectives: [{ kind: 'talk', npc: 'elder_pepe', node: 'scrapjaw_return' }], marker: 'elder_pepe' },
   ],
-  rewards: [{ currency: 300 }],
+  // Ember Heart has no other source: Scrapjaw's furnace, handed over by the Elder.
+  rewards: [{ give: 'charm_ember_heart' }, { currency: 300 }],
 };
 
 /** The quest, and the Quarry Key's pickup starting it. */
@@ -140,7 +141,7 @@ export function registerScrapjawDialogue(d: Record<string, DialogueGraph>): void
     { if: [{ quest: 'q_scrapjaw', status: 'active', step: 3 }], node: 'scrapjaw_return' },
   );
   elder.nodes.scrapjaw_return = { speaker: 'Elder Pepe', text: "The rumbling's stopped. I felt it in my knees before I heard it. You did that, Sproto?", next: 'scrapjaw_thanks' };
-  elder.nodes.scrapjaw_thanks = { speaker: 'Elder Pepe', text: "Then Sproutvale sleeps easy tonight. Keep that staff close. It suits you, and the valley is bigger than you think. Foreman Bram's crew are back at the quarry, and he swears the ground still isn't right." };
+  elder.nodes.scrapjaw_thanks = { speaker: 'Elder Pepe', text: "Then Sproutvale sleeps easy tonight. Take this ember from the beast's furnace, and keep that staff close. Foreman Bram's crew are back at the quarry, and he swears the ground still isn't right." };
   elder.nodes.scrapjaw_after = { speaker: 'Elder Pepe', text: 'Listen to that quiet. Best sound a harvest ever had.' };
   d.captain_agent.nodes.after.do = [{ startQuest: 'q_scrapjaw' }];
 }
