@@ -3,6 +3,7 @@
  * Nova tome. Interacting uses the object once (it stays used, saved as the world flag
  * `used:<id>`) and applies its effects. Pure data.
  */
+import { C4_OBJECTS } from './packs/c4';
 import type { Effect } from './quests';
 
 export interface ObjectDef {
@@ -21,6 +22,8 @@ export const OBJECTS: Record<string, ObjectDef> = {
   mill_lever: { id: 'mill_lever', name: 'Mill Lever', verb: 'Pull', model: 'lever', effects: [{ setFlag: 'mill.running' }] },
   frost_tome: { id: 'frost_tome', name: 'Frost Tome', verb: 'Read', model: 'tome', effects: [{ learnSpell: 'frostNova' }] },
 };
+
+Object.assign(OBJECTS, C4_OBJECTS);
 
 /** The world flag that records an object as used. */
 export const usedFlag = (id: string) => `used:${id}`;

@@ -2,6 +2,8 @@
  * Drop tables (plan §5, rng stream `loot`): Sprouts always, a heart 15% of the time, then items from
  * a short list. Chests have fixed contents. The merchant's stock.
  */
+import { C4_DROPS, C4_EXTRA_DROPS, C4_STOCK, C4_STOCK_AFTER } from './packs/c4';
+
 export interface DropTable {
   sprouts: [number, number];
   heartChance: number;
@@ -21,6 +23,9 @@ export const DROPS: Record<string, DropTable> = {
   gatekeeper: { sprouts: [80, 120], heartChance: 1, items: [{ item: 'robe_quarryproof', chance: 1 }] },
 };
 
+Object.assign(DROPS, C4_DROPS);
+for (const [id, items] of Object.entries(C4_EXTRA_DROPS)) (DROPS[id].items ??= []).push(...items);
+
 export interface ChestDef {
   id: string;
   items: { item: string; count: number }[];
@@ -31,8 +36,13 @@ export interface MerchantDef {
   id: string;
   /** Item → how many the merchant has (each bought once at most when 1). */
   stock: Record<string, number>;
+  /** Stock that is only on sale once this world flag is set (item → flag). */
+  after?: Record<string, string>;
 }
 
 export const MERCHANTS: Record<string, MerchantDef> = {
   merchant_village: { id: 'merchant_village', stock: { staff_nobu: 1, charm_quick_step: 1, charm_second_wind: 1, tonic_upgrade: 1 } },
 };
+
+Object.assign(MERCHANTS.merchant_village.stock, C4_STOCK);
+MERCHANTS.merchant_village.after = { ...MERCHANTS.merchant_village.after, ...C4_STOCK_AFTER };

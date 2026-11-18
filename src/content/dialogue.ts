@@ -3,6 +3,7 @@
  * `dialogueChoose`; the sim checks conditions and applies effects. Strings live here, keyed, for
  * later localization.
  */
+import { C4_DIALOGUE, C4_DIALOGUE_PATCHES } from './packs/c4';
 import type { Condition, Effect } from './quests';
 
 export interface DialogueChoice {
@@ -178,3 +179,11 @@ export const DIALOGUE: Record<string, DialogueGraph> = {
     },
   },
 };
+
+Object.assign(DIALOGUE, C4_DIALOGUE);
+// A pack's additions to an existing graph: the first passing entry rule wins, so where they go matters.
+for (const patch of C4_DIALOGUE_PATCHES) {
+  const graph = DIALOGUE[patch.graph];
+  graph.entry.splice(graph.entry.findIndex((r) => r.node === patch.before), 0, ...patch.entry);
+  Object.assign(graph.nodes, patch.nodes);
+}

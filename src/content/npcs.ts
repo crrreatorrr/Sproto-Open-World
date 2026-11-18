@@ -1,3 +1,5 @@
+import { C4_NPCS } from './packs/c4';
+
 /** NPCs (plan §6): who they are, how they look, what they say. */
 export interface NpcDef {
   id: string;
@@ -19,3 +21,5 @@ export const NPCS: Record<string, NpcDef> = {
   miller_pepe: { id: 'miller_pepe', name: 'Miller Pepe', model: 'npc_miller', dialogue: 'miller_pepe', body: BODY },
   collector_pepe: { id: 'collector_pepe', name: 'Collector Pepe', model: 'npc_collector', dialogue: 'collector_pepe', body: BODY },
 };
+
+Object.assign(NPCS, C4_NPCS);

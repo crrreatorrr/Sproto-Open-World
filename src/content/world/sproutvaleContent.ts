@@ -9,6 +9,7 @@
  * test checks both agree).
  */
 import type { ChestDef } from '../loot';
+import { C4_WORLD } from '../packs/c4';
 
 export interface Placement {
   id: string;
@@ -127,3 +128,14 @@ export const SPROUTVALE_CONTENT: RegionContent = {
     { id: 'mill', pos: [436, G, 248], radius: 18 },
   ],
 };
+
+/** Add an expansion pack's placements to the region. */
+function addContent(into: RegionContent, pack: Partial<RegionContent>): void {
+  into.npcs.push(...(pack.npcs ?? []));
+  into.chests.push(...(pack.chests ?? []));
+  (into.objects ??= []).push(...(pack.objects ?? []));
+  (into.camps ??= []).push(...(pack.camps ?? []));
+  into.triggers.push(...(pack.triggers ?? []));
+}
+
+addContent(SPROUTVALE_CONTENT, C4_WORLD);

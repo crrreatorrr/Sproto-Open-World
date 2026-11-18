@@ -13,6 +13,7 @@ import { angleTo, flatDist } from '../combat/geometry';
 import type { Entity, InteractKind, Progress, WorldState } from '../entity';
 import type { SimEvent } from '../events';
 import type { Vec3 } from '../math';
+import { affixXp } from './affixes';
 import { equipSpell, gearLocked, grantSkillPoints, learnIntoLoadout, respecSkills, spendSkill } from './loadout';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
 
@@ -121,6 +122,8 @@ export function checkCondition(c: Condition, p: Progress, world: WorldState): bo
     return c.step === undefined || q?.step === c.step;
   }
   if ('flag' in c) return c.value === undefined ? (world.flags[c.flag] ?? 0) !== 0 : world.flags[c.flag] === c.value;
+  if ('level' in c) return p.level >= c.level;
+  if ('questDone' in c) return p.quests[c.questDone]?.status === 'complete';
   return (p.inventory[c.hasItem] ?? 0) >= (c.count ?? 1);
 }
 
@@ -461,9 +464,14 @@ function buy(ctx: RpgCtx, e: Entity, merchant: string, item: string): void {
   const key = `bought:${merchant}:${item}`;
   const sold = ctx.world.flags[key] ?? 0;
   if (sold >= stock) return refuse('Sold out.');
+  const flag = m.after?.[item];
+  if (flag && !ctx.world.flags[flag]) return refuse('Not for sale yet.');
   const price = ITEMS[item]?.price ?? 0;
   if (p.sprouts < price) return refuse('Not enough Sprouts.');
-  if (!giveItem(ctx, e, item, 1)) return;
+  const teaches = ITEMS[item]?.teaches;
+  if (teaches && p.spells.includes(teaches)) return refuse('You already know that spell.');
+  if (teaches) applyEffects(ctx, e, [{ learnSpell: teaches }]);
+  else if (!giveItem(ctx, e, item, 1)) return;
   p.sprouts -= price;
   ctx.world.flags[key] = sold + 1;
   ctx.events.push({ type: 'bought', entity: e.id, merchant, item, price });
@@ -478,7 +486,7 @@ const PICKUP_RADIUS = 1.3;
 export function onKill(ctx: RpgCtx, killer: Entity, dead: Entity): void {
   const def = dead.brain ? ENEMIES[dead.brain.def] : undefined;
   if (!def || !killer.progress) return;
-  grantXp(ctx, killer, def.xp);
+  grantXp(ctx, killer, Math.round(def.xp * affixXp(dead)));
   const table = DROPS[def.id];
   if (!table) return;
   const at = (k: number) => ({ x: dead.tf.pos.x + Math.cos(k * 2.1) * 0.6, y: dead.tf.pos.y + 0.3, z: dead.tf.pos.z + Math.sin(k * 2.1) * 0.6 });

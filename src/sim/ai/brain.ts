@@ -4,6 +4,7 @@ import { flatDist, toWorld, yawTo } from '../combat/geometry';
 import type { CombatCtx } from '../combat/playerCombat';
 import { clockTicks, moveScale } from '../combat/statuses';
 import type { Entity } from '../entity';
+import { affixSpeed } from '../systems/affixes';
 import { turnToward, wrapAngle } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
@@ -69,10 +70,10 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
 
     if (def.dummy) dummyThink(ctx, e, def, target);
     else fighterThink(ctx, e, def, target, rng);
-    // Chill slows movement too.
+    // Chill slows movement too, and an affix can speed it up or slow it down.
     const m = ctx.motion.get(e.id);
     if (m) {
-      const k = moveScale(e);
+      const k = moveScale(e) * affixSpeed(e);
       m.vx *= k;
       m.vz *= k;
     }

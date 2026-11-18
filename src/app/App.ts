@@ -4,6 +4,7 @@ import { MODELS, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
 import { CameraRig } from '../camera/CameraRig';
 import { ITEMS } from '../content/items';
+import { affixName } from '../content/packs/c4';
 import { PERKS, SKILLS, type PerkId, type SkillId } from '../content/progression';
 import { QUESTS } from '../content/quests';
 import { SANDBOX } from '../content/sandbox';
@@ -1213,7 +1214,7 @@ export class App {
       const h = tv?.height ?? t.body?.height ?? 1.8;
       const s = this.project({ x: pos.x, y: pos.y + h + 0.35, z: pos.z });
       const def = enemyDef(t);
-      enemy = { ...s, name: def?.name ?? 'Enemy', hp: t.vitals.hp, hpMax: t.vitals.hpMax, affinities: def ? this.reveals.list(def.id) : [], statuses: hudStatuses(t) };
+      enemy = { ...s, name: affixName(t.brain?.affix, def?.name ?? 'Enemy'), hp: t.vitals.hp, hpMax: t.vitals.hpMax, affinities: def ? this.reveals.list(def.id) : [], statuses: hudStatuses(t) };
     }
     const lp = this.lockPoint(view, p);
     const c = p.combat;

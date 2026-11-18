@@ -2,6 +2,7 @@
  * Quests (plan §5). The quest runtime (src/sim/systems/quests.ts) matches each tick's events
  * against the active step's objectives and applies effects in the sim. Pure data.
  */
+import { C4_QUESTS } from './packs/c4';
 import type { SpellId } from './spells';
 
 export type Objective =
@@ -37,6 +38,10 @@ export type Condition =
   | { quest: string; status: QuestStatus; step?: number }
   | { flag: string; value?: number }
   | { hasItem: string; count?: number }
+  /** The player has reached this level. */
+  | { level: number }
+  /** The player has finished this quest. */
+  | { questDone: string }
   | { not: Condition };
 
 export type QuestStatus = 'locked' | 'available' | 'active' | 'complete';
@@ -175,3 +180,5 @@ export const QUESTS: Record<string, QuestDef> = {
     rewards: [{ give: 'staff_moonward' }, { give: 'charm_scholars_knot' }, { xp: 300 }],
   },
 };
+
+Object.assign(QUESTS, C4_QUESTS);
