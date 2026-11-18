@@ -142,7 +142,7 @@ function bar(cls: string, label?: string): Bar {
 
 /**
  * The play HUD: vitals (top left), an enemy health bar and the lock-on reticle projected over the
- * world, a "You died" card, and control prompts that follow the last device used (keyboard +
+ * world, and control prompts that follow the last device used (keyboard +
  * mouse or a pad, with the pad's own glyphs), plus a "click to look" hint when the mouse isn't
  * captured. M1b adds the spell bar (costs, cooldown sweeps, device glyphs), status and
  * weakness/resistance icons on the enemy bar, the wave runner's counter and banners, and toasts.
@@ -161,7 +161,6 @@ export class Hud {
   private readonly enemyStatus: HTMLElement;
   private readonly enemyAffinity: HTMLElement;
   private readonly reticle: HTMLElement;
-  private readonly died: HTMLElement;
   private readonly spellBar: HTMLElement;
   private readonly slots: SpellSlot[];
   private readonly waveInfo: HTMLElement;
@@ -201,9 +200,6 @@ export class Hud {
     this.enemy.append(this.enemyName, barRow, this.enemyAffinity);
     this.reticle = document.createElement('div');
     this.reticle.className = 'reticle';
-    this.died = document.createElement('div');
-    this.died.className = 'died';
-    this.died.textContent = 'You died';
     this.prompts = document.createElement('div');
     this.prompts.className = 'prompts';
     this.clickHint = document.createElement('div');
@@ -225,7 +221,7 @@ export class Hud {
     this.banner.className = 'wave-banner';
     this.toastEl = document.createElement('div');
     this.toastEl.className = 'toast';
-    this.root.append(vitals, this.enemy, this.reticle, this.died, this.waveInfo, this.banner, this.toastEl, this.spellBar, this.prompts, this.clickHint);
+    this.root.append(vitals, this.enemy, this.reticle, this.waveInfo, this.banner, this.toastEl, this.spellBar, this.prompts, this.clickHint);
     host.appendChild(this.root);
   }
 
@@ -324,17 +320,6 @@ export class Hud {
   /** The toast on screen, if any (QA). */
   get toastText(): string | null {
     return this.toastLeft > 0 ? this.toastEl.textContent : null;
-  }
-
-  /** The death card; the world says "You fell" (you wake at a shrine), the yard "You died". */
-  showDeath(on: boolean, text = 'You died', sub = ''): void {
-    if (on) this.died.innerHTML = sub ? `<div>${text}<span class="sub">${sub}</span></div>` : text;
-    this.died.classList.toggle('active', on);
-  }
-
-  /** The death card is up (QA). */
-  get deathShown(): boolean {
-    return this.died.classList.contains('active');
   }
 
   private enemyIcons(e: HudEnemy): void {

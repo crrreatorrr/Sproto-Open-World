@@ -47,9 +47,10 @@ import { Reveals, affinityToast } from '../ui/Reveals';
 import { RpgHud, type HudRpgState } from '../ui/RpgHud';
 import { RpgMenus } from '../ui/rpgMenus';
 import { compassOffset, headingTo, interactLabel, trackedQuest } from '../ui/rpgText';
-import { loadSettings, saveSettings, type Settings } from '../ui/settings';
+import { loadSettings, motionScale, saveSettings, type Settings } from '../ui/settings';
 import { SurgeMeter } from '../ui/SurgeMeter';
 import { FixedLoop } from './loop';
+import { Polish } from './Polish';
 import { powerFeedback } from './powerFeedback';
 import { WorldSession } from './WorldSession';
 
@@ -63,7 +64,7 @@ const ENEMY_BAR_MS = 6000;
 /** Combat sounds, loaded when play starts so the first hit isn't the one that waits on a file. */
 const COMBAT_SOUNDS = [
   'clash', 'hurt', 'dodge', 'shieldBlock', 'shieldPerfect', 'shieldUp', 'rugWhoosh', 'carpetWhoosh', 'pillarHit', 'lockBeep', 'stunCharge', 'bossSlam',
-  'boltCast', 'boltHit', 'blastExplode', 'noMana', 'roundLose',
+  'boltCast', 'boltHit', 'blastExplode', 'noMana',
 ] as const;
 const PARAMS = new URLSearchParams(location.search);
 /** `?sandbox=1`: the M1b wave runner (plan §9 M1b), on the flat yard level. */
@@ -103,6 +104,8 @@ export class App {
   readonly numbers: DamageNumbers;
   /** Weakness and resistance reveals and their toasts: remembered for the session (plan §4.6). */
   readonly reveals = new Reveals();
+  /** Impact and status visuals, music and beds, hit reactions, the death and rest screens (M6). */
+  readonly polish: Polish;
   sim: SimWorld | null = null;
   player: PlayerView | null = null;
   /** The local player's entity id. */
@@ -172,7 +175,6 @@ export class App {
     this.settings = loadSettings();
     const prefs = loadControlPrefs();
     applyControlPrefs(prefs);
-    this.applySettings(this.settings);
 
     const ui = document.createElement('div');
     ui.className = 'ui';
@@ -187,6 +189,9 @@ export class App {
     this.screenFlash = document.createElement('div');
     this.screenFlash.className = 'screen-flash';
     ui.appendChild(this.screenFlash);
+    // Before the menus: the death and rest screens sit under them.
+    this.polish = new Polish({ host: ui, audio: this.audio, fx: this.fx, world: this.world, renderer: this.renderer, ground: (x, z) => this.stream?.heightAt(x, z) ?? null, streamed: MODE === 'world' });
+    this.applySettings(this.settings);
     this.nav = new MenuNav(this.input);
     this.menus = new Menus(ui, this.nav, this.input, {
       play: () => void this.play(),
@@ -233,6 +238,7 @@ export class App {
       this.audio.play('uiClick');
       this.input.pad.rumble(GAMEPAD.rumble.uiConfirm);
     };
+    this.nav.onBackSound = () => this.audio.play('uiClick', 0.8, 0.7);
 
     if (QA_LOG_ENABLED) this.bindQaLog();
     this.bindWindowEvents(canvas);
@@ -271,6 +277,7 @@ export class App {
     this.rig.padScale = s.padSensitivity;
     this.rig.invertY = s.invertY;
     this.input.pad.rumbleEnabled = s.rumble;
+    this.polish.apply(s);
   }
 
   private bindWindowEvents(canvas: HTMLCanvasElement): void {
@@ -421,6 +428,7 @@ export class App {
       this.player = view;
       this.playerId = entity.id;
       this.audio.preload(COMBAT_SOUNDS);
+      this.polish.begin(view);
       this.target.set(entity.tf.pos.x, entity.tf.pos.y, entity.tf.pos.z);
       this.rig.snap(this.target, entity.tf.yaw);
       this.loop.reset();
@@ -485,7 +493,7 @@ export class App {
     this.world.clear();
     this.fx.clear();
     this.numbers.clear();
-    this.hud.showDeath(false);
+    this.polish.end();
     this.bossHud.update(null, 0);
     this.endCardPending = false;
     this.rig.distanceScale = 1;
@@ -565,6 +573,7 @@ export class App {
 
     if (this.state === 'playing' && this.sim && this.player) this.playFrame(dt);
     else this.idleFrame(dt);
+    this.polish.mix(this.state);
 
     this.startUsed = false;
     this.frameCount++;
@@ -654,6 +663,7 @@ export class App {
     }
     this.world.sync(simView, this.loop.alpha, dt);
     this.fx.update(dt);
+    this.polish.frame(simView, p, dt);
     this.target.copy(view.root.position);
     this.rig.update(dt, this.target, simView, p.loco?.sprinting ?? false, this.speakerPoint(simView, p) ?? this.lockPoint(simView, p));
     this.renderer.follow(this.target);
@@ -896,6 +906,7 @@ export class App {
     for (const e of view.events) {
       this.present(view, e);
       this.presentBoss(view, e);
+      this.polish.event(view, e, this.playerId);
       // First-time hints teach the world's rules as they come up (not in the yard or the sandbox).
       if (this.mode === 'world') {
         const tip = this.tutorial.tip(e, this.playerId, this.input.pad.device === 'gamepad' ? 'pad' : 'kbm');
@@ -987,10 +998,6 @@ export class App {
       }
       case 'death':
         if (e.entity === me) {
-          this.audio.play('roundLose');
-          // The world sends you back to the last shrine you rested at (plan §2.9).
-          if (this.mode === 'world') this.hud.showDeath(true, 'You fell', 'You will wake at the last shrine you rested at');
-          else this.hud.showDeath(true);
           pad.rumble(RUMBLE.hurt, 1.2);
           this.shake(TRAUMA.death);
         } else {
@@ -1000,7 +1007,6 @@ export class App {
         return;
       case 'respawn':
         if (e.entity === me) {
-          this.hud.showDeath(false);
           const p = view.get(e.entity);
           if (p) {
             this.target.set(p.tf.pos.x, p.tf.pos.y, p.tf.pos.z);
@@ -1255,6 +1261,7 @@ export class App {
     const soft = isSoftPowerHit(e.move);
     const spark: SparkStyle = style === 'normal' ? (spellSpark ?? (e.heavy ? 'heavy' : 'normal')) : style === 'weak' || style === 'resist' || !spellSpark ? style : spellSpark;
     if (this.fx.burst(e.pos, spark) > 0) qa('spark');
+    this.polish.hit(e, spark, soft);
     // Resisted hits sound dull (plan §4.6), weak and critical ones bright.
     const rate = e.affinity === 'resist' ? 0.7 : e.affinity === 'weak' ? 1.12 : e.crit ? 1.2 : 0.95 + Math.random() * 0.1;
     if (this.audio.play(hurt ? 'hurt' : spell ? 'boltHit' : e.heavy ? 'pillarHit' : 'clash', hurt ? 1 : rate, soft ? 0.35 : 1)) qa('sound');
@@ -1290,13 +1297,15 @@ export class App {
   }
 
   private shake(amount: number): void {
-    if (this.settings.shake) this.rig.addTrauma(amount);
+    this.rig.addTrauma(amount * motionScale(this.settings.shake));
   }
 
-  /** A white screen flash (parry); off with the shake setting (motion sensitivity). */
+  /** A white screen flash (parry), scaled by the screen flashes setting (motion sensitivity). */
   private flashScreen(): void {
-    if (!this.settings.shake) return;
+    const k = motionScale(this.settings.flash);
+    if (k <= 0) return;
     const el = this.screenFlash;
+    el.style.setProperty('--flash-peak', String(0.35 * k));
     el.classList.remove('go');
     void el.offsetWidth;
     el.classList.add('go');
@@ -1503,7 +1512,7 @@ export class App {
       markerShown: this.rpgHud.markerShown,
       feed: this.rpgHud.feedText,
       saves: this.saves,
-      deathShown: this.hud.deathShown,
+      deathShown: this.polish.deathShown,
       objects: (this.sim?.entities ?? [])
         .filter((e) => e.npc || e.interactable || e.pickup)
         .map((e) => ({ id: e.npc?.id ?? e.interactable?.id ?? null, kind: e.npc ? 'npc' : (e.interactable?.kind ?? 'pickup'), used: e.interactable?.used ?? false, pos: { ...e.tf.pos }, viewShown: !!this.world.get(e.id) })),
