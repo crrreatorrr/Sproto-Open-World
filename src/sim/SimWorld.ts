@@ -1,13 +1,15 @@
 import { PLAYER_STATS } from '../content/combat';
 import { ENEMIES, type EnemyMoveDef } from '../content/enemies';
 import type { LevelDef } from '../content/sandbox';
+import { WAVE_CENTRE, WAVE_GAP, WAVES } from '../content/waves';
 import { DT, MOVE, PLAYER_BODY } from '../content/tuning';
 import { enemyBrains, muzzle } from './ai/brain';
 import type { CommandMap } from './commands';
-import { resolveAttacks } from './combat/hits';
+import { kill, resolveAttacks } from './combat/hits';
 import { lockOn } from './combat/lockon';
 import { playerCombat, type CombatCtx, type Motion } from './combat/playerCombat';
 import { stepProjectiles } from './combat/projectiles';
+import { tickStatuses } from './combat/statuses';
 import type { Combat, Entity, EntityId, PlayerId, Team } from './entity';
 import type { SimEvent } from './events';
 import { hashValue } from './hash';
@@ -18,13 +20,30 @@ import { locomotion } from './systems/locomotion';
 import { vitals } from './systems/vitals';
 import type { ReadonlySimView } from './view';
 
+/** The wave runner's state (`?sandbox=1`). */
+export interface WaveState {
+  /** Index into WAVES of the current (or next) wave. */
+  index: number;
+  /** Times the wave list has looped (each loop adds a Grunt). */
+  loop: number;
+  enemiesLeft: number;
+  /** Ticks until the next wave arrives (0 while a wave is being fought). */
+  nextIn: number;
+  /** The current wave's enemies. */
+  ids: EntityId[];
+}
+
 export interface SimSnapshot {
   now: number;
   nextId: number;
   entities: Entity[];
   players: [PlayerId, EntityId][];
   rng: Record<string, RngState>;
+  wave: WaveState | null;
 }
+
+/** Ticks a dead wave enemy lies there before it's removed (wave enemies don't respawn). */
+const WAVE_CORPSE_TICKS = 150;
 
 /**
  * The whole gameplay simulation (plan §2.2). `tick()` advances exactly one 60 Hz step from the
@@ -38,6 +57,8 @@ export class SimWorld {
   readonly rng: Rng;
   readonly physics: PhysicsWorld;
   private nextId = 1;
+  /** Wave runner state, or null outside the wave runner. */
+  wave: WaveState | null = null;
   private readonly byId = new Map<EntityId, Entity>();
   private readonly players = new Map<PlayerId, EntityId>();
   private readonly roView: ReadonlySimView;
@@ -62,6 +83,9 @@ export class SimWorld {
       raycast: (o, d, m) => this.physics.raycast(o, d, m),
       sphereCast: (o, d, r) => this.physics.sphereCast(o, d, r),
       hash: () => this.hash(),
+      get wave() {
+        return get().wave;
+      },
     };
   }
 
@@ -112,7 +136,7 @@ export class SimWorld {
       loco: { grounded: true, sprinting: false, jumpBuffer: 0, coyote: 0, speed: 0, landedTicks: 1 },
       vitals: { hp: def.hp, hpMax: def.hp, stamina: 100, staminaMax: 100, mana: 0, manaMax: 0, staminaDelay: 0 },
       combat: newCombat('enemy', def.poise, def.poise, def.defense, def.level),
-      brain: { def: defId, home: { ...pos }, homeYaw: yaw, state: 'idle', target: null, cooldowns: {}, recent: [], circle: 0, circleDir: 1, timer: 30 },
+      brain: { def: defId, home: { ...pos }, homeYaw: yaw, state: 'idle', target: null, cooldowns: {}, recent: [], circle: 0, circleDir: 1, timer: 30, meleeHitsTaken: 0 },
       view: { model: def.model },
     };
     this.add(e);
@@ -120,11 +144,16 @@ export class SimWorld {
     return e;
   }
 
-  private spawnProjectile(owner: Entity, move: EnemyMoveDef, target: Entity): void {
+  private spawnProjectile(owner: Entity, move: EnemyMoveDef, target: Entity, angle = 0): void {
     if (!move.projectile) return;
     const from = muzzle(owner, move);
     const aim = { x: target.tf.pos.x, y: target.tf.pos.y + (target.body?.height ?? 1.8) * 0.55, z: target.tf.pos.z };
-    const d = { x: aim.x - from.x, y: aim.y - from.y, z: aim.z - from.z };
+    let d = { x: aim.x - from.x, y: aim.y - from.y, z: aim.z - from.z };
+    if (angle) {
+      // Fan a volley out around the aim (rotation about +Y).
+      const c = Math.cos(angle), s = Math.sin(angle);
+      d = { x: d.x * c + d.z * s, y: d.y, z: -d.x * s + d.z * c };
+    }
     const len = Math.hypot(d.x, d.y, d.z) || 1;
     const sp = move.projectile.speed;
     const e: Entity = {
@@ -134,11 +163,63 @@ export class SimWorld {
       projectile: {
         owner: owner.id, team: owner.combat!.team, kind: move.kind, damage: move.damage, poise: move.poise, radius: move.projectile.radius,
         life: Math.ceil(move.projectile.range / (sp * DT)), reflected: false,
+        homing: move.projectile.homing, target: move.projectile.homing ? target.id : undefined,
       },
-      view: { model: 'coin' },
+      view: { model: move.kind === 'arcane' ? 'hex' : 'coin' },
     };
     this.add(e);
     this.events.push({ type: 'fire', entity: owner.id, projectile: e.id });
+  }
+
+  /** A player spell's projectile (bolt, blast orb). */
+  private spawnSpellProjectile(p: Omit<Entity, 'id'>): Entity {
+    const e = { ...p, id: this.nextId++ } as Entity;
+    this.add(e);
+    this.events.push({ type: 'fire', entity: e.projectile!.owner, projectile: e.id });
+    return e;
+  }
+
+  /** Start the wave runner (`?sandbox=1`): mixed waves around the arena, one after another. */
+  startWaves(): void {
+    this.wave = { index: 0, loop: 0, enemiesLeft: 0, nextIn: 90, ids: [] };
+  }
+
+  private waveTick(): void {
+    const w = this.wave;
+    if (!w) return;
+    if (w.nextIn > 0) {
+      if (--w.nextIn === 0) this.spawnWave();
+      return;
+    }
+    w.ids = w.ids.filter((id) => this.byId.has(id));
+    w.enemiesLeft = w.ids.filter((id) => this.byId.get(id)!.combat?.action?.kind !== 'dead').length;
+    if (w.enemiesLeft === 0 && w.ids.every((id) => (this.byId.get(id)!.combat!.action as { t: number }).t >= 30)) {
+      this.events.push({ type: 'waveClear', wave: w.index + 1 + w.loop * WAVES.length });
+      w.index = (w.index + 1) % WAVES.length;
+      if (w.index === 0) w.loop++;
+      w.nextIn = WAVE_GAP;
+    }
+  }
+
+  private spawnWave(): void {
+    const w = this.wave!;
+    const spawns = [...WAVES[w.index]];
+    for (let i = 0; i < w.loop; i++) spawns.push({ def: 'grunt', at: [(i % 2 ? 1 : -1) * (2 + i), -4] });
+    const player = this.entities.find((e) => e.kind === 'player');
+    w.ids = [];
+    for (const sp of spawns) {
+      const pos = { x: WAVE_CENTRE[0] + sp.at[0], y: 0, z: WAVE_CENTRE[1] + sp.at[1] };
+      const yaw = player ? Math.atan2(player.tf.pos.x - pos.x, player.tf.pos.z - pos.z) : 0;
+      const e = this.spawnEnemy(sp.def, pos, yaw);
+      // Wave enemies come for you straight away.
+      if (player) {
+        e.brain!.state = 'engage';
+        e.brain!.target = player.id;
+      }
+      w.ids.push(e.id);
+    }
+    w.enemiesLeft = w.ids.length;
+    this.events.push({ type: 'wave', wave: w.index + 1 + w.loop * WAVES.length, loop: w.loop, enemies: w.ids.length });
   }
 
   private remove(id: EntityId): void {
@@ -181,14 +262,18 @@ export class SimWorld {
     const motion = new Map<number, Motion>();
     const ctx: CombatCtx = { now: this.now, entities: this.entities, get: (id) => this.byId.get(id), events: this.events, motion, frozen };
     lockOn(ctx, commands, this.physics);
-    playerCombat(ctx, commands);
-    enemyBrains(ctx, this.rng.stream('ai'), (o, m, t) => this.spawnProjectile(o, m, t));
+    playerCombat(ctx, commands, this.physics, (e) => this.spawnSpellProjectile(e));
+    enemyBrains(ctx, this.rng.stream('ai'), this.physics, (o, m, t, a) => this.spawnProjectile(o, m, t, a));
     locomotion(this.entities, commands, this.physics, this.events, motion, frozen);
     this.physics.step();
     resolveAttacks(ctx, this.physics);
     for (const id of stepProjectiles(ctx, this.physics)) this.remove(id);
+    for (const { entity, source } of tickStatuses(ctx)) {
+      if (entity.combat?.action?.kind !== 'dead') kill(ctx, entity, this.byId.get(source) ?? null);
+    }
     vitals(this.entities, frozen);
     this.respawns();
+    this.waveTick();
     this.fallGuard();
     this.now++;
   }
@@ -201,13 +286,25 @@ export class SimWorld {
     const player = this.entities.find((e) => e.kind === 'player' && e.combat?.action?.kind === 'dead');
     if (player && player.combat!.action!.kind === 'dead' && player.combat!.action!.t >= PLAYER_STATS.respawnTicks) {
       this.reset(player, this.spawnPoint(), this.level.spawn.yaw);
-      for (const e of this.entities) if (e.brain) this.reset(e, e.brain.home, e.brain.homeYaw);
+      if (this.wave) {
+        // The wave runner restarts the current wave (plan §2.9).
+        for (const id of this.wave.ids) this.remove(id);
+        this.wave.ids = [];
+        this.wave.enemiesLeft = 0;
+        this.wave.nextIn = 90;
+      } else for (const e of this.entities) if (e.brain) this.reset(e, e.brain.home, e.brain.homeYaw);
       for (const e of [...this.entities]) if (e.projectile) this.remove(e.id);
       this.events.push({ type: 'respawn', entity: player.id });
     }
-    for (const e of this.entities) {
+    for (const e of [...this.entities]) {
       const a = e.combat?.action;
-      if (!e.brain || a?.kind !== 'dead' || a.t < ENEMIES[e.brain.def].respawnTicks) continue;
+      if (!e.brain || a?.kind !== 'dead') continue;
+      // Wave enemies stay dead: their bodies are cleared after a moment.
+      if (this.wave?.ids.includes(e.id)) {
+        if (a.t >= WAVE_CORPSE_TICKS) this.remove(e.id);
+        continue;
+      }
+      if (a.t < ENEMIES[e.brain.def].respawnTicks) continue;
       this.reset(e, e.brain.home, e.brain.homeYaw);
       this.events.push({ type: 'respawn', entity: e.id });
     }
@@ -244,7 +341,9 @@ export class SimWorld {
       e.brain.circle = 0;
       e.brain.timer = 30;
       e.brain.stepIn = undefined;
+      e.brain.meleeHitsTaken = 0;
     }
+    delete e.statuses;
   }
 
   /** Anything that falls out of the world goes back to the spawn point. */
@@ -261,7 +360,7 @@ export class SimWorld {
 
   /** Hash of the sim state (entities, players, rng streams, tick). Not Rapier's internals. */
   hash(): number {
-    return hashValue({ now: this.now, entities: this.entities, players: [...this.players], rng: this.rng.streams });
+    return hashValue({ now: this.now, entities: this.entities, players: [...this.players], rng: this.rng.streams, wave: this.wave });
   }
 
   snapshot(): SimSnapshot {
@@ -271,6 +370,7 @@ export class SimWorld {
       entities: this.entities,
       players: [...this.players],
       rng: this.rng.streams,
+      wave: this.wave,
     });
   }
 
@@ -287,6 +387,7 @@ export class SimWorld {
     for (const [p, id] of copy.players) this.players.set(p, id);
     for (const k of Object.keys(this.rng.streams)) delete this.rng.streams[k];
     Object.assign(this.rng.streams, copy.rng);
+    this.wave = copy.wave ?? null;
     this.events = [];
   }
 
@@ -298,6 +399,6 @@ export class SimWorld {
 function newCombat(team: Team, poise: number, poiseMax: number, defense: { physical: number; arcane: number }, level: number): Combat {
   return {
     team, action: null, buffer: null, hitstop: 0, poise, poiseMax, poiseDelay: 0, defense: { ...defense }, level,
-    lastBlockTick: -999, riposteUntil: 0, critNext: false, lock: null, lockLostTicks: 0, push: null, lastHitTick: -999,
+    lastBlockTick: -999, riposteUntil: 0, critNext: false, lock: null, lockLostTicks: 0, push: null, lastHitTick: -999, cooldowns: {},
   };
 }

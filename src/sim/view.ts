@@ -21,4 +21,6 @@ export interface ReadonlySimView {
   /** Sweep a sphere along `dir` (its length is the distance). */
   sphereCast(origin: Readonly<Vec3>, dir: Readonly<Vec3>, radius: number): { distance: number } | null;
   hash(): number;
+  /** The wave runner's state (`?sandbox=1`), or null. */
+  readonly wave: Readonly<{ index: number; loop: number; enemiesLeft: number; nextIn: number }> | null;
 }

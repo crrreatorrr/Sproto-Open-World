@@ -16,6 +16,14 @@ export const RUMBLE = {
   hurt: { strong: 0.75, weak: 0.4, ms: 190 },
   /** A perfect dodge: a light tick, not a hit. */
   perfectDodge: { strong: 0, weak: 0.3, ms: 50 },
+  /** Your spell releases: a flick in the light motor. */
+  cast: { strong: 0, weak: 0.22, ms: 40 },
+  /** Your Blast goes off: a thump. */
+  blast: { strong: 0.6, weak: 0.4, ms: 160 },
+  /** Your Frost Nova: a short, sharp burst. */
+  nova: { strong: 0.35, weak: 0.5, ms: 110 },
+  /** Your Chain Zap: a buzz. */
+  zap: { strong: 0.1, weak: 0.6, ms: 120 },
 } as const;
 
 export const TRAUMA = {
@@ -27,4 +35,7 @@ export const TRAUMA = {
   guardBreak: 0.3,
   parry: 0.3,
   death: 0.5,
+  /** Blast at point-blank (scaled down with distance from you). */
+  blast: 0.34,
+  nova: 0.14,
 } as const;

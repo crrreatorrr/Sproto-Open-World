@@ -1,5 +1,7 @@
 import type { DamageKind } from '../content/combat';
 import type { Affinity } from '../content/enemies';
+import type { SpellId } from '../content/spells';
+import type { StatusId } from '../content/statuses';
 import type { EntityId } from './entity';
 import type { Vec3 } from './math';
 
@@ -29,8 +31,25 @@ export type SimEvent =
   | { type: 'dodge'; entity: EntityId }
   | { type: 'noStamina'; entity: EntityId }
   | { type: 'stagger'; entity: EntityId; ticks: number }
-  | { type: 'telegraph'; entity: EntityId; move: string; ticks: number; unblockable: boolean; decal?: 'circle' | 'jagged' }
+  /** `at`/`radius`: an area attack's circle on the ground (else the decal sits under the enemy). */
+  | { type: 'telegraph'; entity: EntityId; move: string; ticks: number; unblockable: boolean; decal?: 'circle' | 'jagged'; at?: Vec3; radius?: number }
   | { type: 'fire'; entity: EntityId; projectile: EntityId }
   | { type: 'death'; entity: EntityId; killer: EntityId | null }
   | { type: 'respawn'; entity: EntityId }
-  | { type: 'lock'; entity: EntityId; target: EntityId | null };
+  | { type: 'lock'; entity: EntityId; target: EntityId | null }
+  /** A spell cast started (wind-up), and when it releases. */
+  | { type: 'castStart'; entity: EntityId; spell: SpellId; release: number; woven: boolean }
+  | { type: 'cast'; entity: EntityId; spell: SpellId; woven: boolean }
+  | { type: 'noMana'; entity: EntityId; spell: SpellId }
+  | { type: 'cooldown'; entity: EntityId; spell: SpellId }
+  | { type: 'explode'; entity: EntityId; spell: SpellId | null; pos: Vec3; radius: number }
+  | { type: 'nova'; entity: EntityId; pos: Vec3; radius: number }
+  /** Chain Zap: the points the bolt jumps through (caster's hand first) and who it hit. */
+  | { type: 'zap'; entity: EntityId; points: Vec3[]; targets: EntityId[] }
+  | { type: 'status'; entity: EntityId; status: StatusId; stacks: number; affinity: Affinity }
+  | { type: 'statusEnd'; entity: EntityId; status: StatusId }
+  | { type: 'frozen'; entity: EntityId; ticks: number }
+  | { type: 'interrupt'; entity: EntityId; by: EntityId }
+  | { type: 'blink'; entity: EntityId; from: Vec3; to: Vec3 }
+  | { type: 'wave'; wave: number; loop: number; enemies: number }
+  | { type: 'waveClear'; wave: number };

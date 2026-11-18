@@ -3,15 +3,20 @@ import type { AssetLoader, ModelInstance } from '../../assets/AssetLoader';
 import { STAFF_SOCKET, type ModelKey } from '../../assets/manifest';
 import { PLAYER_MOVES, ROLL, type PlayerMoveId } from '../../content/combat';
 import { PLAYER_MOVE_TIMING } from '../../content/generated/playerMoveTiming';
+import { SPELLS } from '../../content/spells';
 import { TICK_HZ } from '../../content/tuning';
 import type { Entity } from '../../sim/entity';
 import { Animator, ENTRY_FADE } from '../anim/Animator';
+import { CAST_PEAKS, castClipTime } from '../anim/castTiming';
 import { placeEntity } from './interp';
 
 /** The block clip holds on this clip tick while the guard is up (plan §4.3). */
 const BLOCK_HOLD = PLAYER_MOVE_TIMING.block.holdFrom;
 /** Falling over is slower to blend into than a combat entry. */
 const DEATH_FADE = 0.12;
+/** The arms blend into a cast fast (a woven bolt releases 5 ticks in) and back out more gently. */
+const CAST_IN_FADE = 0.06;
+const CAST_OUT_FADE = 0.15;
 
 /** Draws one player entity: the rigged model, its staff on `socket_staff`, and its animation. */
 export class PlayerView {
@@ -23,6 +28,8 @@ export class PlayerView {
   staffMounted = false;
   /** The last update showed an attack clip at the sim's clip tick (QA: command → pose). */
   attackShown = false;
+  /** The last update showed a cast on the upper body (QA). */
+  castShown = false;
 
   constructor(private readonly assets: AssetLoader) {}
 
@@ -53,6 +60,16 @@ export class PlayerView {
     const anim = this.animator;
     if (!anim) return;
     this.attackShown = false;
+    // Spells are upper body only (plan §4.4): the arms scrub the cast so the hand's peak lands on
+    // the release tick, while the legs keep the locomotion layer (the player may walk slowly).
+    const a = e.combat?.action;
+    if (a?.kind === 'cast') {
+      const def = SPELLS[a.spell];
+      this.castShown = anim.upper(def.clip, castClipTime(CAST_PEAKS.player, def.clip, a.t, a.release, def.recovery), CAST_IN_FADE);
+    } else {
+      this.castShown = false;
+      anim.upperOff(a ? ENTRY_FADE : CAST_OUT_FADE);
+    }
     if (!this.pose(e, anim)) {
       const loco = e.loco;
       const speed = loco?.speed ?? 0;

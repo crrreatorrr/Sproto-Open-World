@@ -234,6 +234,24 @@
       "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
       "sourceSha256": "e4fcdbaf3087ee495189f01004bd7875ac3594d1906284f78911f5d39546e56a"
     },
+    "models/enemies/grunt.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/midget_stage1.glb",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "d56523a040d6f8f97435d87de154214b4629bb3f1e6317172498042386201fc2"
+    },
+    "models/enemies/slinger.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/obama_stage1.glb",
+      "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
+      "sourceSha256": "6818a33e46c7fbeca815dea44151f894dad0650e7df208866f1cbf5fc304b7db"
+    },
+    "models/enemies/wisp.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/rigged/sahil_stage1.glb",
+      "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
+      "sourceSha256": "4db33e1e34aa721c4ab1b62f972dada406afefc6de5d5709958d23fbd508ac84"
+    },
     "models/staffs/staff_fighters_might-lod1.glb": {
       "repo": "sproto-duel",
       "path": "public/assets/models/staffs/staff_fighters_might-lod1.glb",

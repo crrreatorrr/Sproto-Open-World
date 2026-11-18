@@ -20,6 +20,9 @@ const SOUNDS = {
   bossSlam: { volume: 0.7 },
   pillarHit: { volume: 0.65 },
   roundLose: { volume: 0.6 },
+  // Spells (M1b): an arcane hit and Blast's explosion.
+  boltHit: { volume: 0.5 },
+  blastExplode: { volume: 0.7 },
 } as const;
 export type SoundId = keyof typeof SOUNDS;
 

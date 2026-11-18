@@ -5,12 +5,16 @@
  *
  *   title → Settings → Controls → back → back → Play → move, jump → pause → Settings → back → Resume
  *   → WebGL context lost and restored → walk to a training dummy → RB (light attack)
+ *   then, on a fresh page with `?sandbox=1` (the M1b wave runner): Play → the first wave spawns →
+ *   walk at the nearest enemy → lock on → LT + X (Arcane Bolt)
  *
  * It asserts the player model, its 18 clips and the staff on socket_staff, that the stick moves
  * the player and A jumps, and that there are no console errors. For M1a (b) it reads the QA log
  * (`__qa.log()`, debug/qaLog.ts): pad press → command in ≤ 1 frame, command → attack pose in ≤ 2
  * frames, and every `hit` with its spark, sound, damage number and hit-stop on the same rendered
- * frame. Long tasks once playing are
+ * frame. For M1b it asserts the wave spawns with a view per enemy, and that LT + X casts Bolt: a
+ * `castStart` and a `cast` event, the cast on the upper body, mana spent, and the bolt in flight or
+ * hitting. Long tasks once playing are
  * asserted on a real GPU and only reported on a software one (CI), where they measure frame time.
  *
  *   npm run test:e2e                 # headless
@@ -31,15 +35,10 @@ const url = server.resolvedUrls.local[0];
 const strictLongTasks = process.env.SMOKE_STRICT_LONGTASKS === '1';
 // Headless Chromium never gets a GPU, so strict mode opens a visible window.
 const browser = await chromium.launch(strictLongTasks ? { headless: false } : { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
-page.on('console', (m) => {
-  if (m.type() === 'error') errors.push(m.text());
-});
-page.on('pageerror', (e) => errors.push(String(e)));
 
 // A standard-mapping pad the test controls through window.__pad.
-await page.addInitScript(() => {
+function padInit() {
   const buttons = Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 }));
   const pad = {
     id: 'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)',
@@ -59,9 +58,26 @@ await page.addInitScript(() => {
       pad.axes[1] = ly;
       pad.timestamp++;
     },
+    look(rx, ry) {
+      pad.axes[2] = rx;
+      pad.axes[3] = ry;
+      pad.timestamp++;
+    },
   };
   navigator.getGamepads = () => [pad, null, null, null];
-});
+}
+
+/** A fresh page with the simulated pad; console errors from every page count. */
+async function openPage() {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  p.on('console', (m) => {
+    if (m.type() === 'error') errors.push(m.text());
+  });
+  p.on('pageerror', (e) => errors.push(String(e)));
+  await p.addInitScript(padInit);
+  return p;
+}
+let page = await openPage();
 
 const frames = (n) => page.evaluate((n) => new Promise((r) => { let i = 0; const f = () => (++i >= n ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }), n);
 const state = () => page.evaluate(() => window.__qa.state());
@@ -242,6 +258,99 @@ try {
     s = await state();
     const hp = s.enemies.find((e) => e.id === dummy.id).hp;
     check(hp !== null && hp < dummy.hp, 'the dummy took damage', `${dummy.hp} → ${hp}`);
+  }
+
+  // M1b: the wave runner on a fresh page, gamepad only. Play, wait for the first wave, close in on
+  // the nearest enemy, lock on with R3 and cast Arcane Bolt with LT + X.
+  console.log('  -- wave runner (?sandbox=1)');
+  await page.close();
+  page = await openPage();
+  await page.goto(`${url}?sandbox=1`);
+  await page.waitForFunction(() => window.__qa?.ready && window.__qa.state().screen === 'screen-title', null, { timeout: 30000 });
+  await press('down');
+  await press('a');
+  await page.waitForFunction(() => window.__qa.state().state === 'playing', null, { timeout: 30000 });
+  s = await state();
+  check(s.sandbox === true && s.wave !== null, '?sandbox=1 starts the wave runner', JSON.stringify(s.wave));
+  const spawned = await page
+    .waitForFunction(() => window.__qa.state().enemies.length > 0, null, { timeout: 20000 })
+    .then(() => true, () => false);
+  await frames(10);
+  s = await state();
+  check(spawned && s.enemies.length >= 5, 'the first wave spawns 5+ enemies', JSON.stringify(s.enemies.map((e) => e.def)));
+  check(s.enemies.every((e) => e.viewShown), 'every wave enemy has a view', JSON.stringify(s.enemies.map((e) => [e.def, e.viewShown])));
+  check((await page.evaluate(() => window.__qa.log())).some((e) => e.kind === 'wave'), 'a `wave` event announces it');
+  await shot('07-wave');
+  if (s.enemies.length) {
+    // Steer at the nearest enemy until it's well inside spell range (they come at you too).
+    let dist = Infinity;
+    for (let i = 0; i < 120; i++) {
+      s = await state();
+      const me = s.player.pos;
+      const near = s.enemies.filter((e) => e.action !== 'dead').sort((a, b) => Math.hypot(a.pos.x - me.x, a.pos.z - me.z) - Math.hypot(b.pos.x - me.x, b.pos.z - me.z))[0];
+      if (!near) break;
+      const wx = near.pos.x - me.x, wz = near.pos.z - me.z;
+      dist = Math.hypot(wx, wz);
+      if (dist < 9) break;
+      const sy = Math.sin(s.camYaw), cy = Math.cos(s.camYaw);
+      const mx = (-cy * wx + sy * wz) / dist, my = (sy * wx + cy * wz) / dist;
+      await page.evaluate(([x, y]) => window.__pad.axes(x, y), [mx, -my]);
+      await frames(3);
+    }
+    await page.evaluate(() => window.__pad.axes(0, 0));
+    check(dist < 9, 'closes in on an enemy', `${dist.toFixed(2)} m away`);
+    // Lock-on acquires in the camera's cone: turn the camera at it with the right stick first
+    // (whichever way the stick turns it, the error shrinks; flip if it grows).
+    const camErr = (st) => {
+      const me = st.player.pos;
+      const near = st.enemies.filter((e) => e.action !== 'dead').sort((a, b) => Math.hypot(a.pos.x - me.x, a.pos.z - me.z) - Math.hypot(b.pos.x - me.x, b.pos.z - me.z))[0];
+      if (!near) return 0;
+      const want = Math.atan2(near.pos.x - me.x, near.pos.z - me.z);
+      return Math.atan2(Math.sin(want - st.camYaw), Math.cos(want - st.camYaw));
+    };
+    let turn = 1;
+    let err = camErr(await state());
+    for (let i = 0; i < 60 && Math.abs(err) > 0.25; i++) {
+      await page.evaluate((x) => window.__pad.look(x, 0), turn * Math.sign(err) * 0.7);
+      await frames(2);
+      const next = camErr(await state());
+      if (Math.abs(next) > Math.abs(err) + 0.01) turn = -turn;
+      err = next;
+    }
+    await page.evaluate(() => window.__pad.look(0, 0));
+    await press('r3');
+    s = await state();
+    check(s.player.lock !== null, 'R3 locks on to a wave enemy', JSON.stringify(s.player.lock));
+    await frames(5);
+
+    const before = (await state()).player.mana;
+    await page.evaluate(() => window.__qa.log(true));
+    await page.evaluate(() => window.__pad.set('lt', true));
+    await frames(3);
+    await press('x');
+    await page.evaluate(() => window.__pad.set('lt', false));
+    // Watch for the bolt in flight (or its hit) for up to ~2 s of frames.
+    let inFlight = false, castMana = before;
+    for (let i = 0; i < 40; i++) {
+      const st = await state();
+      castMana = Math.min(castMana, st.player.mana ?? Infinity);
+      if (st.projectiles.some((p) => p.spell === 'bolt')) inFlight = true;
+      const lg = await page.evaluate(() => window.__qa.log());
+      if (inFlight && lg.some((e) => e.kind === 'cast')) break;
+      if (lg.some((e) => e.kind === 'hit' && e.what === 'bolt')) break;
+      await frames(2);
+    }
+    await shot('08-bolt');
+    const log = await page.evaluate(() => window.__qa.log());
+    const started = log.find((e) => e.kind === 'castStart' && e.what === 'bolt');
+    check(!!started, 'LT + X starts an Arcane Bolt cast', JSON.stringify(log.filter((e) => ['castStart', 'noMana', 'cooldown'].includes(e.kind))));
+    check(log.some((e) => e.kind === 'castPose' && e.what === 'bolt'), 'the cast shows on the upper body');
+    check(log.some((e) => e.kind === 'cast' && e.what === 'bolt'), 'the Bolt releases (a `cast` event)');
+    check(before !== null && castMana <= before - 4, 'the cast spends mana', `${before} → ${castMana}`);
+    const boltHit = log.some((e) => e.kind === 'hit' && e.what === 'bolt');
+    check(inFlight || boltHit, 'the bolt flies or hits', `in flight ${inFlight}, hit ${boltHit}`);
+    const bar = await page.evaluate(() => document.querySelectorAll('.spell-bar.active .spell').length);
+    check(bar === 4, 'the HUD shows the four-slot spell bar', `${bar} slots`);
   }
 
   check(errors.length === 0, 'no console errors', errors.join('\n'));

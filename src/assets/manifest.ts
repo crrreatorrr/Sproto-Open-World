@@ -27,6 +27,14 @@ export const PLAYER_CLIPS = [
 /** The Thornwood Brute (sproto-shooter's `sproto_monster`). */
 export const BRUTE_CLIPS = ['idle', 'walk', 'run', 'punch', 'kick'] as const;
 
+/** sproto-duel's 24-joint clip set, shared by the M1b standard enemies (no walk clip). */
+export const DUEL_ENEMY_CLIPS = [
+  'idle', 'run', 'cast', 'cast_big', 'hit', 'stun', 'defeat', 'roll', 'jump', 'strafe_l', 'strafe_r', 'run_back',
+] as const;
+
+/** Tripo exports face +X; a quarter turn makes them face +Z (duel and the shooter do the same). */
+const TRIPO_ROTATION_Y = -Math.PI / 2;
+
 export const MODELS = {
   /** sproto-duel's rigged wizard plus the Blender melee clips (art/README.md). Never optimized again. */
   player: { path: 'models/characters/player.glb', rigged: true, clips: PLAYER_CLIPS },
@@ -37,6 +45,10 @@ export const MODELS = {
   staff_fighters_might: { path: 'models/staffs/staff_fighters_might.glb' },
   /** Faces +Z already (the shooter's MODEL_ROTATION_Y is 0 for it); fitted to the EnemyDef body. */
   brute: { path: 'models/elites/brute.glb', rigged: true, clips: BRUTE_CLIPS, fitHeight: 2.4, rotationY: 0, inPlace: true },
+  /** M1b standard enemies, fitted to their EnemyDef bodies (the Wisp's 1.9 m is the body; it hovers above that). */
+  grunt: { path: 'models/enemies/grunt.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.3, rotationY: TRIPO_ROTATION_Y },
+  slinger: { path: 'models/enemies/slinger.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.85, rotationY: TRIPO_ROTATION_Y },
+  wisp: { path: 'models/enemies/wisp.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.9, rotationY: TRIPO_ROTATION_Y },
 } satisfies Record<string, ModelEntry>;
 
 export type ModelKey = keyof typeof MODELS;

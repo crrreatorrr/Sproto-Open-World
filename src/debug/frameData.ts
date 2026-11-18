@@ -1,4 +1,5 @@
 import { BLOCK, CHARGE, PLAYER_MOVES, ROLL, clipTiming, type PlayerMoveId } from '../content/combat';
+import { SPELLS, WOVEN, type SpellId } from '../content/spells';
 import type { Entity } from '../sim/entity';
 
 /**
@@ -7,8 +8,11 @@ import type { Entity } from '../sim/entity';
  * hit-stop. One character per tick, so a press can be read off against the bar.
  *
  *   S startup   A active   r recovery (no cancel)   c cancellable   ^ now
+ *
+ * A cast shows its wind-up (w when woven), the release tick R and its recovery, then the spell
+ * cooldowns and whether the woven window is open. `now` is the sim tick.
  */
-export function frameDataLines(e: Readonly<Entity> | undefined): string[] {
+export function frameDataLines(e: Readonly<Entity> | undefined, now = 0): string[] {
   const c = e?.combat;
   if (!c) return ['combat: (no combat state)'];
   const a = c.action;
@@ -49,9 +53,36 @@ export function frameDataLines(e: Readonly<Entity> | undefined): string[] {
   } else if (a.kind === 'block') {
     const parry = Math.max(0, a.parryTicks - a.t);
     lines.push(`action: block   t ${a.t}   ${parry > 0 ? `PARRY window ${parry} left (of ${a.parryTicks})` : 'guarding'}   raised ≥${BLOCK.raised}`);
-  } else if (a.kind === 'hitstun' || a.kind === 'stagger') {
+  } else if (a.kind === 'cast') {
+    const def = SPELLS[a.spell];
+    const end = a.release + def.recovery;
+    const bar: string[] = [];
+    for (let t = 0; t < end; t++) bar.push(t < a.release ? (a.woven ? 'w' : 'S') : t === a.release ? 'R' : 'r');
+    lines.push(`action: cast ${a.spell} (${def.clip})   t ${a.t}/${end}   release ${a.release}${a.woven ? ' WOVEN' : ''}${a.released ? '   released' : ''}`);
+    lines.push(`|${bar.join('')}|`, ` ${' '.repeat(Math.max(0, Math.min(end, a.t)))}^`);
+  } else if (a.kind === 'hitstun' || a.kind === 'stagger' || a.kind === 'frozen') {
     lines.push(`action: ${a.kind}${a.kind === 'hitstun' && a.knockdown ? ' (knockdown)' : ''}   t ${a.t}/${a.dur}`);
   } else lines.push(`action: dead   t ${a.t}`);
   lines.push(status.join('   '));
+  const cds = (Object.keys(SPELLS) as SpellId[]).map((id) => `${id} ${c.cooldowns?.[id] ?? 0}`).join('  ');
+  const since = now - (c.lastHitTick ?? -Infinity);
+  lines.push(`cooldowns ${cds}   woven ${since <= WOVEN.window ? `open (${WOVEN.window - since} left)` : 'closed'}`);
   return lines;
+}
+
+/** The locked target's action and active statuses (plan §4.7), for the debug overlay. */
+export function targetLines(t: Readonly<Entity> | undefined): string[] {
+  if (!t) return ['target: —'];
+  const a = t.combat?.action;
+  const act = !a ? 'free' : a.kind === 'attack' ? `attack ${a.move} t ${a.t}` : 'dur' in a ? `${a.kind} t ${a.t}/${a.dur}` : `${a.kind} t ${a.t}`;
+  const s = t.statuses;
+  const parts: string[] = [];
+  if (s?.burn) parts.push(`burn ${s.burn.ticks}t (${s.burn.perTick.toFixed(2)} hp/t)`);
+  if (s?.chill) parts.push(`chill ×${s.chill.stacks} ${s.chill.ticks}t`);
+  if (s?.shock) parts.push(`shock ${s.shock.ticks}t`);
+  if (a?.kind === 'frozen') parts.push(`FROZEN ${a.dur - a.t}t`);
+  return [
+    `target #${t.id} ${t.brain?.def ?? t.view.model}   hp ${t.vitals?.hp.toFixed(0) ?? '?'}/${t.vitals?.hpMax ?? '?'}   poise ${t.combat?.poise.toFixed(0) ?? '?'}   ${act}`,
+    `statuses: ${parts.length ? parts.join('   ') : 'none'}`,
+  ];
 }
