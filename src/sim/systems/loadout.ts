@@ -48,7 +48,7 @@ export function equipSpell(ctx: Ctx, e: Entity, slot: number, spell: SpellId | n
   const p = e.progress!;
   const c = e.combat;
   if (!Number.isInteger(slot) || slot < 0 || slot >= LOADOUT_SLOTS) return refuse(ctx, e, 'equipSpell', 'There is no such slot.');
-  if (spell !== null && !(spell in SPELLS)) return refuse(ctx, e, 'equipSpell', 'There is no such power.');
+  if (spell !== null && !Object.hasOwn(SPELLS, spell)) return refuse(ctx, e, 'equipSpell', 'There is no such power.');
   if (c?.action?.kind === 'dead') return refuse(ctx, e, 'equipSpell', "You can't change powers now.");
   if (c?.action?.kind === 'cast') return refuse(ctx, e, 'equipSpell', 'Finish casting first.');
   if (spell !== null && !p.spells.includes(spell)) return refuse(ctx, e, 'equipSpell', `You haven't learned ${SPELLS[spell].name} yet.`);
