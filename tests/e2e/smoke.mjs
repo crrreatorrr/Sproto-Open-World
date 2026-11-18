@@ -359,6 +359,12 @@ try {
         await frames(2);
       }
       log = await page.evaluate(() => window.__qa.log());
+      // On a slow runner the release can land at the very end of that window: keep watching the bolt.
+      for (let i = 0; i < 40 && !inFlight && log.some((e) => e.kind === 'cast' && e.what === 'bolt') && !log.some((e) => e.kind === 'hit' && e.what === 'bolt'); i++) {
+        await frames(1);
+        if ((await state()).projectiles.some((p) => p.spell === 'bolt')) inFlight = true;
+        log = await page.evaluate(() => window.__qa.log());
+      }
       if (log.some((e) => e.kind === 'cast' && e.what === 'bolt')) break;
       console.log(`  info cast attempt ${attempt + 1} was cut off (${log.filter((e) => e.kind === 'hit').length} hits on the way); retrying`);
     }
