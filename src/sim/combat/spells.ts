@@ -26,6 +26,16 @@ const SPELL_CONE = (60 * Math.PI) / 180;
 
 const chest = (e: Entity): Vec3 => ({ x: e.tf.pos.x, y: e.tf.pos.y + (e.body?.height ?? 1.8) * 0.55, z: e.tf.pos.z });
 const enemyOf = (p: Entity, e: Entity) => !!e.combat && !!e.body && e.combat.team !== p.combat!.team && e.combat.action?.kind !== 'dead';
+/** Spells reach this much further (flat, m) to a target flying overhead. */
+const airReach = (e: Entity) => (e.brain ? (ENEMIES[e.brain.def].drake?.spellReach ?? 0) : 0);
+
+/** Where a shot aims: the target's chest, led by the target's flight if it is a flier. */
+function aimPoint(from: Vec3, t: Entity, speed: number): Vec3 {
+  const c = chest(t);
+  if (!t.brain || !ENEMIES[t.brain.def].drake) return c;
+  const time = Math.hypot(c.x - from.x, c.y - from.y, c.z - from.z) / speed;
+  return { x: c.x + t.tf.vel.x * time, y: c.y + t.tf.vel.y * time, z: c.z + t.tf.vel.z * time };
+}
 
 /** Spell power: SPELL_BASE × the staff's spellPower (and trait) × (1 + 0.04 · Spell Power) × MV, ×1.2 when woven (more with Scholar's Knot). */
 export function spellPower(id: SpellId, woven: boolean, caster?: Entity): number {
@@ -88,7 +98,7 @@ export function spellTarget(ctx: CombatCtx, p: Entity, cmd: InputCommand, range 
   const c = p.combat!;
   if (c.lock !== null) {
     const t = ctx.get(c.lock);
-    if (t && enemyOf(p, t) && flatDist(p.tf.pos, t.tf.pos) <= range) return t;
+    if (t && enemyOf(p, t) && flatDist(p.tf.pos, t.tf.pos) <= range + airReach(t)) return t;
   }
   const w = wishDir(cmd);
   const yaw = w.mag > 0.2 ? Math.atan2(w.x, w.z) : p.tf.yaw;
@@ -97,7 +107,7 @@ export function spellTarget(ctx: CombatCtx, p: Entity, cmd: InputCommand, range 
   for (const e of ctx.entities) {
     if (!enemyOf(p, e)) continue;
     const d = flatDist(p.tf.pos, e.tf.pos);
-    if (d > range) continue;
+    if (d > range + airReach(e)) continue;
     const ang = angleTo(p.tf.pos, yaw, e.tf.pos);
     if (ang > SPELL_CONE / 2) continue;
     const score = ang * 8 + d;
@@ -147,10 +157,10 @@ function fire(ctx: CombatCtx, p: Entity, id: SpellId, woven: boolean, target: En
   if (firePower(ctx, p, id, power, physics, spawn)) return;
   if (def.projectile) {
     const from = toWorld(p.tf.pos, p.tf.yaw, [0, 1.35, 0.6]);
-    const aim = target ? chest(target) : toWorld(p.tf.pos, p.tf.yaw, [0, 1.35, 10]);
+    const sp = def.projectile.speed;
+    const aim = target ? aimPoint(from, target, sp) : toWorld(p.tf.pos, p.tf.yaw, [0, 1.35, 10]);
     const d = { x: aim.x - from.x, y: aim.y - from.y, z: aim.z - from.z };
     const len = Math.hypot(d.x, d.y, d.z) || 1;
-    const sp = def.projectile.speed;
     spawn({
       kind: 'projectile',
       tf: { pos: from, prevPos: { ...from }, yaw: p.tf.yaw, prevYaw: p.tf.yaw, vel: { x: (d.x / len) * sp, y: (d.y / len) * sp, z: (d.z / len) * sp } },
@@ -170,6 +180,8 @@ function fire(ctx: CombatCtx, p: Entity, id: SpellId, woven: boolean, target: En
     ctx.events.push({ type: 'nova', entity: p.id, pos: at, radius: def.nova.radius });
     for (const e of ctx.entities) {
       if (!enemyOf(p, e) || flatDist(at, e.tf.pos) > def.nova.radius + (e.body?.radius ?? 0)) continue;
+      // The ring runs along the ground: it can't reach a flier overhead.
+      if (Math.abs(e.tf.pos.y - at.y) > def.nova.radius + (e.body?.height ?? 1.8)) continue;
       const out = resolveHit(ctx, p, e, spellInfo(id, power, at));
       if (out !== 'hit') continue;
       if (def.status && e.combat?.action?.kind !== 'dead') applyStatus(ctx, e, def.status.id, def.status.stacks, p.id);

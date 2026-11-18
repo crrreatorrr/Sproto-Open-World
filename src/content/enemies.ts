@@ -4,6 +4,7 @@
  */
 import type { DamageKind } from './combat';
 import { C4_ENEMIES } from './packs/c4';
+import { DRAKE, type DrakeDef } from './packs/c6';
 import { SCRAPJAW } from './packs/m5';
 
 export type Affinity = 'weak' | 'normal' | 'resist';
@@ -80,8 +81,11 @@ export interface EnemyMoveDef {
     speed: number; radius: number; range: number; count?: number; interval?: number; spread?: number; homing?: number;
     /** View model (default: a hex or a coin, by damage kind). */
     model?: string;
-    /** Parried back into its shooter: takes this fraction of its max HP and staggers it (ticks). */
-    reflectBonus?: { hpFrac: number; stagger: number };
+    /**
+     * Parried back into its shooter: takes this fraction of its max HP and staggers it (ticks; 0: no
+     * stagger). `poiseFrac` also breaks that fraction of its poise; `homing` chases a flier (rad/s).
+     */
+    reflectBonus?: { hpFrac: number; stagger: number; poiseFrac?: number; homing?: number };
   };
   /**
    * An area attack: a circle of `radius` m placed on the target's feet when the wind-up starts
@@ -118,12 +122,14 @@ export interface EnemyMoveDef {
   burnPatch?: boolean;
   /** Weak spots open only during this move. */
   weakSpots?: WeakSpotDef[];
+  /** The Drake's dive: a lane this long on the ground (m), flown this high above it at the lowest (m). */
+  dive?: { length: number; low: number };
 }
 
 export interface EnemyDef {
   id: string;
   name: string;
-  model: 'brute' | 'dummy' | 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'gatekeeper' | 'robot_shooter' | 'robot_laser' | 'scrapjaw';
+  model: 'brute' | 'dummy' | 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'gatekeeper' | 'robot_shooter' | 'robot_laser' | 'scrapjaw' | 'drake';
   /** Extra names a quest's `kill` objective matches (an Orchard Grunt is still a `grunt`). */
   tags?: string[];
   hp: number;
@@ -166,6 +172,8 @@ export interface EnemyDef {
   brokenDamage?: number;
   /** A boss fight's rules; the brain is `sim/systems/boss.ts`. */
   boss?: BossDef;
+  /** It fights in the air; the brain is `sim/systems/drake.ts`. */
+  drake?: DrakeDef;
 }
 
 const NORMAL_PROFILE = { damage: { physical: 'normal', arcane: 'normal' }, status: { burn: 'normal', chill: 'normal', shock: 'normal' } } as const;
@@ -371,5 +379,7 @@ ENEMIES.gatekeeper = {
 Object.assign(ENEMIES, C4_ENEMIES);
 // M5: the boss of the Old Quarry.
 ENEMIES.scrapjaw = SCRAPJAW;
+// C6: the boss over the Orchard.
+ENEMIES.skyfire_drake = DRAKE;
 
 export type EnemyId = keyof typeof ENEMIES;

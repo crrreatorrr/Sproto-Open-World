@@ -260,6 +260,25 @@ export interface BossState {
   nextRock: number;
   /** The add wave has been called. */
   summoned: boolean;
+  /** A boss that flies (the Skyfire Drake): where it is in the air. */
+  flight?: DrakeFlight;
+}
+
+/** The Skyfire Drake's flight (expansion plan §3.5). */
+export interface DrakeFlight {
+  /** `orbit`: circling the player. `dive`: on a lane. `glide`: Broken, low over the field. `stall`: held by a stagger. */
+  mode: 'orbit' | 'dive' | 'glide' | 'stall';
+  /** The circle it flies: where on it (radians), which way round (+1 / -1) and its centre. */
+  angle: number;
+  dir: number;
+  cx: number;
+  cz: number;
+  /** The ground under it, smoothed (m). */
+  ground: number;
+  /** The dive's line on the ground: its two ends and the ground height along it, end to end. */
+  lane: { ax: number; az: number; bx: number; bz: number; ys: number[] } | null;
+  /** The line of a Broken glide. */
+  glide: { ax: number; az: number; bx: number; bz: number } | null;
 }
 
 /** A danger on the ground that belongs to a boss (plan §4.10). */
@@ -316,7 +335,7 @@ export interface Projectile {
   knockdown?: boolean;
   woven?: boolean;
   /** Parried back into `shooter`: takes this fraction of its max HP and staggers it (Scrap Throw). */
-  reflectBonus?: { hpFrac: number; stagger: number; shooter: EntityId };
+  reflectBonus?: { hpFrac: number; stagger: number; shooter: EntityId; poiseFrac?: number; homing?: number };
 }
 
 /**

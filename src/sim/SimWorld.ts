@@ -287,6 +287,7 @@ export class SimWorld {
   private readonly bossHost: BossHost = {
     spawnAdd: (def, pos, yaw) => this.spawnEnemy(def, pos, yaw),
     spawnHazard: (pos, hazard) => this.spawnHazard(pos, hazard),
+    flag: (id) => this.world.flags[id] ?? 0,
   };
 
   private spawnHazard(pos: Vec3, hazard: Hazard): void {
@@ -369,7 +370,8 @@ export class SimWorld {
       kind: 'enemy',
       tf: { pos: { ...pos }, prevPos: { ...pos }, yaw, prevYaw: yaw, vel: { x: 0, y: 0, z: 0 } },
       body: { ...def.body },
-      loco: { grounded: true, sprinting: false, jumpBuffer: 0, coyote: 0, speed: 0, landedTicks: 1 },
+      // A flier moves itself: no ground movement, no gravity.
+      ...(def.drake ? {} : { loco: { grounded: true, sprinting: false, jumpBuffer: 0, coyote: 0, speed: 0, landedTicks: 1 } }),
       vitals: { hp: def.hp, hpMax: def.hp, stamina: 100, staminaMax: 100, mana: 0, manaMax: 0, staminaDelay: 0 },
       combat: newCombat('enemy', def.poise, def.poise, def.defense, def.level),
       brain: { def: defId, home: { ...pos }, homeYaw: yaw, state: 'idle', target: null, cooldowns: {}, recent: [], circle: 0, circleDir: 1, timer: 30, meleeHitsTaken: 0, ...(def.boss ? { unique: def.id } : {}) },

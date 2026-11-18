@@ -12,7 +12,9 @@ export function snareHit(ctx: CombatCtx, target: Entity, source: EntityId): void
   const ticks = isBoss(target) ? S.bossRootTicks : S.rootTicks;
   powersOf(target).rooted = ticks;
   if (c.action?.kind === 'attack') ctx.events.push({ type: 'interrupt', entity: target.id, by: source });
-  if (c.action?.kind !== 'frozen') c.action = { kind: 'stagger', t: 0, dur: ticks };
+  // A Broken boss stays Broken: the root can't cut the punish window short.
+  const broken = c.action?.kind === 'stagger' && c.action.reason === 'broken';
+  if (c.action?.kind !== 'frozen' && !broken) c.action = { kind: 'stagger', t: 0, dur: ticks };
   ctx.events.push({ type: 'power', fx: 'snareRoot', entity: target.id, pos: chestOf(target) });
 }
 

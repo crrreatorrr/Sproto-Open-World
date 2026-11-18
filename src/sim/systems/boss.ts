@@ -11,6 +11,8 @@ import { next as rngNext, type RngState } from '../rng';
 export interface BossHost {
   spawnAdd(def: string, pos: Vec3, yaw: number): Entity;
   spawnHazard(pos: Vec3, hazard: Hazard): void;
+  /** A world flag's value (0 when unset). */
+  flag(id: string): number;
 }
 
 /** Starts one of the boss's moves (the brain's `startAttack`). */
@@ -124,7 +126,7 @@ export function bossThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Enti
 }
 
 /** A weighted pick among what's usable from here; no move three times running. */
-function pickMove(ctx: CombatCtx, e: Entity, def: EnemyDef, gap: number, rng: RngState): EnemyMoveDef | null {
+export function pickMove(ctx: CombatCtx, e: Entity, def: EnemyDef, gap: number, rng: RngState): EnemyMoveDef | null {
   const boss = e.boss!;
   const b = e.brain!;
   const rock = liveRock(ctx);

@@ -54,8 +54,10 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
       const bonus = pr.reflected && pr.reflectBonus?.shooter === tgt.id ? pr.reflectBonus : null;
       const hit = info(e, from);
       if (bonus) hit.fixedDamage = tgt.vitals!.hpMax * bonus.hpFrac;
+      // A reflected fireball breaks the Drake's stance (expansion plan §3.5).
+      if (bonus?.poiseFrac) hit.poise = tgt.combat.poiseMax * bonus.poiseFrac;
       const out = resolveHit(ctx, owner, tgt, hit);
-      if (out === 'hit' && bonus && !isDead(tgt)) {
+      if (out === 'hit' && bonus && bonus.stagger > 0 && !isDead(tgt)) {
         tgt.combat.action = { kind: 'stagger', t: 0, dur: bonus.stagger };
         ctx.events.push({ type: 'stagger', entity: tgt.id, ticks: bonus.stagger });
       }
@@ -113,7 +115,8 @@ function explode(ctx: CombatCtx, e: Entity, owner: Entity, at: Vec3): void {
 /** Turn a homing projectile's velocity toward its target's chest by at most homing·DT radians. */
 function steer(e: Entity, target: Entity | undefined): void {
   const pr = e.projectile!;
-  if (!target?.body || target.combat?.action?.kind === 'dead' || pr.reflected) return;
+  // Reflected shots fly straight, unless they were made to chase a flier home.
+  if (!target?.body || target.combat?.action?.kind === 'dead' || (pr.reflected && !pr.reflectBonus?.homing)) return;
   const v = e.tf.vel;
   const speed = Math.hypot(v.x, v.y, v.z);
   if (speed < 1e-6) return;
@@ -145,6 +148,8 @@ export function reflect(e: Entity, parrier: Entity, ctx: CombatCtx): void {
   pr.owner = parrier.id;
   pr.damage *= BLOCK.reflect;
   pr.reflected = true;
-  pr.homing = undefined; // a reflected hex flies straight back
-  pr.life = Math.max(pr.life, Math.ceil(len / (speed * DT)) + 30);
+  // A reflected hex flies straight back; a fireball sent back at the Drake chases it through the air.
+  pr.homing = pr.reflectBonus?.homing;
+  if (pr.homing && shooter) pr.target = shooter.id;
+  pr.life = Math.max(pr.life, Math.ceil(len / (speed * DT)) + (pr.homing ? 90 : 30));
 }

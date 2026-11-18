@@ -33,6 +33,8 @@ const CAPS = [
 /** Clips the views play from the M4 models (the importer keeps only these on the villagers). */
 const REQUIRED_CLIPS = {
   'models/elites/gatekeeper.glb': ['idle', 'walk', 'run', 'smash'],
+  'models/bosses/drake.glb': ['fly', 'fireball'],
+  'models/bosses/drake_far.glb': ['fly'],
   'models/bosses/scrapjaw.glb': ['idle', 'walk', 'smash', 'slam', 'charge_start', 'charge', 'stunned', 'roar', 'throw_start', 'throw_loop'],
   ...Object.fromEntries(['pepe_general', 'pepe', 'pepe_tux', 'broccoli', 'agent'].map((id) => [`models/npcs/${id}.glb`, ['idle']])),
 };

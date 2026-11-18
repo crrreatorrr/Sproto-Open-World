@@ -10,6 +10,7 @@
  */
 import type { ChestDef } from '../loot';
 import { C4_WORLD } from '../packs/c4';
+import { addDrakeContent } from '../packs/c6';
 import { addScrapjawContent } from '../packs/m5';
 
 export interface Placement {
@@ -151,3 +152,4 @@ function addContent(into: RegionContent, pack: Partial<RegionContent>): void {
 
 addContent(SPROUTVALE_CONTENT, C4_WORLD);
 addScrapjawContent(SPROUTVALE_CONTENT);
+addDrakeContent(SPROUTVALE_CONTENT);

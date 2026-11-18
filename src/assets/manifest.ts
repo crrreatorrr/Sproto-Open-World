@@ -41,6 +41,9 @@ export const ROBOT_LASER_CLIPS = ['idle', 'run', 'cast', 'stun'] as const;
 /** Scrapjaw (sproto-shooter-bosses' `car_monster`): every boss action has its own clip. */
 export const SCRAPJAW_CLIPS = ['idle', 'walk', 'smash', 'slam', 'charge_start', 'charge', 'stunned', 'roar', 'throw_start', 'throw_loop'] as const;
 
+/** The Skyfire Drake (sproto-shooter-bosses' `dragon`): it only ever flies. */
+export const DRAKE_CLIPS = ['fly', 'fireball'] as const;
+
 /** Villagers keep only their idle (the importer drops the rest). */
 export const NPC_CLIPS = ['idle'] as const;
 
@@ -80,6 +83,12 @@ export const MODELS = {
   robot_laser: { path: 'models/elites/robot_laser.glb', rigged: true, clips: ROBOT_LASER_CLIPS, fitHeight: 2.1, rotationY: 0, inPlace: true },
   /** M5: the boss (faces +Z, in-place clips), lazy-loaded. Fitted to its 5.4 m EnemyDef body. */
   scrapjaw: { path: 'models/bosses/scrapjaw.glb', rigged: true, clips: SCRAPJAW_CLIPS, fitHeight: 5.4, rotationY: 0, inPlace: true },
+  /**
+   * C6: the boss (its head is at the source's -X, so it turns the other way from the other Tripo
+   * models; in-place clips), and the far LOD the flyover draws. Both lazy-loaded.
+   */
+  drake: { path: 'models/bosses/drake.glb', rigged: true, clips: DRAKE_CLIPS, fitHeight: 5, rotationY: Math.PI / 2, inPlace: true },
+  drake_far: { path: 'models/bosses/drake_far.glb', rigged: true, clips: ['fly'], fitHeight: 5, rotationY: Math.PI / 2, inPlace: true },
   /** The Old Quarry's breakable pillars (the sim's obstacles; the same rock as the quarry's rim). */
   quarry_pillar: { path: 'models/props/rock_outcrop.glb' },
   /**

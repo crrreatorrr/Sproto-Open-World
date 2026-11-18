@@ -4,6 +4,7 @@
  * later localization.
  */
 import { C4_DIALOGUE, C4_DIALOGUE_PATCHES } from './packs/c4';
+import { registerDrakeDialogue } from './packs/c6';
 import { registerScrapjawDialogue } from './packs/m5';
 import type { Condition, Effect } from './quests';
 
@@ -189,3 +190,4 @@ for (const patch of C4_DIALOGUE_PATCHES) {
   Object.assign(graph.nodes, patch.nodes);
 }
 registerScrapjawDialogue(DIALOGUE);
+registerDrakeDialogue(DIALOGUE);
