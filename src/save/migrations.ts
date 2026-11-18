@@ -1,3 +1,5 @@
+import { SKILL_IDS, SKILL_MAX_RANK, pointsForLevel } from '../content/progression';
+import { LOADOUT_SLOTS } from '../content/spells';
 import { SAVE_SCHEMA, type SaveFile } from './schema';
 
 /**
@@ -6,6 +8,8 @@ import { SAVE_SCHEMA, type SaveFile } from './schema';
  *
  *   v1 (M3 draft): `player.potions: number` and no `tonics`; no `tracked`; no `discoveredShrines`.
  *   v2: `player.tonics: { charges, max }`, `tracked`, `discoveredShrines`.
+ *   v3 (C1): `player.loadout` (4 spell slots) and `player.skills` (the skill tree) replace
+ *       `player.attrs`; `points` are skill points (2 per level-up).
  */
 type Raw = Record<string, unknown> & { schema?: unknown };
 
@@ -18,6 +22,26 @@ const STEPS: Record<number, (s: Raw) => Raw> = {
     player.tracked ??= null;
     player.discoveredShrines ??= player.lastShrine ? [player.lastShrine] : [];
     return { ...s, schema: 2, player };
+  },
+  2: (s) => {
+    const player = { ...(s.player as Record<string, unknown>) };
+    // The loadout: every known spell in the slot it was fixed to before C1.
+    const V2_SLOTS = ['bolt', 'blast', 'frostNova', 'chainZap'];
+    const known = Array.isArray(player.spells) ? player.spells : [];
+    player.loadout = V2_SLOTS.map((id) => (known.includes(id) ? id : null));
+    // Attributes become skills rank for point; anything over the rank cap comes back as points.
+    const attrs = (player.attrs && typeof player.attrs === 'object' ? player.attrs : {}) as Record<string, unknown>;
+    const rank = (k: string) => (typeof attrs[k] === 'number' && Number.isFinite(attrs[k]) ? Math.max(0, Math.floor(attrs[k] as number)) : 0);
+    const from = { spellPower: rank('arcana'), protection: 0, focus: 0, attack: rank('might'), defense: rank('vitality'), stamina: rank('endurance') };
+    const skills = Object.fromEntries(Object.entries(from).map(([k, v]) => [k, Math.min(SKILL_MAX_RANK, v)]));
+    const spent = Object.values(skills).reduce((a, b) => a + b, 0);
+    delete player.attrs;
+    player.skills = skills;
+    // Nobody loses points: total points become the new rate's 2 per level-up.
+    const level = typeof player.level === 'number' ? player.level : 1;
+    const oldTotal = Object.values(from).reduce((a, b) => a + b, 0) + (typeof player.points === 'number' ? player.points : 0);
+    player.points = Math.max(pointsForLevel(level), oldTotal) - spent;
+    return { ...s, schema: 3, player };
   },
 };
 
@@ -43,9 +67,24 @@ function validate(s: Raw): SaveFile {
   const w = s.world as Record<string, unknown> | undefined;
   const ok =
     !!p && !!w && typeof p.level === 'number' && typeof p.xp === 'number' && typeof p.sprouts === 'number' &&
-    !!p.attrs && typeof p.attrs === 'object' && !!p.equipment && typeof p.equipment === 'object' &&
+    typeof p.points === 'number' && Number.isInteger(p.points) && p.points >= 0 &&
+    validSkills(p.skills) && validLoadout(p.loadout, p.spells) && !!p.equipment && typeof p.equipment === 'object' &&
     !!p.inventory && typeof p.inventory === 'object' && Array.isArray(p.spells) && !!p.quests && typeof p.quests === 'object' &&
     !!p.tonics && typeof p.tonics === 'object' && !!w.flags && Array.isArray(w.openedChests) && Array.isArray(w.killedUniques);
   if (!ok) throw new SaveError('missing fields');
   return s as unknown as SaveFile;
+}
+
+/** Every skill present, an integer rank 0–10. */
+function validSkills(v: unknown): boolean {
+  if (!v || typeof v !== 'object') return false;
+  const s = v as Record<string, unknown>;
+  return SKILL_IDS.every((k) => typeof s[k] === 'number' && Number.isInteger(s[k]) && (s[k] as number) >= 0 && (s[k] as number) <= SKILL_MAX_RANK);
+}
+
+/** Four slots, each null or a known spell, no spell twice. */
+function validLoadout(v: unknown, spells: unknown): boolean {
+  if (!Array.isArray(v) || v.length !== LOADOUT_SLOTS || !Array.isArray(spells)) return false;
+  const used = v.filter((x) => x !== null);
+  return used.every((x) => typeof x === 'string' && spells.includes(x)) && new Set(used).size === used.length;
 }

@@ -13,9 +13,6 @@ export interface MenuActions {
   play(): void;
   /** Continue from the save (offered on the title only when one loaded). */
   continueGame(): void;
-  /** The pause menu's Character and Quest log screens (RPG menus; App pushes them). */
-  character(): void;
-  questLog(): void;
   resume(): void;
   quitToTitle(): void;
   settingsChanged(s: Settings): void;
@@ -49,8 +46,6 @@ export class Menus {
   private note = '';
   /** The title's save state: whether Continue is offered, and a notice about a damaged save. */
   private titleSave: { canContinue: boolean; notice: string } = { canContinue: false, notice: '' };
-  /** The pause menu offers Character and Quest log (world mode: the yard and the sandbox have no RPG). */
-  private rpg = false;
 
   constructor(
     host: HTMLElement,
@@ -85,11 +80,6 @@ export class Menus {
     if (this.nav.top === this.title) this.nav.refresh();
   }
 
-  /** Show the RPG screens (Character, Quest log) in the pause menu. */
-  set rpgMenus(on: boolean) {
-    this.rpg = on;
-  }
-
   private makeTitle(): Screen {
     const s = this.screen('screen-title');
     const render = () => {
@@ -111,7 +101,6 @@ export class Menus {
       s.replaceChildren(el('h2', '', 'Paused'));
       const list = el('div', 'list');
       list.append(button('Resume', () => this.actions.resume()));
-      if (this.rpg) list.append(button('Character', () => this.actions.character()), button('Quest log', () => this.actions.questLog()));
       list.append(button('Settings', () => this.nav.push(this.settings)), button('Quit to title', () => this.actions.quitToTitle()));
       s.append(list);
     };

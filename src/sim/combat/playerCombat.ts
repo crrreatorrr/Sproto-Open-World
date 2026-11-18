@@ -2,8 +2,9 @@ import {
   BLOCK, BUFFER, CHARGE, LUNGE, PLAYER_MOVES, PLAYER_STATS, ROLL, SOFT_TARGET, clipReach, clipTiming, type PlayerMoveId,
 } from '../../content/combat';
 import { TONIC } from '../../content/items';
-import { CAST_WALK_SCALE, SPELL_BY_SLOT } from '../../content/spells';
+import { CAST_WALK_SCALE } from '../../content/spells';
 import { charmOf } from '../systems/rpg';
+import { slotSpell } from '../systems/loadout';
 import { DT } from '../../content/tuning';
 import { BTN, idleInput, type CommandMap, type InputCommand } from '../commands';
 import type { Action, Buffered, BufferedAction, Entity } from '../entity';
@@ -195,7 +196,11 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
     const legal = !a || a.kind === 'block' || (a.kind === 'attack' && LIGHTS.has(a.move as string) && a.clipT >= clipTiming(PLAYER_MOVES[a.move as PlayerMoveId].clip).activeEnd);
     if (!legal) return;
     c.buffer = null;
-    startCast(ctx, p, SPELL_BY_SLOT[Number(b.action.slice(5)) as 1 | 2 | 3 | 4]);
+    // The loadout decides what each slot casts (expansion plan §1.4).
+    const slot = Number(b.action.slice(5)) - 1;
+    const spell = slotSpell(p, slot);
+    if (spell) startCast(ctx, p, spell);
+    else ctx.events.push({ type: 'refused', entity: p.id, action: 'cast', reason: `No power in slot ${slot + 1}. Equip one in the Powers tab.` });
     return;
   }
   // Light or heavy.

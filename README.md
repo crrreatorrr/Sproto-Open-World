@@ -10,10 +10,20 @@ its bridge, the orchard, Thornwood and the quarry ravine. The village has the fi
   dummies, open the old chest, bring back the seed, then rest at the shrine.
 - **Trader Pepe** sells a staff, charms and a tonic flask for Sprouts.
 - **The Shrine of First Light** heals you, refills your Sprout Tonics, becomes your respawn point,
-  and is where you spend level-up points on Might, Arcana, Vitality and Endurance.
+  makes power swaps free, and is the place to reset your skills.
 
-You earn XP and levels, wear a staff, a robe and a charm, collect loot, and the game saves itself
-(Continue on the title). The camps, the other quests and the boss come in M4 and M5. The plan is in
+You earn XP and levels (cap 15), wear a staff, a robe and a charm, collect loot, and the game saves
+itself (Continue on the title). **The menu** (Esc or Start) has one tab each for:
+- **Powers:** equip four of the spells you know. A power you swap in starts on cooldown (at least
+  3 s), so a swap is never a free reset.
+- **Skills:** each level gives 2 points to spend, anywhere, on the **Magic** branch (Spell Power,
+  Protection, Focus) or the **Combat** branch (Attack, Defense, Stamina). 10 and 20 ranks in a branch
+  unlock a perk. A shrine refunds your points for 100 Sprouts per level.
+- **Gear:** compare and change your staff, robe and charm, but not in combat (an enemy targeted you
+  in the last 5 s) unless you're at a shrine.
+- **Quests** and **Settings.**
+
+The camps, the other quests and the boss come in M4 and M5. The plan is in
 [docs/plans/2026-11-17-first-area-plan.md](docs/plans/2026-11-17-first-area-plan.md).
 
 | URL | What you get |
@@ -51,12 +61,14 @@ Then open http://localhost:5180.
 | Dodge roll | C | B |
 | Block (the first moment of a block parries) | Q | LB |
 | Lock on / switch target | Middle mouse or T / flick the mouse | Right stick click / flick the right stick |
-| Spells: Bolt, Blast, Frost Nova, Chain Zap (in Sproutvale you start with Bolt) | 1 2 3 4 (or E R Z X) | Hold LT + X / Y / B / A |
+| Cast the spell in slot 1–4 (in Sproutvale you start with Bolt) | 1 2 3 4 (or E R Z X) | Hold LT + X / Y / B / A |
 | Interact: talk, open, rest | F | Y |
 | Drink a Sprout Tonic | H | D-pad ↑ |
-| Quest log / inventory | J / I | Menu → tabs |
-| Pause / back | Esc | Menu / B |
-| Menus | Arrows, Enter, Esc, or the mouse | D-pad or left stick, A, B |
+| Open the menu / close it | Esc | Menu (Start) |
+| Open the menu on Quests | J | View (Back) |
+| Open the menu on Gear | I | Menu, then LB / RB |
+| Switch menu tabs | Q / E | LB / RB |
+| Menus: move, choose, back | Arrows or WASD, Enter, Esc, or the mouse | D-pad or left stick, A, B |
 
 Everything is remappable in Settings → Controls, and the prompts switch to your pad's glyphs when
 you use it.

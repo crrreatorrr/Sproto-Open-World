@@ -31,8 +31,8 @@ async function loadInto(save: SaveFile): Promise<Awaited<ReturnType<typeof villa
 async function playedWorld() {
   const v = await village();
   const { w, p, prog } = v;
-  playWakeUp(w); // ends resting at shrine_first_light (level 2: one point)
-  tick1(w, ui([{ kind: 'spendAttr', attr: 'arcana' }, { kind: 'closeMenu' }]));
+  playWakeUp(w); // ends resting at shrine_first_light (level 2: two skill points)
+  tick1(w, ui([{ kind: 'spendSkill', skill: 'focus' }, { kind: 'closeMenu' }]));
   prog().sprouts += 300; // test setup: enough to shop
   standBy(w, 'merchant_village');
   tick1(w, interact());
@@ -40,6 +40,7 @@ async function playedWorld() {
   tick1(w, ui([{ kind: 'buy', merchant: 'merchant_village', item: 'staff_nobu' }, { kind: 'buy', merchant: 'merchant_village', item: 'charm_second_wind' }]));
   tick1(w, ui([{ kind: 'equip', item: 'staff_nobu' }, { kind: 'equip', item: 'charm_second_wind' }]));
   applyEffects(rpgCtx(w), p, [{ learnSpell: 'frostNova' }, { setFlag: 'met_trader', value: 2 }]);
+  tick1(w, ui([{ kind: 'equipSpell', slot: 0, spell: 'frostNova' }, { kind: 'equipSpell', slot: 3, spell: 'bolt' }]));
   // Drink one tonic (out of the shop: a menu swallows gameplay presses), then reopen the shop.
   tick1(w, ui([{ kind: 'closeMenu' }], BTN.potion));
   expect(prog().tonics.charges).toBe(3);
@@ -66,11 +67,13 @@ describe('save round trip through the sim (plan §2.8)', () => {
     w.dispose();
   });
 
-  it('a new world restores level, XP, attrs, points, Sprouts, gear, inventory, spells, tonics, quests, shrines, flags and chests', async () => {
+  it('a new world restores level, XP, skills, points, the loadout, Sprouts, gear, inventory, spells, tonics, quests, shrines, flags and chests', async () => {
     const a = await playedWorld();
     const before = structuredClone(persistent(a.prog()));
     expect(before.level).toBe(2);
-    expect(before.attrs.arcana).toBe(1);
+    expect(before.skills.focus).toBe(1);
+    expect(before.points).toBe(1);
+    expect(before.loadout).toEqual(['frostNova', null, null, 'bolt']);
     expect(before.equipment).toEqual({ staff: 'staff_nobu', robe: 'robe_apprentice', charm: 'charm_second_wind' });
     expect(before.spells).toEqual(['bolt', 'frostNova']);
     expect(before.quests.q_wake_up.status).toBe('complete');
@@ -85,7 +88,7 @@ describe('save round trip through the sim (plan §2.8)', () => {
     const b = await loadInto(save);
     expect(persistent(b.prog())).toEqual(before);
     expect(b.w.world).toEqual(worldBefore);
-    // Derived stats re-computed from the loaded state: Arcana 1 and level 2, Second Wind's charge.
+    // Derived stats re-computed from the loaded state: Focus 1 and level 2, Second Wind's charge.
     expect(b.p.vitals!.manaMax).toBe(100 + 4 + 5);
     expect(b.p.vitals!.hp).toBe(b.p.vitals!.hpMax);
     expect(b.prog().tonics.max).toBe(4);

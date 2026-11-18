@@ -50,6 +50,8 @@ export interface HudSpells {
   woven: boolean;
   /** Spells the player has learned (M3 progress); absent means all four (the yard and the sandbox). */
   learned?: readonly SpellId[];
+  /** What each of the four slots holds (C1 loadout); absent means each spell in its home slot. */
+  loadout?: readonly (SpellId | null)[];
 }
 
 /** The wave runner (`?sandbox=1`): `index` into WAVES (the next wave between waves), `nextIn` in ticks (0 while fighting). */
@@ -71,10 +73,12 @@ export interface HudCombat {
 }
 
 interface SpellSlot {
-  id: SpellId;
+  id: SpellId | null;
   root: HTMLElement;
   key: HTMLElement;
   cd: number;
+  /** The cooldown the sweep is drawn against: the spell's own, or a longer swap-in wait. */
+  cdFull: number;
   poor: boolean;
   casting: boolean;
   locked: boolean;
@@ -85,6 +89,14 @@ const SLOTS = [1, 2, 3, 4] as const;
 const SPELL_FACE = ['x', 'y', 'b', 'a'] as const;
 
 const icon = (id: IconId, cls: string, extra = '') => `<span class="ico ${cls}">${ICONS[id]}${extra}</span>`;
+
+/** A spell slot's button glyph on the active device: keys 1–4, or the modifier plus a face button (LT + X…). */
+export function spellSlotGlyph(slot: number, device: GamepadInput['device'], style: GamepadInput['style']): string {
+  return device === 'gamepad' ? `${padGlyph(PAD.spellModifier[0] ?? 'lt', style)}+${padGlyph(SPELL_FACE[slot], style)}` : keyLabel(KEYS[`spell${SLOTS[slot]}`][0] ?? '');
+}
+
+/** A spell's icon (or an empty slot's ring), for the HUD and the Powers tab. */
+export const spellIcon = (id: SpellId | null, cls = 'spell-ico'): string => (id ? icon(id, cls) : `<span class="ico ${cls} empty"></span>`);
 
 interface Bar {
   root: HTMLElement;
@@ -156,6 +168,8 @@ export class Hud {
   private lastStatus = '';
   private lastAffinity = '';
   private lastGlyphs = '';
+  /** A slot was refilled: its key glyph must be written again. */
+  private slotsChanged = false;
   private lastWave = '';
   private woven = false;
 
@@ -191,14 +205,12 @@ export class Hud {
     this.spellBar = document.createElement('div');
     this.spellBar.className = 'spell-bar';
     this.slots = SLOTS.map((n) => {
-      const id = SPELL_BY_SLOT[n];
-      const def = SPELLS[id];
       const root = document.createElement('div');
       root.className = 'spell';
-      root.dataset.spell = id;
-      root.innerHTML = `<div class="sweep"></div>${icon(id, 'spell-ico')}<div class="name">${def.name}</div><div class="cost">${def.cost}</div><kbd class="key"></kbd>`;
       this.spellBar.append(root);
-      return { id, root, key: root.querySelector('.key') as HTMLElement, cd: -1, poor: false, casting: false, locked: false };
+      const sl: SpellSlot = { id: null, root, key: root, cd: -1, cdFull: 1, poor: false, casting: false, locked: false };
+      this.fillSlot(sl, SPELL_BY_SLOT[n]);
+      return sl;
     });
     this.waveInfo = document.createElement('div');
     this.waveInfo.className = 'wave-info';
@@ -236,11 +248,10 @@ export class Hud {
     }
     this.clickHint.classList.toggle('active', d === 'kbm' && !mouseLocked);
     // Spell glyphs follow the device: keys 1–4, or the modifier plus a face button (LT + X…).
-    const glyphs = this.slots.map((_, i) =>
-      d === 'gamepad' ? `${padGlyph(PAD.spellModifier[0] ?? 'lt', s)}+${padGlyph(SPELL_FACE[i], s)}` : keyLabel(KEYS[`spell${SLOTS[i]}`][0] ?? ''),
-    );
+    const glyphs = this.slots.map((_, i) => spellSlotGlyph(i, d, s));
     const g = glyphs.join('|');
-    if (g !== this.lastGlyphs) {
+    if (g !== this.lastGlyphs || this.slotsChanged) {
+      this.slotsChanged = false;
       this.lastGlyphs = g;
       this.slots.forEach((sl, i) => (sl.key.textContent = glyphs[i]));
     }
@@ -337,10 +348,38 @@ export class Hud {
     }
   }
 
+  /** Show a spell (or an empty slot) in a HUD slot: name, icon, cost, a fresh sweep. */
+  private fillSlot(sl: SpellSlot, id: SpellId | null): void {
+    sl.id = id;
+    const def = id ? SPELLS[id] : null;
+    sl.root.dataset.spell = id ?? '';
+    sl.root.classList.toggle('empty', !id);
+    sl.root.innerHTML = `<div class="sweep"></div>${spellIcon(id)}<div class="name">${def?.name ?? 'Empty'}</div><div class="cost">${def?.cost ?? ''}</div><kbd class="key"></kbd>`;
+    sl.key = sl.root.querySelector('.key') as HTMLElement;
+    sl.cd = -1;
+    sl.cdFull = def?.cooldown ?? 1;
+    sl.poor = sl.casting = sl.locked = false;
+    sl.root.classList.remove('cooling', 'poor', 'casting', 'locked');
+    this.slotsChanged = true;
+  }
+
+  /** What the HUD's four slots show, in order (QA). */
+  get slotSpells(): (SpellId | null)[] {
+    return this.slots.map((s) => s.id);
+  }
+
   private spellState(sp: HudSpells): void {
+    this.slots.forEach((sl, i) => {
+      const want = sp.loadout ? (sp.loadout[i] ?? null) : SPELL_BY_SLOT[SLOTS[i]];
+      if (want !== sl.id) this.fillSlot(sl, want);
+    });
     for (const sl of this.slots) {
+      if (!sl.id) continue;
       const def = SPELLS[sl.id];
-      const cd = Math.round((Math.min(def.cooldown, sp.cooldowns[sl.id] ?? 0) / Math.max(1, def.cooldown)) * 100) / 100;
+      // A swapped-in power can wait longer than its own cooldown: the sweep runs over the whole wait.
+      const left = sp.cooldowns[sl.id] ?? 0;
+      sl.cdFull = left > 0 ? Math.max(sl.cdFull, left) : def.cooldown;
+      const cd = Math.round((left / Math.max(1, sl.cdFull)) * 100) / 100;
       if (cd !== sl.cd) {
         sl.cd = cd;
         sl.root.style.setProperty('--cd', String(cd));

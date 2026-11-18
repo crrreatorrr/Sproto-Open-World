@@ -6,7 +6,7 @@ import type { Progress, WorldState } from '../sim/entity';
 
 export const SAVE_KEY = 'sow.save';
 export const SAVE_BAK_KEY = 'sow.save.bak';
-export const SAVE_SCHEMA = 2;
+export const SAVE_SCHEMA = 3;
 
 export interface SaveFile {
   schema: number;

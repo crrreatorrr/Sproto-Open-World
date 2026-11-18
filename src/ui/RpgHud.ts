@@ -109,7 +109,7 @@ export class RpgHud {
 
   update(s: HudRpgState, dt: number): void {
     const lp = levelProgress(s.level, s.xp);
-    const level = `Lv ${s.level}${s.points > 0 ? '<b title="Attribute points to spend at a shrine">+</b>' : ''}`;
+    const level = `Lv ${s.level}${s.points > 0 ? '<b title="Skill points to spend on the Skills tab">+</b>' : ''}`;
     if (level !== this.last.level) {
       this.last.level = level;
       this.levelEl.innerHTML = level;

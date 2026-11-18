@@ -1,3 +1,5 @@
+import type { SkillId } from '../content/progression';
+import type { SpellId } from '../content/spells';
 import type { PlayerId } from './entity';
 
 /** Buttons a player can hold. Bit flags so a command is two small integers. */
@@ -26,13 +28,19 @@ export type ButtonName = keyof typeof BTN;
  */
 /**
  * Intents from menus (plan §2.2: intents, not effects). The sim validates each: equipping an item
- * you own, buying while that merchant's shop is open, spending a point at a shrine, and so on.
+ * you own (out of combat), buying while that merchant's shop is open, equipping a known spell in a
+ * slot, spending a skill point, and so on. They ride a tick even while paused (App.pausedTick), so
+ * every rule lives in the sim.
  */
 export type UiAction =
   | { kind: 'dialogueChoose'; choice: number }
   | { kind: 'buy'; merchant: string; item: string }
   | { kind: 'equip'; item: string }
-  | { kind: 'spendAttr'; attr: 'might' | 'arcana' | 'vitality' | 'endurance' }
+  /** Put a known spell (or nothing) in loadout slot 0–3. A spell already in another slot moves. */
+  | { kind: 'equipSpell'; slot: number; spell: SpellId | null }
+  | { kind: 'spendSkill'; skill: SkillId }
+  /** Refund every rank for Sprouts; only at a shrine. */
+  | { kind: 'respecSkills' }
   | { kind: 'rest' }
   | { kind: 'closeMenu' }
   | { kind: 'track'; quest: string };
