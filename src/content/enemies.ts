@@ -4,7 +4,9 @@
  */
 import type { DamageKind } from './combat';
 import { C4_ENEMIES } from './packs/c4';
+import { BURROWMOTHER } from './packs/c5';
 import { SCRAPJAW } from './packs/m5';
+import type { StatusId } from './statuses';
 
 export type Affinity = 'weak' | 'normal' | 'resist';
 export const AFFINITY_MULT: Record<Affinity, number> = { weak: 1.5, normal: 1, resist: 0.5 };
@@ -46,6 +48,8 @@ export interface BossDef {
   rocks: { ticks: number; fuse: number; radius: number; damage: number };
   /** The Burn patch a phase 3 slam leaves behind. */
   burnPatch: { radius: number; ticks: number };
+  /** Dormant under the ground (out of reach, undrawn) until this world flag is set. */
+  wakeFlag?: string;
 }
 
 export interface EnemyMoveDef {
@@ -82,6 +86,8 @@ export interface EnemyMoveDef {
     model?: string;
     /** Parried back into its shooter: takes this fraction of its max HP and staggers it (ticks). */
     reflectBonus?: { hpFrac: number; stagger: number };
+    /** The status a hit leaves on its target. */
+    status?: { id: StatusId; stacks: number };
   };
   /**
    * An area attack: a circle of `radius` m placed on the target's feet when the wind-up starts
@@ -118,12 +124,14 @@ export interface EnemyMoveDef {
   burnPatch?: boolean;
   /** Weak spots open only during this move. */
   weakSpots?: WeakSpotDef[];
+  /** A burrow: `sink` goes under as the wind-up ends; `rise` comes up on its `area` circle as the wind-up ends. */
+  burrow?: 'sink' | 'rise';
 }
 
 export interface EnemyDef {
   id: string;
   name: string;
-  model: 'brute' | 'dummy' | 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'gatekeeper' | 'robot_shooter' | 'robot_laser' | 'scrapjaw';
+  model: 'brute' | 'dummy' | 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'gatekeeper' | 'robot_shooter' | 'robot_laser' | 'scrapjaw' | 'burrowmother';
   /** Extra names a quest's `kill` objective matches (an Orchard Grunt is still a `grunt`). */
   tags?: string[];
   hp: number;
@@ -371,5 +379,7 @@ ENEMIES.gatekeeper = {
 Object.assign(ENEMIES, C4_ENEMIES);
 // M5: the boss of the Old Quarry.
 ENEMIES.scrapjaw = SCRAPJAW;
+// C5: the boss of the Deep Seam.
+ENEMIES.burrowmother = BURROWMOTHER;
 
 export type EnemyId = keyof typeof ENEMIES;

@@ -1,4 +1,5 @@
 import { C4_NPCS } from './packs/c4';
+import { C5_NPCS } from './packs/c5';
 
 /** NPCs (plan §6): who they are, how they look, what they say. */
 export interface NpcDef {
@@ -23,3 +24,4 @@ export const NPCS: Record<string, NpcDef> = {
 };
 
 Object.assign(NPCS, C4_NPCS);
+Object.assign(NPCS, C5_NPCS);
