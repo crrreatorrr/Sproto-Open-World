@@ -21,6 +21,9 @@ export const TOKENS = { melee: 2, ranged: 1 } as const;
 const CIRCLE_SPEED = 1.7;
 const WAIT_BAND: [number, number] = [4, 7];
 const MIN_GAP = 0.6;
+/** A walk home gets this many times the ticks it should take (plus a moment), then the enemy is put back there. */
+const LEASH_PATIENCE = 3;
+const LEASH_GRACE = 60;
 
 /**
  * Enemy brains (plan §4.8). Dummies run fixed timers. Fighters approach (melee) or hold a distance
@@ -82,7 +85,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
 
     if (def.dummy) dummyThink(ctx, e, def, target);
     else if (boss) bossThink(ctx, e, def, target, rng, boss, startAttack);
-    else fighterThink(ctx, e, def, target, rng);
+    else fighterThink(ctx, e, def, target, rng, physics);
     // Chill slows movement too, and an affix can speed it up or slow it down.
     const m = ctx.motion.get(e.id);
     if (m) {
@@ -221,7 +224,7 @@ function dummyThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | n
   }
 }
 
-function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | null, rng: RngState): void {
+function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | null, rng: RngState, physics: PhysicsWorld): void {
   // Moves the AI picks itself (a string's later hits only come as follow-ups).
   const picks = def.moves.filter((m) => !m.chainOnly);
   const b = e.brain!;
@@ -248,14 +251,26 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
 
   // Leash: pulled too far from home, or the player it was fighting got away: walk back fast,
   // healing, ignoring the player.
-  if (!target && b.state === 'engage' && fromHome > 1) b.state = 'leash';
-  if (b.state === 'leash' || fromHome > def.leashRange) {
+  if (b.state !== 'leash' && ((!target && b.state === 'engage' && fromHome > 1) || fromHome > def.leashRange)) {
     b.state = 'leash';
+    b.timer = Math.ceil(fromHome / (def.moveSpeed * 2 * DT)) * LEASH_PATIENCE + LEASH_GRACE;
+  }
+  if (b.state === 'leash') {
     e.vitals!.hp = Math.min(e.vitals!.hpMax, e.vitals!.hp + e.vitals!.hpMax * 0.02);
-    if (fromHome < 1) {
-      b.state = 'idle';
-      e.vitals!.hp = e.vitals!.hpMax;
-    } else go(home.x, home.z, def.moveSpeed * 2);
+    if (fromHome >= 1 && --b.timer > 0) {
+      go(home.x, home.z, def.moveSpeed * 2);
+      return;
+    }
+    // Home, or something stands in the way of the straight walk there: it mustn't run at it forever.
+    if (fromHome >= 1) {
+      e.tf.pos = { ...home };
+      e.tf.prevPos = { ...home };
+      e.tf.vel = { x: 0, y: 0, z: 0 };
+      physics.teleport(e.id, e.tf.pos);
+    }
+    b.state = 'idle';
+    e.vitals!.hp = e.vitals!.hpMax;
+    ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
     return;
   }
   if (!target) {
