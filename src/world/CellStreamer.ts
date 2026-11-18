@@ -397,6 +397,12 @@ export class CellStreamer {
     return c?.heights ? sampleHeight(c.heights, cx, cz, x, z) : null;
   }
 
+  /** A cell's raw payload once its terrain is showing, for the grass to scatter over. */
+  grassSource(cx: number, cz: number): { bin: ArrayBuffer; json: CellData } | null {
+    const c = this.cells.get(cellKey(cx, cz));
+    return c?.chunk && c.data ? c.data : null;
+  }
+
   /** Loaded cells by level, for the overlay's ring view. */
   rings(): { key: string; cx: number; cz: number; level: CellLevel; shown: boolean; colliders: boolean }[] {
     return [...this.cells.values()].map((c) => ({ key: c.key, cx: c.cx, cz: c.cz, level: c.level, shown: !!c.chunk, colliders: c.colliders }));

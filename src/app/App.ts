@@ -223,7 +223,7 @@ export class App {
     this.bindWindowEvents(canvas);
     window.addEventListener('resize', () => this.rpgHud.setCompassWidth(compassWidth()));
     this.rpgHud.setCompassWidth(compassWidth());
-    this.stream = MODE === 'world' ? new WorldSession(this.renderer, this.assets) : null;
+    this.stream = MODE === 'world' ? new WorldSession(this.renderer, this.assets, this.settings.grass) : null;
     if (!this.stream) {
       this.renderer.yardLook();
       this.renderer.buildLevel(SANDBOX);
@@ -256,6 +256,7 @@ export class App {
     this.rig.padScale = s.padSensitivity;
     this.rig.invertY = s.invertY;
     this.input.pad.rumbleEnabled = s.rumble;
+    this.stream?.setGrass(s.grass);
   }
 
   private bindWindowEvents(canvas: HTMLCanvasElement): void {
