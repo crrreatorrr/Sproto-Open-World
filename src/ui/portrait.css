@@ -1,0 +1,10 @@
+/* The speaker's portrait in the dialogue panel (src/render/PortraitStudio.ts). */
+.dialogue-panel.with-portrait { position: relative; padding-left: 164px; min-height: 164px; }
+.dialogue-panel .portrait {
+  position: absolute; left: 18px; top: 18px; width: 128px; height: 128px; border-radius: 12px;
+  border: 2px solid var(--panel-edge); box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45); background: #1d2a14;
+}
+@media (max-width: 560px) {
+  .dialogue-panel.with-portrait { padding-left: 98px; min-height: 96px; }
+  .dialogue-panel .portrait { left: 12px; top: 14px; width: 72px; height: 72px; }
+}

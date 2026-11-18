@@ -1,4 +1,5 @@
-import { BLOCK, CHARGE, PLAYER_MOVES, ROLL, clipTiming, type PlayerMoveId } from '../content/combat';
+import { BLOCK, CHARGE, PLAYER_MOVES, clipTiming, type PlayerMoveId } from '../content/combat';
+import { PLUNGE, dodgeFrames } from '../content/packs/m7';
 import { SPELLS, WOVEN, type SpellId } from '../content/spells';
 import type { Entity } from '../sim/entity';
 
@@ -44,12 +45,15 @@ export function frameDataLines(e: Readonly<Entity> | undefined, now = 0): string
       lines.push(`active [${tm.activeStart},${tm.activeEnd})   dodge ≥${tm.activeEnd}   combo ≥${tm.cancel}   end ${tm.end}${def.hyperArmorFrom !== undefined ? `   armor ≥${def.hyperArmorFrom}` : ''}   hits ${a.hit.length}`);
     } else lines.push(`action: attack ${a.move} t ${a.t}`);
   } else if (a.kind === 'dodge') {
+    const f = dodgeFrames(a);
     const bar: string[] = [];
-    for (let t = 0; t < ROLL.ticks; t++) bar.push(t >= ROLL.iframeStart && t <= ROLL.perfectEnd ? 'P' : t >= ROLL.iframeStart && t <= ROLL.iframeEnd ? 'I' : t >= ROLL.attackFrom ? 'c' : '-');
-    const inv = a.t >= ROLL.iframeStart && a.t <= ROLL.iframeEnd;
-    lines.push(`action: dodge   t ${a.t}/${ROLL.ticks}   ${inv ? (a.t <= ROLL.perfectEnd ? 'I-FRAMES (perfect)' : 'I-FRAMES') : 'vulnerable'}`);
-    lines.push(`|${bar.join('')}|`, ` ${' '.repeat(Math.min(ROLL.ticks, a.t))}^`);
-    lines.push(`P perfect [${ROLL.iframeStart},${ROLL.perfectEnd}]   I i-frames ≤${ROLL.iframeEnd}   c roll attack ≥${ROLL.attackFrom}`);
+    for (let t = 0; t < f.ticks; t++) bar.push(t >= f.iframeStart && t <= f.perfectEnd ? 'P' : t >= f.iframeStart && t <= f.iframeEnd ? 'I' : t >= f.attackFrom ? 'c' : '-');
+    const inv = a.t >= f.iframeStart && a.t <= f.iframeEnd;
+    lines.push(`action: ${a.back ? 'backstep' : 'dodge'}   t ${a.t}/${f.ticks}   ${inv ? (a.t <= f.perfectEnd ? 'I-FRAMES (perfect)' : 'I-FRAMES') : 'vulnerable'}`);
+    lines.push(`|${bar.join('')}|`, ` ${' '.repeat(Math.min(f.ticks, a.t))}^`);
+    lines.push(`P perfect [${f.iframeStart},${f.perfectEnd}]   I i-frames ≤${f.iframeEnd}   c roll attack ≥${f.attackFrom}`);
+  } else if (a.kind === 'plunge') {
+    lines.push(a.landT < 0 ? `action: plunge   diving   t ${a.t}   from y ${a.fromY.toFixed(1)}` : `action: plunge   recovery ${a.landT}/${PLUNGE.recovery}   cancel ≥${PLUNGE.cancelFrom}`);
   } else if (a.kind === 'block') {
     const parry = Math.max(0, a.parryTicks - a.t);
     lines.push(`action: block   t ${a.t}   ${parry > 0 ? `PARRY window ${parry} left (of ${a.parryTicks})` : 'guarding'}   raised ≥${BLOCK.raised}`);

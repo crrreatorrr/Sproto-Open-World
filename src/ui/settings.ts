@@ -8,11 +8,13 @@ export interface Settings {
   rumble: boolean;
   /** Camera shake and screen flash (off for motion sensitivity). */
   shake: boolean;
+  /** Instanced grass around the player (off for slower machines). */
+  grass: boolean;
 }
 
 export const SETTINGS_KEY = 'sow.settings';
 
-export const DEFAULT_SETTINGS: Settings = { mouseSensitivity: 1, padSensitivity: 1, invertY: false, rumble: true, shake: true };
+export const DEFAULT_SETTINGS: Settings = { mouseSensitivity: 1, padSensitivity: 1, invertY: false, rumble: true, shake: true, grass: true };
 
 const clamp = (v: unknown, lo: number, hi: number, d: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
 
@@ -25,6 +27,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     invertY: typeof r.invertY === 'boolean' ? r.invertY : d.invertY,
     rumble: typeof r.rumble === 'boolean' ? r.rumble : d.rumble,
     shake: typeof r.shake === 'boolean' ? r.shake : d.shake,
+    grass: typeof r.grass === 'boolean' ? r.grass : d.grass,
   };
 }
 

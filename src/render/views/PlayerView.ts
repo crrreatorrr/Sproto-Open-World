@@ -3,6 +3,7 @@ import type { AssetLoader, ModelInstance } from '../../assets/AssetLoader';
 import { STAFF_SOCKET, type ModelKey } from '../../assets/manifest';
 import { PLAYER_MOVES, ROLL, type PlayerMoveId } from '../../content/combat';
 import { PLAYER_MOVE_TIMING } from '../../content/generated/playerMoveTiming';
+import { BACKSTEP, PLUNGE } from '../../content/packs/m7';
 import { SPELLS } from '../../content/spells';
 import { TICK_HZ } from '../../content/tuning';
 import type { Entity } from '../../sim/entity';
@@ -116,8 +117,19 @@ export class PlayerView {
         return true;
       }
       case 'dodge':
-        anim.scrub(ROLL.clip, (Math.min(a.t, ROLL.ticks) / ROLL.ticks) * anim.duration(ROLL.clip));
+        // A backstep is half a stride of the backward run, played fast.
+        if (a.back) anim.scrub('run_back', (Math.min(a.t, BACKSTEP.ticks) / BACKSTEP.ticks) * anim.duration('run_back') * 0.5);
+        else anim.scrub(ROLL.clip, (Math.min(a.t, ROLL.ticks) / ROLL.ticks) * anim.duration(ROLL.clip));
         return true;
+      case 'plunge': {
+        // The heavy's wind-up, held over the dive; the landing plays its strike and recovery.
+        const tm = PLAYER_MOVE_TIMING.attack_heavy;
+        const clipT = a.landT < 0
+          ? Math.min(tm.chargeEnd - 1, tm.chargeStart + a.t)
+          : tm.activeStart + (Math.min(a.landT, PLUNGE.recovery) / PLUNGE.recovery) * (tm.end - tm.activeStart);
+        anim.scrub('attack_heavy', clipT / TICK_HZ, ENTRY_FADE);
+        return true;
+      }
       case 'block':
         // Raise, then hold on the hold marker while the button stays down.
         anim.scrub('block', Math.min(a.t, BLOCK_HOLD) / TICK_HZ);

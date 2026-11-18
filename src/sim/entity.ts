@@ -90,9 +90,12 @@ export type Action =
       /** A held power (Ember Breath) after its release: ticks breathed, and the longest it can go. */
       channel?: { t: number; dur: number };
     }
-  | { kind: 'dodge'; t: number; dir: { x: number; z: number } }
+  /** A roll, or with `back` a backstep (dodge with no stick direction): its frames are `dodgeFrames`. */
+  | { kind: 'dodge'; t: number; dir: { x: number; z: number }; back?: boolean }
   /** The Momentum staff's blink: already moved, untouchable until it ends. */
   | { kind: 'blink'; t: number }
+  /** The plunge attack: diving from `fromY`; `landT` counts from the landing (−1 while in the air). */
+  | { kind: 'plunge'; t: number; fromY: number; landT: number }
   | { kind: 'block'; t: number; parryTicks: number }
   | { kind: 'hitstun'; t: number; dur: number; knockdown: boolean }
   /** `broken`: its poise broke (bosses take more damage). `stunned`: it ran into something (weak spots open). */

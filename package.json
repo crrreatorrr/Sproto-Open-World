@@ -17,6 +17,7 @@
     "test:e2e": "node tests/e2e/smoke.mjs && node tests/e2e/world.mjs && node tests/e2e/camps.mjs",
     "gen:moves": "vite-node tools/gen-player-moves.ts --",
     "bake:world": "vite-node tools/bake-world.ts --",
+    "bake:map": "node tools/bake-map.mjs",
     "import:assets": "node tools/import-sibling-assets.mjs",
     "check:assets": "node scripts/check-assets.mjs",
     "budgets": "node scripts/check-budgets.mjs"

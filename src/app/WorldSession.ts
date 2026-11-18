@@ -4,6 +4,7 @@ import { TEXTURES } from '../assets/manifest';
 import { cellOf } from '../content/world/format';
 import type { Renderer } from '../render/Renderer';
 import { CellStreamer, type CellSink, type CellView } from '../world/CellStreamer';
+import { GrassField } from '../world/GrassField';
 import { loadRegion, propPath, type Region } from '../world/RegionManifest';
 import { VEIL_TIMEOUT_MS, withRetry } from '../world/rings';
 import { TerrainBuilder } from '../world/TerrainBuilder';
@@ -24,11 +25,18 @@ export class WorldSession {
   streamer: CellStreamer | null = null;
   readonly uploads = new UploadBudget();
   private builder: TerrainBuilder | null = null;
+  private grass: GrassField | null = null;
   private loading: Promise<Region> | null = null;
   /** When the veil went up for missing ground (performance.now ms), or null. */
   private veilSince: number | null = null;
 
-  constructor(private readonly renderer: Renderer, private readonly assets: AssetLoader) {}
+  constructor(private readonly renderer: Renderer, private readonly assets: AssetLoader, private grassOn = true) {}
+
+  /** The Grass setting. */
+  setGrass(on: boolean): void {
+    this.grassOn = on;
+    if (this.grass) this.grass.enabled = on;
+  }
 
   /** Load the manifest (3 retries) and set up streaming. Safe to call again after a failure. */
   load(): Promise<Region> {
@@ -78,6 +86,11 @@ export class WorldSession {
     const probe = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), streamer.terrainMaterial);
     probe.receiveShadow = true;
     void this.renderer.compile(probe).finally(() => probe.geometry.dispose());
+    const field = new GrassField(Math.max(0, m.splatLayers.indexOf('grass')), m.props, m.heightRange);
+    field.enabled = this.grassOn;
+    this.grass = field;
+    streamer.root.add(field.root);
+    void this.renderer.compile(field.root);
     // The horizon is resident for the whole session.
     this.assets.gltf(m.horizon, 'now').then(
       (g) => {
@@ -99,6 +112,7 @@ export class WorldSession {
     if (!this.streamer) return;
     this.uploads.run();
     this.streamer.update(focus, view, tick);
+    this.grass?.update(focus.x, focus.z, performance.now() / 1000, this.streamer);
   }
 
   attach(sim: CellSink): void {
@@ -183,6 +197,8 @@ export class WorldSession {
   }
 
   dispose(): void {
+    this.grass?.dispose();
+    this.grass = null;
     this.streamer?.dispose();
     this.streamer = null;
     this.builder?.dispose();

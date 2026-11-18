@@ -118,7 +118,7 @@ export class Menus {
         b.dataset.setting = key;
         return b;
       };
-      const toggle = (key: 'invertY' | 'rumble' | 'shake', label: string) => {
+      const toggle = (key: 'invertY' | 'rumble' | 'shake' | 'grass', label: string) => {
         const b = button(`${label}: ${v[key] ? 'On' : 'Off'}`, () => this.adjustSetting(b, 1), 'btn toggle');
         b.dataset.setting = key;
         return b;
@@ -130,6 +130,7 @@ export class Menus {
         toggle('invertY', 'Invert look Y'),
         toggle('rumble', 'Rumble'),
         toggle('shake', 'Camera shake'),
+        toggle('grass', 'Grass'),
         button('Back', () => this.nav.pop()),
       );
       s.append(list, el('p', 'hint', '← → to change'));

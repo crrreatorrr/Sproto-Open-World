@@ -24,6 +24,7 @@ import { Input } from '../input/Input';
 import { RUMBLE, TRAUMA } from '../render/fx/feedback';
 import { HitFx, type SparkStyle } from '../render/fx/HitFx';
 import { isSoftPowerHit, powerSpark } from '../render/fx/powers';
+import { PortraitStudio } from '../render/PortraitStudio';
 import { Renderer } from '../render/Renderer';
 import { PlayerView } from '../render/views/PlayerView';
 import { WorldViews, enemyDef } from '../render/views/WorldViews';
@@ -88,6 +89,8 @@ export class App {
   readonly input: Input;
   readonly assets = new AssetLoader();
   readonly renderer: Renderer;
+  /** The dialogue panel's render-to-texture speaker portraits. */
+  readonly portraits: PortraitStudio;
   readonly rig: CameraRig;
   readonly nav: MenuNav;
   readonly menus: Menus;
@@ -165,6 +168,7 @@ export class App {
     host.appendChild(canvas);
     this.input = new Input(canvas);
     this.renderer = new Renderer(canvas, this.assets);
+    this.portraits = new PortraitStudio(this.renderer.renderer, this.assets);
     this.world = new WorldViews(this.assets, this.fx);
     this.renderer.scene.add(this.world.root, this.fx.root);
     this.rig = new CameraRig(this.renderer.camera);
@@ -214,6 +218,7 @@ export class App {
         this.gameMenu.open(tab);
         this.nav.push(this.gameMenu.screen);
       },
+      portrait: (npc) => this.portraits.show(npc),
     });
     this.gameMenu = new GameMenu(ui, this.nav, {
       view: () => this.sim?.view() ?? null,
@@ -238,7 +243,7 @@ export class App {
     this.bindWindowEvents(canvas);
     window.addEventListener('resize', () => this.rpgHud.setCompassWidth(compassWidth()));
     this.rpgHud.setCompassWidth(compassWidth());
-    this.stream = MODE === 'world' ? new WorldSession(this.renderer, this.assets) : null;
+    this.stream = MODE === 'world' ? new WorldSession(this.renderer, this.assets, this.settings.grass) : null;
     if (!this.stream) {
       this.renderer.yardLook();
       this.renderer.buildLevel(SANDBOX);
@@ -271,6 +276,7 @@ export class App {
     this.rig.padScale = s.padSensitivity;
     this.rig.invertY = s.invertY;
     this.input.pad.rumbleEnabled = s.rumble;
+    this.stream?.setGrass(s.grass);
   }
 
   private bindWindowEvents(canvas: HTMLCanvasElement): void {
@@ -568,6 +574,7 @@ export class App {
 
     this.startUsed = false;
     this.frameCount++;
+    this.portraits.frame(dt, this.nav.top === this.rpgMenus.dialogue);
     this.renderer.render();
     this.hud.update(pad, this.input.locked);
     const p = this.sim?.playerEntity(LOCAL_PLAYER);
@@ -1014,6 +1021,14 @@ export class App {
       case 'power':
         this.world.event(view, e);
         powerFeedback(e, { audio: this.audio, mine: e.entity === me, rumble: (r) => pad.rumble(r), shake: (t) => this.shake(t) });
+        return;
+      case 'plunge':
+        this.fx.ring({ x: e.pos.x, y: e.pos.y + 0.1, z: e.pos.z }, 0xffe2a8, 0.4, e.radius, 0.4);
+        this.audio.play('bossSlam', 1.15, 0.8);
+        if (e.entity === me) {
+          this.shake(TRAUMA.heavyHit);
+          pad.rumble(RUMBLE.heavyHit);
+        }
         return;
       default:
         this.presentSpell(view, e);
