@@ -30,6 +30,8 @@ const ADD_RING = 6;
 const SHOVE_TICKS = 12;
 /** A charge counts as hitting something only when moving toward it this directly (cosine). */
 const INTO = 0.2;
+/** Between its moves it sidesteps around its target at this share of its walking speed. */
+const SIDESTEP = 0.35;
 
 export const newBossState = (): BossState => ({ state: 'idle', t: 0, phase: 1, rocksUntil: 0, nextRock: 0, summoned: false });
 
@@ -119,6 +121,9 @@ export function bossThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Enti
   if (b.timer > 0) {
     b.timer--;
     face(target);
+    const yaw = yawTo(e.tf.pos, target.tf.pos);
+    const step = def.moveSpeed * SIDESTEP * b.circleDir;
+    ctx.motion.set(e.id, { vx: Math.cos(yaw) * step, vz: -Math.sin(yaw) * step, inputScale: 0 });
     return;
   }
 
