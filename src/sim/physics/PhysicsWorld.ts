@@ -172,7 +172,9 @@ export class PhysicsWorld {
   }
 
   removeAllCharacters(): void {
-    for (const id of [...this.characters.keys()]) this.removeCharacter(id);
+    // Last first: Rapier reuses freed slots newest-first, so re-adding in the same order restores each
+    // collider to its old slot, and contacts between characters resolve in the same order.
+    for (const id of [...this.characters.keys()].reverse()) this.removeCharacter(id);
   }
 
   /**

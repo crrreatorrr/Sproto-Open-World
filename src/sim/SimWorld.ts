@@ -657,6 +657,9 @@ export class SimWorld {
     this.byId.clear();
     this.players.clear();
     for (const e of copy.entities) this.add(e);
+    // Rapier's queries only see colliders after a step: without this, the first tick after a restore
+    // moves characters as if the rebuilt capsules weren't there.
+    this.physics.step();
     for (const [p, id] of copy.players) this.players.set(p, id);
     for (const k of Object.keys(this.rng.streams)) delete this.rng.streams[k];
     Object.assign(this.rng.streams, copy.rng);
