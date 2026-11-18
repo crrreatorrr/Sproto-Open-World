@@ -36,7 +36,7 @@ import { stepHazards } from './combat/hazards';
 import { bossArena, bossEngaged, newBossState, type BossHost } from './systems/boss';
 import { locomotion } from './systems/locomotion';
 import { gearLocked, markTargeted } from './systems/loadout';
-import { followRiders, ridingMotion } from './systems/riding';
+import { cancelMount, followRiders, ridingMotion } from './systems/riding';
 import { vitals } from './systems/vitals';
 import type { ReadonlySimView } from './view';
 
@@ -846,6 +846,7 @@ export class SimWorld {
     e.tf.prevPos = { ...pos };
     e.tf.vel = { x: 0, y: 0, z: 0 };
     if (e.combat) e.combat.push = null;
+    if (e.riding) cancelMount(e, this.get(e.riding.mount));
     this.physics.teleport(e.id, e.tf.pos);
     // Leaving a sealed arena this way abandons the fight, as falling in it does: otherwise the
     // arena's wall would drag the player straight back.

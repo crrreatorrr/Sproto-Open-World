@@ -38,6 +38,13 @@ function release(rider: Entity, bull: Entity | undefined): void {
   delete rider.riding;
 }
 
+/** Called off mid-climb (a teleport): otherwise the rider would be pulled all the way back to the bull. */
+export function cancelMount(rider: Entity, bull: Entity | undefined): void {
+  if (rider.riding?.state !== 'mounting') return;
+  if (rider.combat?.action?.kind === 'mounting') rider.combat.action = null;
+  release(rider, bull);
+}
+
 /** After the combat system: run getting on and off, and let the bull move through the rider's actions. */
 export function ridingMotion(ctx: CombatCtx): void {
   for (const p of ctx.entities) {
