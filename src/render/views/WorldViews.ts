@@ -58,6 +58,7 @@ export class WorldViews {
   private readonly discovered = new Set<string>();
   /** Shrine views by content id (a rest pulses its shrine). */
   private readonly shrines = new Map<string, ShrineView>();
+  private rebuildViews = false;
   /** Lazy enemy models: requested (false) and ready to draw (true). */
   private readonly lazyModels = new Map<string, boolean>();
 
@@ -66,6 +67,10 @@ export class WorldViews {
     private readonly fx: HitFx | null = null,
   ) {
     this.root.add(this.spells.root);
+    // A model that failed has arrived: rebuild the views, so stand-ins become the real thing.
+    this.assets.onRecovered(() => {
+      this.rebuildViews = true;
+    });
   }
 
   get(id: EntityId): EntityView | undefined {
@@ -74,6 +79,12 @@ export class WorldViews {
 
   /** Make, update and drop views to match the sim. Call once per rendered frame. */
   sync(view: ReadonlySimView, alpha: number, dt: number): void {
+    if (this.rebuildViews) {
+      this.rebuildViews = false;
+      for (const v of this.views.values()) v.dispose();
+      this.views.clear();
+      this.shrines.clear();
+    }
     this.seen.clear();
     const me = view.playerEntity(0);
     for (const e of view.entities) {

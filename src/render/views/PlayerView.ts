@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { AssetLoader, ModelInstance } from '../../assets/AssetLoader';
+import type { Priority } from '../../assets/RequestQueue';
 import { STAFF_SOCKET, type ModelKey } from '../../assets/manifest';
 import { PLAYER_MOVES, ROLL, type PlayerMoveId } from '../../content/combat';
 import { PLAYER_MOVE_TIMING } from '../../content/generated/playerMoveTiming';
@@ -31,7 +32,17 @@ export class PlayerView {
   /** The last update showed a cast on the upper body (QA). */
   castShown = false;
 
-  constructor(private readonly assets: AssetLoader) {}
+  /** Counts setStaff calls, so a slow download can't replace a newer choice. */
+  private staffRequest = 0;
+  private staffKey: ModelKey | null = null;
+  private readonly stopListening: () => void;
+
+  constructor(private readonly assets: AssetLoader) {
+    this.stopListening = assets.onRecovered((key) => {
+      if (key === 'player') void this.reloadBody();
+      else if (key === this.staffKey) void this.setStaff(key);
+    });
+  }
 
   async load(staffKey: ModelKey = 'staff_sproto'): Promise<void> {
     this.model = await this.assets.instance('player');
@@ -40,18 +51,43 @@ export class PlayerView {
     await this.setStaff(staffKey);
   }
 
-  async setStaff(key: ModelKey): Promise<void> {
-    this.staff?.dispose();
-    this.staff = null;
-    this.staffMounted = false;
+  /**
+   * Mount a staff. A staff may have to download first: the one in hand stays until the new one
+   * arrives, only the latest request is mounted, and a stand-in never replaces a real staff.
+   */
+  async setStaff(key: ModelKey, priority: Priority = 'now'): Promise<void> {
+    const request = ++this.staffRequest;
+    this.staffKey = key;
     const socket = this.model?.root.getObjectByName(STAFF_SOCKET);
     if (!socket) {
+      this.staff?.dispose();
+      this.staff = null;
+      this.staffMounted = false;
       console.warn('[player] no socket_staff node: staff not shown');
       return;
     }
-    this.staff = await this.assets.instance(key);
-    socket.add(this.staff.root);
+    const next = await this.assets.instance(key, priority);
+    if (request !== this.staffRequest || (!next.real && this.staff?.real)) {
+      next.dispose();
+      return;
+    }
+    this.staff?.dispose();
+    this.staff = next;
+    socket.add(next.root);
     this.staffMounted = true;
+  }
+
+  /** The body's file arrived after a failed download: swap the stand-in and remount the staff. */
+  private async reloadBody(): Promise<void> {
+    const next = await this.assets.instance('player');
+    this.animator?.dispose();
+    this.staff?.dispose();
+    this.staff = null;
+    this.model?.dispose();
+    this.model = next;
+    this.root.add(next.root);
+    this.animator = new Animator(next.root, next.clips);
+    if (this.staffKey) await this.setStaff(this.staffKey);
   }
 
   /** Interpolate between the last two ticks and pose the model from the sim's state. */
@@ -124,6 +160,8 @@ export class PlayerView {
   }
 
   dispose(): void {
+    this.stopListening();
+    this.staffRequest++;
     this.animator?.dispose();
     this.staff?.dispose();
     this.model?.dispose();

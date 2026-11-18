@@ -2,10 +2,11 @@
 /**
  * Byte budgets on the production build (plan §3.5). Run after `npm run build`.
  *   - Title shell (index.html + CSS + entry JS, gzip): ≤ 150 KiB.
- *   - Critical transfer to playable (all JS, the player, its staff, every enemy model the yard or the wave runner loads, the yard textures,
- *     the village's villagers, shrine, chests, pickups and square props (M4),
+ *   - Critical transfer to playable in the world (all JS, the player, the small boot staff, the terrain textures, the combat sounds,
+ *     the village's villagers, shrine, chests, pickups and square props,
  *     Sproutvale's region.json, the village cells (3–4, 0–1) and their ring, every prop those cells place (LOD0 + LOD1) and
- *     horizon.glb), as served (JS gzip; GLB/JPG/WebM already compressed; cell .bin/.json counted raw): ≤ 8 MiB.
+ *     horizon.glb), as served (JS gzip; GLB/JPG/WebM already compressed; cell .bin/.json counted raw): ≤ 6 MiB.
+ *     Enemies, other staffs and the full starter staff load later, by distance or when calm, so they don't count.
  *   - World (plan §3.1, §3.5): every cell (bin + json) ≤ 120 KB; each region under world/ ≤ 30 MiB.
  * Prints the Rapier chunk size, which the plan asked M0 to measure.
  */
@@ -24,7 +25,9 @@ const entry = [...html.matchAll(/(?:src|href)="\.\/build\/([^"]+)"/g)].map((m) =
 const shell = gz(path.join(DIST, 'index.html')) + entry.reduce((n, f) => n + gz(path.join(build, f)), 0);
 const allJs = files.filter((f) => f.endsWith('.js')).reduce((n, f) => n + gz(path.join(build, f)), 0);
 const rapier = files.filter((f) => f.startsWith('rapier') && f.endsWith('.js')).reduce((n, f) => n + gz(path.join(build, f)), 0);
-const critical = ['assets/models/characters/player.glb', 'assets/models/staffs/staff_sproto.glb', 'assets/models/elites/brute.glb', 'assets/models/enemies/grunt.glb', 'assets/models/enemies/slinger.glb', 'assets/models/enemies/wisp.glb', 'assets/textures/grove/floor.jpg', 'assets/textures/grove/stone.jpg', 'assets/textures/grove/sky.jpg'];
+const critical = ['assets/models/characters/player.glb', 'assets/models/staffs/staff_sproto-lod1.glb', 'assets/textures/grove/floor.jpg', 'assets/textures/grove/stone.jpg'];
+// The combat sounds load when play starts (App's COMBAT_SOUNDS); Opus is what most browsers fetch.
+critical.push(...fs.readdirSync(path.join(DIST, 'assets/audio')).filter((f) => f.endsWith('.webm')).map((f) => `assets/audio/${f}`));
 // M4: the village start draws its villagers, its shrine and chests, the pickups and the village
 // square's props.
 // The veterans, Big Coin and the Gatekeeper live out in the wilds: not critical.
@@ -74,7 +77,7 @@ for (const id of fs.readdirSync(WORLD).sort()) {
 
 const rows = [
   ['title shell (gzip)', shell, 150 * KiB],
-  ['critical to playable', criticalBytes, 8 * MiB],
+  ['critical to playable', criticalBytes, 6 * MiB],
   ...regionRows,
 ];
 let bad = cellFailures;
