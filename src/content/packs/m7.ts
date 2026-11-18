@@ -2,6 +2,7 @@
  * Milestone M7's combat numbers: the plunge attack and the backstep (ticks at 60 Hz, metres). The
  * rules live in sim/combat/plunge.ts and sim/combat/playerCombat.ts. Pure data.
  */
+import { ROLL } from '../combat';
 
 /** A heavy pressed while falling from a height: dive, slam the ground around the landing. */
 export const PLUNGE = {
@@ -45,3 +46,6 @@ export const BACKSTEP = {
   /** An attack press from this tick cuts the recovery short. */
   attackFrom: 14,
 } as const;
+
+/** The frame data of a dodge in progress: the backstep's, or the roll's. */
+export const dodgeFrames = (a: { back?: boolean }): typeof BACKSTEP | typeof ROLL => (a.back ? BACKSTEP : ROLL);

@@ -1,6 +1,7 @@
 import {
-  BLOCK, CHARGED_HEAVY, HITSTOP_CAP, MANA, PLAYER_MOVES, PLAYER_STATS, ROLL, STAFFS, clipTiming, type DamageKind, type PlayerMoveId,
+  BLOCK, CHARGED_HEAVY, HITSTOP_CAP, MANA, PLAYER_MOVES, PLAYER_STATS, STAFFS, clipTiming, type DamageKind, type PlayerMoveId,
 } from '../../content/combat';
+import { dodgeFrames } from '../../content/packs/m7';
 import { PLAYER_HITBOXES, STAFF_CAPSULE_RADIUS } from '../../content/generated/playerHitboxes';
 import { AFFINITY_MULT, ENEMIES, type Affinity, type EnemyMoveDef } from '../../content/enemies';
 import { PERK_EFFECT, SKILL_EFFECT, hasPerk } from '../../content/progression';
@@ -82,10 +83,10 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   // The Momentum staff's blink can't be touched.
   if (ta?.kind === 'blink') return 'dodged';
 
-  // Roll i-frames; a hit early in them is a perfect dodge.
-  if (ta?.kind === 'dodge' && ta.t >= ROLL.iframeStart && ta.t <= ROLL.iframeEnd) {
-    if (ta.t <= ROLL.perfectEnd) {
-      tv.stamina = Math.min(tv.staminaMax, tv.stamina + ROLL.stamina);
+  // Roll and backstep i-frames; a hit early in them is a perfect dodge.
+  if (ta?.kind === 'dodge' && ta.t >= dodgeFrames(ta).iframeStart && ta.t <= dodgeFrames(ta).iframeEnd) {
+    if (ta.t <= dodgeFrames(ta).perfectEnd) {
+      tv.stamina = Math.min(tv.staminaMax, tv.stamina + dodgeFrames(ta).stamina);
       tv.mana = Math.min(tv.manaMax, tv.mana + MANA.perfectDodge);
       tc.critNext = true;
       ctx.events.push({ type: 'dodgePerfect', entity: target.id, attacker: attacker.id });

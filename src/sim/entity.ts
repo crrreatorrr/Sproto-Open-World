@@ -87,7 +87,8 @@ export type Action =
       /** Charged Bolt: ticks the release has been held back. */
       charge?: number;
     }
-  | { kind: 'dodge'; t: number; dir: { x: number; z: number } }
+  /** A roll, or with `back` a backstep (dodge with no stick direction): its frames are `dodgeFrames`. */
+  | { kind: 'dodge'; t: number; dir: { x: number; z: number }; back?: boolean }
   /** The Momentum staff's blink: already moved, untouchable until it ends. */
   | { kind: 'blink'; t: number }
   /** The plunge attack: diving from `fromY`; `landT` counts from the landing (−1 while in the air). */

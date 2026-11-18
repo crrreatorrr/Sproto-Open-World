@@ -57,8 +57,8 @@ Then open http://localhost:5180.
 | Sprint | Left Shift | Left stick click |
 | Jump | Space | A |
 | Light attack (tap again to combo) | Left mouse | RB |
-| Heavy attack (hold to charge) | Right mouse | RT |
-| Dodge roll | C | B |
+| Heavy attack (hold to charge; while falling from a height, a plunge attack) | Right mouse | RT |
+| Dodge roll (with no direction held, a backstep) | C | B |
 | Block (the first moment of a block parries) | Q | LB |
 | Lock on / switch target | Middle mouse or T / flick the mouse | Right stick click / flick the right stick |
 | Cast the spell in slot 1–4 (in Sproutvale you start with Bolt) | 1 2 3 4 (or E R Z X) | Hold LT + X / Y / B / A |
