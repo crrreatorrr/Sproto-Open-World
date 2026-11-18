@@ -99,11 +99,12 @@ describe('riding', () => {
   it('runs and sprints faster than on foot, and the bull goes with you', async () => {
     const { w, p } = await flatSproutvale();
     const bull = mountUp(w);
-    ride(w, 40);
-    expect(p.loco!.speed).toBeCloseTo(MOVE.runSpeed * MOUNT.runScale, 0);
+    ride(w, 60);
+    expect(p.loco!.speed).toBeCloseTo(MOUNT.trotSpeed, 1);
+    expect(MOUNT.trotSpeed).toBeGreaterThan(MOVE.sprintSpeed);
     const stamina = p.vitals!.stamina;
-    ride(w, 40, () => 0, BTN.sprint);
-    expect(p.loco!.speed).toBeCloseTo(MOVE.sprintSpeed * MOUNT.sprintScale, 0);
+    ride(w, 50, () => 0, BTN.sprint);
+    expect(p.loco!.speed).toBeCloseTo(MOUNT.gallopSpeed, 1);
     expect(p.vitals!.stamina).toBeGreaterThanOrEqual(stamina);
     expect(bull.tf.pos).toEqual(p.tf.pos);
     expect(bull.mount!.speed).toBeCloseTo(p.loco!.speed, 3);

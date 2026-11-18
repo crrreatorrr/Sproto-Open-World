@@ -20,6 +20,8 @@ export interface HudRpgState {
   compass: { camYaw: number; marker: { offset: number; dist: number } | null };
   /** The interact prompt: the device's glyph and the verb ("Talk to Elder Pepe"), or null. */
   prompt: { key: string; text: string } | null;
+  /** In the saddle: the gallop button on the active device, and what it does next. */
+  ride: { key: string; text: string } | null;
 }
 
 const div = (cls: string, html = ''): HTMLDivElement => {
@@ -128,7 +130,8 @@ export class RpgHud {
     }
     this.trackerState(s.tracker);
     this.compassState(s.compass);
-    const prompt = s.prompt ? `<kbd>${esc(s.prompt.key)}</kbd>${esc(s.prompt.text)}` : '';
+    const ride = s.ride ? `<span class="ride-hint"><kbd>${esc(s.ride.key)}</kbd>${esc(s.ride.text)}</span>` : '';
+    const prompt = (s.prompt ? `<kbd>${esc(s.prompt.key)}</kbd>${esc(s.prompt.text)}` : '') + ride;
     if (prompt !== this.last.prompt) {
       this.last.prompt = prompt;
       this.prompt.innerHTML = prompt;

@@ -178,6 +178,9 @@ export function interactLabel(kind: 'npc' | 'shrine' | 'chest' | 'object' | 'mou
   }
 }
 
+/** What the sprint button does next in the saddle. */
+export const gallopLabel = (galloping: boolean): string => (galloping ? 'Slow to a trot' : 'Gallop');
+
 const pct = (f: number) => `${Math.round(f * 100)}%`;
 
 /** What one rank of a skill gives (SKILL_EFFECT), for the Skills tab. */
