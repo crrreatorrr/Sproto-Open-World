@@ -241,6 +241,51 @@ export interface Statuses {
   slowAcc?: number;
 }
 
+/** What a fighter is up to between its attacks (`sim/ai/tactics.ts`). Plain data, like all brain state. */
+export interface FightState {
+  /** The footwork beat, and ticks left in it. */
+  foot: 'strafe' | 'in' | 'out' | 'hold';
+  footT: number;
+  /** A burst of speed: a lunge at the target, or a step out of trouble along (burstX, burstZ). */
+  burst: 'lunge' | 'evade' | null;
+  burstT: number;
+  burstX: number;
+  burstZ: number;
+  /** m/s. */
+  burstSpeed: number;
+  /** Ticks until it may lunge, evade or punish again. */
+  lungeCd: number;
+  evadeCd: number;
+  punishCd: number;
+  /** Ticks in which its next attack comes at once: no held wind-up, no feint. */
+  eager: number;
+  /** Hits taken close together, ticks since the last one, and the poise last seen (how a hit shows). */
+  hits: number;
+  hitAge: number;
+  poise: number;
+  /** A delayed swing: the wind-up waits at tick `holdAt` for `hold` more ticks. */
+  holdAt: number;
+  hold: number;
+  /** A feint: the wind-up breaks off at this tick (-1: it is a real attack). */
+  feintAt: number;
+  /** It just feinted, so the next attack is real. */
+  feinted: boolean;
+  /** The velocity it asked for last tick (m/s) and where it stood then: how it notices it is stuck. */
+  vx: number;
+  vz: number;
+  lastX: number;
+  lastZ: number;
+  stuck: number;
+  /** Walking round an obstacle: ticks left, and which way it turns (+1 / -1). */
+  detour: number;
+  detourDir: number;
+  /** Ticks it still counts as cornered: a ledge or its leash stopped it. */
+  cornered: number;
+  /** Ranged: it has a clear shot, and how many ticks it has gone without one. */
+  sight: boolean;
+  blind: number;
+}
+
 /** Enemy brain state (plan §4.8). */
 export interface EnemyBrain {
   def: string;
@@ -252,9 +297,11 @@ export interface EnemyBrain {
   cooldowns: Record<string, number>;
   /** The last two moves, so none repeats more than twice in a row. */
   recent: string[];
-  /** Strafe ticks left, and direction (+1 / -1). */
+  /** Ticks left in the rest after an attack (it keeps its feet moving), and strafe direction (+1 / -1). */
   circle: number;
   circleDir: number;
+  /** Footwork, reactions and timing; set when a fight starts. */
+  fight?: FightState;
   /** Generic attack timer (dummies). */
   timer: number;
   /** Melee hits taken in a row (the Hex Wisp blinks away after enough). */
