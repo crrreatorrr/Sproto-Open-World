@@ -13,8 +13,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
-    "test:e2e": "node tests/e2e/smoke.mjs",
+    "test:e2e": "node tests/e2e/smoke.mjs && node tests/e2e/world.mjs",
     "gen:moves": "vite-node tools/gen-player-moves.ts --",
+    "bake:world": "vite-node tools/bake-world.ts --",
     "import:assets": "node tools/import-sibling-assets.mjs",
     "check:assets": "node scripts/check-assets.mjs",
     "budgets": "node scripts/check-budgets.mjs"

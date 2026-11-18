@@ -3,17 +3,39 @@ import type { AssetLoader } from '../assets/AssetLoader';
 import { TEXTURES } from '../assets/manifest';
 import type { LevelDef } from '../content/sandbox';
 
+/** Draw calls and triangles of the last frame, split into the shadow pass and the main pass. */
+export interface FrameStats {
+  calls: number;
+  triangles: number;
+  shadowCalls: number;
+  shadowTriangles: number;
+}
+
+/** The streamed world's daylight (plan §3.2): fog band and far plane come from the manifest. */
+export interface WorldLook {
+  fog: { near: number; far: number; farPlane: number };
+}
+
+/** Daylight sky colours: overhead, and the haze at the horizon (the fog fades into it). */
+const SKY_TOP = new THREE.Color(0x4f8fd6);
+const SKY_HAZE = new THREE.Color(0xcfe3ef);
+
 /**
  * The WebGL2 renderer, scene, lights and the level's greybox meshes. One directional "sun" whose
- * shadow box follows the player, sky from the grove theme, light fog.
+ * shadow box follows the player. Two looks: the night grove sky over the training yard, and a
+ * bright daylight sky with the manifest's fog over the streamed world.
  */
 export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
   readonly sun: THREE.DirectionalLight;
+  readonly hemi: THREE.HemisphereLight;
   private readonly levelGroup = new THREE.Group();
   private readonly sunOffset = new THREE.Vector3(18, 30, 12);
+  private readonly stats: FrameStats = { calls: 0, triangles: 0, shadowCalls: 0, shadowTriangles: 0 };
+  private yardSky: THREE.Texture | null = null;
+  private daySky: THREE.Texture | null = null;
 
   constructor(readonly canvas: HTMLCanvasElement, private readonly assets: AssetLoader) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -23,15 +45,11 @@ export class Renderer {
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.measureShadowPass();
 
     this.camera = new THREE.PerspectiveCamera(62, 1, 0.1, 600);
-    this.scene.fog = new THREE.Fog(0xbfd8e6, 80, 260);
-    this.scene.background = new THREE.Color(0xbfd8e6);
-    const sky = assets.texture(TEXTURES.sky);
-    sky.mapping = THREE.EquirectangularReflectionMapping;
-    this.scene.background = sky;
-
-    this.scene.add(new THREE.HemisphereLight(0xdfefff, 0x4a5a30, 1.15));
+    this.hemi = new THREE.HemisphereLight(0xdfefff, 0x4a5a30, 1.15);
+    this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xfff1d6, 2.4);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
@@ -49,6 +67,40 @@ export class Renderer {
     window.addEventListener('resize', () => this.resize());
   }
 
+  /** The M1 look: the grove's night sky and light fog over the training yard. */
+  yardLook(): void {
+    if (!this.yardSky) {
+      this.yardSky = this.assets.texture(TEXTURES.sky);
+      this.yardSky.mapping = THREE.EquirectangularReflectionMapping;
+    }
+    this.scene.background = this.yardSky;
+    this.scene.fog = new THREE.Fog(0xbfd8e6, 80, 260);
+    this.camera.far = 600;
+    this.camera.updateProjectionMatrix();
+    this.hemi.color.set(0xdfefff);
+    this.hemi.groundColor.set(0x4a5a30);
+    this.hemi.intensity = 1.15;
+    this.sun.color.set(0xfff1d6);
+    this.sun.intensity = 2.4;
+  }
+
+  /**
+   * Sproutvale's daylight: a bright gradient sky, fog from the manifest's band in the sky's haze
+   * colour (so the edge of the loaded rings melts into the sky), and the far plane at 450 m.
+   */
+  worldLook(look: WorldLook): void {
+    this.daySky ??= daySkyTexture();
+    this.scene.background = this.daySky;
+    this.scene.fog = new THREE.Fog(SKY_HAZE.getHex(), look.fog.near, look.fog.far);
+    this.camera.far = look.fog.farPlane;
+    this.camera.updateProjectionMatrix();
+    this.hemi.color.set(0xe8f4ff);
+    this.hemi.groundColor.set(0x5a6a3a);
+    this.hemi.intensity = 1.3;
+    this.sun.color.set(0xfff4e0);
+    this.sun.intensity = 2.8;
+  }
+
   resize(): void {
     const w = window.innerWidth, h = window.innerHeight;
     this.renderer.setSize(w, h, false);
@@ -58,18 +110,21 @@ export class Renderer {
 
   /** Build the greybox meshes for a level (the sim builds the matching colliders from the same data). */
   buildLevel(level: LevelDef): void {
-    this.levelGroup.clear();
-    const grass = this.assets.texture(TEXTURES.groundGrass);
-    grass.wrapS = grass.wrapT = THREE.RepeatWrapping;
-    grass.repeat.set(level.ground.size / 6, level.ground.size / 6);
-    grass.anisotropy = 8;
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(level.ground.size, level.ground.size),
-      new THREE.MeshStandardMaterial({ map: grass, color: 0xffffff, roughness: 0.95 }),
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.levelGroup.add(ground);
+    this.clearLevel();
+    // A streamed world has no ground plane: its cells bring their own terrain.
+    if (level.ground) {
+      const grass = this.assets.texture(TEXTURES.groundGrass);
+      grass.wrapS = grass.wrapT = THREE.RepeatWrapping;
+      grass.repeat.set(level.ground.size / 6, level.ground.size / 6);
+      grass.anisotropy = 8;
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(level.ground.size, level.ground.size),
+        new THREE.MeshStandardMaterial({ map: grass, color: 0xffffff, roughness: 0.95 }),
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      this.levelGroup.add(ground);
+    }
 
     const stone = this.assets.texture(TEXTURES.stone);
     stone.wrapS = stone.wrapT = THREE.RepeatWrapping;
@@ -90,13 +145,71 @@ export class Renderer {
     }
   }
 
+  /** Drop the greybox level (its geometries and materials; textures are shared and stay). */
+  clearLevel(): void {
+    for (const o of this.levelGroup.children) {
+      const m = o as THREE.Mesh;
+      m.geometry?.dispose();
+      (m.material as THREE.Material | undefined)?.dispose();
+    }
+    this.levelGroup.clear();
+  }
+
   /** Keep the shadow box centred on the player. */
   follow(target: THREE.Vector3): void {
     this.sun.position.copy(target).add(this.sunOffset);
     this.sun.target.position.copy(target);
   }
 
+  /** Compile an object's programs against this scene's lights and fog without stalling a frame. */
+  async compile(obj: THREE.Object3D): Promise<void> {
+    await this.renderer.compileAsync(obj, this.camera, this.scene);
+  }
+
   render(): void {
     this.renderer.render(this.scene, this.camera);
+    const r = this.renderer.info.render;
+    this.stats.calls = r.calls;
+    this.stats.triangles = r.triangles;
   }
+
+  /** Last frame's draw calls and triangles: `calls` includes the shadow pass (plan §3.5 budget). */
+  frameStats(): Readonly<FrameStats> {
+    return this.stats;
+  }
+
+  /**
+   * The shadow map renders inside `renderer.render`, after info resets and before the main pass,
+   * so wrapping it tells the two passes apart.
+   */
+  private measureShadowPass(): void {
+    const sm = this.renderer.shadowMap;
+    const info = this.renderer.info.render;
+    const inner = sm.render.bind(sm);
+    sm.render = (lights, scene, camera) => {
+      const c0 = info.calls, t0 = info.triangles;
+      inner(lights, scene, camera);
+      this.stats.shadowCalls = info.calls - c0;
+      this.stats.shadowTriangles = info.triangles - t0;
+    };
+  }
+}
+
+/** A small vertical gradient as an equirectangular sky: deep blue overhead to haze at the horizon. */
+function daySkyTexture(): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = 4;
+  c.height = 256;
+  const g = c.getContext('2d')!;
+  const grad = g.createLinearGradient(0, 0, 0, c.height);
+  grad.addColorStop(0, `#${SKY_TOP.getHexString()}`);
+  grad.addColorStop(0.42, '#8fbfe6');
+  grad.addColorStop(0.5, `#${SKY_HAZE.getHexString()}`);
+  grad.addColorStop(1, '#b9cdb0');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, c.width, c.height);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  return tex;
 }

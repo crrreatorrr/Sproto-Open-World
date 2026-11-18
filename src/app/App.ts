@@ -4,6 +4,7 @@ import { AudioManager } from '../audio/AudioManager';
 import { CameraRig } from '../camera/CameraRig';
 import { SANDBOX } from '../content/sandbox';
 import { SPELLS, WOVEN, type SpellId } from '../content/spells';
+import { worldLevel } from '../content/world/level';
 import { frameDataLines, targetLines } from '../debug/frameData';
 import { Overlay } from '../debug/Overlay';
 import { QA_LOG_ENABLED, qaLog } from '../debug/qaLog';
@@ -30,6 +31,7 @@ import { Panels } from '../ui/panels';
 import { Reveals, affinityToast } from '../ui/Reveals';
 import { loadSettings, saveSettings, type Settings } from '../ui/settings';
 import { FixedLoop } from './loop';
+import { WorldSession } from './WorldSession';
 
 export type AppState = 'title' | 'loading' | 'playing' | 'paused' | 'error';
 
@@ -43,8 +45,15 @@ const COMBAT_SOUNDS = [
   'clash', 'hurt', 'dodge', 'shieldBlock', 'shieldPerfect', 'shieldUp', 'rugWhoosh', 'carpetWhoosh', 'pillarHit', 'lockBeep', 'stunCharge', 'bossSlam',
   'boltCast', 'boltHit', 'blastExplode', 'noMana', 'roundLose',
 ] as const;
-/** `?sandbox=1`: the M1b wave runner instead of the training yard (plan §9 M1b). */
-const WAVE_SANDBOX = new URLSearchParams(location.search).get('sandbox') === '1';
+const PARAMS = new URLSearchParams(location.search);
+/** `?sandbox=1`: the M1b wave runner (plan §9 M1b), on the flat yard level. */
+const WAVE_SANDBOX = PARAMS.get('sandbox') === '1';
+/**
+ * Which level Play starts: Sproutvale, the streamed world (M2), by default; `?yard=1` keeps the M1
+ * training yard and `?sandbox=1` the wave runner, both on the flat yard level.
+ */
+export type GameMode = 'world' | 'yard' | 'waves';
+const MODE: GameMode = WAVE_SANDBOX ? 'waves' : PARAMS.get('yard') === '1' ? 'yard' : 'world';
 /** Blast shakes the camera less the further it is from you (m at which it stops). */
 const BLAST_SHAKE_RANGE = 16;
 
@@ -94,6 +103,14 @@ export class App {
   private readonly target = new THREE.Vector3();
   /** Pointer lock was released by us (pausing): don't treat it as the player leaving. */
   private releasingLock = false;
+  readonly mode: GameMode = MODE;
+  /** The streamed world (world mode only). */
+  readonly stream: WorldSession | null;
+  /** The player is held behind the loading veil until their cells have colliders (plan §3.2). */
+  private groundWait = false;
+  /** QA teleport waiting for the target cell's heights, to set the player down on the ground. */
+  private pendingDrop: { x: number; z: number } | null = null;
+  private frameCount = 0;
 
   constructor(host: HTMLElement, private readonly physicsReady: Promise<void>) {
     const canvas = document.createElement('canvas');
@@ -143,7 +160,14 @@ export class App {
 
     if (QA_LOG_ENABLED) this.bindQaLog();
     this.bindWindowEvents(canvas);
-    this.renderer.buildLevel(SANDBOX);
+    this.stream = MODE === 'world' ? new WorldSession(this.renderer, this.assets) : null;
+    if (!this.stream) {
+      this.renderer.yardLook();
+      this.renderer.buildLevel(SANDBOX);
+    } else {
+      // Daylight from the first frame; the manifest's own fog band replaces this when it arrives.
+      this.renderer.worldLook({ fog: { near: 80, far: 180, farPlane: 450 } });
+    }
     // Rapier failing to start is fatal and is said so up front, not when Play is pressed.
     physicsReady.catch((err) => {
       this.state = 'error';
@@ -159,6 +183,8 @@ export class App {
     void this.assets.template('staff_sproto');
     void this.assets.template('brute');
     if (WAVE_SANDBOX) for (const k of ['grunt', 'slinger', 'wisp'] as const) void this.assets.template(k);
+    // The world streams in behind the title (around the player start), so Play is quick.
+    this.stream?.load().catch((err: unknown) => console.warn('[world] the region manifest could not load yet', err));
     requestAnimationFrame((t) => this.frame(t));
   }
 
@@ -228,12 +254,31 @@ export class App {
       this.panels.showError(`The physics engine could not start: ${errorText(err)}`, 'Retry', () => location.reload());
       return;
     }
+    if (this.stream) {
+      try {
+        await this.stream.load();
+      } catch (err) {
+        this.state = 'error';
+        this.panels.showError(`Sproutvale could not load: ${errorText(err)}`, 'Retry', () => {
+          this.panels.hideError();
+          this.state = 'title';
+          void this.play();
+        });
+        return;
+      }
+    }
     try {
-      const sim = new SimWorld(SANDBOX, 1);
+      const region = this.stream?.region;
+      const sim = new SimWorld(region ? worldLevel(region.manifest) : SANDBOX, 1);
       const entity = sim.spawnPlayer(LOCAL_PLAYER);
-      // The sandbox's dummies and Brute (bare test worlds stay empty), or the wave runner.
+      // The sandbox's dummies and Brute (bare test worlds stay empty), or the wave runner. The
+      // world's camps arrive with its content (M4).
       if (WAVE_SANDBOX) sim.startWaves();
       else sim.populate();
+      if (this.stream) {
+        this.stream.attach(sim);
+        this.groundWait = true;
+      }
       const view = new PlayerView(this.assets);
       await view.load('staff_sproto');
       this.renderer.scene.add(view.root);
@@ -245,9 +290,10 @@ export class App {
       this.rig.snap(this.target, entity.tf.yaw);
       this.loop.reset();
       this.commands.clear();
-      this.panels.hideVeil();
       this.state = 'playing';
-      this.hud.visible = true;
+      if (this.groundWait) this.panels.showVeil('Loading Sproutvale…');
+      else this.panels.hideVeil();
+      this.hud.visible = !this.groundWait;
       this.input.requestLock();
     } catch (err) {
       this.state = 'error';
@@ -290,9 +336,39 @@ export class App {
     this.fx.clear();
     this.numbers.clear();
     this.hud.showDeath(false);
+    this.stream?.detach();
+    this.groundWait = false;
+    this.pendingDrop = null;
+    this.panels.hideVeil();
     this.sim?.dispose();
     this.sim = null;
     this.toTitle();
+  }
+
+  /**
+   * The cell-load timeout's way out (plan §2.9, "Return to last shrine" until M3 brings shrines):
+   * a fresh world session at the player start. Cells already fetched stay cached.
+   */
+  private returnToStart(): void {
+    this.panels.hideError();
+    this.quitToTitle();
+    void this.play();
+  }
+
+  /** The cell-load timeout (plan §2.9): Retry, or Return to start, pad or mouse. */
+  private groundTimeout(): void {
+    if (this.panels.errorOpen) return;
+    this.panels.showChoice('The ground around you is taking too long to load. Check your connection.', [
+      {
+        label: 'Retry',
+        run: () => {
+          this.panels.hideError();
+          this.stream?.retry();
+          this.panels.showVeil('Loading Sproutvale…');
+        },
+      },
+      { label: 'Return to start', run: () => this.returnToStart() },
+    ]);
   }
 
   private cycleClip(dir: number): void {
@@ -314,6 +390,8 @@ export class App {
     pad.update();
 
     if (this.panels.errorOpen) {
+      if (pad.wasPressed(['left', 'up'])) this.panels.move(-1);
+      if (pad.wasPressed(['right', 'down'])) this.panels.move(1);
       if (pad.wasPressed(['a'])) this.panels.confirmError();
     } else if (this.nav.open) {
       this.nav.frame(dt);
@@ -323,9 +401,12 @@ export class App {
     if (this.state === 'playing' && this.sim && this.player) this.playFrame(dt);
     else this.idleFrame(dt);
 
+    this.frameCount++;
     this.renderer.render();
     this.hud.update(pad, this.input.locked);
     const p = this.sim?.playerEntity(LOCAL_PLAYER);
+    const fs = this.renderer.frameStats();
+    const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
     this.overlay.update(dt, this.renderer.renderer, {
       frameMs: performance.now() - frameStart,
       simMs: this.simMs,
@@ -337,6 +418,9 @@ export class App {
       speed: p?.loco?.speed ?? 0,
       clip: this.clipName || '(locomotion)',
       combat: this.overlay.open ? [...frameDataLines(p, this.sim?.now ?? 0), '', ...targetLines(p?.combat?.lock != null ? this.sim?.get(p.combat.lock) : undefined)] : [],
+      frame: fs,
+      heapMb: mem ? mem.usedJSHeapSize / 1048576 : null,
+      world: this.overlay.open && this.stream ? this.stream.overlayLines(p ? p.tf.pos : null) : [],
     });
     this.input.endFrame();
   }
@@ -362,10 +446,14 @@ export class App {
     if (pad.look.x || pad.look.y) this.rig.rotatePad(locked ? 0 : pad.look.x, pad.look.y, dt);
 
     this.commands.frame({ locked, mouseDx: m.x, dt });
+    // Streaming runs before the ticks, so colliders queued now are built at the top of this frame's ticks.
+    const held = this.streamFrame(simView);
     const ticks = this.loop.advance(dt);
     const t0 = performance.now();
     for (let i = 0; i < ticks; i++) {
-      sim.tick(new Map([[LOCAL_PLAYER, this.commands.take(this.rig.yaw)]]));
+      // Behind the veil the player is frozen by the sim anyway; their input is dropped, not buffered.
+      const cmd = this.commands.take(this.rig.yaw);
+      sim.tick(held ? new Map() : new Map([[LOCAL_PLAYER, cmd]]));
       this.afterTick(simView);
     }
     if (ticks) this.simMs = (performance.now() - t0) / ticks;
@@ -391,6 +479,35 @@ export class App {
     this.renderer.camera.updateMatrixWorld();
     this.numbers.update(dt, this.project);
     this.hud.combat(this.hudCombat(simView, p), dt);
+  }
+
+  /**
+   * The world's frame while playing: stream around the player, then hold them behind the veil
+   * until their cell and its neighbours have colliders (plan §3.2, §2.9). Returns true while held.
+   */
+  private streamFrame(view: ReadonlySimView): boolean {
+    const w = this.stream;
+    const p = this.sim?.playerEntity(LOCAL_PLAYER);
+    if (!w || !p) return false;
+    w.frame({ x: p.tf.pos.x, z: p.tf.pos.z, vx: p.tf.vel.x, vz: p.tf.vel.z }, view, view.now);
+    if (this.pendingDrop) this.dropPending();
+    const ground = w.ground(view, p.tf.pos);
+    if (ground === 'ready') {
+      if (this.groundWait) {
+        this.groundWait = false;
+        this.panels.hideVeil();
+        this.panels.hideError();
+        this.hud.visible = true;
+      }
+      return false;
+    }
+    if (!this.groundWait) {
+      this.groundWait = true;
+      this.hud.visible = false;
+      this.panels.showVeil('Loading Sproutvale…');
+    }
+    if (ground === 'timeout') this.groundTimeout();
+    return true;
   }
 
   /** Everything that reacts to one sim tick: QA stamps, then each event's feedback. */
@@ -743,15 +860,69 @@ export class App {
     };
   }
 
-  /** Title and pause: a slow orbit over the yard (paused keeps the frozen scene). */
+  /**
+   * Title and pause: a slow orbit over the yard, or over the world's player start while its cells
+   * stream in (paused keeps the frozen scene, and keeps streaming around the player).
+   */
   private idleFrame(dt: number): void {
+    const w = this.stream;
+    if (w && this.state !== 'playing') {
+      const p = this.sim?.playerEntity(LOCAL_PLAYER);
+      const start = w.start;
+      if (p) w.frame({ x: p.tf.pos.x, z: p.tf.pos.z, vx: 0, vz: 0 }, this.sim!.view(), this.sim!.now);
+      else if (start) w.frame({ x: start.pos[0], z: start.pos[2], vx: 0, vz: 0 }, null, this.frameCount);
+    }
     if (this.state === 'paused' || this.state === 'loading') return;
     this.orbit += dt * 0.08;
     const cam = this.renderer.camera;
-    cam.position.set(Math.sin(this.orbit) * 22, 9, Math.cos(this.orbit) * 22);
-    cam.lookAt(0, 1.5, 0);
-    this.target.set(0, 0, 0);
+    const c = w?.start?.pos;
+    if (w && c) {
+      // Sproutvale: stand at the start and pan slowly across the valley (the start sits near the
+      // south edge, so an orbit around it would mostly show the boundary cliff).
+      const ground = w.heightAt(c[0], c[2]) ?? c[1];
+      const a = Math.sin(this.orbit * 0.6) * 1.1;
+      cam.position.set(c[0], ground + 7, c[2] - 6);
+      cam.lookAt(c[0] + Math.sin(a) * 60, ground + 2, c[2] + Math.cos(a) * 60);
+      this.target.set(c[0], ground, c[2]);
+    } else {
+      cam.position.set(Math.sin(this.orbit) * 22, 9, Math.cos(this.orbit) * 22);
+      cam.lookAt(0, 1.5, 0);
+      this.target.set(0, 0, 0);
+    }
     this.renderer.follow(this.target);
+  }
+
+  /**
+   * QA (dev and QA builds): put the player at (x, z). They are held in the air over the cell until
+   * its heights are decoded, then set down on the terrain; the sim keeps them frozen until the
+   * cell's colliders exist. Moves the sim entity directly: a debug cheat, not a gameplay path.
+   */
+  qaTeleport(x: number, z: number): boolean {
+    const sim = this.sim;
+    const p = sim?.playerEntity(LOCAL_PLAYER);
+    const region = this.stream?.region;
+    if (!sim || !p || !region) return false;
+    const y = this.stream!.heightAt(x, z);
+    this.placePlayer(x, y ?? region.manifest.heightRange.max + 2, z);
+    this.pendingDrop = y === null ? { x, z } : null;
+    return true;
+  }
+
+  private dropPending(): void {
+    const d = this.pendingDrop!;
+    const y = this.stream?.heightAt(d.x, d.z) ?? null;
+    if (y === null) return;
+    this.pendingDrop = null;
+    this.placePlayer(d.x, y, d.z);
+  }
+
+  private placePlayer(x: number, y: number, z: number): void {
+    // A little above the surface: the character controller settles onto it on the first tick.
+    const pos = { x, y: y + 0.05, z };
+    this.sim!.teleportPlayer(LOCAL_PLAYER, pos);
+    this.target.set(pos.x, pos.y, pos.z);
+    this.player?.root.position.copy(this.target);
+    this.rig.snap(this.target, this.rig.yaw);
   }
 
   /** State for the QA API and the smoke test. */
@@ -783,6 +954,14 @@ export class App {
           }
         : null,
       sandbox: WAVE_SANDBOX,
+      mode: this.mode,
+      groundWait: this.groundWait,
+      waitingForGround: this.sim?.view().waitingForGround ?? false,
+      errorAction: this.panels.focusedAction,
+      world: this.stream?.qa() ?? null,
+      frameStats: { ...this.renderer.frameStats() },
+      gpuMemory: { ...this.renderer.renderer.info.memory },
+      heap: (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null,
       wave: this.sim?.view().wave ?? null,
       projectiles: (this.sim?.entities ?? [])
         .filter((e) => e.projectile)

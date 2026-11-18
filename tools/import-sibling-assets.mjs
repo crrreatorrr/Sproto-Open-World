@@ -7,9 +7,20 @@
  *   - `*.glb.gz` (sproto-shooter props) are gunzipped.
  *   - `*.wav` are transcoded to Opus in WebM, plus an AAC `.m4a` fallback for older Safari
  *     (needs ffmpeg on PATH).
+ *   - World props (models/props, plan §3.4) are meshopt-compressed (LOD0), and also get a LOD1
+ *     `<name>-lod1.glb`: drop normals, weld by position
+ *     (the kit is flat-shaded with per-face colours, so a normal weld leaves nothing to collapse),
+ *     simplify toward 30% of the triangles (meshoptimizer), unweld, flat normals, meshopt.
+ *     Deterministic: the same source gives the same bytes. LOD1 files are this repo's own outputs
+ *     (check-assets treats them as owned). meshopt quantizes positions and puts the dequantizing
+ *     scale/offset on the mesh's node, so instancers must bake node transforms into the geometry.
  *
  * Run by hand: `npm run import:assets` (add `--force` to redo files that already exist).
  */
+import { Logger, NodeIO } from '@gltf-transform/core';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { dequantize, meshopt, normals, prune, simplify, unweld } from '@gltf-transform/functions';
+import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -24,6 +35,20 @@ const force = process.argv.includes('--force');
 
 const DUEL = 'sproto-duel';
 const SHOOTER = 'sproto-shooter';
+
+/**
+ * Sproutvale's props and set pieces (plan §6.1, §7.1): the sproto-shooter grove set plus the
+ * landmarks. Each becomes models/props/<name>.glb and a generated models/props/<name>-lod1.glb.
+ */
+const WORLD_PROPS = [
+  'grove_tree', 'grove_pines', 'grove_boulder', 'grove_stones', 'grove_hedge', 'grove_reeds', 'grove_root_wall',
+  'grove_shed', 'grove_barn_roof', 'grove_silo', 'grove_water_tower', 'grove_tower', 'grove_beanstalk', 'grove_bridge',
+  'grove_crops', 'grove_hay', 'grove_scarecrow', 'grove_pumpkin', 'well', 'frost_beacon', 'frost_gate', 'skyline_crane',
+  'underworks_hoist',
+];
+/** LOD1 target: this fraction of LOD0's triangles (plan §3.4). */
+const LOD1_RATIO = 0.3;
+const LOD1_ERROR = 0.05;
 
 /** [repo, source path under the repo, destination under public/assets]. */
 const FILES = [
@@ -44,6 +69,7 @@ const FILES = [
   [SHOOTER, 'public/assets/models/characters/obama_stage1.glb', 'models/enemies/slinger.glb'],
   [DUEL, 'public/assets/models/rigged/sahil_stage1.glb', 'models/enemies/wisp.glb'],
   // Sounds used from M0/M1: menus, movement, hits, guards, swings, lock-on and telegraphs.
+  ...WORLD_PROPS.map((id) => [SHOOTER, `public/assets/models/props/${id}.glb.gz`, `models/props/${id}.glb.gz`]),
   ...['uiClick', 'uiHover', 'dodge', 'clash', 'hurt', 'shieldBlock', 'shieldPerfect', 'shieldUp', 'boltCast', 'boltHit', 'blastExplode', 'noMana',
     'rugWhoosh', 'carpetWhoosh', 'lockBeep', 'stunCharge', 'bossSlam', 'pillarHit', 'roundLose'].map(
     (id) => [DUEL, `public/assets/audio/placeholder/${id}.wav`, `audio/${id}.wav`],
@@ -67,6 +93,81 @@ function hasFfmpeg() {
   } catch {
     return false;
   }
+}
+
+await MeshoptDecoder.ready;
+await MeshoptEncoder.ready;
+await MeshoptSimplifier.ready;
+const io = new NodeIO()
+  .registerExtensions(ALL_EXTENSIONS)
+  .registerDependencies({ 'meshopt.decoder': MeshoptDecoder, 'meshopt.encoder': MeshoptEncoder });
+
+/**
+ * Merge vertices that share a position (keeping the first one's colour), so the simplifier sees
+ * connected surfaces. Expects dequantized float positions and no normals.
+ */
+const weldByPosition = () => (doc) => {
+  const buffer = doc.getRoot().listBuffers()[0];
+  for (const mesh of doc.getRoot().listMeshes()) {
+    for (const prim of mesh.listPrimitives()) {
+      const pos = prim.getAttribute('POSITION');
+      const pa = pos.getArray();
+      const n = pos.getCount();
+      const slot = new Map();
+      const remap = new Uint32Array(n);
+      const keep = [];
+      for (let i = 0; i < n; i++) {
+        const k = `${Math.round(pa[i * 3] * 1e4)},${Math.round(pa[i * 3 + 1] * 1e4)},${Math.round(pa[i * 3 + 2] * 1e4)}`;
+        let j = slot.get(k);
+        if (j === undefined) {
+          j = keep.length;
+          slot.set(k, j);
+          keep.push(i);
+        }
+        remap[i] = j;
+      }
+      for (const sem of prim.listSemantics()) {
+        const a = prim.getAttribute(sem);
+        const es = a.getElementSize();
+        const src = a.getArray();
+        const out = new src.constructor(keep.length * es);
+        keep.forEach((i, j) => {
+          for (let c = 0; c < es; c++) out[j * es + c] = src[i * es + c];
+        });
+        prim.setAttribute(sem, doc.createAccessor().setType(a.getType()).setNormalized(a.getNormalized()).setArray(out).setBuffer(buffer));
+      }
+      const idx = prim.getIndices();
+      const ia = idx ? idx.getArray() : Uint32Array.from({ length: n }, (_, i) => i);
+      const ni = new Uint32Array(ia.length);
+      for (let i = 0; i < ia.length; i++) ni[i] = remap[ia[i]];
+      prim.setIndices(doc.createAccessor().setType('SCALAR').setArray(ni).setBuffer(buffer));
+    }
+  }
+};
+
+/** LOD0 GLB bytes → LOD1 GLB bytes. Pure function of the input, so re-running gives the same file. */
+async function makeLod1(glb) {
+  const doc = await io.readBinary(new Uint8Array(glb));
+  doc.setLogger(new Logger(Logger.Verbosity.ERROR));
+  for (const mesh of doc.getRoot().listMeshes()) for (const prim of mesh.listPrimitives()) prim.setAttribute('NORMAL', null);
+  await doc.transform(
+    dequantize(),
+    weldByPosition(),
+    simplify({ simplifier: MeshoptSimplifier, ratio: LOD1_RATIO, error: LOD1_ERROR }),
+    unweld(),
+    normals({ overwrite: true }),
+    prune(),
+    meshopt({ encoder: MeshoptEncoder, level: 'high' }),
+  );
+  return Buffer.from(await io.writeBinary(doc));
+}
+
+/** LOD0 prop: meshopt compression only (the source is already quantized; this is ~3× smaller). */
+async function compressLod0(glb) {
+  const doc = await io.readBinary(new Uint8Array(glb));
+  doc.setLogger(new Logger(Logger.Verbosity.ERROR));
+  await doc.transform(meshopt({ encoder: MeshoptEncoder, level: 'high' }));
+  return Buffer.from(await io.writeBinary(doc));
 }
 
 const manifestPath = path.join(OUT, 'IMPORTED.json');
@@ -111,15 +212,31 @@ for (const [repo, rel, destRel] of FILES) {
   } else {
     const dest = path.join(OUT, outRel);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
+    const isProp = outRel.startsWith('models/props/');
     if (!force && fs.existsSync(dest)) skipped++;
     else {
-      fs.writeFileSync(dest, buf);
+      fs.writeFileSync(dest, isProp ? await compressLod0(buf) : buf);
       copied++;
     }
     outputs.push(outRel);
+    if (isProp) {
+      const lodRel = outRel.replace(/\.glb$/, '-lod1.glb');
+      const lodDest = path.join(OUT, lodRel);
+      if (!force && fs.existsSync(lodDest)) skipped++;
+      else {
+        fs.writeFileSync(lodDest, await makeLod1(buf));
+        copied++;
+      }
+      outputs.push(lodRel);
+    }
   }
   for (const o of outputs) {
     manifest.files[o] = { repo, path: rel, commit: commits[repo], sourceSha256: sha256(fs.readFileSync(src)) };
+    if (o.startsWith('models/props/')) {
+      manifest.files[o].derived = o.endsWith('-lod1.glb')
+        ? `LOD1: position weld + simplify(${LOD1_RATIO}, error ${LOD1_ERROR}) + flat normals + meshopt`
+        : 'meshopt';
+    }
   }
 }
 

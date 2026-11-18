@@ -1,6 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { KCC } from '../../content/tuning';
 import type { LevelDef } from '../../content/sandbox';
+import { CELL_RES, CELL_SIZE, type CellColliders, type ColliderShape } from '../../content/world/format';
 import type { Body, EntityId } from '../entity';
 import type { Vec3 } from '../math';
 
@@ -72,8 +73,10 @@ export class PhysicsWorld {
   private buildLevel(level: LevelDef): void {
     const fixed = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
     const worldGroups = groups(GROUP.WORLD, 0xffff);
-    const g = level.ground.size / 2;
-    this.world.createCollider(RAPIER.ColliderDesc.cuboid(g, 0.5, g).setTranslation(0, -0.5, 0).setCollisionGroups(worldGroups), fixed);
+    if (level.ground) {
+      const g = level.ground.size / 2;
+      this.world.createCollider(RAPIER.ColliderDesc.cuboid(g, 0.5, g).setTranslation(0, -0.5, 0).setCollisionGroups(worldGroups), fixed);
+    }
     for (const s of level.shapes) {
       if (s.kind === 'box') {
         const q = quatYawPitch(s.yaw ?? 0, s.pitch ?? 0);
@@ -95,6 +98,55 @@ export class PhysicsWorld {
     }
     // Build the query structures so casts work before the first step.
     this.world.step();
+  }
+
+  // ---------------------------------------------------------------- streamed cells
+
+  private readonly cells = new Map<string, RAPIER.RigidBody>();
+
+  /**
+   * Create a cell's fixed body with its heightfield. Prop colliders are added separately (the sim
+   * caps colliders created per tick). Rapier's heightfield is centred on its body and stores its
+   * heights column-major with rows along Z, so our row-major grid (iz · 65 + ix) is transposed.
+   */
+  addCellBody(key: string, c: CellColliders): void {
+    this.removeCell(key);
+    const n = CELL_RES - 1;
+    const colMajor = new Float32Array(CELL_RES * CELL_RES);
+    for (let iz = 0; iz < CELL_RES; iz++) for (let ix = 0; ix < CELL_RES; ix++) colMajor[ix * CELL_RES + iz] = c.heights[iz * CELL_RES + ix];
+    const body = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(c.cx * CELL_SIZE + CELL_SIZE / 2, 0, c.cz * CELL_SIZE + CELL_SIZE / 2),
+    );
+    this.world.createCollider(
+      RAPIER.ColliderDesc.heightfield(n, n, colMajor, { x: CELL_SIZE, y: 1, z: CELL_SIZE }).setCollisionGroups(groups(GROUP.WORLD, 0xffff)),
+      body,
+    );
+    this.cells.set(key, body);
+  }
+
+  /** Add one prop collider (world space) to a cell's body. */
+  addCellShape(key: string, s: ColliderShape): void {
+    const body = this.cells.get(key);
+    if (!body) return;
+    const t = body.translation();
+    const local = { x: s.pos[0] - t.x, y: s.pos[1] - t.y, z: s.pos[2] - t.z };
+    const desc =
+      s.kind === 'cylinder'
+        ? RAPIER.ColliderDesc.cylinder(s.height / 2, s.radius)
+        : RAPIER.ColliderDesc.cuboid(s.half[0], s.half[1], s.half[2]).setRotation({ x: 0, y: Math.sin(s.yaw / 2), z: 0, w: Math.cos(s.yaw / 2) });
+    this.world.createCollider(desc.setTranslation(local.x, local.y, local.z).setCollisionGroups(groups(GROUP.WORLD, 0xffff)), body);
+  }
+
+  /** Remove a cell's body and every collider on it. */
+  removeCell(key: string): void {
+    const body = this.cells.get(key);
+    if (!body) return;
+    this.world.removeRigidBody(body);
+    this.cells.delete(key);
+  }
+
+  hasCell(key: string): boolean {
+    return this.cells.has(key);
   }
 
   addCharacter(id: EntityId, body: Body, feet: Vec3): void {

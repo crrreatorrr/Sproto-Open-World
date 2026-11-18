@@ -8,7 +8,9 @@ export class Panels {
   private readonly error: HTMLElement;
   private readonly errorText: HTMLElement;
   private readonly errorButton: HTMLButtonElement;
-  private retry: (() => void) | null = null;
+  private readonly buttons: HTMLElement;
+  private actions: { button: HTMLButtonElement; run: () => void }[] = [];
+  private focus = 0;
 
   constructor(host: HTMLElement) {
     this.veil = document.createElement('div');
@@ -18,13 +20,12 @@ export class Panels {
     this.error = document.createElement('div');
     this.error.className = 'error-panel';
     this.errorText = document.createElement('p');
-    this.errorButton = document.createElement('button');
-    this.errorButton.className = 'btn focused';
-    this.errorButton.dataset.nav = '';
-    this.errorButton.addEventListener('click', () => this.retry?.());
+    this.errorButton = this.makeButton();
+    this.buttons = document.createElement('div');
+    this.buttons.className = 'error-actions';
     const h = document.createElement('h2');
     h.textContent = 'Something went wrong';
-    this.error.append(h, this.errorText, this.errorButton);
+    this.error.append(h, this.errorText, this.buttons);
     host.append(this.veil, this.error);
   }
 
@@ -42,12 +43,53 @@ export class Panels {
   }
 
   showError(text: string, action: string, onAction: () => void): void {
+    this.showChoice(text, [{ label: action, run: onAction }]);
+  }
+
+  /**
+   * The error panel with several actions (the cell-load timeout's Retry / Return to start). The
+   * pad's D-pad or stick moves between them (App calls `move`), A confirms.
+   */
+  showChoice(text: string, actions: { label: string; run: () => void }[]): void {
     this.hideVeil();
     this.errorText.textContent = text;
-    this.errorButton.textContent = action;
-    this.retry = onAction;
+    this.buttons.replaceChildren();
+    this.actions = actions.map((a, i) => {
+      const button = i === 0 ? this.errorButton : this.makeButton();
+      button.textContent = a.label;
+      this.buttons.append(button);
+      return { button, run: a.run };
+    });
     this.error.classList.add('active');
-    this.errorButton.focus();
+    this.setFocus(0);
+  }
+
+  /** Move the focus between the panel's actions. */
+  move(dir: -1 | 1): void {
+    if (this.actions.length > 1) this.setFocus((this.focus + dir + this.actions.length) % this.actions.length);
+  }
+
+  /** The focused action's label (QA). */
+  get focusedAction(): string | null {
+    return this.errorOpen ? (this.actions[this.focus]?.button.textContent ?? null) : null;
+  }
+
+  private setFocus(i: number): void {
+    this.focus = i;
+    this.actions.forEach((a, k) => a.button.classList.toggle('focused', k === i));
+    this.actions[i]?.button.focus();
+  }
+
+  private makeButton(): HTMLButtonElement {
+    const b = document.createElement('button');
+    b.className = 'btn';
+    b.dataset.nav = '';
+    b.addEventListener('click', () => this.actions.find((a) => a.button === b)?.run());
+    b.addEventListener('mouseenter', () => {
+      const i = this.actions.findIndex((a) => a.button === b);
+      if (i >= 0) this.setFocus(i);
+    });
+    return b;
   }
 
   hideError(): void {
@@ -56,6 +98,6 @@ export class Panels {
 
   /** Pad A / Enter on the error panel. */
   confirmError(): void {
-    if (this.errorOpen) this.retry?.();
+    if (this.errorOpen) this.actions[this.focus]?.run();
   }
 }
