@@ -35,6 +35,7 @@ import { Hud, type HudCombat, type HudStatus } from '../ui/Hud';
 import { MenuNav, type Screen } from '../ui/MenuNav';
 import { Menus } from '../ui/menus';
 import { Panels } from '../ui/panels';
+import { Tutorial } from '../ui/tutorial';
 import { Reveals, affinityToast } from '../ui/Reveals';
 import { RpgHud, type HudRpgState } from '../ui/RpgHud';
 import { RpgMenus } from '../ui/rpgMenus';
@@ -126,6 +127,7 @@ export class App {
   /** The RPG HUD layer and menus (plan §5; world mode). */
   readonly rpgHud: RpgHud;
   readonly rpgMenus: RpgMenus;
+  private readonly tutorial = new Tutorial();
   /** The save found at boot (or on returning to the title): Continue loads it. */
   private bootSave: SaveFile | null = null;
   /** An event asked for a save; written once after this frame's ticks. */
@@ -747,7 +749,14 @@ export class App {
       // An attack's t is 0 only on the tick that started it (it advances before a new one starts).
       if (a?.kind === 'attack' && a.t === 0) qaLog.add({ kind: 'attackStart', tick: view.now, what: a.move });
     }
-    for (const e of view.events) this.present(view, e);
+    for (const e of view.events) {
+      this.present(view, e);
+      // First-time hints teach the world's rules as they come up (not in the yard or the sandbox).
+      if (this.mode === 'world') {
+        const tip = this.tutorial.tip(e, this.playerId, this.input.pad.device === 'gamepad' ? 'pad' : 'kbm');
+        if (tip) this.hud.toast(tip);
+      }
+    }
   }
 
   /**
