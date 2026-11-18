@@ -2,6 +2,7 @@ import type { Affinity } from '../content/enemies';
 import { SPELL_BY_SLOT, SPELLS, type SpellId } from '../content/spells';
 import { TICK_HZ } from '../content/tuning';
 import { WAVES } from '../content/waves';
+import { costText } from './rpgText';
 import { padGlyph, type GamepadInput } from '../input/Gamepad';
 import { KEYS, PAD } from '../input/bindings';
 import { keyLabel, promptLabel } from '../input/glyphs';
@@ -52,6 +53,8 @@ export interface HudSpells {
   learned?: readonly SpellId[];
   /** What each of the four slots holds (C1 loadout); absent means each spell in its home slot. */
   loadout?: readonly (SpellId | null)[];
+  /** What the equipped staff multiplies spell costs by; absent means 1. */
+  costMult?: number;
 }
 
 /** The wave runner (`?sandbox=1`): `index` into WAVES (the next wave between waves), `nextIn` in ticks (0 while fighting). */
@@ -172,6 +175,7 @@ export class Hud {
   private slotsChanged = false;
   private lastWave = '';
   private woven = false;
+  private costMult = 1;
 
   constructor(host: HTMLElement) {
     this.root = document.createElement('div');
@@ -354,7 +358,7 @@ export class Hud {
     const def = id ? SPELLS[id] : null;
     sl.root.dataset.spell = id ?? '';
     sl.root.classList.toggle('empty', !id);
-    sl.root.innerHTML = `<div class="sweep"></div>${spellIcon(id)}<div class="name">${def?.name ?? 'Empty'}</div><div class="cost">${def?.cost ?? ''}</div><kbd class="key"></kbd>`;
+    sl.root.innerHTML = `<div class="sweep"></div>${spellIcon(id)}<div class="name">${def?.name ?? 'Empty'}</div><div class="cost">${def ? costText(def.cost * this.costMult) : ''}</div><kbd class="key"></kbd>`;
     sl.key = sl.root.querySelector('.key') as HTMLElement;
     sl.cd = -1;
     sl.cdFull = def?.cooldown ?? 1;
@@ -369,6 +373,11 @@ export class Hud {
   }
 
   private spellState(sp: HudSpells): void {
+    const costMult = sp.costMult ?? 1;
+    if (costMult !== this.costMult) {
+      this.costMult = costMult;
+      for (const sl of this.slots) this.fillSlot(sl, sl.id);
+    }
     this.slots.forEach((sl, i) => {
       const want = sp.loadout ? (sp.loadout[i] ?? null) : SPELL_BY_SLOT[SLOTS[i]];
       if (want !== sl.id) this.fillSlot(sl, want);
@@ -385,7 +394,7 @@ export class Hud {
         sl.root.style.setProperty('--cd', String(cd));
         sl.root.classList.toggle('cooling', cd > 0);
       }
-      const poor = sp.mana < def.cost;
+      const poor = sp.mana < def.cost * costMult;
       if (poor !== sl.poor) {
         sl.poor = poor;
         sl.root.classList.toggle('poor', poor);

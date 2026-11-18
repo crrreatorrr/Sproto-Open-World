@@ -5,6 +5,7 @@ import { AudioManager } from '../audio/AudioManager';
 import { CameraRig } from '../camera/CameraRig';
 import { ITEMS } from '../content/items';
 import { PERKS, SKILLS, type PerkId, type SkillId } from '../content/progression';
+import { staffCostMult } from '../content/packs/c2';
 import { QUESTS } from '../content/quests';
 import { SANDBOX } from '../content/sandbox';
 import { SPELLS, WOVEN, type SpellId } from '../content/spells';
@@ -933,6 +934,14 @@ export class App {
           this.audio.play('shieldUp', 1.7, 0.7);
         }
         return;
+      case 'boltCharge':
+        // Charged Bolt: a rune at the hands and a chime that climbs as the charge grows.
+        if (e.entity === me) {
+          const p = this.player?.root;
+          if (p) this.world.spells.rune({ x: p.position.x + Math.sin(p.rotation.y) * 0.5, y: p.position.y + 1.3, z: p.position.z + Math.cos(p.rotation.y) * 0.5 });
+          this.audio.play('shieldUp', 1.1 + e.frac, 0.6);
+        }
+        return;
       case 'cast':
         qa('cast', e.spell);
         if (e.spell === 'bolt') this.audio.play('boltCast', e.woven ? 1.15 : 1);
@@ -1226,7 +1235,7 @@ export class App {
       enemy,
       reticle: lp ? this.project(lp) : null,
       spells: v && c
-        ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window, learned: this.mode === 'world' ? p.progress?.spells : undefined, loadout: p.progress?.loadout }
+        ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window, learned: this.mode === 'world' ? p.progress?.spells : undefined, loadout: p.progress?.loadout, costMult: staffCostMult(p.progress?.equipment.staff) }
         : null,
       wave: view.wave ? { ...view.wave } : null,
     };

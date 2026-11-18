@@ -6,6 +6,7 @@
 import { ENEMIES } from '../content/enemies';
 import { ITEMS, type ItemDef, type ItemKind } from '../content/items';
 import { MERCHANTS } from '../content/loot';
+import { STAFF_TRAITS, staffTrait } from '../content/packs/c2';
 import { NPCS } from '../content/npcs';
 import { LEVEL_CAP, SKILL_EFFECT, xpForLevel, xpToNext, type SkillId } from '../content/progression';
 import { SPELLS, SWAP_MIN_COOLDOWN, type SpellId } from '../content/spells';
@@ -275,6 +276,15 @@ export function inventoryGroups(p: Readonly<Progress>): { kind: ItemKind; items:
       .filter((x) => x.item?.kind === kind)
       .sort((a, b) => a.item.name.localeCompare(b.item.name)),
   })).filter((g) => g.items.length > 0);
+}
+
+/** A mana cost as the menus show it: Moonward's discount leaves at most one decimal. */
+export const costText = (cost: number): string => String(Math.round(cost * 10) / 10);
+
+/** A staff's trait in words for the Gear tab, or null (the Sprout Staff, anything that isn't a staff). */
+export function staffTraitText(item: ItemDef): string | null {
+  const trait = staffTrait(item.id);
+  return trait ? `${STAFF_TRAITS[trait].name}: ${STAFF_TRAITS[trait].text}` : null;
 }
 
 /** One line of an item's numbers for the inventory and the shop. */

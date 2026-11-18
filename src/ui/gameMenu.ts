@@ -1,4 +1,5 @@
 import { ITEMS, type ItemDef } from '../content/items';
+import { staffCostMult } from '../content/packs/c2';
 import { BRANCHES, PERKS, PERK_IDS, SKILLS, SKILL_MAX_RANK, branchTotal, hasPerk, RESPEC_SPROUTS_PER_LEVEL, type Branch } from '../content/progression';
 import { SPELLS, type SpellId } from '../content/spells';
 import type { UiAction } from '../sim/commands';
@@ -6,7 +7,7 @@ import type { Entity, Progress } from '../sim/entity';
 import type { ReadonlySimView } from '../sim/view';
 import { spellIcon } from './Hud';
 import type { MenuNav, Screen } from './MenuNav';
-import { KIND_NAMES, SWAP_RULE, gearCompare, inventoryGroups, itemStats, levelProgress, questLog, readyText, skillGain, swapCooldown } from './rpgText';
+import { KIND_NAMES, SWAP_RULE, costText, gearCompare, inventoryGroups, itemStats, levelProgress, questLog, readyText, skillGain, staffTraitText, swapCooldown } from './rpgText';
 
 export type MenuTab = 'powers' | 'skills' | 'gear' | 'quests' | 'settings';
 
@@ -244,7 +245,7 @@ export class GameMenu {
         state = wait > 0 ? `Swap in: ${readyText(wait).toLowerCase()}` : 'Swap in: ready';
       }
       const def = id ? SPELLS[id] : null;
-      const html = `${spellIcon(id)}<span class="name">${def?.name ?? 'Clear slot'}</span>${def ? `<span class="cost">${def.cost} mana · ${(def.cooldown / 60).toFixed(def.cooldown % 60 ? 1 : 0)} s</span>` : ''}<span class="state">${state}</span>`;
+      const html = `${spellIcon(id)}<span class="name">${def?.name ?? 'Clear slot'}</span>${def ? `<span class="cost">${costText(def.cost * staffCostMult(p.equipment.staff))} mana · ${(def.cooldown / 60).toFixed(def.cooldown % 60 ? 1 : 0)} s</span>` : ''}<span class="state">${state}</span>`;
       const b = cell(button(html, () => this.powerPressed(id), `btn power-card${picked ? ' picked' : ''}${inSlot >= 0 ? ' slotted' : ''}`), k % POWER_COLS, 1 + Math.floor(k / POWER_COLS));
       b.dataset.power = id ?? 'none';
       grid.append(b);
@@ -348,7 +349,8 @@ export class GameMenu {
         const deltas = equippable && !it.equipped ? gearCompare(it.item, worn(it.item)) : [];
         const dl = deltas.length ? `<span class="deltas">${deltas.map((d) => `<b class="${d.delta > 0 ? 'up' : d.delta < 0 ? 'down' : 'same'}">${d.label} ${d.text}</b>`).join('')}</span>` : '';
         const action = it.equipped ? (g.kind === 'charm' ? 'Equipped · remove' : 'Equipped') : equippable ? (locked ? 'Locked' : 'Equip') : '';
-        const html = `<span class="name">${it.item.name}${it.count > 1 ? ` ×${it.count}` : ''}</span><span class="price">${action}</span><span class="blurb">${it.item.blurb}${st ? ` · ${st}` : ''}</span>${dl}`;
+        const trait = staffTraitText(it.item);
+        const html = `<span class="name">${it.item.name}${it.count > 1 ? ` ×${it.count}` : ''}</span><span class="price">${action}</span><span class="blurb">${it.item.blurb}${st ? ` · ${st}` : ''}</span>${trait ? `<span class="trait">${trait}</span>` : ''}${dl}`;
         const canPress = equippable && (!it.equipped || g.kind === 'charm');
         if (canPress) {
           const b = button(html, () => this.src.send({ kind: 'equip', item: it.item.id }), `btn item-row ${it.item.rarity}${locked ? ' locked' : ''}${it.equipped ? ' equipped' : ''}`);

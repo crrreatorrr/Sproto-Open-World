@@ -264,6 +264,8 @@ h2 { margin: 0 0 4px; font-size: 34px; }
 .item-row .price { font-size: 15px; color: var(--accent); white-space: nowrap; }
 .btn.item-row.focused .price { color: var(--accent-ink); }
 .item-row .blurb, .item-row .obj { grid-column: 1 / -1; font-size: 14px; opacity: 0.85; }
+.item-row .trait { grid-column: 1 / -1; font-size: 14px; color: #ffd98a; }
+.btn.item-row.focused .trait { color: var(--accent-ink); }
 .item-row .obj { padding-left: 12px; }
 .item-row .obj.done { color: #9fe88a; }
 .item-row.rare .name { color: #8fc8ff; }
