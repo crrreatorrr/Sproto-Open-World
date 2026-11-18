@@ -20,6 +20,8 @@ export interface ModelTemplate {
 export interface ModelInstance {
   root: THREE.Object3D;
   clips: THREE.AnimationClip[];
+  /** The real model (false: the loader's primitive stand-in; views may prefer their own greybox). */
+  real: boolean;
   dispose(): void;
 }
 
@@ -28,6 +30,17 @@ export interface ModelInstance {
  * KHR_mesh_quantization), a small priority queue, refcounted templates, and primitive fallbacks
  * so a missing file never stops the game.
  */
+/**
+ * Free what a skinned copy owns on the GPU. Geometry and materials are shared with the template, but
+ * every clone has its own skeleton, and three.js keeps one bone texture per skeleton until it's
+ * disposed: without this, each enemy that leaves and re-enters view range leaks a texture.
+ */
+export function disposeSkeletons(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).skeleton.dispose();
+  });
+}
+
 export class AssetLoader {
   private readonly gltfLoader = new GLTFLoader();
   private readonly templates = new Map<ModelKey, Promise<ModelTemplate>>();
@@ -59,10 +72,12 @@ export class AssetLoader {
     return {
       root,
       clips: t.clips,
+      real: t.real,
       dispose: () => {
         if (disposed) return;
         disposed = true;
         root.removeFromParent();
+        disposeSkeletons(root);
         this.refs.set(key, Math.max(0, (this.refs.get(key) ?? 1) - 1));
       },
     };

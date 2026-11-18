@@ -3,7 +3,7 @@
  * Asset gates (plan §3.5, §7.3): triangle caps by folder tier (props 4k, landmarks 10k), the
  * player's clip list and its staff socket, that every file under public/assets is tracked
  * (IMPORTED.json, the art pipeline, or a prop LOD1 generated from a tracked LOD0) and that every
- * world prop has its LOD1.
+ * world prop has its LOD1; the M4 models' clips and the chest's lid node.
  */
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
@@ -27,7 +27,14 @@ const CAPS = [
   [/^models\/staffs\//, 12000],
   [/^models\/props\//, 4000],
   [/^models\/pickups\//, 1000],
+  // M4: shrines and chests (the cartoon kit), as small as props.
+  [/^models\/interactables\//, 4000],
 ];
+/** Clips the views play from the M4 models (the importer keeps only these on the villagers). */
+const REQUIRED_CLIPS = {
+  'models/elites/gatekeeper.glb': ['idle', 'walk', 'run', 'smash'],
+  ...Object.fromEntries(['pepe_general', 'pepe', 'pepe_tux', 'broccoli', 'agent'].map((id) => [`models/npcs/${id}.glb`, ['idle']])),
+};
 const PLAYER_CLIPS = ['idle', 'run', 'run_back', 'strafe_l', 'strafe_r', 'jump', 'roll', 'hit', 'stun', 'defeat', 'victory', 'cast', 'cast_big', 'attack_light_1', 'attack_light_2', 'attack_light_3', 'attack_heavy', 'block'];
 /** Files made by this repo's own pipelines (not copied from a sibling). */
 const OWN = new Set(['models/characters/player.glb', 'models/characters/player.melee.json', 'IMPORTED.json']);
@@ -66,6 +73,13 @@ for (const rel of walk(ROOT)) {
   }
   const cap = CAPS.find(([re]) => re.test(rel))?.[1];
   if (cap && tris > cap) fail(`${rel}: ${tris} triangles, cap ${cap}`);
+  if (REQUIRED_CLIPS[rel]) {
+    const names = new Set(doc.getRoot().listAnimations().map((a) => a.getName()));
+    const missing = REQUIRED_CLIPS[rel].filter((c) => !names.has(c));
+    if (missing.length) fail(`${rel} is missing clips: ${missing.join(', ')}`);
+  }
+  // ChestView swings this node open (the importer splits the lid off the kit's one-mesh chest).
+  if (rel === 'models/interactables/chest.glb' && !doc.getRoot().listNodes().some((n) => n.getName() === 'chest_lid')) fail(`${rel} has no chest_lid node`);
   if (rel === 'models/characters/player.glb') {
     const names = new Set(doc.getRoot().listAnimations().map((a) => a.getName()));
     const missing = PLAYER_CLIPS.filter((c) => !names.has(c));

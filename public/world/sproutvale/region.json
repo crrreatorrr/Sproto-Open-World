@@ -41,14 +41,14 @@
       "cz": 0,
       "bin": "world/sproutvale/cells/c_3_0.bin",
       "json": "world/sproutvale/cells/c_3_0.json",
-      "bytes": 25499
+      "bytes": 25537
     },
     {
       "cx": 4,
       "cz": 0,
       "bin": "world/sproutvale/cells/c_4_0.bin",
       "json": "world/sproutvale/cells/c_4_0.json",
-      "bytes": 25488
+      "bytes": 25527
     },
     {
       "cx": 5,
@@ -97,14 +97,14 @@
       "cz": 1,
       "bin": "world/sproutvale/cells/c_3_1.bin",
       "json": "world/sproutvale/cells/c_3_1.json",
-      "bytes": 25909
+      "bytes": 26077
     },
     {
       "cx": 4,
       "cz": 1,
       "bin": "world/sproutvale/cells/c_4_1.bin",
       "json": "world/sproutvale/cells/c_4_1.json",
-      "bytes": 26223
+      "bytes": 26294
     },
     {
       "cx": 5,
@@ -465,6 +465,42 @@
     }
   ],
   "props": {
+    "bench": {
+      "path": "models/props/bench.glb",
+      "lod1Path": "models/props/bench-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          0.9,
+          0.55,
+          0.3
+        ]
+      },
+      "capacity": 2
+    },
+    "cart": {
+      "path": "models/props/cart.glb",
+      "lod1Path": "models/props/cart-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          1.7,
+          0.7,
+          0.9
+        ]
+      },
+      "capacity": 1
+    },
+    "fountain": {
+      "path": "models/props/fountain.glb",
+      "lod1Path": "models/props/fountain-lod1.glb",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 2,
+        "height": 2
+      },
+      "capacity": 1
+    },
     "frost_beacon": {
       "path": "models/props/frost_beacon.glb",
       "lod1Path": "models/props/frost_beacon-lod1.glb",
@@ -670,6 +706,29 @@
         "height": 28
       },
       "landmark": true,
+      "capacity": 1
+    },
+    "lantern_post": {
+      "path": "models/props/lantern_post.glb",
+      "lod1Path": "models/props/lantern_post-lod1.glb",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 0.18,
+        "height": 3.4
+      },
+      "capacity": 4
+    },
+    "market_stall": {
+      "path": "models/props/market_stall.glb",
+      "lod1Path": "models/props/market_stall-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          1.35,
+          1.2,
+          0.85
+        ]
+      },
       "capacity": 1
     },
     "scarecrow_giant": {

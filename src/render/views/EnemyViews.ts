@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { AssetLoader, ModelInstance } from '../../assets/AssetLoader';
+import { MODELS, type ModelEntry } from '../../assets/manifest';
 import type { EnemyDef, EnemyMoveDef } from '../../content/enemies';
 import { TICK_HZ } from '../../content/tuning';
 import type { Entity } from '../../sim/entity';
@@ -42,6 +43,33 @@ export function attackClipTime(mv: EnemyMoveDef, t: number, duration: number, co
 const BRUTE_CONTACT: Record<string, number> = { punch: 0.52, kick: 0.47 };
 /** The Brute's enemy moves blend in over 6 ticks (its wind-ups are long; no need to snap). */
 const BRUTE_FADE = 6 / TICK_HZ;
+
+/** The elites drawn by EliteView: their model key, clip timing and walking pace. */
+export type EliteModel = 'brute' | 'gatekeeper';
+interface EliteLook {
+  /** Where the blow lands in each attack clip (fraction of the clip). */
+  contact: Record<string, number>;
+  /**
+   * Per move id: where the wind-up starts in its clip (fraction of the way to contact). A string's
+   * follow-up hits start part-way in, so each reads as a new, shorter blow rather than a full replay.
+   */
+  from?: Record<string, number>;
+  /** Ground speed (m/s) of the walk and run clips at time scale 1, and where walking turns to running. */
+  walk: number;
+  run: number;
+  runAbove: number;
+}
+const ELITES: Record<EliteModel, EliteLook> = {
+  brute: { contact: BRUTE_CONTACT, walk: 1.4, run: 3.4, runAbove: 2.2 },
+  /**
+   * The Gatekeeper: sproto-shooter's `monster`, whose only attack clip is `smash` (the shooter's
+   * contact frame: 24 of 54). Every move plays it: `smash` and `ground_wave` (the unblockable, which
+   * also rears back and drives down like the Brute's slam) from the top, the 3-hit `string` from a
+   * little in and its follow-ups from halfway, so the chain reads as three quick chops. Paces from
+   * the shooter (0.648 and 1.623 m/s per metre of height) at 3.2 m.
+   */
+  gatekeeper: { contact: { smash: 24 / 54 }, from: { string: 0.15, string2: 0.45, string3: 0.4 }, walk: 2.07, run: 5.2, runAbove: 3.4 },
+};
 /** Death: hold the pose, then sink and fade (ticks). */
 const SINK_DELAY = 24;
 const SINK_TICKS = 70;
@@ -59,9 +87,10 @@ export function glowStatusOf(e: Readonly<Entity>): GlowStatus {
 }
 
 /**
- * The Thornwood Brute: the shooter's `sproto_monster`, fitted to the 2.4 m body. Its punch and
- * kick clips are scrubbed from the move's tick counter; the slam (no clip of its own) reuses the
- * punch with a procedural rear-back and drive-down so the unblockable reads by pose too.
+ * The elites (plan §4.9). The Thornwood Brute: the shooter's `sproto_monster`, fitted to the 2.4 m
+ * body. Its punch and kick clips are scrubbed from the move's tick counter; the slam (no clip of its
+ * own) reuses the punch with a procedural rear-back and drive-down so the unblockable reads by pose
+ * too. The Gatekeeper (M4) is the same view on the shooter's `monster` (see ELITES).
  */
 export class BruteView implements EntityView {
   readonly root = new THREE.Group();
@@ -74,16 +103,19 @@ export class BruteView implements EntityView {
   private readonly recoil = { x: 0, v: 0 };
   private lean = 0;
   private disposed = false;
+  private readonly look: EliteLook;
 
-  constructor(assets: AssetLoader, readonly def: EnemyDef) {
+  constructor(assets: AssetLoader, readonly def: EnemyDef, readonly kind: EliteModel = 'brute') {
     this.height = def.body.height;
+    this.look = ELITES[kind];
     this.root.add(this.body, this.glow.glint);
     this.glow.glint.position.set(0, this.height * 0.86, 0.35);
-    void assets.instance('brute').then((m) => {
+    void assets.instance(kind).then((m) => {
       if (this.disposed) {
         m.dispose();
         return;
       }
+      fitToBody(m, kind, def);
       this.model = m;
       this.glow.adopt(m.root);
       this.body.add(m.root);
@@ -116,7 +148,12 @@ export class BruteView implements EntityView {
     if (a?.kind === 'attack') {
       const mv = this.def.moves.find((m) => m.id === a.move);
       if (mv) {
-        if (anim && mv.clip && anim.has(mv.clip)) anim.scrub(mv.clip, attackClipTime(mv, a.t, anim.duration(mv.clip), BRUTE_CONTACT[mv.clip] ?? 0.5), BRUTE_FADE);
+        if (anim && mv.clip && anim.has(mv.clip)) {
+          const d = anim.duration(mv.clip);
+          const c = this.look.contact[mv.clip] ?? 0.5;
+          const from = (this.look.from?.[mv.id] ?? 0) * c * d;
+          anim.scrub(mv.clip, from + attackClipTime(mv, a.t, d - from, (c * d - from) / Math.max(1e-3, d - from)), BRUTE_FADE);
+        }
         if (mv.unblockable) {
           // Rear back through the wind-up, drive down on the active frames, settle in recovery.
           lean = a.t < mv.windup ? -0.24 * (a.t / mv.windup) : 0.3 * Math.max(0, 1 - (a.t - mv.windup) / (mv.active + 12));
@@ -125,22 +162,29 @@ export class BruteView implements EntityView {
       }
     } else {
       this.glow.endTelegraph();
+      // A rig without an idle holds the walk's first frame instead.
+      const idle = (timeScale = 1) => {
+        if (anim?.has('idle')) anim.loop('idle', timeScale);
+        else anim?.scrub('walk', 0, 0.2);
+      };
       if (a?.kind === 'dead') {
-        anim?.scrub('idle', 0, 0.2);
+        if (anim?.has('idle')) anim.scrub('idle', 0, 0.2);
+        else anim?.scrub('walk', 0, 0.2);
         lean = -0.35 * Math.min(1, a.t / 20);
         sink = sinkFor(a.t);
       } else if (a?.kind === 'stagger') {
         // Poise broken: reel back and sway, the idle slowed to a stagger.
-        anim?.loop('idle', 0.35);
+        idle(0.35);
         lean = -0.2 + 0.07 * Math.sin((a.t / TICK_HZ) * 7);
       } else if (a?.kind === 'hitstun') {
-        anim?.loop('idle', 0.5);
+        idle(0.5);
         lean = -0.12 * Math.max(0, 1 - a.t / Math.max(1, a.dur));
       } else if (anim) {
         const speed = Math.hypot(e.tf.vel.x, e.tf.vel.z);
-        if (speed < 0.3) anim.loop('idle');
-        else if (speed < 2.2) anim.loop('walk', Math.min(1.6, Math.max(0.5, speed / 1.4)));
-        else anim.loop('run', Math.min(1.5, Math.max(0.6, speed / 3.4)));
+        const { walk, run, runAbove } = this.look;
+        if (speed < 0.3) idle();
+        else if (speed < runAbove || !anim.has('run')) anim.loop('walk', Math.min(1.6, Math.max(0.5, speed / walk)));
+        else anim.loop('run', Math.min(1.5, Math.max(0.6, speed / run)));
       }
     }
     this.lean += (lean - this.lean) * (1 - Math.exp(-14 * dt));
@@ -401,8 +445,17 @@ export class FallbackView implements EntityView {
   }
 }
 
-/** The M1b standard enemies' model keys (manifest.ts). */
-export type HumanoidModel = 'grunt' | 'slinger' | 'wisp';
+/**
+ * Scale a fitted model to the EnemyDef's body when the two differ (the manifest's fitHeight is the
+ * body the model was made for; a content variant may be bigger).
+ */
+function fitToBody(m: ModelInstance, key: keyof typeof MODELS, def: EnemyDef): void {
+  const fit = (MODELS[key] as ModelEntry).fitHeight;
+  if (fit && Math.abs(fit - def.body.height) > 1e-3) m.root.scale.multiplyScalar(def.body.height / fit);
+}
+
+/** The standard enemies' model keys (manifest.ts): M1b's three and M4's veterans and Big Coin. */
+export type HumanoidModel = 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin';
 
 /** Their idle resting glow: the Hex Wisp is a caster spirit, so it glows purple (plan §4.9). */
 const WISP_EMISSIVE = 0x3a1060;
@@ -455,6 +508,7 @@ export class HumanoidEnemyView implements EntityView {
         m.dispose();
         return;
       }
+      fitToBody(m, kind, def);
       this.model = m;
       this.glow.adopt(m.root, kind === 'wisp' ? WISP_EMISSIVE : undefined);
       this.body.add(m.root);

@@ -1,16 +1,21 @@
 import * as THREE from 'three';
+import type { AssetLoader, ModelInstance } from '../../assets/AssetLoader';
+import { MODELS, type ModelEntry, type ModelKey } from '../../assets/manifest';
+import { ITEMS } from '../../content/items';
 import { NPCS } from '../../content/npcs';
 import { TICK_HZ } from '../../content/tuning';
 import type { Entity } from '../../sim/entity';
+import { Animator } from '../anim/Animator';
 import { glowTexture } from '../fx/textures';
 import type { EntityView } from './EnemyViews';
 import { placeEntity } from './interp';
 
 /**
- * Greybox views for the M3 world objects (plan §5): villagers, shrines, chests and pickups. They
- * stand in until M4 brings the Pepe models and props. None adds a real light: a new light changes
- * every lit material's shader and recompiles them all mid-play, so the glows are emissive
- * surfaces and additive sprites.
+ * Views for the world objects (plan §5, M4): villagers, shrines, chests, pickups and one-use
+ * objects. Villagers, shrines, chests and pickups are the imported models (manifest.ts); each shows
+ * a greybox stand-in until its model arrives, and keeps it if the model is missing. None adds a
+ * real light: a new light changes every lit material's shader and recompiles them all mid-play, so
+ * the glows are emissive surfaces and additive sprites.
  */
 
 /** Shared geometry, made on first use (one set for every view). */
@@ -37,6 +42,15 @@ function shared(): Record<string, THREE.BufferGeometry> {
     gem: new THREE.OctahedronGeometry(0.16, 0),
     heart: heartGeo,
     item: new THREE.BoxGeometry(0.26, 0.26, 0.26),
+    // Objects: the lever's base, arm and knob; the tome's stand, cover and pages; the beacon's flame.
+    leverBase: new THREE.BoxGeometry(0.7, 0.3, 0.5),
+    leverArm: new THREE.CylinderGeometry(0.04, 0.05, 1.0, 8).translate(0, 0.5, 0),
+    knob: new THREE.SphereGeometry(0.1, 12, 8),
+    post: new THREE.CylinderGeometry(0.06, 0.09, 1.0, 8),
+    standTop: new THREE.BoxGeometry(0.55, 0.05, 0.4),
+    cover: new THREE.BoxGeometry(0.42, 0.06, 0.3),
+    pages: new THREE.BoxGeometry(0.38, 0.05, 0.27),
+    flame: new THREE.OctahedronGeometry(0.28, 1),
   };
   return geo;
 }
@@ -88,10 +102,70 @@ function disposeSprite(s: THREE.Sprite): void {
   m.dispose();
 }
 
+const isModelKey = (k: string): k is ModelKey => Object.prototype.hasOwnProperty.call(MODELS, k);
+
+/**
+ * Load a model instance for a view and hand it over once, unless the view was disposed first (then
+ * it goes straight back). `use` gets only real models: a missing file keeps the view's greybox.
+ */
+class ModelSlot {
+  model: ModelInstance | null = null;
+  private disposed = false;
+
+  constructor(assets: AssetLoader | null, key: string, use: (m: ModelInstance) => void) {
+    if (!assets || !isModelKey(key)) return;
+    void assets.instance(key).then((m) => {
+      if (this.disposed || !m.real) {
+        m.dispose();
+        return;
+      }
+      this.model = m;
+      use(m);
+    });
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.model?.dispose();
+    this.model = null;
+  }
+}
+
+/**
+ * Give a model instance its own copies of the materials `pick` selects (shared templates must not
+ * change for every instance), returning the copies so the view can drive and dispose them.
+ */
+function ownMaterials(root: THREE.Object3D, pick: (m: THREE.Material) => boolean = () => true): THREE.MeshStandardMaterial[] {
+  const out: THREE.MeshStandardMaterial[] = [];
+  const copies = new Map<THREE.Material, THREE.MeshStandardMaterial>();
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const swap = (m: THREE.Material): THREE.Material => {
+      if (!pick(m) || !(m as THREE.MeshStandardMaterial).isMeshStandardMaterial) return m;
+      let c = copies.get(m);
+      if (!c) {
+        c = (m as THREE.MeshStandardMaterial).clone();
+        copies.set(m, c);
+        out.push(c);
+      }
+      return c;
+    };
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(swap) : swap(mesh.material);
+  });
+  return out;
+}
+
 /** Robe colours for the placeholder villagers, picked per NPC id so each reads apart. */
 const NPC_ROBES = [0x8a5a3a, 0x3d6b3a, 0x5a4a8a, 0x8a3a4a, 0x3a5a7a];
+/** Model tints by key (an entity's `view.tint` wins): the Miller is the Trader's Pepe, flour-dusted. */
+const NPC_TINTS: Record<string, number> = { npc_miller: 0xe0b070 };
 
-/** A villager (plan §6): a robed capsule, a head and a name tag. Placeholder until M4's Pepes. */
+/**
+ * A villager (plan §6): the NPC's model (manifest `npc_*`), standing on the ground, facing its yaw,
+ * playing its idle (or breathing, if the model has none), with a name tag. An unknown key keeps the
+ * greybox: a robed capsule and a head.
+ */
 export class NpcView implements EntityView {
   readonly root = new THREE.Group();
   readonly height: number;
@@ -99,9 +173,15 @@ export class NpcView implements EntityView {
   private readonly body: THREE.CapsuleGeometry;
   private readonly tag: THREE.Sprite;
   private bob = Math.random() * 10;
+  private readonly greybox = new THREE.Group();
   private readonly upper = new THREE.Group();
+  private readonly slot: ModelSlot;
+  private animator: Animator | null = null;
+  /** The model's holder (scaled to the body), breathing when there is no idle clip. */
+  private holder: THREE.Object3D | null = null;
+  private breathe = false;
 
-  constructor(e: Readonly<Entity>) {
+  constructor(e: Readonly<Entity>, assets: AssetLoader | null = null) {
     const id = e.npc?.id ?? '';
     const def = NPCS[id];
     const r = e.body?.radius ?? def?.body.radius ?? 0.4;
@@ -121,19 +201,51 @@ export class NpcView implements EntityView {
     nose.scale.setScalar(0.3);
     nose.position.z = 0.2;
     this.upper.add(head, nose);
+    this.greybox.add(bodyMesh, this.upper);
     this.tag = nameTag(def?.name ?? id);
     this.tag.position.y = h + 0.32;
-    this.root.add(bodyMesh, this.upper, this.tag);
+    this.root.add(this.greybox, this.tag);
+
+    const key = e.view.model;
+    const tint = e.view.tint ?? NPC_TINTS[key];
+    this.slot = new ModelSlot(assets, key, (m) => {
+      const fit = (MODELS[key as ModelKey] as ModelEntry).fitHeight;
+      if (fit) m.root.scale.multiplyScalar(h / fit);
+      if (tint !== undefined) {
+        const t = new THREE.Color(tint);
+        for (const mat of ownMaterials(m.root)) {
+          mat.color.multiply(t);
+          this.mats.push(mat);
+        }
+      }
+      this.greybox.visible = false;
+      this.root.add(m.root);
+      this.holder = m.root;
+      const anim = new Animator(m.root, m.clips);
+      if (anim.has('idle')) {
+        anim.loop('idle', 0.9 + 0.2 * Math.random(), 0);
+        // Out of step with the other villagers.
+        anim.update(Math.random() * anim.duration('idle'));
+        this.animator = anim;
+      } else {
+        anim.dispose();
+        this.breathe = true;
+      }
+    });
   }
 
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
     placeEntity(this.root, e, alpha);
-    // A slow idle nod, so they read as alive.
     this.bob += dt;
-    this.upper.rotation.x = Math.sin(this.bob * 1.3) * 0.04;
+    if (this.animator) this.animator.update(dt);
+    else if (this.breathe && this.holder) this.holder.scale.y = this.holder.scale.x * (1 + 0.012 * Math.sin(this.bob * 1.9));
+    // The greybox's slow idle nod, so it reads as alive.
+    else this.upper.rotation.x = Math.sin(this.bob * 1.3) * 0.04;
   }
 
   dispose(): void {
+    this.animator?.dispose();
+    this.slot.dispose();
     this.body.dispose();
     for (const m of this.mats) m.dispose();
     disposeSprite(this.tag);
@@ -141,24 +253,35 @@ export class NpcView implements EntityView {
   }
 }
 
+/** The shrine model's glowing parts (sproto-shooter's `campaign_glow_signal`). */
+const SHRINE_GLOW = /glow/i;
+/** The shrine model's crystal: its `shrine_focus` node floats at 2.06 m. */
+const SHRINE_FOCUS_Y = 2.06;
+
 /**
- * A shrine (plan §5): a standing stone on a plinth with a floating crystal and a soft glow. Dim
- * until the player has found it, bright once discovered; a pulse when someone rests.
+ * A shrine (plan §5): sproto-shooter's campaign shrine (a plinth and a floating crystal with its own
+ * clip), with a ground ring and a soft glow. Dim until the player has found it, bright once
+ * discovered; a pulse when someone rests. The greybox (a standing stone) stands in until it loads.
  */
 export class ShrineView implements EntityView {
   readonly root = new THREE.Group();
-  readonly height = 2.2;
+  readonly height = 2.5;
   private readonly crystal: THREE.Mesh;
   private readonly crystalMat: THREE.MeshStandardMaterial;
   private readonly stoneMat: THREE.MeshStandardMaterial;
   private readonly ringMat: THREE.MeshBasicMaterial;
   private readonly glow: THREE.Sprite;
+  private readonly greybox = new THREE.Group();
+  private readonly slot: ModelSlot;
+  /** The model's own glow materials, driven like the greybox crystal. */
+  private glowMats: THREE.MeshStandardMaterial[] = [];
+  private mixer: THREE.AnimationMixer | null = null;
   private lit = 0;
   private pulse = 0;
   private t = Math.random() * 10;
 
   /** `discovered` is the shared set WorldViews keeps from the local player's progress. */
-  constructor(private readonly id: string, private readonly discovered: ReadonlySet<string>) {
+  constructor(private readonly id: string, private readonly discovered: ReadonlySet<string>, assets: AssetLoader | null = null) {
     const g = shared();
     this.stoneMat = new THREE.MeshStandardMaterial({ color: 0x8c8a80, roughness: 0.95, emissive: 0x2a6a8a, emissiveIntensity: 0 });
     this.crystalMat = new THREE.MeshStandardMaterial({ color: 0xbff4ff, roughness: 0.2, emissive: 0x6fdcff, emissiveIntensity: 0.4 });
@@ -167,12 +290,24 @@ export class ShrineView implements EntityView {
     const stone = mesh(g.stone, this.stoneMat, 0.35 + 0.85);
     this.crystal = mesh(g.crystal, this.crystalMat, 2.25);
     this.crystal.castShadow = false;
+    this.greybox.add(plinth, stone, this.crystal);
     const ring = new THREE.Mesh(g.ring, this.ringMat);
     ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.36;
+    ring.position.y = 0.05;
     this.glow = glowSprite(0x8fe8ff, 1.6, 0.3);
     this.glow.position.y = 2.25;
-    this.root.add(plinth, stone, this.crystal, ring, this.glow);
+    this.root.add(this.greybox, ring, this.glow);
+    this.slot = new ModelSlot(assets, 'shrine', (m) => {
+      this.glowMats = ownMaterials(m.root, (mat) => SHRINE_GLOW.test(mat.name));
+      this.greybox.visible = false;
+      this.glow.position.y = SHRINE_FOCUS_Y;
+      this.root.add(m.root);
+      if (m.clips.length) {
+        this.mixer = new THREE.AnimationMixer(m.root);
+        for (const c of m.clips) this.mixer.clipAction(c).play();
+        this.mixer.update(Math.random() * 5);
+      }
+    });
   }
 
   /** Someone rested here: a bright pulse. */
@@ -190,33 +325,48 @@ export class ShrineView implements EntityView {
     const k = 0.25 + 0.75 * this.lit;
     this.crystalMat.emissiveIntensity = 0.3 + 1.4 * k + this.pulse * 2;
     this.stoneMat.emissiveIntensity = 0.25 * this.lit * (0.6 + 0.4 * breathe) + this.pulse * 0.6;
+    // The model's glow: nearly dark until found (it reads as a shrine still), bright once found.
+    for (const m of this.glowMats) m.emissiveIntensity = 0.15 + 1.1 * this.lit * (0.8 + 0.2 * breathe) + this.pulse * 2;
     this.ringMat.opacity = 0.08 + 0.3 * this.lit * (0.7 + 0.3 * breathe) + this.pulse * 0.5;
     this.glow.material.opacity = 0.18 + 0.45 * k + this.pulse * 0.6;
     this.glow.scale.setScalar(1.3 + 1.2 * k + this.pulse * 2.5);
     this.crystal.position.y = 2.25 + Math.sin(this.t * 1.2) * 0.08;
     this.crystal.rotation.y += dt * (0.4 + 0.8 * this.lit);
+    // The crystal spins faster once the shrine is found.
+    this.mixer?.update(dt * (0.5 + 0.8 * this.lit + this.pulse));
   }
 
   dispose(): void {
+    this.mixer?.stopAllAction();
+    this.slot.dispose();
     this.stoneMat.dispose();
     this.crystalMat.dispose();
     this.ringMat.dispose();
+    for (const m of this.glowMats) m.dispose();
     disposeSprite(this.glow);
     this.root.removeFromParent();
   }
 }
 
-/** A chest (plan §5): wood and iron bands, a lid on a hinge that swings open once it is used. */
+/** The chest model's lid node (the importer splits it off, its origin on the hinge). */
+const CHEST_LID = 'chest_lid';
+
+/**
+ * A chest (plan §5): sproto-shooter's chest, its lid swinging open on the back hinge once it is
+ * used; unopened chests twinkle. The greybox (wood and iron bands) stands in until it loads.
+ */
 export class ChestView implements EntityView {
   readonly root = new THREE.Group();
   readonly height = 0.9;
-  private readonly lid = new THREE.Group();
+  private lid: THREE.Object3D = new THREE.Group();
   private readonly mats: THREE.Material[];
   private readonly glint: THREE.Sprite;
+  private readonly greybox = new THREE.Group();
+  private readonly slot: ModelSlot;
   private open = 0;
   private t = 0;
 
-  constructor() {
+  constructor(assets: AssetLoader | null = null) {
     const g = shared();
     const wood = new THREE.MeshStandardMaterial({ color: 0x7a4a26, roughness: 0.85 });
     const iron = new THREE.MeshStandardMaterial({ color: 0x5a5a60, roughness: 0.5, metalness: 0.6 });
@@ -231,9 +381,21 @@ export class ChestView implements EntityView {
     lidBand.scale.set(1, 0.6, 1);
     lidBand.position.z = 0.32;
     this.lid.add(top, lidBand);
+    this.greybox.add(base, band, this.lid);
     this.glint = glowSprite(0xffe08a, 0.9, 0.5);
     this.glint.position.y = 0.75;
-    this.root.add(base, band, this.lid, this.glint);
+    this.root.add(this.greybox, this.glint);
+    this.slot = new ModelSlot(assets, 'chest', (m) => {
+      const lid = m.root.getObjectByName(CHEST_LID);
+      if (!lid) {
+        // An older chest without a split lid: keep the greybox, which can open.
+        m.dispose();
+        return;
+      }
+      this.lid = lid;
+      this.greybox.visible = false;
+      this.root.add(m.root);
+    });
   }
 
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
@@ -248,55 +410,258 @@ export class ChestView implements EntityView {
   }
 
   dispose(): void {
+    this.slot.dispose();
     for (const m of this.mats) m.dispose();
     disposeSprite(this.glint);
     this.root.removeFromParent();
   }
 }
 
-/** Pickup colours: Sprouts are green gems, hearts red, items gold. */
+/** Pickup colours (the greybox and the glow): Sprouts are green gems, hearts red, items gold. */
 const PICKUP_LOOK = {
   sprouts: { color: 0x5fe06a, emissive: 0x1f8a2a, glow: 0x8fff8a },
   heart: { color: 0xff4a5a, emissive: 0x8a0a1a, glow: 0xff8a8a },
   item: { color: 0xf2c230, emissive: 0x6a4a00, glow: 0xffe08a },
+  tonic: { color: 0x6fd0ff, emissive: 0x0a4a6a, glow: 0x9fe8ff },
 } as const;
+/** The models for each look, and the size (m, largest side) they are drawn at. */
+const PICKUP_MODEL: Partial<Record<keyof typeof PICKUP_LOOK, { key: ModelKey; size: number }>> = {
+  sprouts: { key: 'pickup_gem', size: 0.36 },
+  heart: { key: 'pickup_heart', size: 0.42 },
+  tonic: { key: 'pickup_potion', size: 0.44 },
+};
 /** The last seconds of a pickup's life blink (it is about to go). */
 const BLINK_TICKS = 2 * TICK_HZ;
 
-/** Something on the ground to walk over (plan §5): a spinning, bobbing gem, heart or box. */
+/** Which look a pickup has: consumables (the tonic flask) are potions; other items the gold box. */
+function pickupLook(e: Readonly<Entity>): keyof typeof PICKUP_LOOK {
+  const p = e.pickup;
+  if (!p || p.kind !== 'item') return p?.kind ?? 'item';
+  const item = p.item ? ITEMS[p.item] : undefined;
+  return item?.kind === 'consumable' || p.item?.includes('tonic') ? 'tonic' : 'item';
+}
+
+/** Model bounds per key, measured once: the pickup is centred on its middle and scaled to size. */
+const pickupBounds = new Map<string, THREE.Box3>();
+
+/** Something on the ground to walk over (plan §5): a spinning, bobbing gem, heart, potion or box. */
 export class PickupView implements EntityView {
   readonly root = new THREE.Group();
   readonly height = 0.6;
+  /** The spinning, bobbing part (the greybox mesh or the model). */
+  private readonly spin = new THREE.Group();
   private readonly item: THREE.Mesh;
   private readonly mat: THREE.MeshStandardMaterial;
   private readonly glow: THREE.Sprite;
+  private readonly slot: ModelSlot;
+  private readonly modelMats: THREE.Material[] = [];
   private t = Math.random() * 10;
 
-  constructor(e: Readonly<Entity>) {
+  constructor(e: Readonly<Entity>, assets: AssetLoader | null = null) {
     const kind = e.pickup?.kind ?? 'item';
-    const look = PICKUP_LOOK[kind];
+    const lookKey = pickupLook(e);
+    const look = PICKUP_LOOK[lookKey];
     const g = shared();
     this.mat = new THREE.MeshStandardMaterial({ color: look.color, emissive: look.emissive, emissiveIntensity: 0.9, roughness: 0.25, metalness: kind === 'heart' ? 0 : 0.3 });
-    this.item = mesh(kind === 'sprouts' ? g.gem : kind === 'heart' ? g.heart : g.item, this.mat, 0.45);
-    if (kind === 'sprouts' && (e.pickup?.amount ?? 1) >= 5) this.item.scale.setScalar(1.35);
+    this.item = mesh(kind === 'sprouts' ? g.gem : kind === 'heart' ? g.heart : g.item, this.mat);
+    const big = kind === 'sprouts' && (e.pickup?.amount ?? 1) >= 5;
+    if (big) this.spin.scale.setScalar(1.35);
+    this.spin.position.y = 0.45;
+    this.spin.add(this.item);
     this.glow = glowSprite(look.glow, 0.8, 0.45);
     this.glow.position.y = 0.45;
-    this.root.add(this.item, this.glow);
+    this.root.add(this.spin, this.glow);
+    const model = PICKUP_MODEL[lookKey];
+    this.slot = new ModelSlot(assets, model?.key ?? '', (m) => {
+      let box = pickupBounds.get(model!.key);
+      if (!box) {
+        box = new THREE.Box3().setFromObject(m.root);
+        pickupBounds.set(model!.key, box);
+      }
+      const size = box.getSize(new THREE.Vector3());
+      const s = model!.size / Math.max(size.x, size.y, size.z, 1e-3);
+      const c = box.getCenter(new THREE.Vector3());
+      m.root.scale.setScalar(s);
+      m.root.position.set(-c.x * s, -c.y * s, -c.z * s);
+      m.root.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh) o.castShadow = false;
+      });
+      // The kit's pickups are white where the game colours them (the shooter tints them too).
+      for (const mat of ownMaterials(m.root)) {
+        mat.color.setHex(look.color);
+        mat.emissive.setHex(look.emissive);
+        mat.emissiveIntensity = 0.6;
+        this.modelMats.push(mat);
+      }
+      this.item.visible = false;
+      this.spin.add(m.root);
+    });
   }
 
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
     placeEntity(this.root, e, alpha);
     this.t += dt;
-    this.item.position.y = 0.45 + Math.sin(this.t * 2.6) * 0.07;
-    this.item.rotation.y = this.t * 2.2;
-    this.glow.position.y = this.item.position.y;
+    this.spin.position.y = 0.45 + Math.sin(this.t * 2.6) * 0.07;
+    this.spin.rotation.y = this.t * 2.2;
+    this.glow.position.y = this.spin.position.y;
     const life = e.pickup?.life ?? Infinity;
     this.root.visible = life > BLINK_TICKS || Math.floor(this.t * 8) % 2 === 0;
   }
 
   dispose(): void {
+    this.slot.dispose();
     this.mat.dispose();
+    for (const m of this.modelMats) m.dispose();
     disposeSprite(this.glow);
     this.root.removeFromParent();
   }
+}
+
+/** Ease a 0..1 state toward `used` (the sim flips it in one tick; views swing over a few frames). */
+function easeUsed(cur: number, used: boolean, rate: number, dt: number): number {
+  return cur + ((used ? 1 : 0) - cur) * (1 - Math.exp(-rate * dt));
+}
+
+/**
+ * The Watchtower beacon (an `object` interactable, model `beacon`): it sits on the static
+ * `frost_beacon` landmark prop (scale 2), so it draws nothing of its own until it is lit; then a
+ * flame and a warm glow burn on the prop's lens. The entity settles onto the prop's collider, so its
+ * origin is already the top of the prop, about 4 m up.
+ */
+export class BeaconView implements EntityView {
+  readonly root = new THREE.Group();
+  readonly height = 0.8;
+  private readonly fire = new THREE.Group();
+  private readonly flame: THREE.Mesh;
+  private readonly flameMat = new THREE.MeshBasicMaterial({ color: 0xffb04a, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+  private readonly glow = glowSprite(0xffa040, 3.2, 0);
+  private readonly core = glowSprite(0xfff0c0, 1.2, 0);
+  private lit = 0;
+  private t = Math.random() * 10;
+
+  constructor() {
+    this.flame = new THREE.Mesh(shared().flame, this.flameMat);
+    this.flame.scale.set(1, 1.6, 1);
+    this.fire.position.y = 0.4;
+    this.fire.add(this.flame, this.glow, this.core);
+    this.fire.visible = false;
+    this.root.add(this.fire);
+  }
+
+  update(e: Readonly<Entity>, alpha: number, dt: number): void {
+    placeEntity(this.root, e, alpha);
+    this.t += dt;
+    this.lit = easeUsed(this.lit, e.interactable?.used ?? false, 2, dt);
+    this.fire.visible = this.lit > 0.01;
+    if (!this.fire.visible) return;
+    const flicker = 0.85 + 0.1 * Math.sin(this.t * 13) + 0.05 * Math.sin(this.t * 29);
+    this.flameMat.opacity = 0.75 * this.lit * flicker;
+    this.flame.scale.set(flicker, 1.6 * (0.9 + 0.2 * Math.sin(this.t * 9)), flicker);
+    this.flame.rotation.y += dt * 2;
+    this.glow.material.opacity = 0.55 * this.lit * flicker;
+    this.glow.scale.setScalar(3.2 * this.lit * flicker);
+    this.core.material.opacity = 0.8 * this.lit;
+  }
+
+  dispose(): void {
+    this.flameMat.dispose();
+    disposeSprite(this.glow);
+    disposeSprite(this.core);
+    this.root.removeFromParent();
+  }
+}
+
+/** A lever (an `object` interactable, model `lever`): greybox, thrown from back to front when used. */
+export class LeverView implements EntityView {
+  readonly root = new THREE.Group();
+  readonly height = 1.2;
+  private readonly arm = new THREE.Group();
+  private readonly mats: THREE.Material[];
+  private readonly glint = glowSprite(0xffe08a, 0.6, 0.4);
+  private thrown = 0;
+  private t = 0;
+
+  constructor() {
+    const g = shared();
+    const wood = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 0.9 });
+    const iron = new THREE.MeshStandardMaterial({ color: 0x5a5a60, roughness: 0.5, metalness: 0.6 });
+    const paint = new THREE.MeshStandardMaterial({ color: 0xc8402e, roughness: 0.6 });
+    this.mats = [wood, iron, paint];
+    this.arm.position.y = 0.3;
+    const knob = mesh(g.knob, paint, 1.0);
+    this.arm.add(mesh(g.leverArm, iron), knob);
+    this.root.add(mesh(g.leverBase, wood, 0.15), this.arm, this.glint);
+  }
+
+  update(e: Readonly<Entity>, alpha: number, dt: number): void {
+    placeEntity(this.root, e, alpha);
+    this.t += dt;
+    this.thrown = easeUsed(this.thrown, e.interactable?.used ?? false, 7, dt);
+    // Leans back (away from the player who walks up to its front) until pulled forward.
+    this.arm.rotation.x = -0.6 + 1.2 * this.thrown;
+    this.glint.visible = this.thrown < 0.95;
+    this.glint.position.set(0, 0.3 + Math.cos(this.arm.rotation.x), Math.sin(this.arm.rotation.x));
+    this.glint.material.opacity = (1 - this.thrown) * (0.25 + 0.2 * Math.sin(this.t * 3));
+  }
+
+  dispose(): void {
+    for (const m of this.mats) m.dispose();
+    disposeSprite(this.glint);
+    this.root.removeFromParent();
+  }
+}
+
+/**
+ * A tome on a stand (an `object` interactable, model `tome`; the Frost Nova tome): greybox, its
+ * cover glowing frost-blue with a soft glow over it. Read, it closes and goes dark.
+ */
+export class TomeView implements EntityView {
+  readonly root = new THREE.Group();
+  readonly height = 1.3;
+  private readonly book = new THREE.Group();
+  private readonly coverMat = new THREE.MeshStandardMaterial({ color: 0x3a6aa8, roughness: 0.6, emissive: 0x4fb8ff, emissiveIntensity: 0.8 });
+  private readonly mats: THREE.Material[];
+  private readonly glow = glowSprite(0x9fe0ff, 1.2, 0.4);
+  private read = 0;
+  private t = Math.random() * 10;
+
+  constructor() {
+    const g = shared();
+    const wood = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 0.9 });
+    const paper = new THREE.MeshStandardMaterial({ color: 0xf0e6cc, roughness: 0.9, emissive: 0x9fe0ff, emissiveIntensity: 0.3 });
+    this.mats = [wood, paper, this.coverMat];
+    const top = mesh(g.standTop, wood, 1.02);
+    top.rotation.x = 0.35;
+    this.book.position.set(0, 1.09, 0);
+    this.book.rotation.x = 0.35;
+    this.book.add(mesh(g.cover, this.coverMat), mesh(g.pages, paper, 0.05));
+    this.glow.position.y = 1.35;
+    this.root.add(mesh(g.post, wood, 0.5), top, this.book, this.glow);
+  }
+
+  update(e: Readonly<Entity>, alpha: number, dt: number): void {
+    placeEntity(this.root, e, alpha);
+    this.t += dt;
+    this.read = easeUsed(this.read, e.interactable?.used ?? false, 3, dt);
+    const pulse = 0.75 + 0.25 * Math.sin(this.t * 2.2);
+    const on = 1 - this.read;
+    this.coverMat.emissiveIntensity = 0.05 + 0.9 * on * pulse;
+    (this.mats[1] as THREE.MeshStandardMaterial).emissiveIntensity = 0.3 * on;
+    this.glow.visible = on > 0.02;
+    this.glow.material.opacity = 0.45 * on * pulse;
+    this.glow.position.y = 1.35 + Math.sin(this.t * 1.5) * 0.05;
+  }
+
+  dispose(): void {
+    for (const m of this.mats) m.dispose();
+    disposeSprite(this.glow);
+    this.root.removeFromParent();
+  }
+}
+
+/** An `object` interactable's view by its model key (beacon, lever, tome; anything else reads as a tome). */
+export function objectView(model: string): EntityView {
+  if (model === 'beacon') return new BeaconView();
+  if (model === 'lever') return new LeverView();
+  return new TomeView();
 }

@@ -252,7 +252,8 @@ export function interactTarget(player: Entity, entities: readonly Entity[]): { e
       name = kind === 'shrine' ? shrineName(id) : kind === 'object' ? `${OBJECTS[id]?.verb ?? 'Use'} ${OBJECTS[id]?.name ?? id}` : 'Old chest';
     } else continue;
     const d = flatDist(player.tf.pos, e.tf.pos);
-    if (d > REACH[kind] || Math.abs(player.tf.pos.y - e.tf.pos.y) > 2.5) continue;
+    // An object can stand on top of its prop (the beacon, about 4 m above the ground around it).
+    if (d > REACH[kind] || Math.abs(player.tf.pos.y - e.tf.pos.y) > (kind === 'object' ? 6 : 2.5)) continue;
     if (d > 0.8 && angleTo(player.tf.pos, player.tf.yaw, e.tf.pos) > FRONT) continue;
     if (d < bestD) {
       bestD = d;

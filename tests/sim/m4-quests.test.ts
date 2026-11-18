@@ -142,6 +142,18 @@ describe('side quests (plan §6.3)', () => {
   });
 });
 
+describe('the beacon stands on its prop (M4)', () => {
+  it('it can be lit from the ground, about 4 m below it', async () => {
+    const { w } = await flatSproutvale();
+    const beacon = w.entities.find((e) => e.interactable?.id === 'watchtower_beacon')!;
+    beacon.tf.pos.y += 4;
+    standBy(w, 'watchtower_beacon');
+    const e = step(w, interact());
+    expect(evs(e, 'interact')).toMatchObject([{ object: 'watchtower_beacon', kind: 'object' }]);
+    w.dispose();
+  });
+});
+
 describe('out of order never soft-locks (M4)', () => {
   it('relic chests opened before taking S3 still count', async () => {
     const { w } = await flatSproutvale();

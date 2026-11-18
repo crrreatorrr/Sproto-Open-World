@@ -32,8 +32,11 @@ export const DUEL_ENEMY_CLIPS = [
   'idle', 'run', 'cast', 'cast_big', 'hit', 'stun', 'defeat', 'roll', 'jump', 'strafe_l', 'strafe_r', 'run_back',
 ] as const;
 
-/** Tripo exports face +X; a quarter turn makes them face +Z (duel and the shooter do the same). */
-const TRIPO_ROTATION_Y = -Math.PI / 2;
+/** The Gatekeeper (sproto-shooter's `monster` boss): smash is its only attack clip. */
+export const GATEKEEPER_CLIPS = ['idle', 'walk', 'run', 'smash'] as const;
+
+/** Villagers keep only their idle (the importer drops the rest). */
+export const NPC_CLIPS = ['idle'] as const;
 
 export const MODELS = {
   /** sproto-duel's rigged wizard plus the Blender melee clips (art/README.md). Never optimized again. */
@@ -46,9 +49,39 @@ export const MODELS = {
   /** Faces +Z already (the shooter's MODEL_ROTATION_Y is 0 for it); fitted to the EnemyDef body. */
   brute: { path: 'models/elites/brute.glb', rigged: true, clips: BRUTE_CLIPS, fitHeight: 2.4, rotationY: 0, inPlace: true },
   /** M1b standard enemies, fitted to their EnemyDef bodies (the Wisp's 1.9 m is the body; it hovers above that). */
-  grunt: { path: 'models/enemies/grunt.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.3, rotationY: TRIPO_ROTATION_Y },
-  slinger: { path: 'models/enemies/slinger.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.85, rotationY: TRIPO_ROTATION_Y },
-  wisp: { path: 'models/enemies/wisp.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.9, rotationY: TRIPO_ROTATION_Y },
+  grunt: { path: 'models/enemies/grunt.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.3 },
+  slinger: { path: 'models/enemies/slinger.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.85 },
+  wisp: { path: 'models/enemies/wisp.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.9 },
+  /**
+   * M4 veterans and elites. Views also scale the fitted model to the EnemyDef's body, so these are
+   * the bodies they were made for: the veteran Grunt, the Slinger veteran, Big Coin (the same
+   * model, bigger) and the Gatekeeper (faces +Z like the Brute; in-place clips).
+   */
+  grunt_vet: { path: 'models/enemies/grunt_vet.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.3 },
+  slinger_vet: { path: 'models/enemies/slinger_vet.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.85 },
+  big_coin: { path: 'models/enemies/slinger_vet.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.3 },
+  gatekeeper: { path: 'models/elites/gatekeeper.glb', rigged: true, clips: GATEKEEPER_CLIPS, fitHeight: 3.2, rotationY: 0, inPlace: true },
+  /**
+   * M4 villagers (NpcDef.model), fitted to 1.8 m (views rescale to the NPC's body). The Miller is
+   * the Trader's model, tinted by the view.
+   */
+  npc_elder: { path: 'models/npcs/pepe_general.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
+  npc_trader: { path: 'models/npcs/pepe.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
+  npc_miller: { path: 'models/npcs/pepe.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
+  npc_collector: { path: 'models/npcs/pepe_tux.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
+  npc_farmer: { path: 'models/npcs/broccoli.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
+  npc_captain: { path: 'models/npcs/agent.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
+  /**
+   * M4 interactables and pickups (sproto-shooter's cartoon kit; vertex colours). The shrine is
+   * 2.46 m tall at scale 1 (its crystal, `shrine_focus`, has its own clip); the chest's lid is the
+   * `chest_lid` node, hinged on its back edge (the importer splits it off). Pickups are fitted by
+   * their view.
+   */
+  shrine: { path: 'models/interactables/shrine.glb' },
+  chest: { path: 'models/interactables/chest.glb' },
+  pickup_gem: { path: 'models/pickups/gem.glb' },
+  pickup_heart: { path: 'models/pickups/heart.glb' },
+  pickup_potion: { path: 'models/pickups/potion.glb' },
 } satisfies Record<string, ModelEntry>;
 
 export type ModelKey = keyof typeof MODELS;

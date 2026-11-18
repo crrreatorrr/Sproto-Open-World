@@ -48,7 +48,8 @@ const LAP = [[LO, LO], [HI, HI], [HI, LO], [LO, HI], [LO, LO]];
 const SPOTS = [
   { name: 'Sprout Hollow', x: 256, z: 58 },
   { name: 'Orchard Fields', x: 150, z: 200 },
-  { name: 'Thornwood', x: 300, z: 340 },
+  // Deep in the trees, out of aggro range of the patrols and the Gatekeeper.
+  { name: 'Thornwood', x: 262, z: 365 },
   { name: 'Old Quarry', x: 420, z: 440 },
 ];
 
@@ -123,7 +124,12 @@ async function shot(name) {
 
 /** Teleport, wait for ground under the player's 3 × 3, then let it settle. Returns the settled state. */
 async function teleport(x, z, settleFrames = 12) {
-  const ok = await page.evaluate(([x, z]) => window.__qa.teleport(x, z), [x, z]);
+  // The world has camps in it now: the tour stays healthy (QA cheat), it measures streaming, not fights.
+  const ok = await page.evaluate(([x, z]) => {
+    const v = window.__qa.app.sim?.playerEntity(0)?.vitals;
+    if (v) v.hp = v.hpMax;
+    return window.__qa.teleport(x, z);
+  }, [x, z]);
   if (!ok) throw new Error(`teleport to ${x}, ${z} refused`);
   await frames(2);
   await page.waitForFunction(() => {
@@ -498,6 +504,7 @@ try {
       new PerformanceObserver((l) => window.__long.push(...l.getEntries().map((e) => e.duration))).observe({ type: 'longtask', buffered: false });
     });
     const heaps = [];
+    const gpuTextures = [];
     const before = (await state()).world.counters;
     let notStanding = [];
     for (let lap = 1; lap <= LAPS; lap++) {
@@ -512,6 +519,7 @@ try {
       const h = await heap();
       heaps.push(h);
       const st = await state();
+      gpuTextures.push(st.gpuMemory.textures);
       const c = st.world.counters;
       console.log(`  info lap ${lap}: ${((Date.now() - t0) / 1000).toFixed(1)} s, heap ${h === null ? 'n/a' : `${(h / 1048576).toFixed(1)} MB`}, GPU geometries ${st.gpuMemory.geometries} textures ${st.gpuMemory.textures}, fetched ${c.fetched}, unloaded ${c.unloaded}, colliders +${c.collidersLoaded}/−${c.collidersUnloaded}, retries ${c.retries}`);
       if (lap === 1) await shot('w03-after-lap-1');
@@ -535,6 +543,8 @@ try {
     if (software && !strict) console.log(`  info long tasks during laps (software GPU, not asserted): ${longDetail}`);
     else check(over.length === 0, 'zero long tasks over 50 ms during the laps', longDetail);
 
+    // Enemy views come and go with distance: each must give back its GPU bone texture.
+    if (gpuTextures.length >= 2) check(gpuTextures.at(-1) <= gpuTextures[0] + 8, `GPU textures don't grow across ${gpuTextures.length} laps`, gpuTextures.join(' → '));
     if (heaps.every((h) => h !== null) && heaps.length >= 2) {
       const base = heaps[0];
       const drift = heaps.map((h) => (h - base) / base);

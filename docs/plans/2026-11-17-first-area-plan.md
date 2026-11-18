@@ -574,7 +574,7 @@ Unlisted means normal. "Hit" is damage before player defense. Player HP is 120 a
 | **Coin Slinger**: ranged | `obama_stage1` (7.8k) | 70 / 25 | **Phys weak**, **Arc resist** (coin ward); **S weak** | 3-coin burst (24; 6 each, reflectable), Coin Bomb (36, AoE; 18), backsteps | Close in and melee; parry-reflect; Chain Zap interrupts |
 | **Thornwood Brute**: magic-resistant melee tank | `sproto_monster` (19.5k, elite tier) | 220 / 70, hyper armor on heavies | Phys normal, **Arc resist**; **C weak**, B resist | Punch (24; 22), Kick (30, knockback; 26), Overhead Slam (42, **unblockable**; 45) | Melee for damage; Frost Nova to slow and freeze it; block vs dodge |
 | **Hex Wisp** (new): physical-resistant floating caster | `sahil_stage1` (7.4k; duel's Hex Sahil look, emissive tint, hovers 0.6 m) | 80 / 30 | **Phys resist**, **Arc weak**; **S weak**, C resist | Homing Hex (26; 12, reflectable, and a reflected hex is arcane, so it hits a weakness), Curse Circle (40, AoE decal; 20), blinks 6 m away when you melee it twice | Spells: Bolt, Chain Zap and reflect |
-| **Gatekeeper** (unique elite) | `monster` (18.2k) | 600 / 120 | **Phys resist**, Arc normal; **B weak** | Smash (34; 30), 3-hit string (28/20/20; 18 each), Ground Wave (40; 35) | A weaving exam before the boss |
+| **Gatekeeper** (unique elite) | `monster` (18.2k) | 1,000 / 120 (raised from 600 in M4: the balance bot killed 600 in 10–14 s) | **Phys resist**, Arc normal; **B weak** | Smash (34; 30), 3-hit string (28/20/20; 18 each), Ground Wave (40; 35) | A weaving exam before the boss |
 
 - Veterans use the `stage2` models (×1.6 HP, same profile).
 - A Sprout Staff string (20 + 22 + 32) kills a level-1 Grunt.
