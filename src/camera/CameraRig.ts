@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GAMEPAD, MOUSE } from '../input/bindings';
+import type { AimRay } from '../sim/commands';
 import type { ReadonlySimView } from '../sim/view';
 
 /** Tuning, from sproto-duel's camera (pulled back a little for melee: you need to see around you). */
@@ -7,8 +8,9 @@ export const CAM = {
   fov: 62,
   sprintFovBoost: 6,
   distance: 4.6,
-  height: 1.55,
-  shoulder: 0.55,
+  /** The pivot rides just above the head, so the character stands centred, a little below the middle of the screen. */
+  height: 1.95,
+  shoulder: 0,
   followSharpness: 16,
   minPitch: -0.75,
   maxPitch: 0.65,
@@ -111,6 +113,23 @@ export class CameraRig {
     this.hasPivot = true;
   }
 
+  /**
+   * The ray through the centre of the screen, from the current look angles (mouse and stick move
+   * them before the rig's next update). Shake is left out: it must not throw an attack off.
+   */
+  aimRay(): AimRay | undefined {
+    if (!this.hasPivot) return undefined;
+    const cp = Math.cos(this.pitch);
+    const dir = { x: Math.sin(this.yaw) * cp, y: Math.sin(this.pitch), z: Math.cos(this.yaw) * cp };
+    const rx = -Math.cos(this.yaw), rz = Math.sin(this.yaw);
+    const from = {
+      x: this.pivot.x + rx * this.shoulder - dir.x * this.distance,
+      y: Math.max(0.3, this.pivot.y - dir.y * this.distance + this.rise),
+      z: this.pivot.z + rz * this.shoulder - dir.z * this.distance,
+    };
+    return { from, dir };
+  }
+
   addTrauma(amount: number): void {
     this.trauma = Math.min(1, this.trauma + amount);
   }
@@ -130,13 +149,13 @@ export class CameraRig {
       this.tmp.x += dx * shift;
       this.tmp.z += dz * shift;
       if (dx * dx + dz * dz > 0.04) this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), CAM.lockYawSharpness, dt);
-      // Ease into the lock's pitch range rather than snapping when the lock starts. A target overhead
-      // (the Skyfire Drake) lifts the range, so the camera looks up and keeps it in frame.
+      // Keep the locked enemy at the centre of the screen, within the lock's pitch range. A target
+      // overhead (the Skyfire Drake) lifts the top of that range, so the camera can look up at it.
+      const toTarget = Math.atan2(lockOn.y - this.tmp.y, Math.max(0.5, Math.hypot(lockOn.x - this.tmp.x, lockOn.z - this.tmp.z)));
       const up = Math.atan2(lockOn.y - target.y - CAM.height, Math.max(1, Math.hypot(dx, dz))) - CAM.lockAirMargin;
       const air = Math.min(CAM.lockAirMaxPitch, up);
-      const lo = air > 0 ? air : CAM.lockMinPitch;
       const hi = Math.max(CAM.lockMaxPitch, air);
-      this.pitch = damp(this.pitch, Math.min(hi, Math.max(lo, this.pitch)), air > 0 ? 5 : 12, dt);
+      this.pitch = damp(this.pitch, Math.min(hi, Math.max(CAM.lockMinPitch, toTarget)), air > 0 ? 5 : CAM.lockYawSharpness, dt);
     }
     if (!this.hasPivot) {
       this.pivot.copy(this.tmp);

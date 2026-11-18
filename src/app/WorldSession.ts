@@ -68,7 +68,8 @@ export class WorldSession {
       rock,
       sleep,
       props: {
-        load: (path, priority) => this.assets.gltf(propPath(path), priority).then((g) => g.scene),
+        // A prop that fails keeps trying: its instances stay hidden only until the file arrives.
+        load: (path, priority) => this.assets.gltf(propPath(path), priority, true).then((g) => g.scene),
         uploadTexture: (tex) =>
           new Promise<void>((resolve) =>
             this.uploads.texture(() => {
@@ -126,12 +127,13 @@ export class WorldSession {
   }
 
   /**
-   * Whether the player may play: their cell and its neighbours have colliders (plan §3.2). While
-   * not, the veil shows; after 15 s it times out and the app offers Retry / Return to start.
+   * Whether the player may play: the ground around them has colliders (plan §3.2). While not, the
+   * veil shows, and it lifts only when the whole 3 × 3 is ready; after 15 s it times out and the app
+   * offers Retry / Return to start.
    */
   ground(view: CellView, pos: { x: number; z: number }): GroundState {
     const s = this.streamer;
-    if (!s || s.groundReady(view, pos.x, pos.z)) {
+    if (!s || s.groundReady(view, pos.x, pos.z, this.veilSince === null)) {
       this.veilSince = null;
       return 'ready';
     }

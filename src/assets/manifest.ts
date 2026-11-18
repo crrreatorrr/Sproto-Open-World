@@ -53,6 +53,8 @@ export const MODELS = {
   /** sproto-duel's rigged wizard plus the Blender melee clips (art/README.md). Never optimized again. */
   player: { path: 'models/characters/player.glb', rigged: true, clips: PLAYER_CLIPS },
   staff_sproto: { path: 'models/staffs/staff_sproto.glb' },
+  /** The small starter staff the world boots with (STAFF_BOOT_LOD). */
+  staff_sproto_lod1: { path: 'models/staffs/staff_sproto-lod1.glb' },
   staff_moonward: { path: 'models/staffs/staff_moonward.glb' },
   staff_momentum: { path: 'models/staffs/staff_momentum.glb' },
   staff_nobu: { path: 'models/staffs/staff_nobu.glb' },
@@ -130,10 +132,11 @@ export const MODELS = {
 export type ModelKey = keyof typeof MODELS;
 
 /**
- * A save that continues with one of these staffs boots with its LOD1, and the full model streams in
- * after (expansion plan §2.2). The Sprout Staff is in the critical download already.
+ * The world boots with these small staffs (the starter's and a save's equipped one), and the full
+ * model streams in once things are calm.
  */
 export const STAFF_BOOT_LOD: Partial<Record<ModelKey, ModelKey>> = {
+  staff_sproto: 'staff_sproto_lod1',
   staff_moonward: 'staff_moonward_lod1',
   staff_momentum: 'staff_momentum_lod1',
   staff_nobu: 'staff_nobu_lod1',

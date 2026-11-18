@@ -16,6 +16,7 @@ import {
 import { DT, MOVE, PLAYER_BODY } from '../content/tuning';
 import { enemyBrains, muzzle } from './ai/brain';
 import type { CommandMap } from './commands';
+import { resolveAim } from './combat/aim';
 import { kill, resolveAttacks } from './combat/hits';
 import { lockOn } from './combat/lockon';
 import { playerCombat, type CombatCtx, type Motion } from './combat/playerCombat';
@@ -135,6 +136,10 @@ export class SimWorld {
       },
       get world() {
         return get().world;
+      },
+      aimTarget: (pl, ray) => {
+        const p = this.playerEntity(pl);
+        return p ? (resolveAim(this.entities, this.physics, p, ray).target?.id ?? null) : null;
       },
       interactTarget: (pl) => {
         const p = this.playerEntity(pl);
@@ -855,8 +860,9 @@ export class SimWorld {
     this.byId.clear();
     this.players.clear();
     for (const e of copy.entities) this.add(e);
-    // A restored wall must block from the first tick, as it did when the snapshot was taken.
-    if (copy.entities.some((e) => e.powerArea?.kind === 'wall')) this.physics.step();
+    // Rapier's queries only see colliders after a step: without this, the first tick after a restore
+    // moves characters as if the rebuilt capsules weren't there.
+    this.physics.step();
     for (const [p, id] of copy.players) this.players.set(p, id);
     for (const k of Object.keys(this.rng.streams)) delete this.rng.streams[k];
     Object.assign(this.rng.streams, copy.rng);

@@ -1,3 +1,4 @@
+import type { AimRay } from './commands';
 import type { Entity, EntityId, PlayerId, WorldState } from './entity';
 import type { SimEvent } from './events';
 import type { Vec3 } from './math';
@@ -34,6 +35,8 @@ export interface ReadonlySimView {
    * front): an NPC to talk to, a shrine to rest at, a chest to open. Null when nothing is in reach.
    */
   interactTarget(player: PlayerId): { entity: EntityId; id: string; kind: 'npc' | 'shrine' | 'chest' | 'object'; name: string } | null;
+  /** The enemy under the centre of the screen, if any (the crosshair lights up on one). */
+  aimTarget(player: PlayerId, ray: AimRay): EntityId | null;
   /** The choices on the player's current dialogue node that pass their conditions (index = what to send). */
   dialogueChoices(player: PlayerId): { index: number; text: string }[];
   /** Where a content id is (an NPC, shrine, chest or trigger), for quest markers and the compass. */

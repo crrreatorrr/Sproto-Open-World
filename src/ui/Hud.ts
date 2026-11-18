@@ -74,6 +74,8 @@ export interface HudCombat {
   enemy: HudEnemy | null;
   /** Lock-on reticle on the locked target's chest. */
   reticle: HudPoint | null;
+  /** The dot at the centre of the screen: hidden while locked on or in a menu, lit on an enemy. */
+  crosshair: 'off' | 'free' | 'enemy';
   spells: HudSpells | null;
   wave: HudWave | null;
 }
@@ -161,6 +163,7 @@ export class Hud {
   private readonly enemyStatus: HTMLElement;
   private readonly enemyAffinity: HTMLElement;
   private readonly reticle: HTMLElement;
+  private readonly crosshair: HTMLElement;
   private readonly spellBar: HTMLElement;
   private readonly slots: SpellSlot[];
   private readonly waveInfo: HTMLElement;
@@ -200,6 +203,8 @@ export class Hud {
     this.enemy.append(this.enemyName, barRow, this.enemyAffinity);
     this.reticle = document.createElement('div');
     this.reticle.className = 'reticle';
+    this.crosshair = document.createElement('div');
+    this.crosshair.className = 'crosshair';
     this.prompts = document.createElement('div');
     this.prompts.className = 'prompts';
     this.clickHint = document.createElement('div');
@@ -221,7 +226,7 @@ export class Hud {
     this.banner.className = 'wave-banner';
     this.toastEl = document.createElement('div');
     this.toastEl.className = 'toast';
-    this.root.append(vitals, this.enemy, this.reticle, this.waveInfo, this.banner, this.toastEl, this.spellBar, this.prompts, this.clickHint);
+    this.root.append(vitals, this.enemy, this.reticle, this.crosshair, this.waveInfo, this.banner, this.toastEl, this.spellBar, this.prompts, this.clickHint);
     host.appendChild(this.root);
   }
 
@@ -286,6 +291,8 @@ export class Hud {
     this.spellBar.classList.toggle('active', !!c.spells);
     this.waveState(c.wave);
     this.toastTick(dt);
+    this.crosshair.classList.toggle('active', c.crosshair !== 'off');
+    this.crosshair.classList.toggle('on-enemy', c.crosshair === 'enemy');
     const r = c.reticle;
     const showReticle = !!r && r.visible;
     this.reticle.classList.toggle('active', showReticle);

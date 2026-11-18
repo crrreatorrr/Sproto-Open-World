@@ -323,7 +323,13 @@ async function rpgLoop() {
     for (let i = 0; i < 16; i++) {
       e = (await state()).enemies.find((x) => x.id === d.id);
       if (!e || e.action === 'dead') break;
+      // Push the stick at the dummy while swinging: a swing goes where the stick points.
+      const me = await state();
+      const wx = d.pos.x - me.player.pos.x, wz = d.pos.z - me.player.pos.z, l = Math.hypot(wx, wz) || 1;
+      const sy = Math.sin(me.camYaw), cy = Math.cos(me.camYaw);
+      await page.evaluate(([a, b]) => window.__pad.axes(a, b), [(-cy * wx + sy * wz) / l, -(sy * wx + cy * wz) / l]);
       await press('rb');
+      await page.evaluate(() => window.__pad.axes(0, 0));
       await frames(10);
     }
     console.log(`  info straw dummy ${d.id}: walked to ${dist.toFixed(2)} m, hp ${d.hp} → ${e?.hp}, ${e?.action ?? 'gone'}`);

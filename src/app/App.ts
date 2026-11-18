@@ -68,6 +68,8 @@ const COMBAT_SOUNDS = [
   'clash', 'hurt', 'dodge', 'shieldBlock', 'shieldPerfect', 'shieldUp', 'rugWhoosh', 'carpetWhoosh', 'pillarHit', 'lockBeep', 'stunCharge', 'bossSlam',
   'boltCast', 'boltHit', 'blastExplode', 'noMana',
 ] as const;
+/** Calm seconds before the boot staff sharpens into its full model. */
+const STAFF_SHARPEN_SEC = 10;
 const PARAMS = new URLSearchParams(location.search);
 /** `?sandbox=1`: the M1b wave runner (plan §9 M1b), on the flat yard level. */
 const WAVE_SANDBOX = PARAMS.get('sandbox') === '1';
@@ -165,6 +167,9 @@ export class App {
   private startUsed = false;
   /** The staff model shown on the player, to swap it when the equipment changes. */
   private staffShown = '';
+  /** The full model to swap in for the small boot staff, once things have been calm for a while. */
+  private staffToSharpen: ModelKey | null = null;
+  private staffCalmSec = 0;
 
   constructor(host: HTMLElement, private readonly physicsReady: Promise<void>) {
     const canvas = document.createElement('canvas');
@@ -270,8 +275,9 @@ export class App {
     this.toTitle();
     // Warm the player model while the title is up, so Play is quick.
     void this.assets.template('player');
-    void this.assets.template('staff_sproto');
-    void this.assets.template('brute');
+    // The world only needs the small starter staff here; enemies load when you get near them.
+    if (MODE === 'world') void this.assets.template(STAFF_BOOT_LOD.staff_sproto ?? 'staff_sproto');
+    else for (const k of ['staff_sproto', 'brute'] as const) void this.assets.template(k);
     if (WAVE_SANDBOX) for (const k of ['grunt', 'slinger', 'wisp'] as const) void this.assets.template(k);
     // The world streams in behind the title (around the player start), so Play is quick.
     this.stream?.load().catch((err: unknown) => console.warn('[world] the region manifest could not load yet', err));
@@ -425,11 +431,12 @@ export class App {
       }
       const view = new PlayerView(this.assets);
       const staff = this.staffModel(entity.progress?.equipment.staff);
-      // A non-starter staff boots with its small model; the full one streams in behind it.
-      const bootStaff = STAFF_BOOT_LOD[staff];
+      // The world boots with a staff's small model; the full one swaps in once things are calm.
+      const bootStaff = this.stream ? STAFF_BOOT_LOD[staff] : undefined;
       await view.load(bootStaff ?? staff);
-      if (bootStaff) void view.setStaff(staff);
       this.staffShown = staff;
+      this.staffToSharpen = bootStaff ? staff : null;
+      this.staffCalmSec = 0;
       this.renderer.scene.add(view.root);
       this.sim = sim;
       this.player = view;
@@ -649,7 +656,7 @@ export class App {
     const t0 = performance.now();
     for (let i = 0; i < ticks; i++) {
       // Behind the veil the player is frozen by the sim anyway; their input is dropped, not buffered.
-      const cmd = this.commands.take(this.rig.yaw);
+      const cmd = this.commands.take(this.rig.yaw, this.rig.aimRay());
       sim.tick(held ? new Map() : new Map([[LOCAL_PLAYER, cmd]]));
       this.afterTick(simView);
     }
@@ -659,6 +666,7 @@ export class App {
     if (!p) return;
     this.autosave(simView, p, dt, held);
     this.syncEquipment(p);
+    this.sharpenStaff(p, dt);
     view.update(p, this.loop.alpha, dt);
     const a = p.combat?.action;
     if (QA_LOG_ENABLED && a?.kind === 'attack' && view.attackShown && a !== this.posedAction) {
@@ -841,7 +849,19 @@ export class App {
     const key = this.staffModel(id);
     if (key === this.staffShown) return;
     this.staffShown = key;
+    this.staffToSharpen = null;
     void this.player.setStaff(key);
+  }
+
+  /** Swap the small boot staff for the full model after calm seconds: never in the middle of a fight. */
+  private sharpenStaff(p: Readonly<Entity>, dt: number): void {
+    const full = this.staffToSharpen;
+    if (!full || !this.player || !this.sim) return;
+    const calm = !p.combat?.action && !this.sim.view().gearLocked(LOCAL_PLAYER);
+    this.staffCalmSec = calm ? this.staffCalmSec + dt : 0;
+    if (this.staffCalmSec < STAFF_SHARPEN_SEC) return;
+    this.staffToSharpen = null;
+    void this.player.setStaff(full, 'later');
   }
 
   private staffModel(item: string | undefined): ModelKey {
@@ -1385,11 +1405,18 @@ export class App {
       player: v ? { hp: v.hp, hpMax: v.hpMax, stamina: v.stamina, staminaMax: v.staminaMax, mana: v.mana, manaMax: v.manaMax } : null,
       enemy,
       reticle: lp ? this.project(lp) : null,
+      crosshair: this.crosshairState(view, lock),
       spells: v && c
         ? { mana: v.mana, cooldowns: c.cooldowns ?? {}, casting: a?.kind === 'cast' ? a.spell : null, woven: view.now - c.lastHitTick <= WOVEN.window, learned: this.mode === 'world' ? p.progress?.spells : undefined, loadout: p.progress?.loadout, costMult: staffCostMult(p.progress?.equipment.staff), surge: p.powers?.surge ?? 0 }
         : null,
       wave: view.wave ? { ...view.wave } : null,
     };
+  }
+
+  private crosshairState(view: ReadonlySimView, lock: number | null): HudCombat['crosshair'] {
+    const ray = this.rig.aimRay();
+    if (lock !== null || this.nav.top || !ray) return 'off';
+    return view.aimTarget(LOCAL_PLAYER, ray) !== null ? 'enemy' : 'free';
   }
 
   /** QA timing hooks (dev and QA builds): presses latched and the ticks that took them. */

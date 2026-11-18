@@ -9,6 +9,7 @@ import { idleInput, type InputCommand } from '../commands';
 import type { Entity } from '../entity';
 import type { Vec3 } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
+import { resolveAim } from './aim';
 import { angleTo, flatDist, toWorld, yawTo } from './geometry';
 import { resolveHit, type HitInfo } from './hits';
 import type { CombatCtx } from './playerCombat';
@@ -119,6 +120,14 @@ export function spellTarget(ctx: CombatCtx, p: Entity, cmd: InputCommand, range 
   return best;
 }
 
+/** Where a released spell goes: the lock, else the centre of the screen, else the old soft target. */
+function spellAim(ctx: CombatCtx, p: Entity, cmd: InputCommand, physics: PhysicsWorld, range: number): { target: Entity | null; point?: Vec3 } {
+  const lock = p.combat!.lock !== null ? ctx.get(p.combat!.lock) : undefined;
+  if (!cmd.aim || (lock && enemyOf(p, lock) && flatDist(p.tf.pos, lock.tf.pos) <= range)) return { target: spellTarget(ctx, p, cmd, range) };
+  const r = resolveAim(ctx.entities, physics, p, cmd.aim);
+  return { target: r.target && flatDist(p.tf.pos, r.target.tf.pos) <= range ? r.target : null, point: r.point };
+}
+
 /** Advance a cast; on the release tick the spell happens. Returns false when the cast is over. */
 export function advanceCast(ctx: CombatCtx, p: Entity, cmd: InputCommand, physics: PhysicsWorld, spawn: SpawnSpellProjectile): void {
   const c = p.combat!;
@@ -131,13 +140,13 @@ export function advanceCast(ctx: CombatCtx, p: Entity, cmd: InputCommand, physic
   }
   if (holdChargedBolt(ctx, p, cmd, a, spellCost(p, a.spell, a.woven))) return;
   const def = SPELLS[a.spell];
-  const target = spellTarget(ctx, p, cmd ?? idleInput(p.tf.yaw), def.chain?.range ?? SPELL_TARGET_RANGE);
   a.t++;
   if (!a.released && a.t >= a.release) {
     a.released = true;
     c.cooldowns[a.spell] = def.cooldown;
     ctx.events.push({ type: 'cast', entity: p.id, spell: a.spell, woven: a.woven });
-    fire(ctx, p, a.spell, a.woven, target, physics, spawn);
+    const { target, point } = spellAim(ctx, p, cmd ?? idleInput(p.tf.yaw), physics, def.chain?.range ?? SPELL_TARGET_RANGE);
+    fire(ctx, p, a.spell, a.woven, target, physics, spawn, point);
     cleanse(ctx, p, a.spell);
   }
   if (a.t >= a.release + def.recovery) c.action = null;
@@ -151,14 +160,16 @@ function spellInfo(id: SpellId, base: number, from: Vec3): HitInfo {
   };
 }
 
-function fire(ctx: CombatCtx, p: Entity, id: SpellId, woven: boolean, target: Entity | null, physics: PhysicsWorld, spawn: SpawnSpellProjectile): void {
+function fire(ctx: CombatCtx, p: Entity, id: SpellId, woven: boolean, target: Entity | null, physics: PhysicsWorld, spawn: SpawnSpellProjectile, point?: Vec3): void {
   const def = SPELLS[id];
   const power = spellPower(id, woven, p) * castChargeMult(p);
+  // Cast from the hand, but toward what the screen's centre is on, so the shot lands under it.
+  if (point && flatDist(p.tf.pos, point) > 1) p.tf.yaw = yawTo(p.tf.pos, point);
   if (firePower(ctx, p, id, power, physics, spawn)) return;
   if (def.projectile) {
     const from = toWorld(p.tf.pos, p.tf.yaw, [0, 1.35, 0.6]);
     const sp = def.projectile.speed;
-    const aim = target ? aimPoint(from, target, sp) : toWorld(p.tf.pos, p.tf.yaw, [0, 1.35, 10]);
+    const aim = point ?? (target ? aimPoint(from, target, sp) : toWorld(p.tf.pos, p.tf.yaw, [0, 1.35, 10]));
     const d = { x: aim.x - from.x, y: aim.y - from.y, z: aim.z - from.z };
     const len = Math.hypot(d.x, d.y, d.z) || 1;
     spawn({
@@ -234,6 +245,7 @@ function visible(physics: PhysicsWorld, a: Vec3, b: Vec3): boolean {
 export function castFacing(ctx: CombatCtx, p: Entity, cmd: InputCommand): number | undefined {
   const a = p.combat?.action;
   if (a?.kind !== 'cast' || a.released) return undefined;
+  if (cmd.aim && p.combat!.lock === null && Math.hypot(cmd.aim.dir.x, cmd.aim.dir.z) > 1e-3) return Math.atan2(cmd.aim.dir.x, cmd.aim.dir.z);
   const t = spellTarget(ctx, p, cmd);
   return t ? yawTo(p.tf.pos, t.tf.pos) : undefined;
 }

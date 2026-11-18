@@ -1,5 +1,5 @@
 import {
-  BLOCK, BUFFER, CHARGE, LUNGE, PLAYER_MOVES, PLAYER_STATS, ROLL, SOFT_TARGET, clipReach, clipTiming, type PlayerMoveId,
+  AIM, BLOCK, BUFFER, CHARGE, LUNGE, PLAYER_MOVES, PLAYER_STATS, ROLL, SOFT_TARGET, clipReach, clipTiming, type PlayerMoveId,
 } from '../../content/combat';
 import { TONIC } from '../../content/items';
 import { TRAIT } from '../../content/packs/c2';
@@ -14,6 +14,7 @@ import type { Action, Buffered, BufferedAction, Entity } from '../entity';
 import type { SimEvent } from '../events';
 import { turnToward } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
+import { aimSwingDir, resolveAim } from './aim';
 import { angleTo, flatDist, yawTo } from './geometry';
 import { advancePlunge, plungeCancels, plungeMotion, tryPlunge } from './plunge';
 import { advanceCast, castFacing, startCast, type SpawnSpellProjectile } from './spells';
@@ -247,16 +248,17 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: Physi
     ctx.events.push({ type: 'noStamina', entity: p.id });
     return;
   }
-  startAttack(p, move, cmd, ctx);
+  startAttack(p, move, cmd, ctx, physics);
 }
 
 /** Best enemy for a soft target: locked target, else the nearest in a cone of the input or facing. */
-function softTarget(p: Entity, cmd: InputCommand, ctx: CombatCtx): Entity | null {
+function softTarget(p: Entity, cmd: InputCommand, ctx: CombatCtx, swing?: { x: number; z: number }, onCrosshair?: Entity | null): Entity | null {
   const c = p.combat!;
   if (c.lock !== null) {
     const t = ctx.get(c.lock);
     if (t && t.combat?.action?.kind !== 'dead') return t;
   }
+  if (swing) return crosshairTarget(p, ctx, swing, onCrosshair ?? null);
   const w = wishDir(cmd);
   const yaw = w.mag > 0.2 ? Math.atan2(w.x, w.z) : p.tf.yaw;
   let best: Entity | null = null;
@@ -277,7 +279,28 @@ function softTarget(p: Entity, cmd: InputCommand, ctx: CombatCtx): Entity | null
   return best;
 }
 
-function startAttack(p: Entity, move: PlayerMoveId, cmd: InputCommand, ctx: CombatCtx): void {
+/** The enemy a swing at the crosshair goes for: the one under it, else the best in a cone around it. */
+function crosshairTarget(p: Entity, ctx: CombatCtx, swing: { x: number; z: number }, onCrosshair: Entity | null): Entity | null {
+  const inReach = (e: Entity) => flatDist(p.tf.pos, e.tf.pos) - e.body!.radius <= SOFT_TARGET.meleeRange;
+  if (onCrosshair && inReach(onCrosshair)) return onCrosshair;
+  const yaw = Math.atan2(swing.x, swing.z);
+  const half = (AIM.meleeConeDeg * Math.PI) / 360;
+  let best: Entity | null = null;
+  let bestScore = Infinity;
+  for (const e of ctx.entities) {
+    if (!e.combat || e.combat.team === p.combat!.team || !e.body || e.combat.action?.kind === 'dead' || !inReach(e)) continue;
+    const ang = angleTo(p.tf.pos, yaw, e.tf.pos);
+    if (ang > half) continue;
+    const score = flatDist(p.tf.pos, e.tf.pos) + ang * 2;
+    if (score < bestScore) {
+      bestScore = score;
+      best = e;
+    }
+  }
+  return best;
+}
+
+function startAttack(p: Entity, move: PlayerMoveId, cmd: InputCommand, ctx: CombatCtx, physics: PhysicsWorld): void {
   const c = p.combat!;
   const v = p.vitals!;
   const def = PLAYER_MOVES[move];
@@ -285,10 +308,13 @@ function startAttack(p: Entity, move: PlayerMoveId, cmd: InputCommand, ctx: Comb
   v.stamina = Math.max(0, v.stamina - def.stamina);
   v.staminaDelay = PLAYER_STATS.staminaDelay;
   if (move === 'riposte') c.riposteUntil = 0;
-  const target = softTarget(p, cmd, ctx);
-  let lunge: number;
-  let dir = { x: Math.sin(p.tf.yaw), z: Math.cos(p.tf.yaw) };
   const w = wishDir(cmd);
+  // Pushing the stick swings that way; with the stick at rest the swing goes to the screen's centre.
+  const aimed = cmd.aim && w.mag <= 0.2 ? resolveAim(ctx.entities, physics, p, cmd.aim) : null;
+  const swing = cmd.aim && aimed ? aimSwingDir(p, cmd.aim, aimed.point) : undefined;
+  const target = softTarget(p, cmd, ctx, swing, aimed?.target);
+  let lunge: number;
+  let dir = swing ?? { x: Math.sin(p.tf.yaw), z: Math.cos(p.tf.yaw) };
   if (target) {
     const dx = target.tf.pos.x - p.tf.pos.x, dz = target.tf.pos.z - p.tf.pos.z;
     const d = Math.hypot(dx, dz);
@@ -296,12 +322,14 @@ function startAttack(p: Entity, move: PlayerMoveId, cmd: InputCommand, ctx: Comb
     // Close the gap until the staff's real reach for this clip overlaps the target's body.
     lunge = Math.max(0, Math.min(LUNGE.max, d - (target.body?.radius ?? 0) - clipReach(def.clip) + LUNGE.overlap));
   } else {
-    if (w.mag > 0.2) {
+    if (!swing && w.mag > 0.2) {
       dir = { x: w.x / w.mag, z: w.z / w.mag };
       p.tf.yaw = Math.atan2(dir.x, dir.z); // attacks go where you push, without a target
     }
     lunge = LUNGE.noTarget;
   }
+  // Aimed swings turn to the crosshair at once: the hit must land where the player is looking.
+  if (swing) p.tf.yaw = p.tf.prevYaw = Math.atan2(dir.x, dir.z);
   const startup = Math.max(1, Math.ceil((tm.activeStart - def.entry) / (def.rate ?? 1)));
   c.action = { kind: 'attack', move, t: 0, clipT: def.entry, charge: 0, charging: false, charged: false, hit: [], lunge: lunge / startup, lungeDir: dir };
 }
@@ -365,6 +393,15 @@ function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
         const target = c.lock !== null ? ctx.get(c.lock) : undefined;
         const want = target ? yawTo(p.tf.pos, target.tf.pos) : Math.atan2(a.lungeDir.x, a.lungeDir.z);
         p.tf.yaw = turnToward(p.tf.yaw, want, SOFT_TARGET.turnRate * DT);
+      } else if (a.charging && cmd.aim && c.lock === null) {
+        // A charging heavy turns with the stick, else follows the screen's centre, until released.
+        const w = wishDir(cmd);
+        const to = w.mag > 0.2 ? w : cmd.aim.dir;
+        const f = Math.hypot(to.x, to.z);
+        if (f > 1e-3) {
+          a.lungeDir = { x: to.x / f, z: to.z / f };
+          p.tf.yaw = turnToward(p.tf.yaw, Math.atan2(a.lungeDir.x, a.lungeDir.z), SOFT_TARGET.turnRate * DT);
+        }
       }
       ctx.motion.set(p.id, { vx, vz, inputScale: 0 });
       return;

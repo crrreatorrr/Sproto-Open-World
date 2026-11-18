@@ -5,7 +5,7 @@ import { cellKey, cellOf, type CellColliders, type CellData, type CellEntry } fr
 import { Horizon } from './Horizon';
 import { PropInstancer, type PropHost } from './PropInstancer';
 import { publicUrl, type Region } from './RegionManifest';
-import { RETRY_DELAYS_MS, planRings, prefetchCells, withRetry, type CellLevel, type CellXZ } from './rings';
+import { RETRY_DELAYS_MS, groundCells, planRings, prefetchCells, withRetry, type CellLevel, type CellXZ } from './rings';
 import type { TerrainBuilder } from './TerrainBuilder';
 import { TerrainChunk, terrainMaterial } from './TerrainChunk';
 import type { UploadBudget } from './UploadBudget';
@@ -376,18 +376,13 @@ export class CellStreamer {
   }
 
   /**
-   * The player's cell and its neighbours have colliders in the sim (plan §3.2: Loading → Playing
-   * needs them). Cells outside the region don't count.
+   * The ground around the player has colliders in the sim (plan §3.2: Loading → Playing needs the
+   * whole 3 × 3; `playing` asks only for what is near, see `groundCells`). Cells outside the region
+   * don't count.
    */
-  groundReady(view: CellView, x: number, z: number): boolean {
+  groundReady(view: CellView, x: number, z: number, playing = false): boolean {
     if (view.waitingForGround) return false;
-    const [px, pz] = cellOf(x, z);
-    for (let dz = -1; dz <= 1; dz++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        if (this.region.has(px + dx, pz + dz) && !view.cellReady(px + dx, pz + dz)) return false;
-      }
-    }
-    return true;
+    return groundCells(x, z, playing).every(([cx, cz]) => !this.region.has(cx, cz) || view.cellReady(cx, cz));
   }
 
   /** Terrain height (m) at a world point, if its cell's heights are decoded. */

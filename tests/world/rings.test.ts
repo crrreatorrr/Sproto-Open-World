@@ -3,11 +3,40 @@ import { CELL_RES } from '../../src/content/world/format';
 import { buildTerrainMesh } from '../../src/world/terrainMesh';
 import { RequestQueue } from '../../src/assets/RequestQueue';
 import {
-  RETRY_DELAYS_MS, chebyshev, distanceToCell, planRings, prefetchCells, propBucket, withRetry, type CellLevel,
+  GROUND_NEAR_M, RETRY_DELAYS_MS, chebyshev, distanceToCell, groundCells, planRings, prefetchCells, propBucket, withRetry, type CellLevel,
 } from '../../src/world/rings';
 
 const region8 = (cx: number, cz: number) => cx >= 0 && cz >= 0 && cx < 8 && cz < 8;
 const levels = (plan: ReturnType<typeof planRings>) => new Map(plan.want.map((w) => [w.key, w.level]));
+
+describe('the ground the player needs (asset streaming plan S0)', () => {
+  const keys = (l: readonly (readonly [number, number])[]) => l.map(([x, z]) => `${x},${z}`).sort();
+
+  it('behind the veil it is the whole 3 × 3', () => {
+    expect(groundCells(96, 96, false)).toHaveLength(9);
+  });
+
+  it('in the middle of a cell, playing needs only that cell', () => {
+    expect(keys(groundCells(96, 96, true))).toEqual(['1,1']);
+  });
+
+  it('just past a cell edge, playing needs the cell behind and not the three far neighbours', () => {
+    // Walking north across z = 128: cells 1,3 are 64 m ahead and were only just made Active.
+    expect(keys(groundCells(96, 128.5, true))).toEqual(['1,1', '1,2']);
+  });
+
+  it('near a corner it takes every cell within reach', () => {
+    expect(keys(groundCells(64 + 10, 128 + 10, true))).toEqual(['0,1', '0,2', '1,1', '1,2']);
+  });
+
+  it('every cell needed after crossing any edge was already in the 3 × 3 before it', () => {
+    for (let x = 64; x < 128; x += 3) {
+      const before = new Set(keys(groundCells(x, 127.9, false)));
+      for (const k of keys(groundCells(x, 128.1, true))) expect(before.has(k), `${x}: ${k}`).toBe(true);
+    }
+    expect(GROUND_NEAR_M).toBeLessThan(64);
+  });
+});
 
 describe('ring policy (plan §3.2)', () => {
   it('loads Active ≤ 1 and Visual ≤ 2 around the player, nothing at 3 from cold', () => {

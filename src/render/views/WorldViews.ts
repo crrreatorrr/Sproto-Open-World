@@ -77,6 +77,7 @@ export class WorldViews {
   private readonly discovered = new Set<string>();
   /** Shrine views by content id (a rest pulses its shrine). */
   private readonly shrines = new Map<string, ShrineView>();
+  private rebuildViews = false;
   /** Lazy enemy models: requested (false) and ready to draw (true). */
   private readonly lazyModels = new Map<string, boolean>();
   /** The size each view was made at: a camp's new affix (after a rest) can change it. */
@@ -90,6 +91,10 @@ export class WorldViews {
     this.flyover = new DrakeFlyover(assets);
     this.root.add(this.spells.root, this.powers.root, this.flyover.root, this.status.root);
     if (fx) BodyGlow.ash = (p) => fx.emit(p, 'ash', 1, 1, 1.2);
+    // A model that failed has arrived: rebuild the views, so stand-ins become the real thing.
+    this.assets.onRecovered(() => {
+      this.rebuildViews = true;
+    });
   }
 
   get(id: EntityId): EntityView | undefined {
@@ -98,6 +103,12 @@ export class WorldViews {
 
   /** Make, update and drop views to match the sim. Call once per rendered frame. */
   sync(view: ReadonlySimView, alpha: number, dt: number): void {
+    if (this.rebuildViews) {
+      this.rebuildViews = false;
+      for (const v of this.views.values()) v.dispose();
+      this.views.clear();
+      this.shrines.clear();
+    }
     this.seen.clear();
     this.status.begin(dt);
     const me = view.playerEntity(0);
