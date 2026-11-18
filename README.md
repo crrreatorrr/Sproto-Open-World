@@ -21,7 +21,7 @@ itself (Continue on the title). **The menu** (Esc or Start) has one tab each for
   unlock a perk. A shrine refunds your points for 100 Sprouts per level.
 - **Gear:** compare and change your staff, robe and charm, but not in combat (an enemy targeted you
   in the last 5 s) unless you're at a shrine.
-- **Quests** and **Settings.**
+- **Quests**, **Map** (you, the shrines you found and the tracked quest's marker) and **Settings.**
 
 The camps, the other quests and the boss come in M4 and M5. The plan is in
 [docs/plans/2026-11-17-first-area-plan.md](docs/plans/2026-11-17-first-area-plan.md).
@@ -31,6 +31,10 @@ The camps, the other quests and the boss come in M4 and M5. The plan is in
 | http://localhost:5180/ | Sproutvale (the streamed world) |
 | http://localhost:5180/?yard=1 | The training yard: dummies and the Thornwood Brute |
 | http://localhost:5180/?sandbox=1 | The wave runner: mixed waves of 5–7 enemies |
+
+On the dev server, **F9** (or LB + RB + View) opens the placement editor: move the marks in
+`world-src/sproutvale/placements.json`, copy the resulting file, paste it over the original and run
+`npm run bake:world -- sproutvale`. After a re-bake, `npm run bake:map` redraws the Map tab's picture.
 
 **In the yard and the wave runner** you fight with the staff (three-hit combo, chargeable heavy,
 dodge roll, block and parry) and four spells: Arcane Bolt, Blast (burns), Frost Nova (chills; three

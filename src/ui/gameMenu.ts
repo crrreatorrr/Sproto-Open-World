@@ -66,7 +66,7 @@ const POWER_COLS = 4;
 
 /**
  * The one tabbed menu (expansion plan §5): Powers (the spell selector), Skills (the Magic and Combat
- * tree), Gear (staff, robe, charm with compare deltas; the character's numbers), Quests and
+ * tree), Gear (staff, robe, charm with compare deltas; the character's numbers), Quests, Map and
  * Settings. LB / RB or Q / E switch tabs; Powers and Skills are 2-D grids. It replaces the Character
  * and Quest log screens. Like every menu it only queues UiActions: the sim decides.
  */
