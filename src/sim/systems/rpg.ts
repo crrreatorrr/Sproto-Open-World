@@ -380,11 +380,6 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
   const p = e.progress!;
   const dead = e.combat?.action?.kind === 'dead';
   for (const a of ui) {
-    // The dead can look at menus, not use them (equipSpell refuses by itself).
-    if (dead && (a.kind === 'dialogueChoose' || a.kind === 'buy' || a.kind === 'equip' || a.kind === 'spendSkill' || a.kind === 'respecSkills' || a.kind === 'rest')) {
-      ctx.events.push({ type: 'refused', entity: e.id, action: a.kind, reason: "You can't do that now." });
-      continue;
-    }
     switch (a.kind) {
       case 'dialogueChoose':
         choose(ctx, e, a.choice);
@@ -405,7 +400,9 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
         respecSkills(ctx, e);
         break;
       case 'rest':
-        if (p.atShrine) rest(ctx, e, p.atShrine);
+        // A shrine's rest doesn't raise the dead: the respawn does.
+        if (dead) ctx.events.push({ type: 'refused', entity: e.id, action: 'rest', reason: "You can't rest now." });
+        else if (p.atShrine) rest(ctx, e, p.atShrine);
         break;
       case 'closeMenu':
         p.shop = null;

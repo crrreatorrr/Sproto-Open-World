@@ -71,19 +71,6 @@ describe('menu intents from a dead player', () => {
     w.dispose();
   });
 
-  it('buying and changing gear wait until you are back', async () => {
-    const { w, p } = await corpse();
-    const merchant = Object.keys(MERCHANTS)[0];
-    const item = Object.keys(MERCHANTS[merchant].stock)[0];
-    p.progress!.shop = merchant;
-    p.progress!.sprouts = 100000;
-    p.progress!.inventory.staff_nobu = 1;
-    step(w, ui([{ kind: 'buy', merchant, item }, equip('staff_nobu')]));
-    expect(p.progress!.sprouts).toBe(100000);
-    expect(p.progress!.equipment.staff).toBe('staff_sproto');
-    w.dispose();
-  });
-
   it('the respawn still brings you back whole', async () => {
     const { w, p } = await corpse();
     stepN(w, PLAYER_STATS.respawnTicks + 2);
