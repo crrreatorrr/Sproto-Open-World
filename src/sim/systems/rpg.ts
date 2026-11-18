@@ -407,6 +407,10 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
       case 'closeMenu':
         p.shop = null;
         p.atShrine = null;
+        if (p.dialogue) {
+          ctx.events.push({ type: 'dialogueEnd', entity: e.id, npc: p.dialogue.npc });
+          p.dialogue = null;
+        }
         break;
       case 'track':
         if (p.quests[a.quest]?.status === 'active') p.tracked = a.quest;
