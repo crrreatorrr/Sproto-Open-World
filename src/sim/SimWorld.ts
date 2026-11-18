@@ -328,12 +328,16 @@ export class SimWorld {
     });
   }
 
-  /** The player fell: every boss fight starts over (plan §4.10). Their HP comes back with `reset`. */
+  /** The player fell or left: every boss fight starts over (plan §4.10). */
   private resetBossFights(): void {
     for (const e of [...this.entities]) if (e.hazard || e.brain?.summoned) this.remove(e.id);
     for (const e of this.entities) {
       if (e.obstacle) e.obstacle.broken = false;
-      if (e.boss && e.combat?.action?.kind !== 'dead') e.boss = newBossState();
+      if (e.boss && e.brain && e.combat?.action?.kind !== 'dead') {
+        e.boss = newBossState();
+        // Whole again and back at home, however the fight was left (a fall, or a teleport out of it).
+        this.reset(e, e.brain.home, e.brain.homeYaw);
+      }
     }
   }
 
