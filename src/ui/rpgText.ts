@@ -256,6 +256,7 @@ export function shopStock(merchant: string, flags: Readonly<Record<string, numbe
   const m = MERCHANTS[merchant];
   if (!m) return [];
   return Object.entries(m.stock)
+    .filter(([id]) => !m.after?.[id] || !!flags[m.after[id]])
     .map(([id, count]) => ({ item: ITEMS[id], price: ITEMS[id]?.price ?? 0, left: Math.max(0, count - (flags[`bought:${merchant}:${id}`] ?? 0)) }))
     .filter((l) => !!l.item);
 }

@@ -38,12 +38,14 @@ import sharp from 'sharp';
 import zlib from 'node:zlib';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const GAMES = path.resolve(ROOT, '..');
+// SIBLING_REPOS: where the sibling repos are when this checkout isn't next to them (a git worktree).
+const GAMES = process.env.SIBLING_REPOS ? path.resolve(process.env.SIBLING_REPOS) : path.resolve(ROOT, '..');
 const OUT = path.join(ROOT, 'public', 'assets');
 const force = process.argv.includes('--force');
 
 const DUEL = 'sproto-duel';
 const SHOOTER = 'sproto-shooter';
+const SHOOTER_BOSSES = 'sproto-shooter-bosses';
 
 /**
  * Sproutvale's props and set pieces (plan §6.1, §7.1): the sproto-shooter grove set plus the
@@ -114,6 +116,8 @@ const FILES = [
   [SHOOTER, 'public/assets/models/characters/midget_stage2.glb', 'models/enemies/grunt_vet.glb'],
   [SHOOTER, 'public/assets/models/characters/obama_stage2.glb', 'models/enemies/slinger_vet.glb'],
   [SHOOTER, 'public/assets/models/characters/monster.glb', 'models/elites/gatekeeper.glb', { tex: 512 }],
+  // C4: the robot elites (lazy-loaded; their maps at 512 px).
+  ...['robot_shooter', 'robot_laser'].map((id) => [SHOOTER_BOSSES, `dist/assets/models/characters/${id}.glb`, `models/elites/${id}.glb`, { tex: 512 }]),
   // M4: Sproutvale's villagers.
   [SHOOTER, 'public/assets/models/characters/pepe-general.glb', 'models/npcs/pepe_general.glb', PEPE],
   [SHOOTER, 'public/assets/models/characters/pepe.glb', 'models/npcs/pepe.glb', PEPE],

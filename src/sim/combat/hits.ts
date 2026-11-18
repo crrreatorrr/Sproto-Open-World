@@ -5,6 +5,7 @@ import { PLAYER_HITBOXES, STAFF_CAPSULE_RADIUS } from '../../content/generated/p
 import { AFFINITY_MULT, ENEMIES, type Affinity, type EnemyMoveDef } from '../../content/enemies';
 import { PERK_EFFECT, SKILL_EFFECT, hasPerk } from '../../content/progression';
 import { STATUS } from '../../content/statuses';
+import { affixAffinity, affixElite } from '../systems/affixes';
 import { charmOf, staffOf } from '../systems/rpg';
 import { applyStatus } from './statuses';
 import { staffAfterReaction, staffOnHit, staffPoiseMult, staffPushback, staffStaggerBonus } from './staffTraits';
@@ -49,7 +50,7 @@ export const addHitstop = (e: Entity, ticks: number): void => {
 
 function affinityOf(target: Entity, kind: DamageKind): Affinity {
   const def = target.brain ? ENEMIES[target.brain.def] : undefined;
-  return def ? def.profile.damage[kind] : 'normal';
+  return def ? affixAffinity(target, def.profile.damage[kind]) : 'normal';
 }
 
 /** Plan §4.6 damage formula (no random variance, no random crits). */
@@ -177,7 +178,7 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
     tc.action = { kind: 'hitstun', t: 0, dur: PLAYER_STATS.hitstun, knockdown: false };
     tc.buffer = null;
     pushed = true;
-  } else if (!def?.elite && !armored) {
+  } else if (!def?.elite && !affixElite(target) && !armored) {
     tc.action = { kind: 'hitstun', t: 0, dur: info.hitstun, knockdown: info.knockdown };
     pushed = true;
   }

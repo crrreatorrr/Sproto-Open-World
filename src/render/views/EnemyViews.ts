@@ -455,7 +455,7 @@ function fitToBody(m: ModelInstance, key: keyof typeof MODELS, def: EnemyDef): v
 }
 
 /** The standard enemies' model keys (manifest.ts): M1b's three and M4's veterans and Big Coin. */
-export type HumanoidModel = 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin';
+export type HumanoidModel = 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'robot_shooter' | 'robot_laser';
 
 /** Their idle resting glow: the Hex Wisp is a caster spirit, so it glows purple (plan §4.9). */
 const WISP_EMISSIVE = 0x3a1060;
@@ -558,6 +558,8 @@ export class HumanoidEnemyView implements EntityView {
       this.glow.endTelegraph();
       if (a?.kind === 'dead') {
         anim?.scrub('defeat', a.t / TICK_HZ, 0.12);
+        // The robots have no `defeat` clip: they topple back instead.
+        if (anim && !anim.has('defeat')) lean = -0.5 * Math.min(1, a.t / 24);
         sink = sinkFor(a.t, HUMANOID_SINK_DELAY);
       } else if (a?.kind === 'stagger') {
         const d = anim?.duration('stun') ?? 0;

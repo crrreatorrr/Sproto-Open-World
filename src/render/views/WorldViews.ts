@@ -16,7 +16,7 @@ import { wantsView } from './viewCull';
 const DECAL_COLOR: Record<DecalShape, number> = { circle: 0xffa23a, jagged: 0xff2a1a };
 
 /** Enemy models outside the critical download: fetched the first time one comes into range. */
-const LAZY_MODELS: ReadonlySet<string> = new Set<ModelKey>(['gatekeeper', 'grunt_vet', 'slinger_vet', 'big_coin']);
+const LAZY_MODELS: ReadonlySet<string> = new Set<ModelKey>(['gatekeeper', 'grunt_vet', 'slinger_vet', 'big_coin', 'robot_shooter', 'robot_laser']);
 
 /** Seconds between status particles on a burning, shocked or chilled enemy. */
 const EMBER_EVERY = 0.07;
@@ -32,6 +32,11 @@ interface LiveDecal {
   radius: number;
   /** A leap's landing circle, fixed once the enemy takes off. */
   landing: { x: number; y: number; z: number; yaw: number } | null;
+}
+
+/** A definition with its body scaled (a Colossal enemy): views fit the model and the health bar to it. */
+function scaledDef(def: EnemyDef | undefined, scale: number): EnemyDef | undefined {
+  return def && scale !== 1 ? { ...def, body: { radius: def.body.radius * scale, height: def.body.height * scale } } : def;
 }
 
 /** The enemy definition behind an entity, if it has a brain. */
@@ -60,6 +65,8 @@ export class WorldViews {
   private readonly shrines = new Map<string, ShrineView>();
   /** Lazy enemy models: requested (false) and ready to draw (true). */
   private readonly lazyModels = new Map<string, boolean>();
+  /** The size each view was made at: a camp's new affix (after a rest) can change it. */
+  private readonly viewScale = new Map<EntityId, number>();
 
   constructor(
     private readonly assets: AssetLoader,
@@ -84,6 +91,11 @@ export class WorldViews {
         continue;
       }
       let v = this.views.get(e.id);
+      if (v && (e.view.scale ?? 1) !== (this.viewScale.get(e.id) ?? 1)) {
+        v.dispose();
+        this.views.delete(e.id);
+        v = undefined;
+      }
       // Not drawn (far away, not set down yet, a faded corpse): the sweep below drops any old view.
       if (!wantsView(e, me, v !== undefined)) continue;
       if (!v) {
@@ -91,6 +103,7 @@ export class WorldViews {
         if (!made) continue;
         v = made;
         this.views.set(e.id, v);
+        this.viewScale.set(e.id, e.view.scale ?? 1);
         this.root.add(v.root);
       }
       this.seen.add(e.id);
@@ -102,6 +115,7 @@ export class WorldViews {
       v.dispose();
       this.views.delete(id);
       this.statusClock.delete(id);
+      this.viewScale.delete(id);
       for (const [k, sv] of this.shrines) if (sv === v) this.shrines.delete(k);
     }
     this.updateDecals(view, dt);
@@ -303,7 +317,7 @@ export class WorldViews {
     if (kind === 'chest') return new ChestView(this.assets);
     if (kind === 'object') return objectView(e.view.model);
     if (e.pickup) return new PickupView(e, this.assets);
-    const def = enemyDef(e);
+    const def = scaledDef(enemyDef(e), e.view.scale ?? 1);
     switch (e.view.model) {
       case 'brute':
       case 'gatekeeper':
@@ -316,6 +330,8 @@ export class WorldViews {
       case 'grunt_vet':
       case 'slinger_vet':
       case 'big_coin':
+      case 'robot_shooter':
+      case 'robot_laser':
         return def ? new HumanoidEnemyView(this.assets, def, e.view.model) : new FallbackView(e);
       default:
         return e.kind === 'enemy' || e.kind === 'boss' ? new FallbackView(e) : null;
@@ -327,6 +343,7 @@ export class WorldViews {
     for (const v of this.views.values()) v.dispose();
     this.views.clear();
     this.statusClock.clear();
+    this.viewScale.clear();
     this.shrines.clear();
     this.discovered.clear();
     for (const d of this.decals) d.decal.dispose();

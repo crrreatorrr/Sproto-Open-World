@@ -6,6 +6,7 @@ import { cellKey, cellOf, type CellColliders } from '../content/world/format';
 import { DIALOGUE } from '../content/dialogue';
 import { NPCS } from '../content/npcs';
 import { OBJECTS, usedFlag } from '../content/objects';
+import { AFFIXES, CAMP_GENERATION_FLAG } from '../content/packs/c4';
 import type { RegionContent } from '../content/world/sproutvaleContent';
 import { SAVE_SCHEMA, type SaveFile } from '../save/schema';
 import { idleInput, type InputCommand } from './commands';
@@ -26,6 +27,7 @@ import { hashValue } from './hash';
 import type { Vec3 } from './math';
 import { PhysicsWorld } from './physics/PhysicsWorld';
 import { Rng, type RngState } from './rng';
+import { applyAffix, rollCampAffix } from './systems/affixes';
 import { locomotion } from './systems/locomotion';
 import { gearLocked, markTargeted } from './systems/loadout';
 import { vitals } from './systems/vitals';
@@ -213,8 +215,28 @@ export class SimWorld {
         if (m.unique) e.brain!.unique = m.unique;
       }
     }
+    this.rollCampAffixes();
     this.triggerList = content.triggers;
     for (const t of content.triggers) this.places.set(t.id, { x: t.pos[0], y: t.pos[1], z: t.pos[2] });
+  }
+
+  /**
+   * Give every camp the affix this generation rolled (expansion plan §3.6). Uniques are never
+   * affixed; a champion affix (Colossal) goes on the camp's first member that isn't already an elite.
+   */
+  private rollCampAffixes(): void {
+    const generation = this.world.flags[CAMP_GENERATION_FLAG] ?? 0;
+    const champions = new Set<string>();
+    for (const e of this.entities) {
+      const camp = e.brain?.camp;
+      if (!camp || e.brain!.unique) continue;
+      let affix = rollCampAffix(this.seed, camp, generation);
+      if (affix && AFFIXES[affix].champion) {
+        if (champions.has(camp) || ENEMIES[e.brain!.def].elite) affix = null;
+        else champions.add(camp);
+      }
+      if (applyAffix(e, affix)) this.physics.addCharacter(e.id, e.body!, e.tf.pos);
+    }
   }
 
   private addInteractable(id: string, kind: 'shrine' | 'chest' | 'object', p: [number, number, number], yaw: number, used: boolean): void {
@@ -257,6 +279,7 @@ export class SimWorld {
     if (!e) throw new Error('applySave: no player');
     e.progress = { ...structuredClone(save.player), dialogue: null, shop: null, atShrine: null };
     this.world = structuredClone(save.world);
+    this.rollCampAffixes();
     for (const x of this.entities) {
       if (x.interactable?.kind === 'chest') x.interactable.used = this.world.openedChests.includes(x.interactable.id);
       if (x.interactable?.kind === 'object') x.interactable.used = (this.world.flags[usedFlag(x.interactable.id)] ?? 0) !== 0;
@@ -628,6 +651,8 @@ export class SimWorld {
 
   /** A rest at a shrine (plan §2.9): every camp is back at home at full health; dead uniques stay dead. */
   private respawnCamps(): void {
+    this.world.flags[CAMP_GENERATION_FLAG] = (this.world.flags[CAMP_GENERATION_FLAG] ?? 0) + 1;
+    this.rollCampAffixes();
     for (const e of this.entities) {
       const b = e.brain;
       if (!b?.camp || (b.unique && this.world.killedUniques.includes(b.unique))) continue;

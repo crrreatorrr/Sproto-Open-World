@@ -3,6 +3,7 @@
  * Enemy hitboxes are defined by hand: a sphere at `forward` / `up` metres from the feet.
  */
 import type { DamageKind } from './combat';
+import { C4_ENEMIES } from './packs/c4';
 
 export type Affinity = 'weak' | 'normal' | 'resist';
 export const AFFINITY_MULT: Record<Affinity, number> = { weak: 1.5, normal: 1, resist: 0.5 };
@@ -62,7 +63,7 @@ export interface EnemyMoveDef {
 export interface EnemyDef {
   id: string;
   name: string;
-  model: 'brute' | 'dummy' | 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'gatekeeper';
+  model: 'brute' | 'dummy' | 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'gatekeeper' | 'robot_shooter' | 'robot_laser';
   /** Extra names a quest's `kill` objective matches (an Orchard Grunt is still a `grunt`). */
   tags?: string[];
   hp: number;
@@ -298,5 +299,7 @@ ENEMIES.gatekeeper = {
     },
   ],
 };
+
+Object.assign(ENEMIES, C4_ENEMIES);
 
 export type EnemyId = keyof typeof ENEMIES;

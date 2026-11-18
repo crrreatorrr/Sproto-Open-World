@@ -3,6 +3,8 @@
  * (no procedural affixes). Pure data.
  */
 import { C2_ITEMS } from './packs/c2';
+import { C4_ITEMS } from './packs/c4';
+import type { SpellId } from './spells';
 
 export type ItemKind = 'staff' | 'robe' | 'charm' | 'consumable' | 'quest';
 export type Rarity = 'common' | 'rare' | 'epic';
@@ -39,6 +41,8 @@ export interface ItemDef {
   price?: number;
   /** Stacks in the inventory (consumables, quest items). */
   stacks?: boolean;
+  /** A tome: buying it teaches this spell at once, and no item goes in the bags. */
+  teaches?: SpellId;
 }
 
 export const ITEMS: Record<string, ItemDef> = {
@@ -70,6 +74,8 @@ export const ITEMS: Record<string, ItemDef> = {
   sprout_seed: { id: 'sprout_seed', name: 'Sprout Seed', kind: 'quest', rarity: 'common', blurb: 'For the Elder.', stacks: true },
   ...C2_ITEMS,
 };
+
+Object.assign(ITEMS, C4_ITEMS);
 
 export const STARTING_GEAR = { staff: 'staff_sproto', robe: 'robe_apprentice', charm: null } as const;
 

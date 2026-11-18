@@ -1,4 +1,5 @@
 import type { DamageKind, PlayerMoveId } from '../content/combat';
+import type { AffixId } from '../content/packs/c4';
 import type { SkillRanks } from '../content/progression';
 import type { QuestState } from '../content/quests';
 import type { SpellId } from '../content/spells';
@@ -238,6 +239,8 @@ export interface EnemyBrain {
   camp?: string;
   /** A unique (named) enemy: once killed it never comes back (`WorldState.killedUniques`). */
   unique?: string;
+  /** The stat affix its camp rolled (expansion plan §3.6). */
+  affix?: AffixId;
 }
 
 export interface Projectile {
@@ -291,5 +294,5 @@ export interface Entity {
    */
   settle?: true;
   /** Presentation hint only: which model to draw. */
-  view: { model: string; tint?: number };
+  view: { model: string; tint?: number; scale?: number };
 }

@@ -35,6 +35,10 @@ export const DUEL_ENEMY_CLIPS = [
 /** The Gatekeeper (sproto-shooter's `monster` boss): smash is its only attack clip. */
 export const GATEKEEPER_CLIPS = ['idle', 'walk', 'run', 'smash'] as const;
 
+/** The robot elites (sproto-shooter-bosses): `cast_big` is the Rivet Gunner's alone. */
+export const ROBOT_SHOOTER_CLIPS = ['idle', 'run', 'cast', 'cast_big', 'stun'] as const;
+export const ROBOT_LASER_CLIPS = ['idle', 'run', 'cast', 'stun'] as const;
+
 /** Villagers keep only their idle (the importer drops the rest). */
 export const NPC_CLIPS = ['idle'] as const;
 
@@ -69,6 +73,9 @@ export const MODELS = {
   slinger_vet: { path: 'models/enemies/slinger_vet.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.85 },
   big_coin: { path: 'models/enemies/slinger_vet.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.3 },
   gatekeeper: { path: 'models/elites/gatekeeper.glb', rigged: true, clips: GATEKEEPER_CLIPS, fitHeight: 3.2, rotationY: 0, inPlace: true },
+  /** C4's robot elites: outside the critical download, they face +Z and their clips are in place. */
+  robot_shooter: { path: 'models/elites/robot_shooter.glb', rigged: true, clips: ROBOT_SHOOTER_CLIPS, fitHeight: 2.0, rotationY: 0, inPlace: true },
+  robot_laser: { path: 'models/elites/robot_laser.glb', rigged: true, clips: ROBOT_LASER_CLIPS, fitHeight: 2.1, rotationY: 0, inPlace: true },
   /**
    * M4 villagers (NpcDef.model), fitted to 1.8 m (views rescale to the NPC's body). The Miller is
    * the Trader's model, tinted by the view.
@@ -79,6 +86,10 @@ export const MODELS = {
   npc_collector: { path: 'models/npcs/pepe_tux.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
   npc_farmer: { path: 'models/npcs/broccoli.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
   npc_captain: { path: 'models/npcs/agent.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
+  // C4's villagers: existing models, tinted by the view (RpgViews' NPC_TINTS).
+  npc_watch: { path: 'models/npcs/agent.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
+  npc_ranger: { path: 'models/npcs/pepe.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
+  npc_weaver: { path: 'models/npcs/pepe_tux.glb', rigged: true, clips: NPC_CLIPS, fitHeight: 1.8 },
   /**
    * M4 interactables and pickups (sproto-shooter's cartoon kit; vertex colours). The shrine is
    * 2.46 m tall at scale 1 (its crystal, `shrine_focus`, has its own clip); the chest's lid is the
