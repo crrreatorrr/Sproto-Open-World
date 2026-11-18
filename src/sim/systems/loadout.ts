@@ -69,11 +69,11 @@ export function equipSpell(ctx: Ctx, e: Entity, slot: number, spell: SpellId | n
 
 // ---------------------------------------------------------------- the gear lock
 
-/** An enemy (one that fights: not a passive dummy) has the player as its target this tick. */
+/** A real enemy (no training dummy, not even one that swings) has the player as its target this tick. */
 export function markTargeted(entities: readonly Entity[], now: number, get: (id: number) => Entity | undefined): void {
   for (const e of entities) {
     const b = e.brain;
-    if (!b || b.target === null || e.combat?.action?.kind === 'dead' || !ENEMIES[b.def]?.moves.length) continue;
+    if (!b || b.target === null || e.combat?.action?.kind === 'dead' || !ENEMIES[b.def]?.moves.length || ENEMIES[b.def].dummy) continue;
     const t = get(b.target);
     if (t?.combat && t.progress) t.combat.targetedAt = now;
   }
