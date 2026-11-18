@@ -77,6 +77,7 @@ const LOD1_ERROR = 0.05;
  * Recipes (M4). `tex`: largest texture side (WebP, quality 80). `clips`: keep only these.
  * `drop`: remove nodes by name (pepe's stray Blender `Cube`). `simplify`: triangle ratio.
  * `meshopt`: meshopt-compress a static model. `lid`: split a chest's lid onto its own hinged node.
+ * `far`: a skinned far LOD (see `farLod`): `ratio` of the triangles, within `error`.
  */
 /** Villagers: idle is the only clip they play; small on screen, so 256 px textures. */
 const NPC = { tex: 256, clips: ['idle'], drop: ['Cube'] };
@@ -120,6 +121,10 @@ const FILES = [
   ...['robot_shooter', 'robot_laser'].map((id) => [SHOOTER_BOSSES, `dist/assets/models/characters/${id}.glb`, `models/elites/${id}.glb`, { tex: 512 }]),
   // M5: Scrapjaw, the Quarry Beast (20.1k triangles; every boss clip; lazy-loaded at the quarry).
   [SHOOTER_BOSSES, 'dist/assets/models/characters/car_monster.glb', 'models/bosses/scrapjaw.glb', { tex: 512 }],
+  // C6: the Skyfire Drake (19.6k triangles; fly and fireball only; lazy-loaded when the bait quest starts), and the
+  // far LOD the flyover draws: the same rig and `fly` clip, flat-coloured, on about a tenth of the triangles.
+  [SHOOTER_BOSSES, 'dist/assets/models/characters/dragon.glb', 'models/bosses/drake.glb', { tex: 512 }],
+  [SHOOTER_BOSSES, 'dist/assets/models/characters/dragon.glb', 'models/bosses/drake_far.glb', { clips: ['fly'], far: { ratio: 0.1, error: 0.3 } }],
   // M4: Sproutvale's villagers.
   [SHOOTER, 'public/assets/models/characters/pepe-general.glb', 'models/npcs/pepe_general.glb', PEPE],
   [SHOOTER, 'public/assets/models/characters/pepe.glb', 'models/npcs/pepe.glb', PEPE],
@@ -385,12 +390,34 @@ function describe(o) {
   parts.push('resample + static channels dropped');
   const simp = o.simplify ?? o.fit?.simplify;
   if (simp) parts.push(`simplify(${simp})`);
+  if (o.far) parts.push(`far LOD: flat colours + position weld + simplify(${o.far.ratio}, error ${o.far.error})`);
   const tex = o.tex ?? o.fit?.tex;
   if (tex) parts.push(`webp ≤${tex} px`);
   if (o.lid) parts.push(`lid cut at y ${o.lid.cutY} onto a hinged node`);
   parts.push('meshopt');
   return parts.join(' + ');
 }
+
+/**
+ * A skinned model for the far distance. Texture seams stop the simplifier long before its target, so
+ * each material becomes the flat average colour of its base map, and the surface is welded by
+ * position. The skin and the clips stay. Expects dequantized geometry.
+ */
+const farLod = ({ ratio, error }) => async (doc) => {
+  for (const mat of doc.getRoot().listMaterials()) {
+    const map = mat.getBaseColorTexture();
+    if (map) {
+      const { data } = await sharp(map.getImage()).resize(1, 1).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      mat.setBaseColorFactor([...data.subarray(0, 3)].map((c) => (c / 255) ** 2.2).concat(1));
+    }
+    mat.setBaseColorTexture(null).setNormalTexture(null).setMetallicRoughnessTexture(null).setOcclusionTexture(null).setEmissiveTexture(null);
+  }
+  for (const mesh of doc.getRoot().listMeshes()) {
+    for (const prim of mesh.listPrimitives()) for (const sem of ['NORMAL', 'TANGENT', 'TEXCOORD_0', 'TEXCOORD_1']) prim.setAttribute(sem, null);
+  }
+  weldByPosition()(doc);
+  await doc.transform(simplify({ simplifier: MeshoptSimplifier, ratio, error }), normals({ overwrite: true }));
+};
 
 /** Source GLB → re-encoded GLB per its recipe (see `describe`). */
 async function encode(glb, o) {
@@ -403,10 +430,11 @@ async function encode(glb, o) {
   if (root.listAnimations().length) steps.push(resample(), () => dropStaticChannels(doc));
   steps.push(prune());
   const simp = o.simplify ?? o.fit?.simplify;
-  if (o.fit || o.lid || simp) steps.push(dequantize());
+  if (o.fit || o.lid || simp || o.far) steps.push(dequantize());
   if (o.fit) steps.push(fitProp(o.fit));
   if (o.lid) steps.push(splitLid(o.lid), weld());
   if (simp) steps.push(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: simp, error: 0.01 }));
+  if (o.far) steps.push(farLod(o.far));
   const tex = o.tex ?? o.fit?.tex;
   if (tex) steps.push(textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [tex, tex], quality: 80 }));
   if (o.fit) for (const m of root.listMaterials()) m.setDoubleSided(true);
