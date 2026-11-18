@@ -26,9 +26,17 @@ export interface CylinderDef {
 
 export type ShapeDef = BoxDef | CylinderDef;
 
+export interface EnemySpawn {
+  def: string;
+  pos: [number, number, number];
+  yaw: number;
+}
+
 export interface LevelDef {
   id: string;
   spawn: { pos: [number, number, number]; yaw: number };
+  /** Enemies placed by SimWorld.populate(). */
+  enemies?: EnemySpawn[];
   ground: { size: number; color: number };
   shapes: ShapeDef[];
 }
@@ -39,6 +47,14 @@ const MOSS = 0x7c9a5a;
 export const SANDBOX: LevelDef = {
   id: 'sandbox',
   spawn: { pos: [0, 0, 0], yaw: 0 },
+  // M1a: three training dummies in a row to the player's left, and the Brute in the open to the
+  // north-east, far enough that you choose when to pull it.
+  enemies: [
+    { def: 'dummy_passive', pos: [5, 0, 4], yaw: Math.PI },
+    { def: 'dummy_swing', pos: [9, 0, 4], yaw: Math.PI },
+    { def: 'dummy_shooter', pos: [-6, 0, -14], yaw: 0 },
+    { def: 'brute', pos: [0, 0, -24], yaw: 0 },
+  ],
   ground: { size: 200, color: 0x6f9a4a },
   shapes: [
     // Four pillars in a ring (the M1 arena layout).

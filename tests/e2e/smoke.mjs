@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 /**
- * M0 smoke test (plan §8, M0 acceptance): boots the game in headless Chromium against the Vite dev
- * server and drives it with a simulated gamepad only:
+ * Smoke test (plan §8; M0 and M1a acceptance): boots the game in headless Chromium against the Vite
+ * dev server and drives it with a simulated gamepad only:
  *
  *   title → Settings → Controls → back → back → Play → move, jump → pause → Settings → back → Resume
- *   → WebGL context lost and restored
+ *   → WebGL context lost and restored → walk to a training dummy → RB (light attack)
  *
  * It asserts the player model, its 18 clips and the staff on socket_staff, that the stick moves
- * the player and A jumps, and that there are no console errors. Long tasks once playing are
+ * the player and A jumps, and that there are no console errors. For M1a (b) it reads the QA log
+ * (`__qa.log()`, debug/qaLog.ts): pad press → command in ≤ 1 frame, command → attack pose in ≤ 2
+ * frames, and every `hit` with its spark, sound, damage number and hit-stop on the same rendered
+ * frame. Long tasks once playing are
  * asserted on a real GPU and only reported on a software one (CI), where they measure frame time.
  *
  *   npm run test:e2e                 # headless
@@ -191,6 +194,55 @@ try {
     await frames(10);
     check((await state()).state === 'playing', 'play resumes after a context restore');
   } else console.log('  skip WebGL context loss (WEBGL_lose_context not available)');
+
+  // M1a (b): walk to a training dummy and hit it with RB, gamepad only, then read the QA log.
+  await frames(10);
+  s = await state();
+  const dummy = s.enemies.find((e) => e.def === 'dummy_passive') ?? s.enemies.find((e) => e.model === 'dummy');
+  check(!!dummy, 'the sandbox has a training dummy', JSON.stringify(s.enemies));
+  check(s.enemies.length > 0 && s.enemies.every((e) => e.viewShown), 'every enemy has a view', JSON.stringify(s.enemies.map((e) => [e.def, e.viewShown])));
+  if (dummy) {
+    // Steer with the left stick in camera space (x right, y forward; the pad's y axis points down).
+    let dist = Infinity;
+    for (let i = 0; i < 150; i++) {
+      s = await state();
+      const d = s.enemies.find((e) => e.id === dummy.id).pos;
+      const wx = d.x - s.player.pos.x, wz = d.z - s.player.pos.z;
+      dist = Math.hypot(wx, wz);
+      if (dist < 1.8) break;
+      const sy = Math.sin(s.camYaw), cy = Math.cos(s.camYaw);
+      const mx = (-cy * wx + sy * wz) / dist, my = (sy * wx + cy * wz) / dist;
+      await page.evaluate(([x, y]) => window.__pad.axes(x, y), [mx, -my]);
+      await frames(3);
+    }
+    await page.evaluate(() => window.__pad.axes(0, 0));
+    await frames(30);
+    check(dist < 1.8, 'walks up to a training dummy', `${dist.toFixed(2)} m away`);
+    await shot('05-at-dummy');
+
+    await page.evaluate(() => window.__qa.log(true));
+    await page.evaluate(() => window.__pad.set('rb', true));
+    await frames(3);
+    await page.evaluate(() => window.__pad.set('rb', false));
+    await frames(12);
+    await shot('06-light-attack');
+    await frames(60);
+    const log = await page.evaluate(() => window.__qa.log());
+    const press = log.find((e) => e.kind === 'press' && e.what === 'light');
+    const cmd = press && log.find((e) => e.kind === 'command' && e.what === 'light' && e.frame >= press.frame);
+    const pose = cmd && log.find((e) => e.kind === 'pose' && e.frame >= cmd.frame);
+    const fmt = (e) => (e ? `frame ${e.frame}${e.tick !== undefined ? ` tick ${e.tick}` : ''}` : 'missing');
+    check(!!press && !!cmd && cmd.frame - press.frame <= 1, 'RB press → command in ≤ 1 frame', `press ${fmt(press)}, command ${fmt(cmd)}`);
+    check(!!cmd && !!pose && pose.frame - cmd.frame <= 2, 'command → attack pose in ≤ 2 frames', `command ${fmt(cmd)}, pose ${fmt(pose)}`);
+    const hits = log.filter((e) => e.kind === 'hit');
+    check(hits.length > 0, 'the light attack hits the dummy', `${hits.length} hits`);
+    const reactions = ['spark', 'sound', 'number', 'hitstop'];
+    const missing = hits.flatMap((h) => reactions.filter((k) => !log.some((e) => e.kind === k && e.hit === h.hit && e.frame === h.frame)).map((k) => `hit ${h.hit}: ${k}`));
+    check(hits.length > 0 && missing.length === 0, 'every hit has spark, sound, damage number and hit-stop on its frame', missing.join(', '));
+    s = await state();
+    const hp = s.enemies.find((e) => e.id === dummy.id).hp;
+    check(hp !== null && hp < dummy.hp, 'the dummy took damage', `${dummy.hp} → ${hp}`);
+  }
 
   check(errors.length === 0, 'no console errors', errors.join('\n'));
 } catch (err) {

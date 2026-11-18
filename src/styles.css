@@ -67,7 +67,7 @@ h2 { margin: 0 0 4px; font-size: 34px; }
 
 .hud { display: none; position: absolute; inset: 0; }
 .hud.active { display: block; }
-.prompts { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; gap: 16px; font-size: 14px; color: var(--ink-dim); text-shadow: 0 1px 3px #000; }
+.prompts { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; width: max-content; max-width: 96vw; gap: 6px 16px; font-size: 14px; color: var(--ink-dim); text-shadow: 0 1px 3px #000; }
 .prompt kbd {
   font: inherit; font-weight: 700; color: var(--ink); background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 6px; padding: 2px 7px; margin-right: 6px;
@@ -76,7 +76,59 @@ h2 { margin: 0 0 4px; font-size: 34px; }
 .click-hint.active { display: block; }
 
 .overlay {
-  display: none; position: absolute; top: 10px; left: 10px; margin: 0; padding: 10px 12px; font: 12px/1.5 ui-monospace, Menlo, monospace;
+  display: none; position: absolute; top: 10px; right: 10px; margin: 0; padding: 10px 12px; font: 12px/1.5 ui-monospace, Menlo, monospace;
   background: rgba(0, 0, 0, 0.65); color: #c8f7c5; border-radius: 8px; z-index: 50; white-space: pre;
 }
 .overlay.active { display: block; }
+
+/* Combat HUD (M1a): vitals, the enemy bar, the lock reticle, the death card. */
+.vitals { position: absolute; top: 16px; left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.bar { position: relative; height: 12px; border-radius: 6px; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.22); overflow: hidden; }
+.bar .fill, .bar .lag { position: absolute; inset: 0; transform-origin: left center; }
+.bar .lag { background: rgba(255, 244, 214, 0.8); }
+.bar.hp { width: 260px; height: 16px; }
+.bar.hp .fill { background: linear-gradient(#ff7a62, #c8362a); }
+.bar.stamina { width: 210px; }
+.bar.stamina .fill { background: linear-gradient(#d9f07a, #8fbf2c); }
+.bar.mana { width: 180px; }
+.bar.mana .fill { background: linear-gradient(#7fc4ff, #3570d8); }
+.bar.flash { animation: bar-flash 0.45s ease-out; }
+@keyframes bar-flash {
+  0%, 40% { border-color: #fff; box-shadow: 0 0 0 2px #ff5040, 0 0 14px #ff5040; }
+  100% { border-color: rgba(255, 255, 255, 0.22); box-shadow: none; }
+}
+.enemy-bar { display: none; position: absolute; left: 0; top: 0; text-align: center; text-shadow: 0 1px 3px #000; }
+.enemy-bar.active { display: block; }
+.enemy-bar .name { font-size: 13px; font-weight: 700; margin-bottom: 3px; white-space: nowrap; }
+.bar.enemy-hp { width: 120px; height: 8px; }
+.bar.enemy-hp .fill { background: linear-gradient(#ff8a5a, #d23c2a); }
+.reticle {
+  display: none; position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%;
+  border: 2px solid rgba(255, 250, 230, 0.95); box-shadow: 0 0 6px rgba(0, 0, 0, 0.6), inset 0 0 4px rgba(0, 0, 0, 0.5);
+}
+.reticle::after { content: ''; position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: var(--accent); }
+.reticle.active { display: block; }
+.died {
+  display: none; position: absolute; inset: 0; align-items: center; justify-content: center; font-size: clamp(36px, 6vw, 72px); font-weight: 800;
+  color: #ffd9cf; letter-spacing: 0.04em; text-shadow: 0 4px 0 #5a1208, 0 0 40px rgba(200, 40, 20, 0.8); background: radial-gradient(transparent 30%, rgba(80, 0, 0, 0.45));
+}
+.died.active { display: flex; animation: died-in 0.6s ease-out; }
+@keyframes died-in { from { opacity: 0; transform: scale(1.15); } to { opacity: 1; transform: none; } }
+.screen-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.screen-flash.go { animation: screen-flash 0.22s ease-out; }
+@keyframes screen-flash { from { opacity: 0.35; } to { opacity: 0; } }
+
+/* Damage numbers (plan §4.6): normal, crit, Weak! (big orange punch-in), Resisted (small grey), hurt. */
+.damage-numbers { position: absolute; inset: 0; overflow: hidden; }
+.dmg { position: absolute; left: 0; top: 0; display: none; white-space: nowrap; will-change: transform, opacity; }
+.dmg.show { display: block; }
+.dmg .in { font-size: 22px; font-weight: 800; color: #fff6dc; text-shadow: 0 2px 0 #3a2a10, 0 0 6px rgba(0, 0, 0, 0.6); text-align: center; }
+.dmg .tag { display: block; font-size: 0.55em; letter-spacing: 0.04em; }
+.dmg.show .in { animation: dmg-pop 0.18s ease-out; }
+.dmg.crit .in { font-size: 28px; color: #ffe46a; }
+.dmg.weak .in { font-size: 32px; color: #ff9a2e; text-shadow: 0 2px 0 #5a2a00, 0 0 10px rgba(255, 120, 20, 0.6); }
+.dmg.weak.show .in { animation: dmg-punch 0.28s cubic-bezier(0.2, 1.6, 0.4, 1); }
+.dmg.resist .in { font-size: 16px; color: #a8a8a8; text-shadow: 0 1px 0 #222; }
+.dmg.hurt .in { color: #ff7a6a; text-shadow: 0 2px 0 #3a0a04; }
+@keyframes dmg-pop { from { transform: scale(0.6); } to { transform: none; } }
+@keyframes dmg-punch { 0% { transform: scale(2.1); } 100% { transform: none; } }

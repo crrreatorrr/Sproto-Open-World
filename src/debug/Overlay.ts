@@ -12,11 +12,14 @@ export interface OverlayStats {
   grounded: boolean;
   speed: number;
   clip: string;
+  /** The frame-data timeline (debug/frameData.ts). */
+  combat: string[];
 }
 
 /**
- * The debug overlay (` key, plan §8). M0: performance, sim state and a clip viewer: [ and ] (or
- * the pad's D-pad ← →) cycle through the player's clips and play the selected one.
+ * The debug overlay (` key, plan §8): performance, sim state, the player's frame-data timeline,
+ * and a clip viewer: [ and ] (or the pad's D-pad ← →) cycle through the player's clips and play
+ * the selected one.
  */
 export class Overlay {
   readonly root: HTMLElement;
@@ -53,6 +56,8 @@ export class Overlay {
       `tick ${s.ticks}   hash ${hex(s.hash)}   device ${s.device}`,
       p ? `pos ${p.x.toFixed(2)} ${p.y.toFixed(2)} ${p.z.toFixed(2)}   ${s.grounded ? 'grounded' : 'airborne'}   ${s.speed.toFixed(2)} m/s` : 'no player',
       `clip viewer: [ ] or D-pad ← →   ${s.clip}`,
+      '',
+      ...s.combat,
     ].join('\n');
   }
 }
