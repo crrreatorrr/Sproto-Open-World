@@ -61,7 +61,7 @@ export class PortraitStudio {
   private readonly blitMaterial: THREE.ShaderMaterial;
   private readonly clearColor = new THREE.Color();
   private sitter: Sitter | null = null;
-  private npc = '';
+  private speaker = '';
   /** Counts requests, so a slow download can't seat someone who has stopped talking. */
   private request = 0;
   private wait = 0;
@@ -95,9 +95,9 @@ export class PortraitStudio {
   show(npc: string): HTMLCanvasElement | null {
     const def = NPCS[npc];
     if (!def) return null;
-    if (npc === this.npc) return this.canvas;
+    if (npc === this.speaker) return this.canvas;
     this.release();
-    this.npc = npc;
+    this.speaker = npc;
     this.placeholder(def.name);
     if (def.model in MODELS) void this.seat(def.model as ModelKey, ++this.request);
     return this.canvas;
@@ -106,7 +106,7 @@ export class PortraitStudio {
   /** Once per frame, before the world renders: `on` while the dialogue is the top screen. */
   frame(dt: number, on: boolean): void {
     if (!on) {
-      if (this.npc) this.release();
+      if (this.speaker) this.release();
       return;
     }
     const s = this.sitter;
@@ -201,7 +201,7 @@ export class PortraitStudio {
   /** Nobody is talking: let the model go. The render targets stay for the next speaker. */
   private release(): void {
     this.request++;
-    this.npc = '';
+    this.speaker = '';
     this.pending = 0;
     const s = this.sitter;
     if (!s) return;

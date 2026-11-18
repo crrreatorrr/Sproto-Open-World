@@ -762,7 +762,8 @@ async function main(): Promise<void> {
       const f = path.join(outDir, name);
       if (!fs.existsSync(f) || !Buffer.from(bytes).equals(fs.readFileSync(f))) stale.push(name);
     }
-    for (const name of onDisk(outDir)) if (!files.has(name)) stale.push(`${name} (not produced by the bake)`);
+    // `map.webp` comes from `npm run bake:map`.
+    for (const name of onDisk(outDir)) if (!files.has(name) && name !== 'map.webp') stale.push(`${name} (not produced by the bake)`);
     if (stale.length) {
       console.error(`bake:world --check: ${outDir} is stale (${stale.length} files): ${stale.slice(0, 8).join(', ')}${stale.length > 8 ? ', …' : ''}`);
       console.error(`run: npm run bake:world -- ${region}`);

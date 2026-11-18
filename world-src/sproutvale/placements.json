@@ -72,9 +72,9 @@
     { "key": "grove_hedge", "from": [40, 136], "to": [104, 136], "step": 2.4, "yaw": 0 },
     { "key": "grove_hedge", "from": [120, 196], "to": [172, 196], "step": 2.4, "yaw": 0 },
     { "key": "grove_hedge", "from": [40, 224], "to": [84, 224], "step": 2.4, "yaw": 0 },
-    { "key": "quarry_rock", "from": [347.3, 423], "to": [347.3, 508], "step": 5.5, "yaw": 0, "scale": 1.6 },
+    { "key": "quarry_rock", "from": [347.3, 423], "to": [347.3, 502.5], "step": 5.5, "yaw": 0, "scale": 1.6 },
     { "key": "quarry_rock", "from": [356.7, 405.2], "to": [440, 392], "step": 5.5, "yaw": 40, "scale": 1.6 },
-    { "key": "quarry_rock", "from": [440, 392], "to": [508, 392], "step": 5.5, "yaw": 90, "scale": 1.6 }
+    { "key": "quarry_rock", "from": [440, 392], "to": [502.5, 392], "step": 5.5, "yaw": 90, "scale": 1.6 }
   ],
   "zones": {
     "village": { "rect": [200, 24, 320, 130] },

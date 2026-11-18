@@ -48,7 +48,8 @@ export function slay(w: SimWorld, target: Entity, max = 400): SimEvent[] {
   const p = w.playerEntity(0)!;
   target.vitals!.hp = 1;
   for (let i = 0; i < max && alive(target); i++) {
-    if (i % 30 === 0) {
+    // Stay on it through the swing's wind-up: Slingers back away faster than a light attack reaches.
+    if (i % 30 < 14) {
       // Re-approach each swing: it may have moved, blinked or leapt.
       // Close in (ranged enemies back away from you during the swing's wind-up).
       const gap = target.body!.radius + 0.6;
@@ -63,6 +64,7 @@ export function slay(w: SimWorld, target: Entity, max = 400): SimEvent[] {
     }
     out.push(...step(w, c));
     p.vitals!.hp = p.vitals!.hpMax;
+    p.vitals!.stamina = p.vitals!.staminaMax;
   }
   if (alive(target)) throw new Error(`could not kill ${target.brain?.def} ${target.id}`);
   return out;

@@ -391,7 +391,7 @@
       "cz": 6,
       "bin": "world/sproutvale/cells/c_5_6.bin",
       "json": "world/sproutvale/cells/c_5_6.json",
-      "bytes": 26130
+      "bytes": 26133
     },
     {
       "cx": 6,
@@ -405,7 +405,7 @@
       "cz": 6,
       "bin": "world/sproutvale/cells/c_7_6.bin",
       "json": "world/sproutvale/cells/c_7_6.json",
-      "bytes": 25996
+      "bytes": 25979
     },
     {
       "cx": 0,
@@ -447,7 +447,7 @@
       "cz": 7,
       "bin": "world/sproutvale/cells/c_5_7.bin",
       "json": "world/sproutvale/cells/c_5_7.json",
-      "bytes": 25752
+      "bytes": 25738
     },
     {
       "cx": 6,
@@ -739,7 +739,7 @@
         "radius": 2.2,
         "height": 6
       },
-      "capacity": 45
+      "capacity": 43
     },
     "scarecrow_giant": {
       "path": "models/props/grove_scarecrow.glb",

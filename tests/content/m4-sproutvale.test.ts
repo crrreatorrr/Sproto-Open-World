@@ -112,6 +112,7 @@ describe('quests (plan §6.2, §6.3)', () => {
     ...C.chests.flatMap((c) => c.chest.items.map((i) => i.item)),
     ...Object.values(DROPS).flatMap((d) => (d.items ?? []).map((i) => i.item)),
     ...Object.values(QUESTS).flatMap((q) => q.steps.flatMap((s) => (s.onComplete ?? []).flatMap((e) => ('give' in e ? [e.give] : [])))),
+    ...Object.values(OBJECTS).flatMap((o) => (o.effects ?? []).flatMap((e) => ('give' in e ? [e.give] : []))),
   ]);
 
   for (const q of Object.values(QUESTS)) {
