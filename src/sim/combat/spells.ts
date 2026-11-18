@@ -2,6 +2,7 @@ import { STAFFS } from '../../content/combat';
 import { PERK_EFFECT, PROTECTION_SPELLS, SKILL_EFFECT, hasPerk, protectionMult } from '../../content/progression';
 import { charmOf, knowsSpell, staffOf } from '../systems/rpg';
 import { ENEMIES } from '../../content/enemies';
+import { staffCostMult, staffSpellMult } from '../../content/packs/c2';
 import { SPELL_BASE, SPELLS, WOVEN, type SpellId } from '../../content/spells';
 import { DT } from '../../content/tuning';
 import { idleInput, type InputCommand } from '../commands';
@@ -13,6 +14,9 @@ import { angleTo, flatDist, toWorld, yawTo } from './geometry';
 import { resolveHit, type HitInfo } from './hits';
 import type { CombatCtx } from './playerCombat';
 import { wishDir } from './playerCombat';
+import { castChargeMult, holdChargedBolt } from './staffTraits';
+import { advanceChannel } from './powers/ember';
+import { firePower, powerRefused, seekerMods } from './powers/index';
 import { applyStatus } from './statuses';
 
 /** Spawns a projectile entity (SimWorld owns ids). */
@@ -23,14 +27,24 @@ const SPELL_CONE = (60 * Math.PI) / 180;
 
 const chest = (e: Entity): Vec3 => ({ x: e.tf.pos.x, y: e.tf.pos.y + (e.body?.height ?? 1.8) * 0.55, z: e.tf.pos.z });
 const enemyOf = (p: Entity, e: Entity) => !!e.combat && !!e.body && e.combat.team !== p.combat!.team && e.combat.action?.kind !== 'dead';
+/** Spells reach this much further (flat, m) to a target flying overhead. */
+const airReach = (e: Entity) => (e.brain ? (ENEMIES[e.brain.def].drake?.spellReach ?? 0) : 0);
 
-/** Spell power: SPELL_BASE × the staff's spellPower × (1 + 0.04 · Spell Power) × MV, ×1.2 when woven (more with Scholar's Knot). */
+/** Where a shot aims: the target's chest, led by the target's flight if it is a flier. */
+function aimPoint(from: Vec3, t: Entity, speed: number): Vec3 {
+  const c = chest(t);
+  if (!t.brain || !ENEMIES[t.brain.def].drake) return c;
+  const time = Math.hypot(c.x - from.x, c.y - from.y, c.z - from.z) / speed;
+  return { x: c.x + t.tf.vel.x * time, y: c.y + t.tf.vel.y * time, z: c.z + t.tf.vel.z * time };
+}
+
+/** Spell power: SPELL_BASE × the staff's spellPower (and trait) × (1 + 0.04 · Spell Power) × MV, ×1.2 when woven (more with Scholar's Knot). */
 export function spellPower(id: SpellId, woven: boolean, caster?: Entity): number {
   const p = caster?.progress;
   const staff = p ? staffOf(p) : STAFFS.staff_sproto;
   const skill = 1 + SKILL_EFFECT.spellPower * (p?.skills.spellPower ?? 0);
   const wovenMult = WOVEN.damage + (p ? (charmOf(p)?.wovenBonus ?? 0) : 0);
-  return SPELL_BASE * staff.spellPower * skill * SPELLS[id].mv * (woven ? wovenMult : 1);
+  return SPELL_BASE * staff.spellPower * staffSpellMult(p?.equipment.staff) * skill * SPELLS[id].mv * (woven ? wovenMult : 1);
 }
 
 /**
@@ -49,6 +63,7 @@ export function startCast(ctx: CombatCtx, p: Entity, id: SpellId): boolean {
     ctx.events.push({ type: 'cooldown', entity: p.id, spell: id });
     return false;
   }
+  if (powerRefused(ctx, p, id)) return false;
   const woven = ctx.now - c.lastHitTick <= WOVEN.window;
   const cost = spellCost(p, id, woven);
   if (v.mana < cost) {
@@ -62,9 +77,9 @@ export function startCast(ctx: CombatCtx, p: Entity, id: SpellId): boolean {
   return true;
 }
 
-/** Mana for a cast: the spell's cost, 15% less for a woven cast with the Magic 10 perk. */
+/** Mana for a cast: the spell's cost (less with Moonward), 15% less for a woven cast with the Magic 10 perk. */
 export function spellCost(p: Entity, id: SpellId, woven: boolean): number {
-  const cost = SPELLS[id].cost;
+  const cost = SPELLS[id].cost * staffCostMult(p.progress?.equipment.staff);
   return woven && hasPerk(p.progress?.skills, 'magic10') ? cost * PERK_EFFECT.wovenCost : cost;
 }
 
@@ -84,7 +99,7 @@ export function spellTarget(ctx: CombatCtx, p: Entity, cmd: InputCommand, range 
   const c = p.combat!;
   if (c.lock !== null) {
     const t = ctx.get(c.lock);
-    if (t && enemyOf(p, t) && flatDist(p.tf.pos, t.tf.pos) <= range) return t;
+    if (t && enemyOf(p, t) && flatDist(p.tf.pos, t.tf.pos) <= range + airReach(t)) return t;
   }
   const w = wishDir(cmd);
   const yaw = w.mag > 0.2 ? Math.atan2(w.x, w.z) : p.tf.yaw;
@@ -93,7 +108,7 @@ export function spellTarget(ctx: CombatCtx, p: Entity, cmd: InputCommand, range 
   for (const e of ctx.entities) {
     if (!enemyOf(p, e)) continue;
     const d = flatDist(p.tf.pos, e.tf.pos);
-    if (d > range) continue;
+    if (d > range + airReach(e)) continue;
     const ang = angleTo(p.tf.pos, yaw, e.tf.pos);
     if (ang > SPELL_CONE / 2) continue;
     const score = ang * 8 + d;
@@ -118,6 +133,12 @@ export function advanceCast(ctx: CombatCtx, p: Entity, cmd: InputCommand, physic
   const c = p.combat!;
   const a = c.action;
   if (a?.kind !== 'cast') return;
+  if (a.channel) {
+    a.t++;
+    advanceChannel(ctx, p, cmd, physics);
+    return;
+  }
+  if (holdChargedBolt(ctx, p, cmd, a, spellCost(p, a.spell, a.woven))) return;
   const def = SPELLS[a.spell];
   a.t++;
   if (!a.released && a.t >= a.release) {
@@ -141,22 +162,23 @@ function spellInfo(id: SpellId, base: number, from: Vec3): HitInfo {
 
 function fire(ctx: CombatCtx, p: Entity, id: SpellId, woven: boolean, target: Entity | null, physics: PhysicsWorld, spawn: SpawnSpellProjectile, point?: Vec3): void {
   const def = SPELLS[id];
-  const power = spellPower(id, woven, p);
+  const power = spellPower(id, woven, p) * castChargeMult(p);
   // Cast from the hand, but toward what the screen's centre is on, so the shot lands under it.
   if (point && flatDist(p.tf.pos, point) > 1) p.tf.yaw = yawTo(p.tf.pos, point);
+  if (firePower(ctx, p, id, power, physics, spawn)) return;
   if (def.projectile) {
     const from = toWorld(p.tf.pos, p.tf.yaw, [0, 1.35, 0.6]);
-    const aim = point ?? (target ? chest(target) : toWorld(p.tf.pos, p.tf.yaw, [0, 1.35, 10]));
+    const sp = def.projectile.speed;
+    const aim = point ?? (target ? aimPoint(from, target, sp) : toWorld(p.tf.pos, p.tf.yaw, [0, 1.35, 10]));
     const d = { x: aim.x - from.x, y: aim.y - from.y, z: aim.z - from.z };
     const len = Math.hypot(d.x, d.y, d.z) || 1;
-    const sp = def.projectile.speed;
     spawn({
       kind: 'projectile',
       tf: { pos: from, prevPos: { ...from }, yaw: p.tf.yaw, prevYaw: p.tf.yaw, vel: { x: (d.x / len) * sp, y: (d.y / len) * sp, z: (d.z / len) * sp } },
       projectile: {
         owner: p.id, team: p.combat!.team, kind: 'arcane', damage: power, poise: def.poise, radius: def.projectile.radius,
         life: Math.ceil(def.projectile.range / (sp * DT)), reflected: false, spell: id, explode: def.projectile.explodeRadius,
-        status: def.status, interrupts: def.interruptsRanged, knockdown: def.knockdown, woven,
+        status: def.status, interrupts: def.interruptsRanged, knockdown: def.knockdown, woven, ...seekerMods(p, id, target),
       },
       view: { model: id === 'blast' ? 'blastOrb' : 'bolt' },
     });
@@ -169,6 +191,8 @@ function fire(ctx: CombatCtx, p: Entity, id: SpellId, woven: boolean, target: En
     ctx.events.push({ type: 'nova', entity: p.id, pos: at, radius: def.nova.radius });
     for (const e of ctx.entities) {
       if (!enemyOf(p, e) || flatDist(at, e.tf.pos) > def.nova.radius + (e.body?.radius ?? 0)) continue;
+      // The ring runs along the ground: it can't reach a flier overhead.
+      if (Math.abs(e.tf.pos.y - at.y) > def.nova.radius + (e.body?.height ?? 1.8)) continue;
       const out = resolveHit(ctx, p, e, spellInfo(id, power, at));
       if (out !== 'hit') continue;
       if (def.status && e.combat?.action?.kind !== 'dead') applyStatus(ctx, e, def.status.id, def.status.stacks, p.id);

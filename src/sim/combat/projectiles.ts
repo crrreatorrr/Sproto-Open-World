@@ -9,6 +9,8 @@ import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { bodySegment, flatDist, segmentSegmentDistSq } from './geometry';
 import { resolveHit, type HitInfo } from './hits';
 import type { CombatCtx } from './playerCombat';
+import { wardProjectile } from './powers/mirrorWard';
+import { snareHit } from './powers/snare';
 import { applyStatus } from './statuses';
 
 /**
@@ -25,6 +27,12 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
     if (pr.homing && pr.target !== undefined) steer(e, ctx.get(pr.target));
     const from = { ...e.tf.pos };
     const to = { x: from.x + e.tf.vel.x * DT, y: from.y + e.tf.vel.y * DT, z: from.z + e.tf.vel.z * DT };
+    const ward = wardProjectile(ctx, e, from, to);
+    if (ward === 'reflected') continue;
+    if (ward === 'blocked') {
+      dead.push(e.id);
+      continue;
+    }
     const seg = { x: to.x - from.x, y: to.y - from.y, z: to.z - from.z };
     const segLen = Math.hypot(seg.x, seg.y, seg.z);
     const wall = segLen > 1e-6 ? physics.raycast(from, seg, segLen + pr.radius) : null;
@@ -42,7 +50,17 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
         consumed = true;
         break;
       }
-      const out = resolveHit(ctx, owner, tgt, info(e, from));
+      // A parried Scrap Throw back into its shooter: a fixed share of its health, and a stagger.
+      const bonus = pr.reflected && pr.reflectBonus?.shooter === tgt.id ? pr.reflectBonus : null;
+      const hit = info(e, from);
+      if (bonus) hit.fixedDamage = tgt.vitals!.hpMax * bonus.hpFrac;
+      // A reflected fireball breaks the Drake's stance (expansion plan §3.5).
+      if (bonus?.poiseFrac) hit.poise = tgt.combat.poiseMax * bonus.poiseFrac;
+      const out = resolveHit(ctx, owner, tgt, hit);
+      if (out === 'hit' && bonus && bonus.stagger > 0 && !isDead(tgt)) {
+        tgt.combat.action = { kind: 'stagger', t: 0, dur: bonus.stagger };
+        ctx.events.push({ type: 'stagger', entity: tgt.id, ticks: bonus.stagger });
+      }
       if (out === 'dodged') continue; // flies on through the roll
       if (out === 'parried') {
         reflect(e, tgt, ctx);
@@ -50,6 +68,7 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
         break;
       }
       if (out === 'hit' && pr.status && !isDead(tgt)) applyStatus(ctx, tgt, pr.status.id, pr.status.stacks, owner.id);
+      if (out === 'hit' && pr.spell === 'staticSnare') snareHit(ctx, tgt, owner.id);
       consumed = true;
       break;
     }
@@ -96,7 +115,8 @@ function explode(ctx: CombatCtx, e: Entity, owner: Entity, at: Vec3): void {
 /** Turn a homing projectile's velocity toward its target's chest by at most homing·DT radians. */
 function steer(e: Entity, target: Entity | undefined): void {
   const pr = e.projectile!;
-  if (!target?.body || target.combat?.action?.kind === 'dead' || pr.reflected) return;
+  // Reflected shots fly straight, unless they were made to chase a flier home.
+  if (!target?.body || target.combat?.action?.kind === 'dead' || (pr.reflected && !pr.reflectBonus?.homing)) return;
   const v = e.tf.vel;
   const speed = Math.hypot(v.x, v.y, v.z);
   if (speed < 1e-6) return;
@@ -114,7 +134,7 @@ function steer(e: Entity, target: Entity | undefined): void {
   e.tf.vel = { x: (nx / nl) * speed, y: (ny / nl) * speed, z: (nz / nl) * speed };
 }
 
-function reflect(e: Entity, parrier: Entity, ctx: CombatCtx): void {
+export function reflect(e: Entity, parrier: Entity, ctx: CombatCtx): void {
   const pr = e.projectile!;
   const shooter = ctx.get(pr.owner);
   const speed = Math.hypot(e.tf.vel.x, e.tf.vel.y, e.tf.vel.z) * BLOCK.reflect;
@@ -128,6 +148,8 @@ function reflect(e: Entity, parrier: Entity, ctx: CombatCtx): void {
   pr.owner = parrier.id;
   pr.damage *= BLOCK.reflect;
   pr.reflected = true;
-  pr.homing = undefined; // a reflected hex flies straight back
-  pr.life = Math.max(pr.life, Math.ceil(len / (speed * DT)) + 30);
+  // A reflected hex flies straight back; a fireball sent back at the Drake chases it through the air.
+  pr.homing = pr.reflectBonus?.homing;
+  if (pr.homing && shooter) pr.target = shooter.id;
+  pr.life = Math.max(pr.life, Math.ceil(len / (speed * DT)) + (pr.homing ? 90 : 30));
 }

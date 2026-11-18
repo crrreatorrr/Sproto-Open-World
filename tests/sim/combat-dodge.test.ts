@@ -9,6 +9,8 @@ import { BTN, combatWorld, hitsOn, idle, ofType, press, step, stepN, stepUntil }
  * stays inside the swing's hitbox: roll tick k at the hit means pressing dodge on SWING_HIT - k.
  */
 const SWING_HIT = 54;
+/** A roll needs a stick direction: dodge with none is a backstep. */
+const FORWARD = { move: { x: 0, y: 1 } };
 
 async function swingYard() {
   const cw = await combatWorld();
@@ -23,7 +25,7 @@ async function rollIntoSwing(k: number, atPress?: (cw: Awaited<ReturnType<typeof
   const evs = stepN(w, SWING_HIT + 1, (i) => {
     if (i !== SWING_HIT - k) return idle();
     atPress?.(cw);
-    return press(BTN.dodge);
+    return press(BTN.dodge, FORWARD);
   });
   const swing = ofType(evs, 'swing').find((x) => x.ev.entity === cw.d.id);
   return { ...cw, evs, hp: p.vitals!.hp, swingTick: swing?.tick };
@@ -93,7 +95,7 @@ describe('roll i-frames (plan §4.3)', () => {
 
   it('a roll costs 22 stamina and lasts 34 ticks', async () => {
     const { w, p } = await combatWorld();
-    const evs = stepN(w, 1, () => press(BTN.dodge));
+    const evs = stepN(w, 1, () => press(BTN.dodge, FORWARD));
     expect(ofType(evs, 'dodge').length).toBe(1);
     expect(p.vitals!.stamina).toBe(100 - ROLL.stamina);
     expect(ROLL.stamina).toBe(22);

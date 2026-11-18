@@ -1,20 +1,23 @@
 import { ITEMS, type ItemDef } from '../content/items';
+import { staffCostMult } from '../content/packs/c2';
 import { BRANCHES, PERKS, PERK_IDS, SKILLS, SKILL_MAX_RANK, branchTotal, hasPerk, RESPEC_SPROUTS_PER_LEVEL, type Branch } from '../content/progression';
 import { SPELLS, type SpellId } from '../content/spells';
 import type { UiAction } from '../sim/commands';
 import type { Entity, Progress } from '../sim/entity';
 import type { ReadonlySimView } from '../sim/view';
 import { spellIcon } from './Hud';
+import { mapSignature, renderMap } from './mapTab';
 import type { MenuNav, Screen } from './MenuNav';
-import { KIND_NAMES, SWAP_RULE, gearCompare, inventoryGroups, itemStats, levelProgress, questLog, readyText, skillGain, swapCooldown } from './rpgText';
+import { KIND_NAMES, SWAP_RULE, costText, gearCompare, inventoryGroups, itemStats, levelProgress, questLog, readyText, skillGain, staffTraitText, swapCooldown } from './rpgText';
 
-export type MenuTab = 'powers' | 'skills' | 'gear' | 'quests' | 'settings';
+export type MenuTab = 'powers' | 'skills' | 'gear' | 'quests' | 'map' | 'settings';
 
 export const MENU_TABS: readonly { id: MenuTab; label: string }[] = [
   { id: 'powers', label: 'Powers' },
   { id: 'skills', label: 'Skills' },
   { id: 'gear', label: 'Gear' },
   { id: 'quests', label: 'Quests' },
+  { id: 'map', label: 'Map' },
   { id: 'settings', label: 'Settings' },
 ];
 
@@ -63,7 +66,7 @@ const POWER_COLS = 4;
 
 /**
  * The one tabbed menu (expansion plan §5): Powers (the spell selector), Skills (the Magic and Combat
- * tree), Gear (staff, robe, charm with compare deltas; the character's numbers), Quests and
+ * tree), Gear (staff, robe, charm with compare deltas; the character's numbers), Quests, Map and
  * Settings. LB / RB or Q / E switch tabs; Powers and Skills are 2-D grids. It replaces the Character
  * and Quest log screens. Like every menu it only queues UiActions: the sim decides.
  */
@@ -152,6 +155,8 @@ export class GameMenu {
       }
       case 'quests':
         return `${p.tracked}|${JSON.stringify(p.quests)}`;
+      case 'map':
+        return e ? mapSignature(this.src.view(), e, p) : 'none';
       default:
         return 'settings';
     }
@@ -192,6 +197,10 @@ export class GameMenu {
         return this.gear(body, p!);
       case 'quests':
         return this.quests(body, p!);
+      case 'map':
+        return renderMap(body, this.src.view(), this.src.player()!, p!, () => this.nav.retab(() => {
+          this.tab = 'quests';
+        }));
       case 'settings':
         return this.settings(body);
     }
@@ -244,7 +253,7 @@ export class GameMenu {
         state = wait > 0 ? `Swap in: ${readyText(wait).toLowerCase()}` : 'Swap in: ready';
       }
       const def = id ? SPELLS[id] : null;
-      const html = `${spellIcon(id)}<span class="name">${def?.name ?? 'Clear slot'}</span>${def ? `<span class="cost">${def.cost} mana · ${(def.cooldown / 60).toFixed(def.cooldown % 60 ? 1 : 0)} s</span>` : ''}<span class="state">${state}</span>`;
+      const html = `${spellIcon(id)}<span class="name">${def?.name ?? 'Clear slot'}</span>${def ? `<span class="cost">${def.meter ? 'Uses the Surge meter' : `${costText(def.cost * staffCostMult(p.equipment.staff))} mana · ${(def.cooldown / 60).toFixed(def.cooldown % 60 ? 1 : 0)} s`}</span>` : ''}<span class="state">${state}</span>`;
       const b = cell(button(html, () => this.powerPressed(id), `btn power-card${picked ? ' picked' : ''}${inSlot >= 0 ? ' slotted' : ''}`), k % POWER_COLS, 1 + Math.floor(k / POWER_COLS));
       b.dataset.power = id ?? 'none';
       grid.append(b);
@@ -348,7 +357,8 @@ export class GameMenu {
         const deltas = equippable && !it.equipped ? gearCompare(it.item, worn(it.item)) : [];
         const dl = deltas.length ? `<span class="deltas">${deltas.map((d) => `<b class="${d.delta > 0 ? 'up' : d.delta < 0 ? 'down' : 'same'}">${d.label} ${d.text}</b>`).join('')}</span>` : '';
         const action = it.equipped ? (g.kind === 'charm' ? 'Equipped · remove' : 'Equipped') : equippable ? (locked ? 'Locked' : 'Equip') : '';
-        const html = `<span class="name">${it.item.name}${it.count > 1 ? ` ×${it.count}` : ''}</span><span class="price">${action}</span><span class="blurb">${it.item.blurb}${st ? ` · ${st}` : ''}</span>${dl}`;
+        const trait = staffTraitText(it.item);
+        const html = `<span class="name">${it.item.name}${it.count > 1 ? ` ×${it.count}` : ''}</span><span class="price">${action}</span><span class="blurb">${it.item.blurb}${st ? ` · ${st}` : ''}</span>${trait ? `<span class="trait">${trait}</span>` : ''}${dl}`;
         const canPress = equippable && (!it.equipped || g.kind === 'charm');
         if (canPress) {
           const b = button(html, () => this.src.send({ kind: 'equip', item: it.item.id }), `btn item-row ${it.item.rarity}${locked ? ' locked' : ''}${it.equipped ? ' equipped' : ''}`);

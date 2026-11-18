@@ -82,7 +82,7 @@ h2 { margin: 0 0 4px; font-size: 34px; }
 }
 .overlay.active { display: block; }
 
-/* Combat HUD (M1a): vitals, the enemy bar, the lock reticle, the death card. */
+/* Combat HUD (M1a): vitals, the enemy bar, the lock reticle. */
 .vitals { position: absolute; top: 16px; left: 18px; display: flex; flex-direction: column; gap: 6px; }
 .bar { position: relative; height: 12px; border-radius: 6px; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.22); overflow: hidden; }
 .bar .fill, .bar .lag { position: absolute; inset: 0; transform-origin: left center; }
@@ -115,15 +115,9 @@ h2 { margin: 0 0 4px; font-size: 34px; }
 }
 .crosshair.active { display: block; }
 .crosshair.on-enemy { background: #ff6a4d; transform: scale(1.5); }
-.died {
-  display: none; position: absolute; inset: 0; align-items: center; justify-content: center; font-size: clamp(36px, 6vw, 72px); font-weight: 800;
-  color: #ffd9cf; letter-spacing: 0.04em; text-shadow: 0 4px 0 #5a1208, 0 0 40px rgba(200, 40, 20, 0.8); background: radial-gradient(transparent 30%, rgba(80, 0, 0, 0.45));
-}
-.died.active { display: flex; animation: died-in 0.6s ease-out; }
-@keyframes died-in { from { opacity: 0; transform: scale(1.15); } to { opacity: 1; transform: none; } }
 .screen-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
 .screen-flash.go { animation: screen-flash 0.22s ease-out; }
-@keyframes screen-flash { from { opacity: 0.35; } to { opacity: 0; } }
+@keyframes screen-flash { from { opacity: var(--flash-peak, 0.35); } to { opacity: 0; } }
 
 /* Damage numbers (plan §4.6): normal, crit, Weak! (big orange punch-in), Resisted (small grey), hurt. */
 .damage-numbers { position: absolute; inset: 0; overflow: hidden; }
@@ -251,7 +245,6 @@ h2 { margin: 0 0 4px; font-size: 34px; }
 .saved { display: none; position: absolute; right: 18px; bottom: 18px; font-size: 13px; font-weight: 700; color: var(--ink-dim); text-shadow: 0 1px 2px #000; }
 .saved::before { content: '✓ '; color: #9fe88a; }
 .saved.active { display: block; animation: feed-in 2.2s ease-out forwards; }
-.died .sub { display: block; margin-top: 10px; font-size: 16px; font-weight: 600; letter-spacing: 0; color: var(--ink-dim); text-align: center; text-shadow: 0 1px 3px #000; }
 .spell.locked { opacity: 0.3; filter: grayscale(1); }
 .spell.locked::after { content: '🔒'; position: absolute; top: 2px; left: 4px; font-size: 10px; }
 
@@ -270,6 +263,8 @@ h2 { margin: 0 0 4px; font-size: 34px; }
 .item-row .price { font-size: 15px; color: var(--accent); white-space: nowrap; }
 .btn.item-row.focused .price { color: var(--accent-ink); }
 .item-row .blurb, .item-row .obj { grid-column: 1 / -1; font-size: 14px; opacity: 0.85; }
+.item-row .trait { grid-column: 1 / -1; font-size: 14px; color: #ffd98a; }
+.btn.item-row.focused .trait { color: var(--accent-ink); }
 .item-row .obj { padding-left: 12px; }
 .item-row .obj.done { color: #9fe88a; }
 .item-row.rare .name { color: #8fc8ff; }
@@ -341,3 +336,26 @@ h2 { margin: 0 0 4px; font-size: 34px; }
   .slot-row, .power-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .skill-tree { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* M5: the boss bar, the intro card and the end card. */
+.boss-bar { display: none; position: absolute; left: 50%; bottom: 62px; transform: translateX(-50%); width: min(760px, 72vw); text-shadow: 0 1px 3px #000; }
+.boss-bar.active { display: block; animation: boss-bar-in 0.6s ease-out; }
+.boss-bar .name { display: inline-block; font-size: 20px; font-weight: 800; letter-spacing: 0.04em; color: var(--ink); }
+.boss-bar .title { display: inline-block; margin-left: 10px; font-size: 13px; font-weight: 600; color: var(--ink-dim); }
+.boss-bar .track { position: relative; height: 14px; margin-top: 4px; border-radius: 3px; overflow: hidden; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.3); }
+.boss-bar .fill, .boss-bar .lag { position: absolute; inset: 0; transform-origin: left center; }
+.boss-bar .lag { background: rgba(255, 236, 190, 0.85); }
+.boss-bar .fill { background: linear-gradient(#e0472f, #8f1f14); }
+@keyframes boss-bar-in { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%); } }
+.boss-intro { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%); text-align: center; opacity: 0; pointer-events: none; white-space: nowrap; }
+.boss-intro .name { font-size: clamp(44px, 7vw, 88px); font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); text-shadow: 0 4px 0 #3a1208, 0 0 40px rgba(0, 0, 0, 0.7); }
+.boss-intro .title { font-size: clamp(16px, 2vw, 24px); font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: var(--accent); text-shadow: 0 2px 4px #000; }
+.boss-intro.go { animation: boss-intro 3.2s ease-out forwards; }
+@keyframes boss-intro {
+  0% { opacity: 0; letter-spacing: 0.2em; }
+  18% { opacity: 1; letter-spacing: 0.08em; }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.screen.end-card { justify-content: center; gap: 22px; text-align: center; padding: 24px; background: rgba(8, 10, 6, 0.86); }
+.screen.end-card .tagline { font-size: 18px; max-width: 560px; }

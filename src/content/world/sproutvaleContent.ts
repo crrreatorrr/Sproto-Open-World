@@ -9,11 +9,24 @@
  * test checks both agree).
  */
 import type { ChestDef } from '../loot';
+import { C4_WORLD } from '../packs/c4';
+import { addDeepSeamContent } from '../packs/c5';
+import { addDrakeContent } from '../packs/c6';
+import { addScrapjawContent } from '../packs/m5';
 
 export interface Placement {
   id: string;
   pos: [number, number, number];
   yaw: number;
+}
+
+/** A static collider that can open (a gate barrier, by world flag) or break (a boss's pillar). */
+export interface ObstaclePlacement extends Placement {
+  /** View model key. */
+  model: string;
+  shape: { kind: 'box'; half: [number, number, number]; yaw: number } | { kind: 'cylinder'; radius: number; height: number };
+  openFlag?: string;
+  breakable?: boolean;
 }
 
 /** A camp (plan §6.5): enemies around a centre, sharing a leash; it comes back when you rest. */
@@ -32,6 +45,7 @@ export interface RegionContent {
   mounts?: Placement[];
   /** One-use quest objects (`content/objects.ts`). */
   objects?: Placement[];
+  obstacles?: ObstaclePlacement[];
   enemies: (Placement & { def: string })[];
   camps?: CampDef[];
   /** Trigger volumes: a vertical cylinder (only x and z count unless `halfHeight` is given). */
@@ -131,3 +145,17 @@ export const SPROUTVALE_CONTENT: RegionContent = {
     { id: 'mill', pos: [436, G, 248], radius: 18 },
   ],
 };
+
+/** Add an expansion pack's placements to the region. */
+function addContent(into: RegionContent, pack: Partial<RegionContent>): void {
+  into.npcs.push(...(pack.npcs ?? []));
+  into.chests.push(...(pack.chests ?? []));
+  (into.objects ??= []).push(...(pack.objects ?? []));
+  (into.camps ??= []).push(...(pack.camps ?? []));
+  into.triggers.push(...(pack.triggers ?? []));
+}
+
+addContent(SPROUTVALE_CONTENT, C4_WORLD);
+addScrapjawContent(SPROUTVALE_CONTENT);
+addDeepSeamContent(SPROUTVALE_CONTENT);
+addDrakeContent(SPROUTVALE_CONTENT);

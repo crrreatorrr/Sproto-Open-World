@@ -1,3 +1,4 @@
+import { SPELLS } from '../../src/content/spells';
 import { describe, expect, it } from 'vitest';
 import { PLAYER_STATS } from '../../src/content/combat';
 import { TONIC } from '../../src/content/items';
@@ -104,9 +105,9 @@ describe('learned spells (plan §4.4, §5 learnSpell)', () => {
     w.dispose();
   });
 
-  it('the yard / sandbox world knows all four', async () => {
+  it('the yard / sandbox world knows every spell', async () => {
     const { w, p } = await combatWorld();
-    expect([...p.progress!.spells].sort()).toEqual(['blast', 'bolt', 'chainZap', 'frostNova']);
+    expect([...p.progress!.spells].sort()).toEqual(Object.keys(SPELLS).sort());
     expect(step(w, press(BTN.spell2)).filter((e) => e.type === 'castStart').length).toBe(1);
     w.dispose();
   });

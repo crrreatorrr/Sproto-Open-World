@@ -264,11 +264,11 @@ async function rpgLoop() {
   s = await state();
   check(s.state === 'paused' && s.screen === 'screen-menu' && s.menuTab === 'powers', 'Start opens the tabbed menu on Powers', `${s.state} ${s.screen} ${s.menuTab}`);
   const toured = [s.menuTab];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 6; i++) {
     await press('rb');
     toured.push((await state()).menuTab);
   }
-  check(toured.join() === 'powers,skills,gear,quests,settings,powers', 'RB tours every tab and wraps', toured.join());
+  check(toured.join() === 'powers,skills,gear,quests,map,settings,powers', 'RB tours every tab and wraps', toured.join());
   await press('lb');
   s = await state();
   check(s.menuTab === 'settings', 'LB goes back a tab (and wraps)', s.menuTab);
@@ -459,8 +459,9 @@ async function rpgLoop() {
     save.player.spells.push('blast');
     localStorage.setItem('sow.save', JSON.stringify(save));
   });
-  await page.reload();
-  await page.waitForFunction(() => window.__qa?.ready && window.__qa.state().screen === 'screen-title', null, { timeout: 30000 });
+  // A CI runner's software GPU can spend more than 30 s tearing down and rebooting the game.
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 180000 });
+  await page.waitForFunction(() => window.__qa?.ready && window.__qa.state().screen === 'screen-title', null, { timeout: 180000 });
   await press('down');
   s = await state();
   check(s.focused === 'Continue', 'the title offers Continue first', JSON.stringify(s.focused));

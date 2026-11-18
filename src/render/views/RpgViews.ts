@@ -7,6 +7,8 @@ import { TICK_HZ } from '../../content/tuning';
 import type { Entity } from '../../sim/entity';
 import { Animator } from '../anim/Animator';
 import { glowTexture } from '../fx/textures';
+import { GateLockView } from './BossViews';
+import { drakeObjectView } from './DrakeViews';
 import type { EntityView } from './EnemyViews';
 import { placeEntity } from './interp';
 
@@ -159,7 +161,7 @@ function ownMaterials(root: THREE.Object3D, pick: (m: THREE.Material) => boolean
 /** Robe colours for the placeholder villagers, picked per NPC id so each reads apart. */
 const NPC_ROBES = [0x8a5a3a, 0x3d6b3a, 0x5a4a8a, 0x8a3a4a, 0x3a5a7a];
 /** Model tints by key (an entity's `view.tint` wins): the Miller is the Trader's Pepe, flour-dusted. */
-const NPC_TINTS: Record<string, number> = { npc_miller: 0xe0b070 };
+export const NPC_TINTS: Record<string, number> = { npc_miller: 0xe0b070, npc_watch: 0xa8b8d8, npc_ranger: 0x9fc27a, npc_weaver: 0xd8a8c8, npc_miner: 0xb8a48c };
 
 /**
  * A villager (plan §6): the NPC's model (manifest `npc_*`), standing on the ground, facing its yaw,
@@ -661,7 +663,10 @@ export class TomeView implements EntityView {
 
 /** An `object` interactable's view by its model key (beacon, lever, tome; anything else reads as a tome). */
 export function objectView(model: string): EntityView {
+  const drakeQuest = drakeObjectView(model);
+  if (drakeQuest) return drakeQuest;
   if (model === 'beacon') return new BeaconView();
   if (model === 'lever') return new LeverView();
+  if (model === 'gate_lock') return new GateLockView();
   return new TomeView();
 }

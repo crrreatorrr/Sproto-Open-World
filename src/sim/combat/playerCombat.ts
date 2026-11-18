@@ -2,6 +2,9 @@ import {
   AIM, BLOCK, BUFFER, CHARGE, LUNGE, PLAYER_MOVES, PLAYER_STATS, ROLL, SOFT_TARGET, clipReach, clipTiming, type PlayerMoveId,
 } from '../../content/combat';
 import { TONIC } from '../../content/items';
+import { TRAIT } from '../../content/packs/c2';
+import { POWER } from '../../content/packs/c3';
+import { BACKSTEP, dodgeFrames } from '../../content/packs/m7';
 import { CAST_WALK_SCALE } from '../../content/spells';
 import { charmOf } from '../systems/rpg';
 import { slotSpell } from '../systems/loadout';
@@ -13,7 +16,9 @@ import { turnToward } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { aimSwingDir, resolveAim } from './aim';
 import { angleTo, flatDist, yawTo } from './geometry';
+import { advancePlunge, plungeCancels, plungeMotion, tryPlunge } from './plunge';
 import { advanceCast, castFacing, startCast, type SpawnSpellProjectile } from './spells';
+import { brawlerChains, tryBlink } from './staffTraits';
 
 /** Per-tick motion an action asks for: planar velocity (m/s), and whether input steers it. */
 export interface Motion {
@@ -52,13 +57,13 @@ export function inHitstopOrStun(a: Action | null): boolean {
   return a?.kind === 'hitstun' || a?.kind === 'stagger' || a?.kind === 'frozen' || a?.kind === 'dead';
 }
 
-/** Is the entity invulnerable this tick (roll i-frames)? */
+/** Is the entity invulnerable this tick (roll or backstep i-frames, or a blink)? */
 export function iframes(a: Action | null): boolean {
-  return a?.kind === 'dodge' && a.t >= ROLL.iframeStart && a.t <= ROLL.iframeEnd;
+  return a?.kind === 'blink' || (a?.kind === 'dodge' && a.t >= dodgeFrames(a).iframeStart && a.t <= dodgeFrames(a).iframeEnd);
 }
 
 /** Light attacks a spell may cancel from activeEnd (plan §4.4: never a heavy). */
-const LIGHTS = new Set<string>(['light1', 'light2', 'light3', 'rollAttack']);
+const LIGHTS = new Set<string>(['light1', 'light2', 'light3', 'light4', 'rollAttack']);
 const SPELL_BUTTONS = [BTN.spell1, BTN.spell2, BTN.spell3, BTN.spell4] as const;
 
 /** Player moves: buffer presses, advance the current action, start the next one (plan §4.2–4.4). */
@@ -84,6 +89,7 @@ export function playerCombat(ctx: CombatCtx, commands: CommandMap, physics: Phys
 
     for (const k of Object.keys(c.cooldowns) as (keyof typeof c.cooldowns)[]) if (c.cooldowns[k]! > 0) c.cooldowns[k]!--;
     if (c.action?.kind === 'cast') advanceCast(ctx, p, cmd, physics, spawn);
+    else if (c.action?.kind === 'plunge') advancePlunge(ctx, p, physics);
     else advance(p, cmd, ctx);
     tryConsume(p, cmd, ctx, physics);
     updateBlock(p, cmd, ctx);
@@ -144,15 +150,26 @@ function advance(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
         return;
       }
       a.t++;
-      a.clipT++;
-      if (def.chargeable && heavyHeld && a.clipT === tm.chargeStart && a.charge === 0) a.charging = true;
-      if (a.clipT === tm.activeStart) ctx.events.push({ type: 'swing', entity: p.id, move: a.move, heavy: def.mv >= 2 });
-      if (a.clipT >= tm.end) c.action = null;
+      // A faster move covers two clip ticks on some sim ticks, so the clip stays on whole ticks.
+      const steps = def.rate ? Math.floor(a.t * def.rate) - Math.floor((a.t - 1) * def.rate) : 1;
+      for (let i = 0; i < steps; i++) {
+        a.clipT++;
+        if (def.chargeable && heavyHeld && a.clipT === tm.chargeStart && a.charge === 0) a.charging = true;
+        if (a.clipT === tm.activeStart) ctx.events.push({ type: 'swing', entity: p.id, move: a.move, heavy: def.mv >= 2 });
+        if (a.clipT >= tm.end) {
+          c.action = null;
+          return;
+        }
+      }
       return;
     }
     case 'dodge':
       a.t++;
-      if (a.t >= ROLL.ticks) c.action = null;
+      if (a.t >= dodgeFrames(a).ticks) c.action = null;
+      return;
+    case 'blink':
+      a.t++;
+      if (a.t >= TRAIT.blink.ticks) c.action = null;
       return;
     case 'block':
       a.t++;
@@ -182,14 +199,14 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: Physi
   if (!b) return;
   const a = c.action;
   if (b.action === 'dodge') {
-    const legal = !a || a.kind === 'block' || (a.kind === 'attack' && a.clipT >= clipTiming(PLAYER_MOVES[a.move as PlayerMoveId].clip).activeEnd);
+    const legal = !a || a.kind === 'block' || (a.kind === 'plunge' && plungeCancels(a)) || (a.kind === 'attack' && a.clipT >= clipTiming(PLAYER_MOVES[a.move as PlayerMoveId].clip).activeEnd);
     if (!legal) return;
     c.buffer = null;
     if (p.vitals!.stamina <= 0) {
       ctx.events.push({ type: 'noStamina', entity: p.id });
       return;
     }
-    startRoll(p, cmd, ctx);
+    startRoll(p, cmd, ctx, physics);
     return;
   }
   if (b.action.startsWith('spell')) {
@@ -204,6 +221,11 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: Physi
     else ctx.events.push({ type: 'refused', entity: p.id, action: 'cast', reason: `No power in slot ${slot + 1}. Equip one in the Powers tab.` });
     return;
   }
+  // A heavy pressed while falling from a height is a plunge attack.
+  if (b.action === 'heavy' && !a && !p.riding && tryPlunge(ctx, p, physics)) {
+    c.buffer = null;
+    return;
+  }
   // Light or heavy.
   let move: PlayerMoveId | null;
   if (!a || a.kind === 'block') {
@@ -211,11 +233,14 @@ function tryConsume(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: Physi
   } else if (a.kind === 'attack') {
     const def = PLAYER_MOVES[a.move as PlayerMoveId];
     if (a.clipT < clipTiming(def.clip).cancel) return;
-    move = (b.action === 'light' ? def.next?.light : def.next?.heavy) ?? null;
+    move = (b.action === 'light' ? (brawlerChains(p, a.move) ? 'light4' : def.next?.light) : def.next?.heavy) ?? null;
     if (b.action === 'heavy' && ctx.now < c.riposteUntil) move = 'riposte';
   } else if (a.kind === 'dodge') {
-    if (a.t < ROLL.attackFrom) return;
+    if (a.t < dodgeFrames(a).attackFrom) return;
     move = b.action === 'light' ? 'rollAttack' : 'heavy';
+  } else if (a.kind === 'plunge') {
+    if (!plungeCancels(a)) return;
+    move = b.action === 'light' ? 'light1' : 'heavy';
   } else return;
   if (!move) return;
   c.buffer = null;
@@ -305,21 +330,30 @@ function startAttack(p: Entity, move: PlayerMoveId, cmd: InputCommand, ctx: Comb
   }
   // Aimed swings turn to the crosshair at once: the hit must land where the player is looking.
   if (swing) p.tf.yaw = p.tf.prevYaw = Math.atan2(dir.x, dir.z);
-  const startup = Math.max(1, tm.activeStart - def.entry);
+  const startup = Math.max(1, Math.ceil((tm.activeStart - def.entry) / (def.rate ?? 1)));
   c.action = { kind: 'attack', move, t: 0, clipT: def.entry, charge: 0, charging: false, charged: false, hit: [], lunge: lunge / startup, lungeDir: dir };
 }
 
-function startRoll(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
+function startRoll(p: Entity, cmd: InputCommand, ctx: CombatCtx, physics: PhysicsWorld): void {
   const c = p.combat!;
   const v = p.vitals!;
-  // Quick Step makes rolls cheaper.
+  // Quick Step makes rolls and backsteps cheaper.
   const k = p.progress ? (charmOf(p.progress)?.dodgeStamina ?? 1) : 1;
-  v.stamina = Math.max(0, v.stamina - ROLL.stamina * k);
-  v.staminaDelay = PLAYER_STATS.dodgeDelay;
   const w = wishDir(cmd);
-  const dir = w.mag > 0.2 ? { x: w.x / w.mag, z: w.z / w.mag } : { x: Math.sin(p.tf.yaw), z: Math.cos(p.tf.yaw) };
+  const neutral = w.mag <= 0.2;
+  const dir = neutral ? { x: Math.sin(p.tf.yaw), z: Math.cos(p.tf.yaw) } : { x: w.x / w.mag, z: w.z / w.mag };
   p.tf.yaw = Math.atan2(dir.x, dir.z);
-  c.action = { kind: 'dodge', t: 0, dir };
+  const blinked = tryBlink(ctx, p, cmd, dir, physics);
+  const back = neutral && !blinked;
+  v.stamina = Math.max(0, v.stamina - (back ? BACKSTEP.stamina : ROLL.stamina) * k);
+  v.staminaDelay = PLAYER_STATS.dodgeDelay;
+  if (blinked) return;
+  if (back) {
+    // No direction: hop straight back, still facing the lock target if there is one.
+    const lock = c.lock !== null ? ctx.get(c.lock) : undefined;
+    if (lock) p.tf.yaw = yawTo(p.tf.pos, lock.tf.pos);
+    c.action = { kind: 'dodge', t: 0, dir: { x: -Math.sin(p.tf.yaw), z: -Math.cos(p.tf.yaw) }, back: true };
+  } else c.action = { kind: 'dodge', t: 0, dir };
   ctx.events.push({ type: 'dodge', entity: p.id });
 }
 
@@ -335,9 +369,6 @@ function updateBlock(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
   c.lastBlockTick = ctx.now;
   c.action = { kind: 'block', t: 0, parryTicks: spam ? BLOCK.spamParryTicks : BLOCK.parryTicks };
 }
-
-/** Roll speed profile: (1 − x²) over the roll, scaled so the whole roll covers ROLL.distance. */
-const ROLL_PEAK = (ROLL.distance / (ROLL.ticks * DT)) * 1.5;
 
 function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
   const c = p.combat!;
@@ -376,11 +407,16 @@ function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
       return;
     }
     case 'dodge': {
-      const x = a.t / ROLL.ticks;
-      const speed = ROLL_PEAK * Math.max(0, 1 - x * x);
+      // Speed profile (1 − x²) over the move, scaled so the whole of it covers its distance.
+      const f = dodgeFrames(a);
+      const x = a.t / f.ticks;
+      const speed = (f.distance / (f.ticks * DT)) * 1.5 * Math.max(0, 1 - x * x);
       ctx.motion.set(p.id, { vx: a.dir.x * speed, vz: a.dir.z * speed, inputScale: 0 });
       return;
     }
+    case 'plunge':
+      ctx.motion.set(p.id, plungeMotion(p, a, wishDir(cmd), faceLock));
+      return;
     case 'block':
       ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: BLOCK.walkScale, faceYaw: faceLock ?? p.tf.yaw });
       return;
@@ -388,6 +424,11 @@ function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
       ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: 0.35, faceYaw: p.tf.yaw });
       return;
     case 'cast':
+      // Holding a breath: a slow walk, turning with the stick (or kept on the lock).
+      if (a.channel) {
+        ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: POWER.ember.walkScale, faceYaw: faceLock });
+        return;
+      }
       // Spells are upper body: walk slowly, facing the spell's target while it winds up.
       ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: CAST_WALK_SCALE, faceYaw: castFacing(ctx, p, cmd) ?? faceLock ?? p.tf.yaw });
       return;

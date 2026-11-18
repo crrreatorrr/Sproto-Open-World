@@ -22,7 +22,8 @@ describe('bake:world', () => {
   it('re-baking Sproutvale gives the committed bytes', () => {
     execFileSync(VITE_NODE, ['tools/bake-world.ts', '--', 'sproutvale', '--out', fresh], { cwd: ROOT, stdio: 'pipe' });
     const files = list(fresh);
-    expect(files).toEqual(list(COMMITTED));
+    // The map picture comes from `npm run bake:map`, not this bake.
+    expect(files).toEqual(list(COMMITTED).filter((f) => f !== 'map.webp'));
     for (const f of files) expect(fs.readFileSync(path.join(fresh, f)).equals(fs.readFileSync(path.join(COMMITTED, f))), f).toBe(true);
   }, 120_000);
 

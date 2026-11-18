@@ -14,6 +14,7 @@ import { angleTo, flatDist } from '../combat/geometry';
 import type { Entity, InteractKind, Progress, WorldState } from '../entity';
 import type { SimEvent } from '../events';
 import type { Vec3 } from '../math';
+import { affixXp } from './affixes';
 import { equipSpell, gearLocked, grantSkillPoints, learnIntoLoadout, respecSkills, spendSkill } from './loadout';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
 import { startDismount, startMount } from './riding';
@@ -123,6 +124,8 @@ export function checkCondition(c: Condition, p: Progress, world: WorldState): bo
     return c.step === undefined || q?.step === c.step;
   }
   if ('flag' in c) return c.value === undefined ? (world.flags[c.flag] ?? 0) !== 0 : world.flags[c.flag] === c.value;
+  if ('level' in c) return p.level >= c.level;
+  if ('questDone' in c) return p.quests[c.questDone]?.status === 'complete';
   return (p.inventory[c.hasItem] ?? 0) >= (c.count ?? 1);
 }
 
@@ -144,7 +147,10 @@ export function applyEffects(ctx: RpgCtx, e: Entity, effects: readonly Effect[] 
     else if ('currency' in fx) addSprouts(ctx, e, fx.currency);
     else if ('openShop' in fx) p.shop = fx.openShop;
     else if ('spawnUnique' in fx) ctx.world.flags[`unique:${fx.spawnUnique}`] = 1;
-    else if ('openGate' in fx) ctx.world.flags[`gate:${fx.openGate}`] = 1;
+    else if ('openGate' in fx) {
+      ctx.world.flags[`gate:${fx.openGate}`] = 1;
+      ctx.events.push({ type: 'gateOpened', gate: fx.openGate });
+    }
     else if ('skillPoints' in fx) grantSkillPoints(ctx, e, fx.skillPoints);
   }
 }
@@ -352,6 +358,11 @@ function openChest(ctx: RpgCtx, e: Entity, chest: Entity, contents: { items: { i
 /** Use a one-use world object (M4): it stays used (a world flag) and applies its effects. */
 function useObject(ctx: RpgCtx, e: Entity, obj: Entity): void {
   const ia = obj.interactable!;
+  const def = OBJECTS[ia.id];
+  if (def && !checkAll(def.requires, e.progress!, ctx.world)) {
+    ctx.events.push({ type: 'refused', entity: e.id, action: 'interact', reason: def.refusal ?? "You can't use that yet." });
+    return;
+  }
   ia.used = true;
   ctx.world.flags[usedFlag(ia.id)] = 1;
   ctx.events.push({ type: 'interact', entity: e.id, object: ia.id, kind: 'object' });
@@ -475,9 +486,14 @@ function buy(ctx: RpgCtx, e: Entity, merchant: string, item: string): void {
   const key = `bought:${merchant}:${item}`;
   const sold = ctx.world.flags[key] ?? 0;
   if (sold >= stock) return refuse('Sold out.');
+  const flag = m.after?.[item];
+  if (flag && !ctx.world.flags[flag]) return refuse('Not for sale yet.');
   const price = ITEMS[item]?.price ?? 0;
   if (p.sprouts < price) return refuse('Not enough Sprouts.');
-  if (!giveItem(ctx, e, item, 1)) return;
+  const teaches = ITEMS[item]?.teaches;
+  if (teaches && p.spells.includes(teaches)) return refuse('You already know that spell.');
+  if (teaches) applyEffects(ctx, e, [{ learnSpell: teaches }]);
+  else if (!giveItem(ctx, e, item, 1)) return;
   p.sprouts -= price;
   ctx.world.flags[key] = sold + 1;
   ctx.events.push({ type: 'bought', entity: e.id, merchant, item, price });
@@ -492,14 +508,18 @@ const PICKUP_RADIUS = 1.3;
 export function onKill(ctx: RpgCtx, killer: Entity, dead: Entity): void {
   const def = dead.brain ? ENEMIES[dead.brain.def] : undefined;
   if (!def || !killer.progress) return;
-  grantXp(ctx, killer, def.xp);
+  grantXp(ctx, killer, Math.round(def.xp * affixXp(dead)));
   const table = DROPS[def.id];
   if (!table) return;
   const at = (k: number) => ({ x: dead.tf.pos.x + Math.cos(k * 2.1) * 0.6, y: dead.tf.pos.y + 0.3, z: dead.tf.pos.z + Math.sin(k * 2.1) * 0.6 });
   ctx.spawnPickup(at(0), { kind: 'sprouts', amount: rngRange(ctx.rng, table.sprouts[0], table.sprouts[1]), life: PICKUP_LIFE });
   if (rngNext(ctx.rng) < table.heartChance) ctx.spawnPickup(at(1), { kind: 'heart', amount: 1, life: PICKUP_LIFE });
   let k = 2;
-  for (const it of table.items ?? []) if (rngNext(ctx.rng) < it.chance) ctx.spawnPickup(at(k++), { kind: 'item', item: it.item, amount: 1, life: PICKUP_LIFE });
+  for (const it of table.items ?? []) {
+    // Gear is found once: a piece you own doesn't drop again. The roll still happens, so the loot stream stays in step.
+    const owned = !ITEMS[it.item]?.stacks && (killer.progress.inventory[it.item] ?? 0) > 0;
+    if (rngNext(ctx.rng) < it.chance && !owned) ctx.spawnPickup(at(k++), { kind: 'item', item: it.item, amount: 1, life: PICKUP_LIFE });
+  }
 }
 
 /** Walk over a pickup to take it; old ones fade. Returns the ids to remove. */

@@ -23,6 +23,20 @@ const SOUNDS = {
   // Spells (M1b): an arcane hit and Blast's explosion.
   boltHit: { volume: 0.5 },
   blastExplode: { volume: 0.7 },
+  // Polish (M6): boss cues, stings, statuses and staggers.
+  bossRoar: { volume: 0.7 },
+  bossRise: { volume: 0.6 },
+  victory: { volume: 0.6 },
+  defeat: { volume: 0.5 },
+  roundWin: { volume: 0.55 },
+  spellLearned: { volume: 0.55 },
+  ultReady: { volume: 0.45 },
+  ticketPickup: { volume: 0.4 },
+  lifePackPickup: { volume: 0.45 },
+  fireBurn: { volume: 0.4 },
+  stunHit: { volume: 0.55 },
+  fizzle: { volume: 0.4 },
+  pillarCrumble: { volume: 0.55 },
 } as const;
 export type SoundId = keyof typeof SOUNDS;
 
@@ -33,7 +47,9 @@ export type SoundId = keyof typeof SOUNDS;
 export class AudioManager {
   private readonly howls = new Map<SoundId, Howl>();
   private readonly base = import.meta.env.BASE_URL + 'assets/audio/';
-  volume = 0.8;
+  /** The master volume (everything), and the effects volume (these sounds). */
+  volume = 1;
+  private sfx = 1;
 
   /** Play a sound; true if it was started (or queued until its file loads). */
   play(id: SoundId, rate = 1, volume = 1): boolean {
@@ -41,7 +57,7 @@ export class AudioManager {
       const h = this.howl(id);
       const n = h.play();
       h.rate(rate, n);
-      if (volume !== 1) h.volume(SOUNDS[id].volume * volume, n);
+      h.volume(SOUNDS[id].volume * volume * this.sfx, n);
       return true;
     } catch {
       // Audio is optional.
@@ -70,7 +86,13 @@ export class AudioManager {
   }
 
   setMaster(v: number): void {
+    // Left alone at full volume, so the audio context still waits for the first sound.
+    if (v === this.volume) return;
     this.volume = v;
     Howler.volume(v);
+  }
+
+  setEffects(v: number): void {
+    this.sfx = v;
   }
 }

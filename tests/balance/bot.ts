@@ -28,7 +28,7 @@ export interface FightResult {
   hpLeft: number;
 }
 
-const SLOT: Record<SpellId, number> = { bolt: BTN.spell1, blast: BTN.spell2, frostNova: BTN.spell3, chainZap: BTN.spell4 };
+const SLOT: Record<string, number> = { bolt: BTN.spell1, blast: BTN.spell2, frostNova: BTN.spell3, chainZap: BTN.spell4 };
 const yaw = (a: Entity, b: Entity) => Math.atan2(b.tf.pos.x - a.tf.pos.x, b.tf.pos.z - a.tf.pos.z);
 const dist = (a: Entity, b: Entity) => Math.hypot(b.tf.pos.x - a.tf.pos.x, b.tf.pos.z - a.tf.pos.z);
 const alive = (e: Entity) => e.combat?.action?.kind !== 'dead';

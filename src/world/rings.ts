@@ -1,4 +1,4 @@
-import { cellKey } from '../content/world/format';
+import { CELL_SIZE, cellKey, cellOf } from '../content/world/format';
 import type { Priority } from '../assets/RequestQueue';
 
 /**
@@ -29,6 +29,28 @@ export const RETRY_DELAYS_MS = [500, 1000, 2000] as const;
 export const VEIL_TIMEOUT_MS = 15_000;
 
 export type CellXZ = readonly [number, number];
+
+/** While playing, the ground only has to be built this close to the player (m). */
+export const GROUND_NEAR_M = 24;
+
+/**
+ * The cells whose colliders the player needs. Coming out from behind the veil (a load, teleport or
+ * respawn) that is the whole 3 × 3. During play it is only the cells within `GROUND_NEAR_M`: crossing
+ * a cell edge makes the far three neighbours Active that same frame, and they are 64 m away, so
+ * waiting for them would flash the veil and drop input for nothing. Every cell this close was
+ * already in the 3 × 3 before the crossing.
+ */
+export function groundCells(x: number, z: number, playing: boolean): CellXZ[] {
+  const [px, pz] = cellOf(x, z);
+  const out: CellXZ[] = [];
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const cx = px + dx, cz = pz + dz;
+      if (!playing || distanceToCell(x, z, cx, cz, CELL_SIZE) <= GROUND_NEAR_M) out.push([cx, cz]);
+    }
+  }
+  return out;
+}
 
 export interface RingInput {
   /** Each player's cell (one now, N in co-op). */
@@ -163,7 +185,7 @@ export async function withRetry<T>(
   }
 }
 
-function isCancel(err: unknown): boolean {
+export function isCancel(err: unknown): boolean {
   return err instanceof Error && (err.name === 'CancelledError' || err.name === 'AbortError');
 }
 

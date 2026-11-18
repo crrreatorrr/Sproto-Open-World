@@ -38,13 +38,14 @@ import sharp from 'sharp';
 import zlib from 'node:zlib';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-/** The folder holding the sibling repos (set SIBLING_REPOS when running from a git worktree). */
-const GAMES = process.env.SIBLING_REPOS ?? path.resolve(ROOT, '..');
+// SIBLING_REPOS or SPROTO_GAMES: where the sibling repos are when this checkout isn't next to them (a git worktree).
+const GAMES = path.resolve(process.env.SIBLING_REPOS ?? process.env.SPROTO_GAMES ?? path.join(ROOT, '..'));
 const OUT = path.join(ROOT, 'public', 'assets');
 const force = process.argv.includes('--force');
 
 const DUEL = 'sproto-duel';
 const SHOOTER = 'sproto-shooter';
+const SHOOTER_BOSSES = 'sproto-shooter-bosses';
 
 /**
  * Sproutvale's props and set pieces (plan §6.1, §7.1): the sproto-shooter grove set plus the
@@ -76,6 +77,7 @@ const LOD1_ERROR = 0.05;
  * Recipes (M4). `tex`: largest texture side (WebP, quality 80). `clips`: keep only these.
  * `drop`: remove nodes by name (pepe's stray Blender `Cube`). `simplify`: triangle ratio.
  * `meshopt`: meshopt-compress a static model. `lid`: split a chest's lid onto its own hinged node.
+ * `far`: a skinned far LOD (see `farLod`): `ratio` of the triangles, within `error`.
  */
 /** Villagers: idle is the only clip they play; small on screen, so 256 px textures. */
 const NPC = { tex: 256, clips: ['idle'], drop: ['Cube'] };
@@ -96,6 +98,8 @@ const FILES = [
     [DUEL, `public/assets/models/staffs/staff_${id}.glb`, `models/staffs/staff_${id}.glb`],
     [DUEL, `public/assets/models/staffs/staff_${id}-lod1.glb`, `models/staffs/staff_${id}-lod1.glb`],
   ]),
+  // C2: duel only ships a LOD1 of these two, which becomes their one model (expansion plan §2.2).
+  ...['shooter', 'fighter'].map((id) => [DUEL, `public/assets/models/staffs/staff_${id}-lod1.glb`, `models/staffs/staff_${id}.glb`]),
   // Ground, rock and sky for the yard and, later, Sproutvale.
   [DUEL, 'public/assets/textures/themes/grove/floor.jpg', 'textures/grove/floor.jpg'],
   [DUEL, 'public/assets/textures/themes/grove/stone.jpg', 'textures/grove/stone.jpg'],
@@ -113,6 +117,16 @@ const FILES = [
   [SHOOTER, 'public/assets/models/characters/midget_stage2.glb', 'models/enemies/grunt_vet.glb'],
   [SHOOTER, 'public/assets/models/characters/obama_stage2.glb', 'models/enemies/slinger_vet.glb'],
   [SHOOTER, 'public/assets/models/characters/monster.glb', 'models/elites/gatekeeper.glb', { tex: 512 }],
+  // C4: the robot elites (lazy-loaded; their maps at 512 px).
+  ...['robot_shooter', 'robot_laser'].map((id) => [SHOOTER_BOSSES, `dist/assets/models/characters/${id}.glb`, `models/elites/${id}.glb`, { tex: 512 }]),
+  // M5: Scrapjaw, the Quarry Beast (20.1k triangles; every boss clip; lazy-loaded at the quarry).
+  [SHOOTER_BOSSES, 'dist/assets/models/characters/car_monster.glb', 'models/bosses/scrapjaw.glb', { tex: 512 }],
+  // C5: the Burrowmother (26k vertices; every boss clip, no burrow clip; lazy-loaded at the Deep Seam).
+  [SHOOTER_BOSSES, 'dist/assets/models/characters/mole_monster.glb', 'models/bosses/burrowmother.glb', { tex: 512 }],
+  // C6: the Skyfire Drake (19.6k triangles; fly and fireball only; lazy-loaded when the bait quest starts), and the
+  // far LOD the flyover draws: the same rig and `fly` clip, flat-coloured, on about a tenth of the triangles.
+  [SHOOTER_BOSSES, 'dist/assets/models/characters/dragon.glb', 'models/bosses/drake.glb', { tex: 512 }],
+  [SHOOTER_BOSSES, 'dist/assets/models/characters/dragon.glb', 'models/bosses/drake_far.glb', { clips: ['fly'], far: { ratio: 0.1, error: 0.3 } }],
   // M4: Sproutvale's villagers.
   [SHOOTER, 'public/assets/models/characters/pepe-general.glb', 'models/npcs/pepe_general.glb', PEPE],
   [SHOOTER, 'public/assets/models/characters/pepe.glb', 'models/npcs/pepe.glb', PEPE],
@@ -128,6 +142,11 @@ const FILES = [
   ...WORLD_PROPS.map((id) => [SHOOTER, `public/assets/models/props/${id}.glb.gz`, `models/props/${id}.glb.gz`]),
   ...['uiClick', 'uiHover', 'dodge', 'clash', 'hurt', 'shieldBlock', 'shieldPerfect', 'shieldUp', 'boltCast', 'boltHit', 'blastExplode', 'noMana',
     'rugWhoosh', 'carpetWhoosh', 'lockBeep', 'stunCharge', 'bossSlam', 'pillarHit', 'roundLose'].map(
+    (id) => [DUEL, `public/assets/audio/placeholder/${id}.wav`, `audio/${id}.wav`],
+  ),
+  // M6: boss cues and music, level-up and pickup stings, status and stagger hits.
+  ...['musicBattle', 'bossRoar', 'bossRise', 'victory', 'defeat', 'roundWin', 'spellLearned', 'ultReady', 'ticketPickup', 'lifePackPickup',
+    'fireBurn', 'stunHit', 'fizzle', 'pillarCrumble'].map(
     (id) => [DUEL, `public/assets/audio/placeholder/${id}.wav`, `audio/${id}.wav`],
   ),
 ];
@@ -378,12 +397,34 @@ function describe(o) {
   parts.push('resample + static channels dropped');
   const simp = o.simplify ?? o.fit?.simplify;
   if (simp) parts.push(`simplify(${simp})`);
+  if (o.far) parts.push(`far LOD: flat colours + position weld + simplify(${o.far.ratio}, error ${o.far.error})`);
   const tex = o.tex ?? o.fit?.tex;
   if (tex) parts.push(`webp ≤${tex} px`);
   if (o.lid) parts.push(`lid cut at y ${o.lid.cutY} onto a hinged node`);
   parts.push('meshopt');
   return parts.join(' + ');
 }
+
+/**
+ * A skinned model for the far distance. Texture seams stop the simplifier long before its target, so
+ * each material becomes the flat average colour of its base map, and the surface is welded by
+ * position. The skin and the clips stay. Expects dequantized geometry.
+ */
+const farLod = ({ ratio, error }) => async (doc) => {
+  for (const mat of doc.getRoot().listMaterials()) {
+    const map = mat.getBaseColorTexture();
+    if (map) {
+      const { data } = await sharp(map.getImage()).resize(1, 1).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      mat.setBaseColorFactor([...data.subarray(0, 3)].map((c) => (c / 255) ** 2.2).concat(1));
+    }
+    mat.setBaseColorTexture(null).setNormalTexture(null).setMetallicRoughnessTexture(null).setOcclusionTexture(null).setEmissiveTexture(null);
+  }
+  for (const mesh of doc.getRoot().listMeshes()) {
+    for (const prim of mesh.listPrimitives()) for (const sem of ['NORMAL', 'TANGENT', 'TEXCOORD_0', 'TEXCOORD_1']) prim.setAttribute(sem, null);
+  }
+  weldByPosition()(doc);
+  await doc.transform(simplify({ simplifier: MeshoptSimplifier, ratio, error }), normals({ overwrite: true }));
+};
 
 /** Source GLB → re-encoded GLB per its recipe (see `describe`). */
 async function encode(glb, o) {
@@ -396,10 +437,11 @@ async function encode(glb, o) {
   if (root.listAnimations().length) steps.push(resample(), () => dropStaticChannels(doc));
   steps.push(prune());
   const simp = o.simplify ?? o.fit?.simplify;
-  if (o.fit || o.lid || simp) steps.push(dequantize());
+  if (o.fit || o.lid || simp || o.far) steps.push(dequantize());
   if (o.fit) steps.push(fitProp(o.fit));
   if (o.lid) steps.push(splitLid(o.lid), weld());
   if (simp) steps.push(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: simp, error: 0.01 }));
+  if (o.far) steps.push(farLod(o.far));
   const tex = o.tex ?? o.fit?.tex;
   if (tex) steps.push(textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [tex, tex], quality: 80 }));
   if (o.fit) for (const m of root.listMaterials()) m.setDoubleSided(true);

@@ -1,11 +1,12 @@
 import { AFFINITY_MULT, ENEMIES, type Affinity } from '../../content/enemies';
 import { STATUS, type StatusId } from '../../content/statuses';
 import type { Entity, EntityId } from '../entity';
+import { affixAffinity } from '../systems/affixes';
 import type { CombatCtx } from './playerCombat';
 
 /** A target's affinity for a status (players have none: normal). */
 export function statusAffinity(e: Entity, id: StatusId): Affinity {
-  return e.brain ? ENEMIES[e.brain.def].profile.status[id] : 'normal';
+  return e.brain ? affixAffinity(e, ENEMIES[e.brain.def].profile.status[id]) : 'normal';
 }
 
 /**

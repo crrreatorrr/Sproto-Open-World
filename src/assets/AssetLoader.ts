@@ -5,9 +5,13 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import { MODELS, type ModelEntry, type ModelKey } from './manifest';
 import { RequestQueue, type Priority } from './RequestQueue';
 import { prepareRig } from './rig';
+import { isCancel, withRetry } from '../world/rings';
 
 /** Requests in flight at once (the shooter's loader; plan §3.3). */
 const PARALLEL = 4;
+/** After the quick retries fail, a model or prop keeps trying this often (ms). */
+const MODEL_RETRY_MS = 30_000;
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export interface ModelTemplate {
   key: ModelKey;
@@ -45,6 +49,8 @@ export class AssetLoader {
   private readonly gltfLoader = new GLTFLoader();
   private readonly templates = new Map<ModelKey, Promise<ModelTemplate>>();
   private readonly refs = new Map<ModelKey, number>();
+  private readonly real = new Set<ModelKey>();
+  private readonly recovered = new Set<(key: ModelKey) => void>();
   /** Shared with the world streamer's cell fetches (plan §3.3: one NOW/LATER queue, 4 in flight). */
   readonly queue = new RequestQueue(PARALLEL);
   private readonly textures = new THREE.TextureLoader();
@@ -54,18 +60,29 @@ export class AssetLoader {
   }
 
   /** Load (once) and return the template for a model key. */
-  template(key: ModelKey): Promise<ModelTemplate> {
+  template(key: ModelKey, priority: Priority = 'now'): Promise<ModelTemplate> {
     let p = this.templates.get(key);
     if (!p) {
-      p = this.schedule(() => this.loadTemplate(key));
+      p = this.loadTemplate(key, priority);
       this.templates.set(key, p);
     }
     return p;
   }
 
+  /** Has the real file for this model arrived (false: not yet, or still on its stand-in)? */
+  isReal(key: ModelKey): boolean {
+    return this.real.has(key);
+  }
+
+  /** Called when a model that failed finally arrives, so views can swap their stand-ins. */
+  onRecovered(listener: (key: ModelKey) => void): () => void {
+    this.recovered.add(listener);
+    return () => this.recovered.delete(listener);
+  }
+
   /** A fresh, independently animatable copy of a model. Call `dispose()` when it leaves the scene. */
-  async instance(key: ModelKey): Promise<ModelInstance> {
-    const t = await this.template(key);
+  async instance(key: ModelKey, priority: Priority = 'now'): Promise<ModelInstance> {
+    const t = await this.template(key, priority);
     this.refs.set(key, (this.refs.get(key) ?? 0) + 1);
     const root = MODELS[key] && 'rigged' in MODELS[key] ? cloneSkinned(t.scene) : t.scene.clone(true);
     let disposed = false;
@@ -91,25 +108,54 @@ export class AssetLoader {
 
   /**
    * Load any GLB under public/assets (world props, the horizon) through the shared queue. Not
-   * cached here: the caller owns the result and its refcount (world/PropInstancer.ts).
+   * cached here: the caller owns the result and its refcount (world/PropInstancer.ts). `persist`
+   * keeps trying until the file arrives, instead of failing after the quick retries.
    */
-  gltf(path: string, priority: Priority = 'later'): Promise<GLTF> {
-    return this.queue.run(() => this.gltfLoader.loadAsync(import.meta.env.BASE_URL + path), priority).promise;
+  gltf(path: string, priority: Priority = 'later', persist = false): Promise<GLTF> {
+    const attempt = () =>
+      withRetry(() => this.queue.run(() => this.gltfLoader.loadAsync(import.meta.env.BASE_URL + path), priority).promise, sleep);
+    if (!persist) return attempt();
+    const untilLoaded = (): Promise<GLTF> =>
+      attempt().catch(async (err: unknown) => {
+        if (isCancel(err)) throw err;
+        console.warn(`[assets] ${path} failed to load; trying again in ${MODEL_RETRY_MS / 1000} s`, err);
+        await sleep(MODEL_RETRY_MS);
+        return untilLoaded();
+      });
+    return untilLoaded();
   }
 
-  private schedule<T>(job: () => Promise<T>): Promise<T> {
-    return this.queue.run(job, 'now').promise;
-  }
-
-  private async loadTemplate(key: ModelKey): Promise<ModelTemplate> {
-    const entry = MODELS[key];
-    let gltf: GLTF;
+  /** The model, or a stand-in while it keeps retrying in the background (a blip never lasts the session). */
+  private async loadTemplate(key: ModelKey, priority: Priority): Promise<ModelTemplate> {
     try {
-      gltf = await this.gltfLoader.loadAsync(this.base + entry.path);
+      return await this.fetchTemplate(key, priority);
     } catch (err) {
-      console.warn(`[assets] ${entry.path} failed to load, using a placeholder`, err);
+      console.warn(`[assets] ${MODELS[key].path} failed to load, using a placeholder and retrying`, err);
+      this.retryLater(key);
       return { key, scene: placeholder(key), clips: [], real: false };
     }
+  }
+
+  private fetchTemplate(key: ModelKey, priority: Priority): Promise<ModelTemplate> {
+    return withRetry(() => this.queue.run(() => this.readTemplate(key), priority).promise, sleep);
+  }
+
+  private retryLater(key: ModelKey): void {
+    setTimeout(() => {
+      this.fetchTemplate(key, 'later').then(
+        (t) => {
+          this.templates.set(key, Promise.resolve(t));
+          for (const listener of this.recovered) listener(key);
+        },
+        () => this.retryLater(key),
+      );
+    }, MODEL_RETRY_MS);
+  }
+
+  private async readTemplate(key: ModelKey): Promise<ModelTemplate> {
+    const entry = MODELS[key];
+    const gltf: GLTF = await this.gltfLoader.loadAsync(this.base + entry.path);
+    this.real.add(key);
     const scene = gltf.scene;
     scene.traverse((o) => {
       const mesh = o as THREE.Mesh;

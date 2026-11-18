@@ -137,6 +137,18 @@ describe('riding', () => {
     w.dispose();
   });
 
+  it('the Momentum staff\'s blink stays a dodge in the saddle: the rider can\'t teleport off the bull', async () => {
+    const { w, p } = await flatSproutvale();
+    const bull = mountUp(w);
+    p.progress!.equipment.staff = 'staff_momentum';
+    ride(w, 20, (i) => (i === 10 ? BTN.dodge : 0), BTN.sprint);
+    expect(p.riding?.state).toBe('riding');
+    expect(bull.tf.pos).toEqual(p.tf.pos);
+    const ev = ride(w, 2, () => BTN.dodge, BTN.sprint);
+    expect(ev.some((e) => e.type === 'blink')).toBe(false);
+    w.dispose();
+  });
+
   it('dying takes you off the bull, and it waits at the shrine you wake at', async () => {
     const { w, p } = await flatSproutvale();
     const bull = mountUp(w);

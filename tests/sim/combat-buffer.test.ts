@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BTN, attack, combatWorld, hitsOn, idle, press, step, stepN, type CombatWorld } from './combatHelpers';
+import { BTN, attack, cmd, combatWorld, hitsOn, idle, press, step, stepN, type CombatWorld } from './combatHelpers';
 
 /**
  * Plan §4.2 buffer rule (C2). World tick i of these tests is light1's clip tick i (empty yard, no
@@ -61,7 +61,8 @@ describe('buffer rule (plan §4.2)', () => {
       const starts: [number, string][] = [];
       let prev: unknown = null;
       for (let i = 0; i < 40; i++) {
-        step(w, press(i === 0 ? BTN.dodge : i === k ? BTN.light : 0));
+        // A roll needs a stick direction (with none, Dodge is a backstep).
+        step(w, cmd({ press: i === 0 ? BTN.dodge : i === k ? BTN.light : 0, move: i === 0 ? { x: 0, y: 1 } : undefined }));
         const a = p.combat!.action;
         if (a && a !== prev) starts.push([i, a.kind === 'attack' ? a.move : a.kind]);
         prev = a;

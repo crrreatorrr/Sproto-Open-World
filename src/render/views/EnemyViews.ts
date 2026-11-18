@@ -7,6 +7,7 @@ import type { Entity } from '../../sim/entity';
 import { Animator, ENTRY_FADE } from '../anim/Animator';
 import { CAST_PEAKS, LIBRARY_CAST_PEAKS, castClipTime, isCastClip } from '../anim/castTiming';
 import type { HitFx } from '../fx/HitFx';
+import { HitReaction } from '../fx/HitReaction';
 import { glowTexture } from '../fx/textures';
 import { BodyGlow, type GlowStatus } from './BodyGlow';
 import { placeEntity, spring } from './interp';
@@ -21,6 +22,8 @@ export interface EntityView {
   telegraph?(move: EnemyMoveDef | undefined, unblockable: boolean, ticks: number): void;
   /** It was hit from `from` (world position of the attacker). */
   flinch?(from: { x: number; z: number }, heavy: boolean): void;
+  /** Its poise broke: it reels back. */
+  reel?(): void;
   dispose(): void;
 }
 
@@ -100,7 +103,8 @@ export class BruteView implements EntityView {
   private readonly glow = new BodyGlow();
   private model: ModelInstance | null = null;
   private animator: Animator | null = null;
-  private readonly recoil = { x: 0, v: 0 };
+  /** Elites are heavy: the same blow moves them less. */
+  private readonly reaction = new HitReaction(0.8);
   private lean = 0;
   private disposed = false;
   private readonly look: EliteLook;
@@ -133,10 +137,14 @@ export class BruteView implements EntityView {
     this.glow.telegraph(unblockable, ticks / TICK_HZ);
   }
 
-  flinch(_from: { x: number; z: number }, heavy: boolean): void {
+  flinch(from: { x: number; z: number }, heavy: boolean): void {
     this.glow.hit();
     // Elites shrug off hitstun (plan §4.2): the flinch is all the reaction a light hit gets.
-    this.recoil.v -= heavy ? 2.6 : 1.4;
+    this.reaction.hit(from, this.root.position, this.root.rotation.y, heavy);
+  }
+
+  reel(): void {
+    this.reaction.lurch();
   }
 
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
@@ -188,8 +196,8 @@ export class BruteView implements EntityView {
       }
     }
     this.lean += (lean - this.lean) * (1 - Math.exp(-14 * dt));
-    spring(this.recoil, 160, 14, dt);
-    this.body.rotation.x = this.lean + this.recoil.x;
+    this.reaction.update(dt);
+    this.reaction.apply(this.body, this.lean);
     this.body.position.y = -sink * SINK_DEPTH;
     this.glow.setOpacity(1 - sink);
     this.root.visible = sink < 1;
@@ -455,7 +463,7 @@ function fitToBody(m: ModelInstance, key: keyof typeof MODELS, def: EnemyDef): v
 }
 
 /** The standard enemies' model keys (manifest.ts): M1b's three and M4's veterans and Big Coin. */
-export type HumanoidModel = 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin';
+export type HumanoidModel = 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'robot_shooter' | 'robot_laser';
 
 /** Their idle resting glow: the Hex Wisp is a caster spirit, so it glows purple (plan §4.9). */
 const WISP_EMISSIVE = 0x3a1060;
@@ -484,7 +492,7 @@ export class HumanoidEnemyView implements EntityView {
   private readonly floatGlow: THREE.Sprite | null = null;
   private model: ModelInstance | null = null;
   private animator: Animator | null = null;
-  private readonly recoil = { x: 0, v: 0 };
+  private readonly reaction = new HitReaction();
   private lean = 0;
   private time = Math.random() * 10;
   private disposed = false;
@@ -524,9 +532,13 @@ export class HumanoidEnemyView implements EntityView {
     this.glow.telegraph(unblockable, ticks / TICK_HZ);
   }
 
-  flinch(_from: { x: number; z: number }, heavy: boolean): void {
+  flinch(from: { x: number; z: number }, heavy: boolean): void {
     this.glow.hit();
-    this.recoil.v -= heavy ? 3 : 1.6;
+    this.reaction.hit(from, this.root.position, this.root.rotation.y, heavy);
+  }
+
+  reel(): void {
+    this.reaction.lurch();
   }
 
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
@@ -558,12 +570,18 @@ export class HumanoidEnemyView implements EntityView {
       this.glow.endTelegraph();
       if (a?.kind === 'dead') {
         anim?.scrub('defeat', a.t / TICK_HZ, 0.12);
+        // The robots have no `defeat` clip: they topple back instead.
+        if (anim && !anim.has('defeat')) lean = -0.5 * Math.min(1, a.t / 24);
         sink = sinkFor(a.t, HUMANOID_SINK_DELAY);
       } else if (a?.kind === 'stagger') {
         const d = anim?.duration('stun') ?? 0;
         anim?.scrub('stun', d > 0 ? (a.t / TICK_HZ) % d : 0, 0.08);
+        // The robots have no `stun` clip: they reel back and sway instead.
+        if (anim && !anim.has('stun')) lean = -0.22 + 0.07 * Math.sin((a.t / TICK_HZ) * 7);
       } else if (a?.kind === 'hitstun') {
         anim?.scrub('hit', (Math.min(a.t, a.dur) / Math.max(1, a.dur)) * (anim?.duration('hit') ?? 0), 0.06);
+        // Nor a `hit` clip: a short rock back on their heels.
+        if (anim && !anim.has('hit')) lean = -0.16 * Math.max(0, 1 - a.t / Math.max(1, a.dur));
         // A knockdown (Blast) throws the body back on top of the flinch.
         if (a.knockdown) lean = -0.55 * Math.sin(Math.min(1, a.t / Math.max(1, a.dur)) * Math.PI);
       } else if (!frozen && anim) {
@@ -583,10 +601,10 @@ export class HumanoidEnemyView implements EntityView {
     if (!frozen) {
       this.time += dt;
       this.lean += (lean - this.lean) * (1 - Math.exp(-14 * dt));
-      spring(this.recoil, 160, 14, dt);
+      this.reaction.update(dt);
     }
     const bob = this.hover > 0 && a?.kind !== 'dead' ? Math.sin(this.time * BOB.rate) * BOB.amp : 0;
-    this.body.rotation.x = this.lean + this.recoil.x;
+    this.reaction.apply(this.body, this.lean);
     this.body.position.y = this.hover + bob + lift - sink * SINK_DEPTH;
     this.glow.setOpacity(1 - sink);
     if (this.floatGlow) this.floatGlow.material.opacity = 0.45 * (1 - sink) * (0.85 + 0.15 * Math.sin(this.time * BOB.rate * 2));

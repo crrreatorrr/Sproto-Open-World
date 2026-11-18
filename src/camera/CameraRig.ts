@@ -33,6 +33,9 @@ export const CAM = {
   /** Pitch clamp while locked: −35° to +20°. */
   lockMinPitch: (-35 * Math.PI) / 180,
   lockMaxPitch: (20 * Math.PI) / 180,
+  /** A locked target high in the air: the camera tips up to keep it this far (radians) below the top of the view. */
+  lockAirMargin: 0.42,
+  lockAirMaxPitch: (55 * Math.PI) / 180,
 } as const;
 
 const damp = (a: number, b: number, sharpness: number, dt: number) => a + (b - a) * (1 - Math.exp(-sharpness * dt));
@@ -59,6 +62,9 @@ export class CameraRig {
   /** 0..1; shake = trauma². Decays on its own. */
   trauma = 0;
   distance: number = CAM.distance;
+  /** Giants pull the camera back (EnemyDef.cameraScale): the follow distance's multiplier, eased. */
+  distanceScale = 1;
+  private scaleNow = 1;
   private shoulder: number = CAM.shoulder;
   private rise = 0;
   private fovBoost = 0;
@@ -143,9 +149,13 @@ export class CameraRig {
       this.tmp.x += dx * shift;
       this.tmp.z += dz * shift;
       if (dx * dx + dz * dz > 0.04) this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), CAM.lockYawSharpness, dt);
-      // Keep the locked enemy at the centre of the screen, within the lock's pitch range.
+      // Keep the locked enemy at the centre of the screen, within the lock's pitch range. A target
+      // overhead (the Skyfire Drake) lifts the top of that range, so the camera can look up at it.
       const toTarget = Math.atan2(lockOn.y - this.tmp.y, Math.max(0.5, Math.hypot(lockOn.x - this.tmp.x, lockOn.z - this.tmp.z)));
-      this.pitch = damp(this.pitch, Math.min(CAM.lockMaxPitch, Math.max(CAM.lockMinPitch, toTarget)), CAM.lockYawSharpness, dt);
+      const up = Math.atan2(lockOn.y - target.y - CAM.height, Math.max(1, Math.hypot(dx, dz))) - CAM.lockAirMargin;
+      const air = Math.min(CAM.lockAirMaxPitch, up);
+      const hi = Math.max(CAM.lockMaxPitch, air);
+      this.pitch = damp(this.pitch, Math.min(hi, Math.max(CAM.lockMinPitch, toTarget)), air > 0 ? 5 : CAM.lockYawSharpness, dt);
     }
     if (!this.hasPivot) {
       this.pivot.copy(this.tmp);
@@ -171,9 +181,11 @@ export class CameraRig {
     this.shoulder = allowedShoulder < this.shoulder ? allowedShoulder : damp(this.shoulder, allowedShoulder, 8, dt);
     const shoulder = this.tmp.copy(this.pivot).addScaledVector(this.right, this.shoulder);
 
-    this.desired.copy(this.forward).multiplyScalar(-CAM.distance);
+    this.scaleNow = damp(this.scaleNow, this.distanceScale, 3, dt);
+    const reach = CAM.distance * this.scaleNow;
+    this.desired.copy(this.forward).multiplyScalar(-reach);
     const backHit = view.sphereCast(shoulder, this.desired, r);
-    const maxDist = backHit ? Math.max(0, backHit.distance - 0.02) : CAM.distance;
+    const maxDist = backHit ? Math.max(0, backHit.distance - 0.02) : reach;
     // Pull in instantly when blocked, ease back out.
     this.distance = maxDist < this.distance ? maxDist : damp(this.distance, maxDist, 6, dt);
 

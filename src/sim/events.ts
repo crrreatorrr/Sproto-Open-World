@@ -5,6 +5,11 @@ import type { StatusId } from '../content/statuses';
 import type { EntityId } from './entity';
 import type { Vec3 } from './math';
 
+/** A C3 power's moment, for its visuals and sound. */
+export type PowerFxId =
+  | 'ward' | 'wardReflect' | 'wardBlock' | 'snareRoot' | 'swarm' | 'wall' | 'wallStun' | 'wallEnd' | 'vine' | 'bloom'
+  | 'emberStart' | 'emberPulse' | 'surgeReady' | 'surge';
+
 /** Things that happened this tick, for presentation (audio, FX, camera, rumble) and for quests. */
 export type SimEvent =
   | { type: 'jump'; entity: EntityId }
@@ -24,6 +29,8 @@ export type SimEvent =
       heavy: boolean;
       pos: Vec3;
       hitstop: number;
+      /** It landed on a weak spot (expansion plan §3.3). */
+      weakSpot?: boolean;
     }
   | { type: 'block'; attacker: EntityId; target: EntityId; damage: number; guardBreak: boolean; pos: Vec3 }
   | { type: 'parry'; attacker: EntityId; target: EntityId; projectile: boolean; pos: Vec3 }
@@ -46,11 +53,17 @@ export type SimEvent =
   | { type: 'nova'; entity: EntityId; pos: Vec3; radius: number }
   /** Chain Zap: the points the bolt jumps through (caster's hand first) and who it hit. */
   | { type: 'zap'; entity: EntityId; points: Vec3[]; targets: EntityId[] }
+  /** `to` / `target`: where a vine goes. `radius`: a patch's or a wave's reach. */
+  | { type: 'power'; fx: PowerFxId; entity: EntityId; pos: Vec3; to?: Vec3; target?: EntityId; radius?: number }
   | { type: 'status'; entity: EntityId; status: StatusId; stacks: number; affinity: Affinity }
   | { type: 'statusEnd'; entity: EntityId; status: StatusId }
   | { type: 'frozen'; entity: EntityId; ticks: number }
   | { type: 'interrupt'; entity: EntityId; by: EntityId }
   | { type: 'blink'; entity: EntityId; from: Vec3; to: Vec3 }
+  /** Charged Bolt: a pulse while the charge grows; `frac` is how full it is (0..1). */
+  | { type: 'boltCharge'; entity: EntityId; frac: number }
+  /** A plunge attack hit the ground at `pos`; `hits` is how many enemies it caught. */
+  | { type: 'plunge'; entity: EntityId; pos: Vec3; radius: number; hits: number }
   | { type: 'wave'; wave: number; loop: number; enemies: number }
   | { type: 'waveClear'; wave: number }
   // RPG systems (M3).
@@ -81,4 +94,13 @@ export type SimEvent =
   | { type: 'skillPoints'; entity: EntityId; amount: number; total: number }
   | { type: 'skillsReset'; entity: EntityId; refunded: number; cost: number }
   | { type: 'perk'; entity: EntityId; perk: string }
-  | { type: 'cleanse'; entity: EntityId; status: StatusId };
+  | { type: 'cleanse'; entity: EntityId; status: StatusId }
+  // Boss fights (M5).
+  | { type: 'bossIntro'; boss: EntityId }
+  | { type: 'bossPhase'; boss: EntityId; phase: number }
+  | { type: 'bossSummon'; boss: EntityId; count: number }
+  /** A charge ended in a pillar or the arena wall. */
+  | { type: 'bossImpact'; boss: EntityId; pos: Vec3; pillar: boolean }
+  | { type: 'bossDefeated'; boss: EntityId }
+  | { type: 'rockLand'; pos: Vec3; radius: number }
+  | { type: 'gateOpened'; gate: string };
