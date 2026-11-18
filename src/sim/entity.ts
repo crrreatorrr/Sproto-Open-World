@@ -73,6 +73,11 @@ export type Action =
       /** Lunge left to apply during startup (m), and its direction. */
       lunge: number;
       lungeDir: { x: number; z: number };
+      /** Player moves: the enemy the lunge follows through startup, and how far it may still go (m). */
+      lungeTarget?: EntityId;
+      lungeLeft?: number;
+      /** Player moves: the swing has landed on someone. */
+      connected?: true;
       /** Enemy moves: projectiles fired so far. */
       fired?: number;
       /** Enemy area moves: where the circle was placed when the wind-up started. */
@@ -101,7 +106,7 @@ export type Action =
   | { kind: 'block'; t: number; parryTicks: number }
   | { kind: 'hitstun'; t: number; dur: number; knockdown: boolean }
   /** `broken`: its poise broke (bosses take more damage). `stunned`: it ran into something (weak spots open). */
-  | { kind: 'stagger'; t: number; dur: number; reason?: 'broken' | 'stunned' }
+  | { kind: 'stagger'; t: number; dur: number; reason?: 'broken' | 'stunned'; /** This break's critical has been dealt. */ critTaken?: true }
   | { kind: 'frozen'; t: number; dur: number }
   /** Drinking a Sprout Tonic: locked for TONIC.lockTicks, healing over TONIC.healTicks. */
   | { kind: 'drink'; t: number; healPerTick: number }
@@ -149,6 +154,11 @@ export interface Combat {
   targetedAt: number;
   /** The Momentum staff's blink is ready again from this tick. */
   blinkReadyAt?: number;
+  /** A light or heavy press before this tick is a counter (a perfect dodge just happened). */
+  counterUntil?: number;
+  /** The swing that just finished: a press before `comboUntil` continues its string. */
+  comboFrom?: PlayerMoveId;
+  comboUntil?: number;
 }
 
 /** The player's RPG state (plan §5). Saved in the SaveFile. */

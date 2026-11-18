@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { AssetLoader, ModelInstance } from '../../assets/AssetLoader';
 import type { Priority } from '../../assets/RequestQueue';
 import { STAFF_SOCKET, type ModelKey } from '../../assets/manifest';
-import { PLAYER_MOVES, ROLL, type PlayerMoveId } from '../../content/combat';
+import { PLAYER_MOVES, ROLL, clipTiming, type PlayerMoveId } from '../../content/combat';
 import { PLAYER_MOVE_TIMING } from '../../content/generated/playerMoveTiming';
 import { BACKSTEP, PLUNGE } from '../../content/packs/m7';
 import { SPELLS } from '../../content/spells';
@@ -29,6 +29,9 @@ const RIDE_FADE = 0.1;
 /** The rider's bounce: its rate at a standstill, and how fast it rises with the bull's speed (m/s per 1× rate). */
 const RIDE_RATE_BASE = 0.6;
 const RIDE_RATE_SPEED = 6;
+/** A driving strike throws the body forward (radians), easing in and out at this sharpness. */
+const DRIVE_LEAN = 0.24;
+const DRIVE_LEAN_SHARPNESS = 18;
 
 /** Draws one player entity: the rigged model, its staff on `socket_staff`, and its animation. */
 export class PlayerView {
@@ -50,6 +53,7 @@ export class PlayerView {
   castShown = false;
   /** On the bull: how far its saddle has moved from its idle height this frame (m). */
   saddleLift = 0;
+  private lean = 0;
 
   private staffKey: ModelKey | null = null;
   private readonly stopListening: () => void;
@@ -74,6 +78,11 @@ export class PlayerView {
   flinch(from: { x: number; z: number }, heavy: boolean): void {
     this.glow.hit();
     this.reaction.hit(from, this.root.position, this.root.rotation.y, heavy);
+  }
+
+  /** The player's own blow landed at `at`: some of it comes back up the staff. */
+  strikeRecoil(at: { x: number; z: number }, scale: number): void {
+    this.reaction.hit(at, this.root.position, this.root.rotation.y, false, scale);
   }
 
   /** A blow landed on the raised guard: the arms take it and the feet slide. */
@@ -169,9 +178,18 @@ export class PlayerView {
   private finishFrame(e: Readonly<Entity>, anim: Animator, dt: number): void {
     anim.update(dt);
     this.reaction.update(dt);
-    this.reaction.apply(this.pivot);
+    this.lean += (this.driveLean(e) - this.lean) * (1 - Math.exp(-DRIVE_LEAN_SHARPNESS * dt));
+    this.reaction.apply(this.pivot, this.lean);
     this.glow.setStatus(glowStatusOf(e));
     this.glow.update(dt);
+  }
+
+  /** How far a sprint attack is leaning into its drive this frame. */
+  private driveLean(e: Readonly<Entity>): number {
+    const a = e.combat?.action;
+    if (a?.kind !== 'attack') return 0;
+    const def = PLAYER_MOVES[a.move as PlayerMoveId];
+    return def?.drive && a.clipT < clipTiming(def.clip).activeEnd ? DRIVE_LEAN : 0;
   }
 
   /**

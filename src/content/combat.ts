@@ -6,7 +6,9 @@ import { PLAYER_HITBOXES, STAFF_CAPSULE_RADIUS } from './generated/playerHitboxe
 import { PLAYER_MOVE_TIMING, type PlayerClip } from './generated/playerMoveTiming';
 
 export type DamageKind = 'physical' | 'arcane';
-export type PlayerMoveId = 'light1' | 'light2' | 'light3' | 'light4' | 'heavy' | 'comboHeavy' | 'riposte' | 'rollAttack';
+export type PlayerMoveId =
+  | 'light1' | 'light2' | 'light3' | 'light4' | 'heavy' | 'comboHeavy' | 'riposte' | 'rollAttack'
+  | 'sprintLight' | 'sprintHeavy' | 'counterLight' | 'counterHeavy';
 
 export interface PlayerMoveDef {
   id: PlayerMoveId;
@@ -36,6 +38,12 @@ export interface PlayerMoveDef {
   next?: { light?: PlayerMoveId; heavy?: PlayerMoveId };
   /** Clip ticks played per sim tick, when faster than the clip (the clip stays on whole ticks). */
   rate?: number;
+  /** A driving strike: it travels this far (m) through its startup and active frames, target or not. */
+  drive?: number;
+  /** The furthest it lunges at a target (m). Default: LUNGE.max. */
+  lungeMax?: number;
+  /** A whiff: this many ticks past activeEnd before a dodge can cancel it. A hit that connects waives them. */
+  whiffLock?: number;
 }
 
 /** Clip markers (clip ticks) for a clip: start, activeStart, activeEnd, cancel, end, … */
@@ -61,11 +69,55 @@ export const PLAYER_MOVES: Record<PlayerMoveId, PlayerMoveDef> = {
   light3: { id: 'light3', clip: 'attack_light_3', entry: 0, mv: 1.6, hitstun: 45, knockdown: true, pushback: 2.0, poise: 30, stamina: 10, hitstop: 8, mana: 4, next: { light: 'light1', heavy: 'heavy' } },
   // Brawler's fourth hit (the Fighter staff, expansion plan §2.1): the third hit's clip, played faster.
   light4: { id: 'light4', clip: 'attack_light_3', entry: 0, mv: 1.3, hitstun: 30, pushback: 1.5, poise: 20, stamina: 10, hitstop: 6, mana: 4, rate: 1.5, next: { light: 'light1', heavy: 'heavy' } },
-  heavy: { id: 'heavy', clip: 'attack_heavy', entry: 0, mv: 2.2, hitstun: 28, pushback: 1.0, poise: 35, stamina: 18, hitstop: 6, mana: 8, hyperArmorFrom: HEAVY.chargeStart, chargeable: true, next: { light: 'light1', heavy: 'heavy' } },
-  comboHeavy: { id: 'comboHeavy', clip: 'attack_heavy', entry: HEAVY.chargeStart, mv: 2.4, hitstun: 28, pushback: 1.0, poise: 40, stamina: 18, hitstop: 6, mana: 8, hyperArmorFrom: HEAVY.chargeStart, next: { light: 'light1', heavy: 'heavy' } },
+  heavy: { id: 'heavy', clip: 'attack_heavy', entry: 0, mv: 2.2, hitstun: 28, pushback: 1.0, poise: 35, stamina: 18, hitstop: 6, mana: 8, hyperArmorFrom: HEAVY.chargeStart, chargeable: true, whiffLock: 10, next: { light: 'light1', heavy: 'heavy' } },
+  comboHeavy: { id: 'comboHeavy', clip: 'attack_heavy', entry: HEAVY.chargeStart, mv: 2.4, hitstun: 28, pushback: 1.0, poise: 40, stamina: 18, hitstop: 6, mana: 8, hyperArmorFrom: HEAVY.chargeStart, whiffLock: 10, next: { light: 'light1', heavy: 'heavy' } },
   riposte: { id: 'riposte', clip: 'attack_heavy', entry: HEAVY.chargeStart, mv: 2.5, hitstun: 30, pushback: 1.5, poise: 80, stamina: 0, hitstop: 8, mana: 8, crit: true, hyperArmorFrom: HEAVY.chargeStart, next: { light: 'light1', heavy: 'heavy' } },
   rollAttack: { id: 'rollAttack', clip: 'attack_light_1', entry: 0, mv: 1.2, hitstun: 20, pushback: 0.4, poise: 12, stamina: 8, hitstop: 3, mana: 4, next: { light: 'light2', heavy: 'comboHeavy' } },
+  // Attacking out of a sprint: the run carries into the blow.
+  sprintLight: { id: 'sprintLight', clip: 'attack_light_1', entry: 0, mv: 1.4, hitstun: 26, pushback: 0.8, poise: 18, stamina: 12, hitstop: 5, mana: 5, drive: 2.4, lungeMax: 3, whiffLock: 6, next: { light: 'light2', heavy: 'comboHeavy' } },
+  sprintHeavy: { id: 'sprintHeavy', clip: 'attack_heavy', entry: HEAVY.chargeStart, mv: 2.4, hitstun: 40, knockdown: true, pushback: 2.2, poise: 50, stamina: 22, hitstop: 8, mana: 8, hyperArmorFrom: HEAVY.chargeStart, drive: 3, lungeMax: 3.4, whiffLock: 12, next: { light: 'light1', heavy: 'heavy' } },
+  // Attacking straight after a perfect dodge: quick, always critical, and it closes the gap the dodge opened.
+  counterLight: { id: 'counterLight', clip: 'attack_light_2', entry: 0, mv: 1.6, hitstun: 30, pushback: 0.8, poise: 24, stamina: 4, hitstop: 7, mana: 6, crit: true, rate: 1.4, lungeMax: 3, whiffLock: 6, next: { light: 'light3', heavy: 'comboHeavy' } },
+  counterHeavy: { id: 'counterHeavy', clip: 'attack_heavy', entry: HEAVY.chargeStart, mv: 2.2, hitstun: 36, pushback: 1.6, poise: 45, stamina: 10, hitstop: 9, mana: 8, crit: true, rate: 1.3, hyperArmorFrom: HEAVY.chargeStart, lungeMax: 3, whiffLock: 10, next: { light: 'light1', heavy: 'heavy' } },
 };
+
+/** The fast counter after a perfect dodge. */
+export const COUNTER = {
+  /** Ticks after the perfect dodge in which a light or heavy press is a counter. */
+  window: 30,
+} as const;
+
+/** The first melee hit on an enemy whose poise just broke, once per break. */
+export const BREAK_CRIT = {
+  /** Damage on top of the ×1.5 of any critical. */
+  damage: 2,
+  /** The same against a boss, which already takes its `brokenDamage` while broken. */
+  bossDamage: 1.5,
+  hitstop: 10,
+} as const;
+
+/** A melee hit from behind on a non-boss enemy that isn't attacking you. */
+export const BACKSTAB = {
+  /** The arc behind the target that counts (degrees, full angle). */
+  arcDeg: 100,
+  damage: 1.6,
+  poise: 2,
+  /** The least hitstun and hit-stop it causes. */
+  hitstun: 40,
+  hitstop: 8,
+} as const;
+
+/** Extra hit-stop on a critical earned by a perfect dodge. */
+export const CRIT_HITSTOP = 2;
+
+/** The stick turning a swing during its wind-up. Once it is active, a swing goes where it was aimed. */
+export const SWING_STEER = {
+  minStick: 0.2,
+  /** Radians per second: about 50° over a light attack's wind-up. */
+  turnRate: (380 * Math.PI) / 180,
+  /** Pushing further than this away from a soft target lets go of it (never a hard lock). */
+  releaseDeg: 70,
+} as const;
 
 /** The charged heavy (held through the charge window for CHARGE.full ticks). */
 export const CHARGED_HEAVY = { mv: 3.0, hitstun: 50, launch: true, pushback: 2.5, poise: 60, stamina: 24, hitstop: 8 } as const;
@@ -121,6 +173,12 @@ export const BLOCK = {
 export const BUFFER = {
   attackTicks: 10,
   dodgeTicks: 6,
+  /** An attack pressed this close before a swing's activeStart is held for the chain as well. */
+  earlyHold: 3,
+  /** A swing that connected chains this many ticks before its `cancel` (never inside its active frames). */
+  hitChainEarly: 4,
+  /** An attack pressed this soon after a swing finished still continues the string. */
+  chainGrace: 8,
 } as const;
 
 export const HITSTOP_CAP = 10;
@@ -131,6 +189,8 @@ export const LUNGE = {
   max: 1.5,
   /** Lunge without a target (m). */
   noTarget: 0.4,
+  /** This far above run speed (m/s), the player is still carrying a sprint into an attack. */
+  sprintCarry: 0.5,
 } as const;
 
 /**

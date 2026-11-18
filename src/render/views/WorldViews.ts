@@ -7,6 +7,7 @@ import type { Entity, EntityId } from '../../sim/entity';
 import type { SimEvent } from '../../sim/events';
 import type { Vec3 } from '../../sim/math';
 import type { ReadonlySimView } from '../../sim/view';
+import { HIT_FEEL, hitTier } from '../fx/feedback';
 import type { HitFx } from '../fx/HitFx';
 import { PowerFx } from '../fx/powers';
 import { SpellFx } from '../fx/SpellFx';
@@ -211,7 +212,8 @@ export class WorldViews {
       }
       case 'hit': {
         const from = view.get(e.attacker)?.tf.pos ?? e.pos;
-        this.views.get(e.target)?.flinch?.(from, e.heavy);
+        const tier = hitTier(e);
+        this.views.get(e.target)?.flinch?.(from, tier !== 'light', HIT_FEEL[tier].flinch);
         return;
       }
       case 'stagger':

@@ -20,8 +20,8 @@ export interface EntityView {
   update(e: Readonly<Entity>, alpha: number, dt: number): void;
   /** A wind-up started (telegraph event). */
   telegraph?(move: EnemyMoveDef | undefined, unblockable: boolean, ticks: number): void;
-  /** It was hit from `from` (world position of the attacker). */
-  flinch?(from: { x: number; z: number }, heavy: boolean): void;
+  /** It was hit from `from` (world position of the attacker). `force` scales how far it is thrown. */
+  flinch?(from: { x: number; z: number }, heavy: boolean, force?: number): void;
   /** Its poise broke: it reels back. */
   reel?(): void;
   dispose(): void;
@@ -137,10 +137,10 @@ export class BruteView implements EntityView {
     this.glow.telegraph(unblockable, ticks / TICK_HZ);
   }
 
-  flinch(from: { x: number; z: number }, heavy: boolean): void {
+  flinch(from: { x: number; z: number }, heavy: boolean, force = 1): void {
     this.glow.hit();
     // Elites shrug off hitstun (plan §4.2): the flinch is all the reaction a light hit gets.
-    this.reaction.hit(from, this.root.position, this.root.rotation.y, heavy);
+    this.reaction.hit(from, this.root.position, this.root.rotation.y, heavy, force);
   }
 
   reel(): void {
@@ -302,7 +302,7 @@ export class DummyView implements EntityView {
     this.glow.telegraph(unblockable, ticks / TICK_HZ);
   }
 
-  flinch(from: { x: number; z: number }, heavy: boolean): void {
+  flinch(from: { x: number; z: number }, heavy: boolean, force = 1): void {
     this.glow.hit();
     // Tip away from the attacker, in the dummy's own frame.
     const p = this.root.position;
@@ -313,7 +313,7 @@ export class DummyView implements EntityView {
     const yaw = this.root.rotation.y;
     const lx = Math.cos(yaw) * dx - Math.sin(yaw) * dz;
     const lz = Math.sin(yaw) * dx + Math.cos(yaw) * dz;
-    const k = heavy ? 4.2 : 2.4;
+    const k = (heavy ? 4.2 : 2.4) * force;
     this.wx.v += lz * k;
     this.wz.v -= lx * k;
   }
