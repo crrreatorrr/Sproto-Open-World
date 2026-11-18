@@ -1,4 +1,4 @@
-import { BTN, type ButtonName, type InputCommand } from '../sim/commands';
+import { BTN, type ButtonName, type InputCommand, type UiAction } from '../sim/commands';
 import { GAMEPAD, KEYS, PAD } from './bindings';
 import { shapeStick } from './Gamepad';
 import type { Input } from './Input';
@@ -39,6 +39,8 @@ export class CommandBuilder {
   private switchLatched = 0;
   private mouseArmed = true;
   private stickArmed = true;
+  /** Menu intents waiting for the next tick (plan §2.2: menus change the sim only through commands). */
+  private ui: UiAction[] = [];
   /** QA hooks (dev and QA builds): a press was latched; a tick took latched presses. */
   onLatch: ((pressed: number) => void) | null = null;
   onTake: ((cmd: InputCommand) => void) | null = null;
@@ -109,16 +111,41 @@ export class CommandBuilder {
     }
   }
 
-  /** The command for the next tick. Latched presses (and a lock switch) go to this tick only. */
+  /**
+   * Queue a menu intent (dialogue choice, buy, equip…). It rides on the next `take()`, exactly
+   * once, in the order queued; the sim validates it.
+   */
+  queueUi(action: UiAction): void {
+    this.ui.push(action);
+  }
+
+  /** Menu intents are waiting for a tick. */
+  get hasUi(): boolean {
+    return this.ui.length > 0;
+  }
+
+  /** The command for the next tick. Latched presses, a lock switch and queued menu intents go to this tick only. */
   take(camYaw: number): InputCommand {
     const cmd: InputCommand = { kind: 'input', move: { ...this.move }, camYaw, held: this.held | this.latched, pressed: this.latched, lockSwitch: this.switchLatched };
+    if (this.ui.length) {
+      cmd.ui = this.ui;
+      this.ui = [];
+    }
     this.latched = 0;
     this.switchLatched = 0;
     if (cmd.pressed) this.onTake?.(cmd);
     return cmd;
   }
 
-  /** Drop everything (pausing, menus opening). */
+  /** Forget queued menu intents (a new session starts: they belong to the old sim). */
+  clearUi(): void {
+    this.ui = [];
+  }
+
+  /**
+   * Drop device state (pausing, menus opening). Queued menu intents survive it: an equip chosen in
+   * the pause menu must still reach the sim.
+   */
   clear(): void {
     this.held = 0;
     this.latched = 0;

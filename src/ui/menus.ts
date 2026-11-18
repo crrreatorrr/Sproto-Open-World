@@ -9,7 +9,13 @@ import type { MenuNav, Screen } from './MenuNav';
 import type { Settings } from './settings';
 
 export interface MenuActions {
+  /** New game (Play). */
   play(): void;
+  /** Continue from the save (offered on the title only when one loaded). */
+  continueGame(): void;
+  /** The pause menu's Character and Quest log screens (RPG menus; App pushes them). */
+  character(): void;
+  questLog(): void;
   resume(): void;
   quitToTitle(): void;
   settingsChanged(s: Settings): void;
@@ -41,6 +47,10 @@ export class Menus {
   private captureState: { kind: 'key'; action: KeyAction; slot: number } | { kind: 'pad'; action: PadAction } | null = null;
   private captureTimer = 0;
   private note = '';
+  /** The title's save state: whether Continue is offered, and a notice about a damaged save. */
+  private titleSave: { canContinue: boolean; notice: string } = { canContinue: false, notice: '' };
+  /** The pause menu offers Character and Quest log (world mode: the yard and the sandbox have no RPG). */
+  private rpg = false;
 
   constructor(
     host: HTMLElement,
@@ -66,26 +76,46 @@ export class Menus {
     return s;
   }
 
+  /**
+   * Tell the title about the save (plan §2.8): with one, Continue comes first and Play becomes
+   * New game; `notice` says when the save was damaged (loaded from the backup, or not at all).
+   */
+  setSave(canContinue: boolean, notice = ''): void {
+    this.titleSave = { canContinue, notice };
+    if (this.nav.top === this.title) this.nav.refresh();
+  }
+
+  /** Show the RPG screens (Character, Quest log) in the pause menu. */
+  set rpgMenus(on: boolean) {
+    this.rpg = on;
+  }
+
   private makeTitle(): Screen {
     const s = this.screen('screen-title');
-    s.append(el('h1', 'logo', 'Sproto Open World'), el('p', 'tagline', 'Sproutvale — bootstrap build'));
-    const list = el('div', 'list');
-    list.append(button('Play', () => this.actions.play()), button('Settings', () => this.nav.push(this.settings)));
-    s.append(list, el('p', 'build', `build ${__BUILD_ID__}`));
-    return { el: s, onBack: () => {} };
+    const render = () => {
+      s.replaceChildren(el('h1', 'logo', 'Sproto Open World'), el('p', 'tagline', 'Sproutvale — bootstrap build'));
+      const { canContinue, notice } = this.titleSave;
+      if (notice) s.append(el('p', 'note save-notice', notice));
+      const list = el('div', 'list');
+      if (canContinue) list.append(button('Continue', () => this.actions.continueGame()), button('New game', () => this.actions.play()));
+      else list.append(button('Play', () => this.actions.play()));
+      list.append(button('Settings', () => this.nav.push(this.settings)));
+      s.append(list, el('p', 'build', `build ${__BUILD_ID__}`));
+    };
+    return { el: s, render, onBack: () => {} };
   }
 
   private makePause(): Screen {
     const s = this.screen('screen-pause');
-    s.append(el('h2', '', 'Paused'));
-    const list = el('div', 'list');
-    list.append(
-      button('Resume', () => this.actions.resume()),
-      button('Settings', () => this.nav.push(this.settings)),
-      button('Quit to title', () => this.actions.quitToTitle()),
-    );
-    s.append(list);
-    return { el: s, onBack: () => this.actions.resume() };
+    const render = () => {
+      s.replaceChildren(el('h2', '', 'Paused'));
+      const list = el('div', 'list');
+      list.append(button('Resume', () => this.actions.resume()));
+      if (this.rpg) list.append(button('Character', () => this.actions.character()), button('Quest log', () => this.actions.questLog()));
+      list.append(button('Settings', () => this.nav.push(this.settings)), button('Quit to title', () => this.actions.quitToTitle()));
+      s.append(list);
+    };
+    return { el: s, render, onBack: () => this.actions.resume() };
   }
 
   private makeSettings(): Screen {

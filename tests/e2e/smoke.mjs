@@ -28,7 +28,7 @@ import { createServer } from 'vite';
 const args = process.argv.slice(2);
 const shotsDir = args.includes('--shots') ? args[args.indexOf('--shots') + 1] : null;
 
-const server = await createServer({ server: { port: 5199, strictPort: false }, logLevel: 'error' });
+const server = await createServer({ server: { port: 5199, strictPort: false, hmr: false }, logLevel: 'error' });
 await server.listen();
 const url = server.resolvedUrls.local[0];
 

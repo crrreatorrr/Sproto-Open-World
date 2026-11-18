@@ -8,6 +8,7 @@ import type { ReadonlySimView } from '../../sim/view';
 import type { HitFx } from '../fx/HitFx';
 import { SpellFx } from '../fx/SpellFx';
 import { BlastOrbView, BoltView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
+import { ChestView, NpcView, PickupView, ShrineView } from './RpgViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
 
 const DECAL_COLOR: Record<DecalShape, number> = { circle: 0xffa23a, jagged: 0xff2a1a };
@@ -48,6 +49,10 @@ export class WorldViews {
   /** Per-entity status particle clocks. */
   private readonly statusClock = new Map<EntityId, { burn: number; shock: number; chill: number }>();
   private readonly p = { x: 0, y: 0, z: 0 };
+  /** Shrines the local player has found (from their progress): those glow brighter. */
+  private readonly discovered = new Set<string>();
+  /** Shrine views by content id (a rest pulses its shrine). */
+  private readonly shrines = new Map<string, ShrineView>();
 
   constructor(
     private readonly assets: AssetLoader,
@@ -64,7 +69,12 @@ export class WorldViews {
   sync(view: ReadonlySimView, alpha: number, dt: number): void {
     this.seen.clear();
     for (const e of view.entities) {
-      if (e.kind === 'player') continue;
+      if (e.kind === 'player') {
+        // Single player for now: the one player's progress lights the shrines.
+        const found = e.progress?.discoveredShrines;
+        if (found && found.length !== this.discovered.size) for (const id of found) this.discovered.add(id);
+        continue;
+      }
       let v = this.views.get(e.id);
       if (!v) {
         const made = this.make(e);
@@ -82,6 +92,7 @@ export class WorldViews {
       v.dispose();
       this.views.delete(id);
       this.statusClock.delete(id);
+      for (const [k, sv] of this.shrines) if (sv === v) this.shrines.delete(k);
     }
     this.updateDecals(view, dt);
     this.spells.update(dt);
@@ -152,6 +163,15 @@ export class WorldViews {
       case 'frozen': {
         const v = this.views.get(e.entity);
         if (v) this.fx?.burst(this.chest(v), 'frost');
+        return;
+      }
+      case 'shrineRest': {
+        const sv = this.shrines.get(e.shrine);
+        if (!sv) return;
+        sv.rested();
+        const p = sv.root.position;
+        this.fx?.ring({ x: p.x, y: p.y + 0.4, z: p.z }, 0x8fe8ff, 0.5, 4, 0.6);
+        this.fx?.flash({ x: p.x, y: p.y + 2.2, z: p.z }, 0xdff8ff, 2.5, 0.3);
         return;
       }
       default:
@@ -251,6 +271,15 @@ export class WorldViews {
       if (pr?.homing || e.view.model === 'hex' || pr?.kind === 'arcane') return new HexView(this.fx);
       return new CoinView();
     }
+    // M3 world objects, by component (their model keys are placeholders until M4's art).
+    if (e.npc) return new NpcView(e);
+    if (e.interactable?.kind === 'shrine') {
+      const v = new ShrineView(e.interactable.id, this.discovered);
+      this.shrines.set(e.interactable.id, v);
+      return v;
+    }
+    if (e.interactable?.kind === 'chest') return new ChestView();
+    if (e.pickup) return new PickupView(e);
     const def = enemyDef(e);
     switch (e.view.model) {
       case 'brute':
@@ -271,6 +300,8 @@ export class WorldViews {
     for (const v of this.views.values()) v.dispose();
     this.views.clear();
     this.statusClock.clear();
+    this.shrines.clear();
+    this.discovered.clear();
     for (const d of this.decals) d.decal.dispose();
     this.decals.length = 0;
     this.spells.clear();
