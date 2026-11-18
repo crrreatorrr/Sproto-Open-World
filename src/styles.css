@@ -235,6 +235,7 @@ h2 { margin: 0 0 4px; font-size: 34px; }
 .interact-prompt { display: none; position: absolute; left: 50%; bottom: 132px; transform: translateX(-50%); padding: 7px 16px; border-radius: 10px; background: var(--panel); border: 1px solid var(--panel-edge); font-size: 16px; font-weight: 700; white-space: nowrap; }
 .interact-prompt.active { display: block; animation: toast-pop 0.15s ease-out; }
 .interact-prompt kbd { font: inherit; font-size: 14px; margin-right: 8px; padding: 1px 7px; border-radius: 5px; background: var(--accent); color: var(--accent-ink); }
+.interact-prompt .ride-hint:not(:first-child) { margin-left: 18px; }
 @keyframes toast-pop { from { opacity: 0; transform: translate(-50%, 6px); } }
 .feed { position: absolute; left: 18px; top: 42%; display: flex; flex-direction: column; gap: 4px; max-width: 46vw; }
 .feed .line { font-size: 14px; font-weight: 600; padding: 4px 10px; border-radius: 8px; background: rgba(16, 22, 12, 0.6); border-left: 3px solid var(--ink-dim); text-shadow: 0 1px 2px #000; animation: feed-in 4.5s ease-out forwards; width: max-content; max-width: 100%; }

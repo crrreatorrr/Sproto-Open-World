@@ -216,6 +216,12 @@ export interface Riding {
   state: 'mounting' | 'riding' | 'dismounting';
   /** Dismounting: the way off (unit, world). */
   dir: { x: number; z: number };
+  /** The sprint button set the bull galloping; it stays on with no button held. */
+  gallop: boolean;
+  /** This hold of the button turned the gallop off, so it can't start it again until released. */
+  holdSpent: boolean;
+  /** Dodging: the momentum the bull carries through it (m/s). */
+  carry?: { x: number; z: number };
 }
 
 /** A talkable NPC. */

@@ -48,7 +48,7 @@ import { Tutorial } from '../ui/tutorial';
 import { Reveals, affinityToast } from '../ui/Reveals';
 import { RpgHud, type HudRpgState } from '../ui/RpgHud';
 import { RpgMenus } from '../ui/rpgMenus';
-import { compassOffset, headingTo, interactLabel, trackedQuest } from '../ui/rpgText';
+import { compassOffset, gallopLabel, headingTo, interactLabel, trackedQuest } from '../ui/rpgText';
 import { loadSettings, motionScale, saveSettings, type Settings } from '../ui/settings';
 import { SurgeMeter } from '../ui/SurgeMeter';
 import { FixedLoop } from './loop';
@@ -902,7 +902,10 @@ export class App {
       if (t.kind === 'shrine') this.rpgMenus.nameShrine(t.id, t.name);
       prompt = { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.interact, PAD.interact), text: interactLabel(t.kind, t.name) };
     }
-    this.rpgHud.update({ level: pr.level, xp: pr.xp, points: pr.points, sprouts: pr.sprouts, tonics: pr.tonics, tracker, compass: { camYaw: this.rig.yaw, marker }, prompt }, dt);
+    const ride: HudRpgState['ride'] = !inMenu && p.riding?.state === 'riding'
+      ? { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.sprint, PAD.sprint), text: gallopLabel(p.riding.gallop) }
+      : null;
+    this.rpgHud.update({ level: pr.level, xp: pr.xp, points: pr.points, sprouts: pr.sprouts, tonics: pr.tonics, tracker, compass: { camYaw: this.rig.yaw, marker }, prompt, ride }, dt);
   }
 
   /**
