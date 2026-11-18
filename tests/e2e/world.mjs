@@ -554,11 +554,14 @@ try {
     s = await state();
     const veil = await page.evaluate(() => document.querySelector('.veil').classList.contains('active'));
     check(s.groundWait && veil, 'a teleport onto missing cells shows the loading veil', `groundWait ${s.groundWait}, veil ${veil}, error ${s.errorOpen}`);
-    await page.waitForFunction(() => window.__qa.state().errorOpen, null, { timeout: 40000, polling: 250 });
+    await page.waitForFunction(() => window.__qa.state().errorOpen, null, { timeout: 180000, polling: 250 });
     const waited = (Date.now() - t0) / 1000;
     s = await state();
-    // About 15 s, give or take a few slow frames at either end (a frame can take over 3 s on CI).
-    check(waited >= 10 && waited <= 26, 'the Retry / Return panel appears after the 15 s veil timeout', `${waited.toFixed(1)} s`);
+    // Never early. How late depends on the frame that notices: a software GPU can stall for many
+    // seconds compiling shaders, so the upper limit only holds on a real one (like the long tasks).
+    check(waited >= 10, 'the Retry / Return panel waits for the 15 s veil timeout', `${waited.toFixed(1)} s`);
+    if (software && !strict) console.log(`  info the Retry / Return panel appeared ${waited.toFixed(1)} s after the veil (software GPU, upper limit not asserted)`);
+    else check(waited <= 26, 'the Retry / Return panel appears soon after the 15 s veil timeout', `${waited.toFixed(1)} s`);
     check(s.world.counters.retries >= 3 && s.world.counters.failed > 0, 'each failing cell was retried 3 times first', `retries ${s.world.counters.retries}, failed ${s.world.counters.failed}`);
     check(s.waitingForGround, 'the player is held still meanwhile');
     check(s.errorAction === 'Retry', 'Retry has the focus', s.errorAction);
