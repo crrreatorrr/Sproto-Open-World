@@ -7,6 +7,7 @@ import type { Input } from '../input/Input';
 import { keyLabel } from '../input/glyphs';
 import type { MenuNav, Screen } from './MenuNav';
 import type { Settings } from './settings';
+import { SETTING_GROUPS, settingRow } from './settingsRows';
 
 export interface MenuActions {
   /** New game (Play). */
@@ -111,39 +112,34 @@ export class Menus {
     const s = this.screen('screen-settings');
     const render = () => {
       s.replaceChildren(el('h2', '', 'Settings'));
-      const list = el('div', 'list');
+      const list = el('div', 'list settings-list');
       const v = this.settingsValue;
-      const slider = (key: 'mouseSensitivity' | 'padSensitivity', label: string) => {
-        const b = button(`${label}: ${v[key].toFixed(1)}×`, () => this.adjustSetting(b, 1), 'btn slider');
-        b.dataset.setting = key;
-        return b;
-      };
-      const toggle = (key: 'invertY' | 'rumble' | 'shake', label: string) => {
-        const b = button(`${label}: ${v[key] ? 'On' : 'Off'}`, () => this.adjustSetting(b, 1), 'btn toggle');
-        b.dataset.setting = key;
-        return b;
-      };
-      list.append(
-        button('Controls', () => this.nav.push(this.controls)),
-        slider('mouseSensitivity', 'Mouse sensitivity'),
-        slider('padSensitivity', 'Stick sensitivity'),
-        toggle('invertY', 'Invert look Y'),
-        toggle('rumble', 'Rumble'),
-        toggle('shake', 'Camera shake'),
-        button('Back', () => this.nav.pop()),
-      );
+      list.append(button('Controls', () => this.nav.push(this.controls)));
+      for (const group of SETTING_GROUPS) {
+        list.append(el('h3', 'settings-group', group.title));
+        for (const row of group.rows) {
+          const b = button('', () => this.adjustSetting(b, 1, true), 'btn setting-row');
+          b.dataset.setting = row.key;
+          const value = el('span', 'value', row.text(v));
+          if (row.meter) {
+            const meter = el('i', 'meter');
+            meter.style.setProperty('--fill', String(row.meter(v)));
+            value.prepend(meter);
+          }
+          b.append(el('span', 'label', row.label), value);
+          list.append(b);
+        }
+      }
+      list.append(button('Back', () => this.nav.pop()));
       s.append(list, el('p', 'hint', '← → to change'));
     };
-    return { el: s, render, onAdjust: (item, dir) => this.adjustSetting(item, dir) };
+    return { el: s, render, onAdjust: (item, dir) => this.adjustSetting(item, dir, false) };
   }
 
-  private adjustSetting(item: HTMLElement, dir: -1 | 1): void {
-    const key = item.dataset.setting as keyof Settings | undefined;
-    if (!key) return;
-    const v = { ...this.settingsValue };
-    if (key === 'mouseSensitivity' || key === 'padSensitivity') {
-      v[key] = Math.round(Math.min(3, Math.max(0.2, v[key] + dir * 0.1)) * 10) / 10;
-    } else v[key] = !v[key];
+  private adjustSetting(item: HTMLElement, dir: -1 | 1, wrap: boolean): void {
+    const row = settingRow(item.dataset.setting ?? '');
+    if (!row) return;
+    const v = row.step(this.settingsValue, dir, wrap);
     this.settingsValue = v;
     this.actions.settingsChanged(v);
     this.nav.refresh();
