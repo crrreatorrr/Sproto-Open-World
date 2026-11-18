@@ -14,7 +14,9 @@ export type Objective =
   /** Stand in trigger volume `trigger`. */
   | { kind: 'reach'; trigger: string }
   /** Interact with object `object` (a chest, a shrine, a lever). */
-  | { kind: 'interact'; object: string };
+  | { kind: 'interact'; object: string }
+  /** Do a combat feat `count` times: land a heavy, perfect-dodge an attack, parry one (M4 drills). */
+  | { kind: 'feat'; feat: 'heavyHit' | 'perfectDodge' | 'parry'; count: number };
 
 export type Effect =
   | { give: string; count?: number }
@@ -82,5 +84,92 @@ export const QUESTS: Record<string, QuestDef> = {
       { id: 'shrine', text: 'Rest at the Shrine of First Light.', objectives: [{ kind: 'interact', object: 'shrine_first_light' }], marker: 'shrine_first_light' },
     ],
     rewards: [{ xp: 60 }, { currency: 20 }],
+  },
+
+  // ---- M4: the main chain "The Scrap Rumble" (plan §6.2) ----
+  q_pest_control: {
+    id: 'q_pest_control',
+    title: 'Pest Control',
+    giver: 'elder_pepe',
+    kind: 'main',
+    prereq: [{ quest: 'q_wake_up', status: 'complete' }],
+    steps: [
+      { id: 'orchard', text: 'Go west to the Orchard Fields.', objectives: [{ kind: 'reach', trigger: 'orchard_fields' }], marker: 'orchard_fields' },
+      { id: 'grunts', text: 'Drive off the Grunts in the Orchard.', objectives: [{ kind: 'kill', tag: 'grunt', count: 8 }], marker: 'orchard_fields' },
+      { id: 'farmer', text: 'Tell Farmer Broccoli the fields are clear.', objectives: [{ kind: 'talk', npc: 'farmer_broccoli', node: 'pest_done' }], marker: 'farmer_broccoli' },
+    ],
+    rewards: [{ learnSpell: 'blast' }, { xp: 180 }, { currency: 40 }],
+  },
+  q_watchtower: {
+    id: 'q_watchtower',
+    title: 'Light the Watchtower',
+    giver: 'captain_agent',
+    kind: 'main',
+    prereq: [{ quest: 'q_pest_control', status: 'complete' }],
+    steps: [
+      { id: 'parry', text: 'Parry the swinging dummy in the training yard (block just as it hits).', objectives: [{ kind: 'feat', feat: 'parry', count: 1 }], marker: 'training_yard' },
+      { id: 'hill', text: 'Climb Watchtower Hill.', objectives: [{ kind: 'reach', trigger: 'watchtower_hill' }], marker: 'watchtower_hill' },
+      { id: 'slingers', text: 'Defeat the Coin Slingers on the hill.', objectives: [{ kind: 'kill', tag: 'slinger', count: 5 }], marker: 'watchtower_hill' },
+      { id: 'beacon', text: 'Light the beacon.', objectives: [{ kind: 'interact', object: 'watchtower_beacon' }], marker: 'watchtower_beacon' },
+      { id: 'rest', text: 'Rest at the Watchtower Shrine.', objectives: [{ kind: 'interact', object: 'shrine_watchtower' }], marker: 'shrine_watchtower' },
+    ],
+    rewards: [{ give: 'robe_warden' }, { xp: 300 }, { currency: 60 }],
+  },
+  q_thornwood: {
+    id: 'q_thornwood',
+    title: 'Thornwood Tracks',
+    giver: 'captain_agent',
+    kind: 'main',
+    prereq: [{ quest: 'q_watchtower', status: 'complete' }],
+    steps: [
+      { id: 'clearing', text: 'Follow the tracks to the clearing in the Thornwood.', objectives: [{ kind: 'reach', trigger: 'thornwood_clearing' }], marker: 'thornwood_clearing' },
+      {
+        id: 'gatekeeper', text: 'Defeat the Gatekeeper.', objectives: [{ kind: 'kill', tag: 'gatekeeper', count: 1 }], marker: 'thornwood_clearing',
+        // The key is given, not dropped: a drop could fade before you pick it up, and the Gatekeeper
+        // never comes back.
+        onComplete: [{ give: 'quarry_key' }],
+      },
+      { id: 'key', text: 'Take the Quarry Key.', objectives: [{ kind: 'collect', item: 'quarry_key', count: 1 }] },
+    ],
+    rewards: [{ xp: 450 }, { setFlag: 'gate.quarry.key' }],
+  },
+
+  // ---- M4: side quests (plan §6.3) ----
+  q_pumpkins: {
+    id: 'q_pumpkins',
+    title: 'Pumpkin Thieves',
+    giver: 'farmer_broccoli',
+    kind: 'side',
+    steps: [
+      { id: 'pumpkins', text: 'Take back 5 Stolen Pumpkins from the Orchard Grunts.', objectives: [{ kind: 'collect', item: 'stolen_pumpkin', count: 5, consume: true }], marker: 'orchard_fields' },
+      { id: 'return', text: 'Bring the pumpkins to Farmer Broccoli.', objectives: [{ kind: 'talk', npc: 'farmer_broccoli', node: 'pumpkins_done' }], marker: 'farmer_broccoli' },
+    ],
+    rewards: [{ give: 'staff_gourd' }, { currency: 120 }, { xp: 80 }],
+  },
+  q_mill: {
+    id: 'q_mill',
+    title: "The Mill's Racket",
+    giver: 'miller_pepe',
+    kind: 'side',
+    steps: [
+      { id: 'mill', text: 'Go to the Old Mill across the river.', objectives: [{ kind: 'reach', trigger: 'mill' }], marker: 'mill' },
+      { id: 'coin', text: 'Defeat Big Coin.', objectives: [{ kind: 'kill', tag: 'big_coin', count: 1 }], marker: 'mill' },
+      { id: 'lever', text: 'Pull the mill lever.', objectives: [{ kind: 'interact', object: 'mill_lever' }], marker: 'mill_lever' },
+    ],
+    rewards: [{ learnSpell: 'chainZap' }, { xp: 200 }, { currency: 50 }],
+  },
+  q_relics: {
+    id: 'q_relics',
+    title: 'Lost Relics',
+    giver: 'collector_pepe',
+    kind: 'side',
+    steps: [
+      {
+        id: 'relics', text: 'Find the three relic chests: by the mill waterfall, under the Thornwood root arch, at the Beanstalk.',
+        objectives: [{ kind: 'interact', object: 'relic_mill' }, { kind: 'interact', object: 'relic_rootarch' }, { kind: 'interact', object: 'relic_beanstalk' }],
+      },
+      { id: 'return', text: 'Tell Collector Pepe what you found.', objectives: [{ kind: 'talk', npc: 'collector_pepe', node: 'relics_done' }], marker: 'collector_pepe' },
+    ],
+    rewards: [{ give: 'staff_moonward' }, { give: 'charm_scholars_knot' }, { xp: 300 }],
   },
 };

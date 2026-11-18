@@ -160,8 +160,11 @@ export const compassOffset = (camYaw: number, heading: number): number => wrapAn
 // --- Prompts, level-ups, the shop ---------------------------------------------------------------
 
 /** The verb on the interact prompt ("[F] Talk to Elder Pepe"). */
-export function interactLabel(kind: 'npc' | 'shrine' | 'chest', name: string): string {
+export function interactLabel(kind: 'npc' | 'shrine' | 'chest' | 'object', name: string): string {
   switch (kind) {
+    case 'object':
+      // The sim names an object with its verb ("Light Watchtower Beacon").
+      return name;
     case 'npc':
       return `Talk to ${name}`;
     case 'shrine':

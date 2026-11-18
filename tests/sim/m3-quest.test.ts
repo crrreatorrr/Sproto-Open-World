@@ -104,11 +104,11 @@ describe('q_wake_up: all five objective kinds by commands (M3 acceptance 1)', ()
       ['complete', 'q_wake_up'],
     ]);
 
-    // Afterwards Pepe has moved on.
+    // Afterwards Pepe moves on to the next main quest (M4: Pest Control).
     t(ui([{ kind: 'closeMenu' }]));
     standBy(w, 'elder_pepe');
     e = t(interact());
-    expect(evs(e, 'talk')).toMatchObject([{ node: 'after' }]);
+    expect(evs(e, 'talk')).toMatchObject([{ node: 'pest_offer' }]);
     w.dispose();
   });
 

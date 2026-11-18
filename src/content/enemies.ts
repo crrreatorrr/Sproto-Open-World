@@ -53,12 +53,18 @@ export interface EnemyMoveDef {
   clip?: string;
   /** Attack tokens it takes from its target (plan §4.8): melee or ranged pool, and how many. */
   token?: { pool: 'melee' | 'ranged'; cost: number };
+  /** Chains straight into this move when it ends (a string); the AI never picks it on its own when `chainOnly`. */
+  followUp?: string;
+  /** Only reachable as another move's `followUp`. */
+  chainOnly?: boolean;
 }
 
 export interface EnemyDef {
   id: string;
   name: string;
-  model: 'brute' | 'dummy' | 'grunt' | 'slinger' | 'wisp';
+  model: 'brute' | 'dummy' | 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'gatekeeper';
+  /** Extra names a quest's `kill` objective matches (an Orchard Grunt is still a `grunt`). */
+  tags?: string[];
   hp: number;
   poise: number;
   /** Elites take no hitstun until their poise breaks. */
@@ -249,6 +255,47 @@ export const ENEMIES: Record<string, EnemyDef> = {
       },
     ],
   },
+};
+
+// M4 (plan §4.9, §6.5): the Orchard's Grunts (they carry the Stolen Pumpkins), Thornwood's veterans
+// (the stage-2 models, ×1.6 HP, the same profile), Big Coin (S2: a Slinger with 3× HP) and the
+// Gatekeeper (the unique elite before the boss: a weaving exam).
+ENEMIES.grunt_orchard = { ...ENEMIES.grunt, id: 'grunt_orchard', tags: ['grunt'] };
+ENEMIES.grunt_vet = { ...ENEMIES.grunt, id: 'grunt_vet', name: 'Veteran Grunt', model: 'grunt_vet', hp: 88, poise: 28, xp: 20, level: 3, tags: ['grunt'] };
+ENEMIES.big_coin = {
+  ...ENEMIES.slinger, id: 'big_coin', name: 'Big Coin', model: 'big_coin', hp: 210, poise: 45, xp: 90, level: 3, body: { radius: 0.5, height: 2.3 },
+  staggerTicks: 40, tags: ['slinger'],
+};
+ENEMIES.gatekeeper = {
+  id: 'gatekeeper',
+  name: 'The Gatekeeper',
+  model: 'gatekeeper',
+  xp: 300,
+  hp: 600,
+  poise: 120,
+  elite: true,
+  body: { radius: 1.0, height: 3.2 },
+  defense: { physical: 4, arcane: 0 },
+  profile: { damage: { physical: 'resist', arcane: 'normal' }, status: { burn: 'weak', chill: 'normal', shock: 'normal' } },
+  level: 5,
+  moveSpeed: 3.0,
+  turnRate: Math.PI * 0.9,
+  staggerTicks: 80,
+  aggroRange: 20,
+  leashRange: 30,
+  respawnTicks: 600,
+  usesTokens: true,
+  moves: [
+    { id: 'smash', windup: 34, active: 6, recovery: 32, damage: 30, kind: 'physical', poise: 30, hitbox: { forward: 2.0, up: 1.0, radius: 1.3 }, range: 3.4, weight: 2, cooldown: 60, hyperArmor: true, trackUntil: 0.6, hitstop: 7, clip: 'smash', token: { pool: 'melee', cost: 2 } },
+    // A 3-hit string: the second and third hits chain on (`followUp`); dodge each one.
+    { id: 'string', windup: 28, active: 5, recovery: 8, damage: 18, kind: 'physical', poise: 14, hitbox: { forward: 1.8, up: 1.2, radius: 1.1 }, range: 3.0, weight: 2, cooldown: 120, trackUntil: 0.7, hitstop: 4, clip: 'smash', followUp: 'string2', token: { pool: 'melee', cost: 2 } },
+    { id: 'string2', windup: 20, active: 5, recovery: 8, damage: 18, kind: 'physical', poise: 14, hitbox: { forward: 1.8, up: 1.2, radius: 1.1 }, range: 3.0, weight: 0, cooldown: 0, trackUntil: 0.7, hitstop: 4, clip: 'smash', followUp: 'string3', chainOnly: true, token: { pool: 'melee', cost: 2 } },
+    { id: 'string3', windup: 20, active: 5, recovery: 30, damage: 18, kind: 'physical', poise: 18, hitbox: { forward: 1.9, up: 1.0, radius: 1.2 }, range: 3.0, weight: 0, cooldown: 0, trackUntil: 0.5, hitstop: 5, clip: 'smash', chainOnly: true, token: { pool: 'melee', cost: 2 } },
+    {
+      id: 'ground_wave', windup: 40, active: 6, recovery: 40, damage: 35, kind: 'physical', poise: 30, hitbox: { forward: 0, up: 0.4, radius: 0 }, range: 9, minRange: 3, weight: 1, cooldown: 300,
+      unblockable: true, hyperArmor: true, trackUntil: 0, hitstop: 8, clip: 'smash', area: { radius: 3.5 }, decal: 'jagged', token: { pool: 'melee', cost: 2 },
+    },
+  ],
 };
 
 export type EnemyId = keyof typeof ENEMIES;

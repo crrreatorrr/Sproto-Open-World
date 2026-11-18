@@ -159,6 +159,12 @@ function runAttack(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | nu
   ctx.motion.set(e.id, motion);
   if (a.t >= move.windup + move.active + move.recovery) {
     e.combat!.action = null;
+    // A string (the Gatekeeper's 3-hit): the next move starts at once, still holding its token.
+    const next = move.followUp ? def.moves.find((m) => m.id === move.followUp) : undefined;
+    if (next && target) {
+      startAttack(ctx, e, next, target);
+      return;
+    }
     // After an attack, sometimes back off and circle for a moment.
     if (!def.dummy && rngNext(rng) < 0.4) {
       e.brain!.circle = rngRange(rng, 30, 70);
@@ -189,6 +195,8 @@ function dummyThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | n
 }
 
 function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | null, rng: RngState): void {
+  // Moves the AI picks itself (a string's later hits only come as follow-ups).
+  const picks = def.moves.filter((m) => !m.chainOnly);
   const b = e.brain!;
   const home = b.home;
   const fromHome = flatDist(e.tf.pos, home);
@@ -246,11 +254,11 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
   const thirdInARow = (m: EnemyMoveDef) => b.recent.length === 2 && b.recent.every((r) => r === m.id);
   // No move three times running, unless nothing else is usable from here (a Grunt too close to
   // leap must still swipe).
-  const noRepeat = def.moves.some((m) => offCooldown(m) && inRange(m) && !thirdInARow(m));
+  const noRepeat = picks.some((m) => offCooldown(m) && inRange(m) && !thirdInARow(m));
   const ready = (m: EnemyMoveDef) => offCooldown(m) && (!noRepeat || !thirdInARow(m));
   // Token-less melee enemies hang back in the waiting band and circle, feinting in and out (plan
   // §4.8), instead of standing in your face waiting for a slot.
-  if (!def.keepRange && def.usesTokens && !def.moves.some((m) => hasToken(ctx, e, def, m, target))) {
+  if (!def.keepRange && def.usesTokens && !picks.some((m) => hasToken(ctx, e, def, m, target))) {
     const [lo, hi] = WAIT_BAND;
     const radial = gap < lo ? -def.moveSpeed * 0.7 : gap > hi ? def.moveSpeed * 0.7 : Math.sin((ctx.now + e.id * 37) / 25) * 1.2;
     strafe(target, b.circleDir, CIRCLE_SPEED, radial);
@@ -270,15 +278,15 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
   }
   // Sometimes step in for a shorter-reach move instead of always swinging from the longest reach,
   // so a player who stands still still sees the whole moveset.
-  if (!def.keepRange && b.stepIn === undefined && def.moves.length > 1) {
-    const shortest = def.moves.reduce((m, x) => (x.range < m.range ? x : m));
+  if (!def.keepRange && b.stepIn === undefined && picks.length > 1) {
+    const shortest = picks.reduce((m, x) => (x.range < m.range ? x : m));
     b.stepIn = ready(shortest) && gap > shortest.range && rngNext(rng) < 0.35 ? shortest.range - 0.2 : 0;
   }
   if (b.stepIn && gap > b.stepIn) {
     go(target.tf.pos.x, target.tf.pos.z, def.moveSpeed);
     return;
   }
-  const options = def.moves.filter((m) => inRange(m) && ready(m));
+  const options = picks.filter((m) => inRange(m) && ready(m));
   const facing = Math.abs(wrapAngle(yawTo(e.tf.pos, target.tf.pos) - e.tf.yaw)) < 0.6;
   const allowed = options.filter((m) => hasToken(ctx, e, def, m, target));
   if (allowed.length && facing) {
@@ -304,7 +312,7 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
     return;
   }
   // Close in until just inside the shortest reach, then turn to face.
-  const want = Math.min(...def.moves.map((m) => m.range)) - MIN_GAP;
+  const want = Math.min(...picks.map((m) => m.range)) - MIN_GAP;
   if (gap > want) go(target.tf.pos.x, target.tf.pos.z, def.moveSpeed);
   else {
     faceTarget(target);

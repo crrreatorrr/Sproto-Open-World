@@ -5,6 +5,7 @@ import { WAVE_CENTRE, WAVE_GAP, WAVES } from '../content/waves';
 import { cellKey, cellOf, type CellColliders } from '../content/world/format';
 import { DIALOGUE } from '../content/dialogue';
 import { NPCS } from '../content/npcs';
+import { OBJECTS, usedFlag } from '../content/objects';
 import type { RegionContent } from '../content/world/sproutvaleContent';
 import { SAVE_SCHEMA, type SaveFile } from '../save/schema';
 import { idleInput, type InputCommand } from './commands';
@@ -56,6 +57,8 @@ export interface SimSnapshot {
 
 /** Ticks a dead wave enemy lies there before it's removed (wave enemies don't respawn). */
 const WAVE_CORPSE_TICKS = 150;
+/** Settling content placements: rays start this high (m; above any terrain or prop) and go down twice as far. */
+const SETTLE_FROM_Y = 200;
 /** Most colliders created per tick when cells stream in (plan §3.2); a heightfield counts as one. */
 export const CELL_COLLIDERS_PER_TICK = 96;
 
@@ -185,7 +188,7 @@ export class SimWorld {
       const pos = { x: n.pos[0], y: n.pos[1], z: n.pos[2] };
       this.add({
         id: this.nextId++, kind: 'npc', tf: { pos, prevPos: { ...pos }, yaw: n.yaw, prevYaw: n.yaw, vel: { x: 0, y: 0, z: 0 } },
-        body: { ...def.body }, npc: { id: n.id }, view: { model: def.model },
+        body: { ...def.body }, npc: { id: n.id }, view: { model: def.model }, ...(this.streamed ? { settle: true as const } : {}),
       });
       this.places.set(n.id, { ...pos });
     }
@@ -194,16 +197,27 @@ export class SimWorld {
       this.chests.set(c.id, { items: c.chest.items, sprouts: c.chest.sprouts });
       this.addInteractable(c.id, 'chest', c.pos, c.yaw, this.world.openedChests.includes(c.id));
     }
+    for (const o of content.objects ?? []) this.addInteractable(o.id, 'object', o.pos, o.yaw, (this.world.flags[usedFlag(o.id)] ?? 0) !== 0);
     for (const en of content.enemies) this.spawnEnemy(en.def, { x: en.pos[0], y: en.pos[1], z: en.pos[2] }, en.yaw);
+    // Camps (M4): members around the camp centre; each stays dead until a rest or a respawn.
+    for (const camp of content.camps ?? []) {
+      for (const m of camp.members) {
+        const pos = { x: camp.pos[0] + m.at[0], y: camp.pos[1], z: camp.pos[2] + m.at[1] };
+        const e = this.spawnEnemy(m.def, pos, m.yaw ?? 0);
+        e.brain!.camp = camp.id;
+        if (m.unique) e.brain!.unique = m.unique;
+      }
+    }
     this.triggerList = content.triggers;
     for (const t of content.triggers) this.places.set(t.id, { x: t.pos[0], y: t.pos[1], z: t.pos[2] });
   }
 
-  private addInteractable(id: string, kind: 'shrine' | 'chest', p: [number, number, number], yaw: number, used: boolean): void {
+  private addInteractable(id: string, kind: 'shrine' | 'chest' | 'object', p: [number, number, number], yaw: number, used: boolean): void {
     const pos = { x: p[0], y: p[1], z: p[2] };
     this.add({
       id: this.nextId++, kind: 'interactable', tf: { pos, prevPos: { ...pos }, yaw, prevYaw: yaw, vel: { x: 0, y: 0, z: 0 } },
-      interactable: { id, kind, used }, view: { model: kind },
+      interactable: { id, kind, used }, view: { model: kind === 'object' ? (OBJECTS[id]?.model ?? 'object') : kind },
+      ...(this.streamed ? { settle: true as const } : {}),
     });
     this.places.set(id, { ...pos });
   }
@@ -238,7 +252,11 @@ export class SimWorld {
     if (!e) throw new Error('applySave: no player');
     e.progress = { ...structuredClone(save.player), dialogue: null, shop: null, atShrine: null };
     this.world = structuredClone(save.world);
-    for (const x of this.entities) if (x.interactable?.kind === 'chest') x.interactable.used = this.world.openedChests.includes(x.interactable.id);
+    for (const x of this.entities) {
+      if (x.interactable?.kind === 'chest') x.interactable.used = this.world.openedChests.includes(x.interactable.id);
+      if (x.interactable?.kind === 'object') x.interactable.used = (this.world.flags[usedFlag(x.interactable.id)] ?? 0) !== 0;
+    }
+    for (const x of [...this.entities]) if (x.brain?.unique && this.world.killedUniques.includes(x.brain.unique)) this.remove(x.id);
     recompute(e);
     e.vitals!.hp = e.vitals!.hpMax;
     e.vitals!.mana = e.vitals!.manaMax;
@@ -265,6 +283,7 @@ export class SimWorld {
       combat: newCombat('enemy', def.poise, def.poise, def.defense, def.level),
       brain: { def: defId, home: { ...pos }, homeYaw: yaw, state: 'idle', target: null, cooldowns: {}, recent: [], circle: 0, circleDir: 1, timer: 30, meleeHitsTaken: 0 },
       view: { model: def.model },
+      ...(this.streamed ? { settle: true as const } : {}),
     };
     this.add(e);
     this.events.push({ type: 'spawn', entity: e.id });
@@ -398,9 +417,33 @@ export class SimWorld {
     for (const e of this.entities) {
       if (!e.body) continue;
       const [cx, cz] = cellOf(e.tf.pos.x, e.tf.pos.z);
-      if (!this.readyCells.has(cellKey(cx, cz))) out.add(e.id);
+      if (e.settle || !this.readyCells.has(cellKey(cx, cz))) out.add(e.id);
     }
     return out;
+  }
+
+  /**
+   * Set content placements down on the ground (M4): anything still marked `settle` over a cell
+   * whose colliders exist gets a raycast from above. It runs before this tick's new colliders are
+   * queued, so a cell built last tick has been through a physics step and the ray sees it. A miss
+   * (a hole) keeps the mark and tries again next tick.
+   */
+  private settleOnGround(): void {
+    if (!this.streamed) return;
+    for (const e of this.entities) {
+      if (!e.settle) continue;
+      const [cx, cz] = cellOf(e.tf.pos.x, e.tf.pos.z);
+      if (!this.readyCells.has(cellKey(cx, cz))) continue;
+      const hit = this.physics.raycast({ x: e.tf.pos.x, y: SETTLE_FROM_Y, z: e.tf.pos.z }, { x: 0, y: -1, z: 0 }, SETTLE_FROM_Y * 2);
+      if (!hit) continue;
+      const y = hit.point.y + (e.body ? 0.02 : 0);
+      e.tf.pos.y = e.tf.prevPos.y = y;
+      if (e.body) this.physics.teleport(e.id, e.tf.pos);
+      if (e.brain) e.brain.home.y = y;
+      const id = e.npc?.id ?? e.interactable?.id;
+      if (id && this.places.has(id)) this.places.set(id, { ...e.tf.pos });
+      delete e.settle;
+    }
   }
 
   /** Start the wave runner (`?sandbox=1`): mixed waves around the arena, one after another. */
@@ -475,6 +518,7 @@ export class SimWorld {
       e.tf.prevPos.z = e.tf.pos.z;
       e.tf.prevYaw = e.tf.yaw;
     }
+    this.settleOnGround();
     this.applyCellQueue();
     // Hit-stop: frozen entities skip this tick entirely (their clocks don't run).
     const frozen = new Set<number>();
@@ -520,6 +564,13 @@ export class SimWorld {
       const dead = this.byId.get(ev.entity);
       if (killer?.progress && dead) onKill(rpg, killer, dead);
     }
+    for (const ev of this.events) {
+      // A unique stays dead for good (saved); camps come back when the player rests.
+      if (ev.type === 'death') {
+        const u = this.byId.get(ev.entity)?.brain?.unique;
+        if (u && !this.world.killedUniques.includes(u)) this.world.killedUniques.push(u);
+      } else if (ev.type === 'shrineRest') this.respawnCamps();
+    }
     for (const id of pickups(rpg)) this.remove(id);
     triggers(rpg, this.triggerList, this.insideTriggers);
     for (const e of this.entities) if (e.progress) questTick(rpg, e);
@@ -549,21 +600,34 @@ export class SimWorld {
         this.wave.ids = [];
         this.wave.enemiesLeft = 0;
         this.wave.nextIn = 90;
-      } else for (const e of this.entities) if (e.brain) this.reset(e, e.brain.home, e.brain.homeYaw);
+      } else for (const e of this.entities) if (e.brain && !(e.brain.unique && this.world.killedUniques.includes(e.brain.unique))) this.reset(e, e.brain.home, e.brain.homeYaw);
       for (const e of [...this.entities]) if (e.projectile) this.remove(e.id);
       this.events.push({ type: 'respawn', entity: player.id });
     }
     for (const e of [...this.entities]) {
       const a = e.combat?.action;
       if (!e.brain || a?.kind !== 'dead') continue;
-      // Wave enemies stay dead: their bodies are cleared after a moment.
-      if (this.wave?.ids.includes(e.id)) {
+      // Wave enemies stay dead: their bodies are cleared after a moment. So do uniques (M4), for good.
+      if (this.wave?.ids.includes(e.id) || e.brain.unique) {
         if (a.t >= WAVE_CORPSE_TICKS) this.remove(e.id);
         continue;
       }
+      // Camp enemies stay down until the player rests at a shrine or respawns (plan §2.9).
+      if (e.brain.camp) continue;
       if (a.t < ENEMIES[e.brain.def].respawnTicks) continue;
       this.reset(e, e.brain.home, e.brain.homeYaw);
       this.events.push({ type: 'respawn', entity: e.id });
+    }
+  }
+
+  /** A rest at a shrine (plan §2.9): every camp is back at home at full health; dead uniques stay dead. */
+  private respawnCamps(): void {
+    for (const e of this.entities) {
+      const b = e.brain;
+      if (!b?.camp || (b.unique && this.world.killedUniques.includes(b.unique))) continue;
+      const wasDead = e.combat?.action?.kind === 'dead';
+      this.reset(e, b.home, b.homeYaw);
+      if (wasDead) this.events.push({ type: 'respawn', entity: e.id });
     }
   }
 

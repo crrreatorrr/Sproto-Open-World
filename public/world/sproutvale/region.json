@@ -83,28 +83,28 @@
       "cz": 1,
       "bin": "world/sproutvale/cells/c_1_1.bin",
       "json": "world/sproutvale/cells/c_1_1.json",
-      "bytes": 25807
+      "bytes": 26121
     },
     {
       "cx": 2,
       "cz": 1,
       "bin": "world/sproutvale/cells/c_2_1.bin",
       "json": "world/sproutvale/cells/c_2_1.json",
-      "bytes": 25633
+      "bytes": 25715
     },
     {
       "cx": 3,
       "cz": 1,
       "bin": "world/sproutvale/cells/c_3_1.bin",
       "json": "world/sproutvale/cells/c_3_1.json",
-      "bytes": 25827
+      "bytes": 25909
     },
     {
       "cx": 4,
       "cz": 1,
       "bin": "world/sproutvale/cells/c_4_1.bin",
       "json": "world/sproutvale/cells/c_4_1.json",
-      "bytes": 25935
+      "bytes": 26223
     },
     {
       "cx": 5,
@@ -146,7 +146,7 @@
       "cz": 2,
       "bin": "world/sproutvale/cells/c_2_2.bin",
       "json": "world/sproutvale/cells/c_2_2.json",
-      "bytes": 25986
+      "bytes": 26263
     },
     {
       "cx": 3,
@@ -167,28 +167,28 @@
       "cz": 2,
       "bin": "world/sproutvale/cells/c_5_2.bin",
       "json": "world/sproutvale/cells/c_5_2.json",
-      "bytes": 25475
+      "bytes": 25682
     },
     {
       "cx": 6,
       "cz": 2,
       "bin": "world/sproutvale/cells/c_6_2.bin",
       "json": "world/sproutvale/cells/c_6_2.json",
-      "bytes": 25680
+      "bytes": 25882
     },
     {
       "cx": 7,
       "cz": 2,
       "bin": "world/sproutvale/cells/c_7_2.bin",
       "json": "world/sproutvale/cells/c_7_2.json",
-      "bytes": 25424
+      "bytes": 25748
     },
     {
       "cx": 0,
       "cz": 3,
       "bin": "world/sproutvale/cells/c_0_3.bin",
       "json": "world/sproutvale/cells/c_0_3.json",
-      "bytes": 25998
+      "bytes": 26342
     },
     {
       "cx": 1,
@@ -202,42 +202,42 @@
       "cz": 3,
       "bin": "world/sproutvale/cells/c_2_3.bin",
       "json": "world/sproutvale/cells/c_2_3.json",
-      "bytes": 26359
+      "bytes": 26505
     },
     {
       "cx": 3,
       "cz": 3,
       "bin": "world/sproutvale/cells/c_3_3.bin",
       "json": "world/sproutvale/cells/c_3_3.json",
-      "bytes": 25566
+      "bytes": 25631
     },
     {
       "cx": 4,
       "cz": 3,
       "bin": "world/sproutvale/cells/c_4_3.bin",
       "json": "world/sproutvale/cells/c_4_3.json",
-      "bytes": 25476
+      "bytes": 25678
     },
     {
       "cx": 5,
       "cz": 3,
       "bin": "world/sproutvale/cells/c_5_3.bin",
       "json": "world/sproutvale/cells/c_5_3.json",
-      "bytes": 25526
+      "bytes": 25596
     },
     {
       "cx": 6,
       "cz": 3,
       "bin": "world/sproutvale/cells/c_6_3.bin",
       "json": "world/sproutvale/cells/c_6_3.json",
-      "bytes": 25745
+      "bytes": 26065
     },
     {
       "cx": 7,
       "cz": 3,
       "bin": "world/sproutvale/cells/c_7_3.bin",
       "json": "world/sproutvale/cells/c_7_3.json",
-      "bytes": 25377
+      "bytes": 25446
     },
     {
       "cx": 0,
@@ -258,28 +258,28 @@
       "cz": 4,
       "bin": "world/sproutvale/cells/c_2_4.bin",
       "json": "world/sproutvale/cells/c_2_4.json",
-      "bytes": 25933
+      "bytes": 26132
     },
     {
       "cx": 3,
       "cz": 4,
       "bin": "world/sproutvale/cells/c_3_4.bin",
       "json": "world/sproutvale/cells/c_3_4.json",
-      "bytes": 25676
+      "bytes": 25870
     },
     {
       "cx": 4,
       "cz": 4,
       "bin": "world/sproutvale/cells/c_4_4.bin",
       "json": "world/sproutvale/cells/c_4_4.json",
-      "bytes": 25807
+      "bytes": 25954
     },
     {
       "cx": 5,
       "cz": 4,
       "bin": "world/sproutvale/cells/c_5_4.bin",
       "json": "world/sproutvale/cells/c_5_4.json",
-      "bytes": 25937
+      "bytes": 26031
     },
     {
       "cx": 6,
@@ -307,35 +307,35 @@
       "cz": 5,
       "bin": "world/sproutvale/cells/c_1_5.bin",
       "json": "world/sproutvale/cells/c_1_5.json",
-      "bytes": 25896
+      "bytes": 26157
     },
     {
       "cx": 2,
       "cz": 5,
       "bin": "world/sproutvale/cells/c_2_5.bin",
       "json": "world/sproutvale/cells/c_2_5.json",
-      "bytes": 25959
+      "bytes": 26009
     },
     {
       "cx": 3,
       "cz": 5,
       "bin": "world/sproutvale/cells/c_3_5.bin",
       "json": "world/sproutvale/cells/c_3_5.json",
-      "bytes": 25714
+      "bytes": 25796
     },
     {
       "cx": 4,
       "cz": 5,
       "bin": "world/sproutvale/cells/c_4_5.bin",
       "json": "world/sproutvale/cells/c_4_5.json",
-      "bytes": 25982
+      "bytes": 26215
     },
     {
       "cx": 5,
       "cz": 5,
       "bin": "world/sproutvale/cells/c_5_5.bin",
       "json": "world/sproutvale/cells/c_5_5.json",
-      "bytes": 26027
+      "bytes": 26256
     },
     {
       "cx": 6,
@@ -356,35 +356,35 @@
       "cz": 6,
       "bin": "world/sproutvale/cells/c_0_6.bin",
       "json": "world/sproutvale/cells/c_0_6.json",
-      "bytes": 25506
+      "bytes": 25707
     },
     {
       "cx": 1,
       "cz": 6,
       "bin": "world/sproutvale/cells/c_1_6.bin",
       "json": "world/sproutvale/cells/c_1_6.json",
-      "bytes": 25885
+      "bytes": 25970
     },
     {
       "cx": 2,
       "cz": 6,
       "bin": "world/sproutvale/cells/c_2_6.bin",
       "json": "world/sproutvale/cells/c_2_6.json",
-      "bytes": 25826
+      "bytes": 26089
     },
     {
       "cx": 3,
       "cz": 6,
       "bin": "world/sproutvale/cells/c_3_6.bin",
       "json": "world/sproutvale/cells/c_3_6.json",
-      "bytes": 25953
+      "bytes": 26094
     },
     {
       "cx": 4,
       "cz": 6,
       "bin": "world/sproutvale/cells/c_4_6.bin",
       "json": "world/sproutvale/cells/c_4_6.json",
-      "bytes": 26039
+      "bytes": 26349
     },
     {
       "cx": 5,
@@ -538,7 +538,7 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 57
+      "capacity": 56
     },
     "grove_hay": {
       "path": "models/props/grove_hay.glb",
@@ -569,7 +569,7 @@
         "radius": 1.4,
         "height": 22
       },
-      "capacity": 74
+      "capacity": 73
     },
     "grove_pumpkin": {
       "path": "models/props/grove_pumpkin.glb",
@@ -659,7 +659,7 @@
         "radius": 0.45,
         "height": 10
       },
-      "capacity": 152
+      "capacity": 146
     },
     "grove_water_tower": {
       "path": "models/props/grove_water_tower.glb",

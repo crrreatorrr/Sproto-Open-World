@@ -1,1 +1,1 @@
-{"cx":3,"cz":3,"props":{"grove_boulder":[192.2,9.53,204.44,2.1428,0.9194],"grove_stones":[195.82,12.86,252.83,-2.2412,1.0859]},"marks":[{"id":"shrine_watchtower","kind":"shrine","pos":[252,31.01,240],"yaw":3.1416}]}
+{"cx":3,"cz":3,"props":{"grove_boulder":[192.2,9.53,204.44,2.1428,0.9194],"grove_stones":[195.82,12.86,252.83,-2.2412,1.0859]},"marks":[{"id":"shrine_watchtower","kind":"shrine","pos":[252,31.01,240],"yaw":3.1416},{"id":"watchtower_squad#0","kind":"enemy","pos":[234,23.11,216]}]}

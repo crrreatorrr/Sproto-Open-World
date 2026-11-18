@@ -167,14 +167,15 @@ export interface WorldState {
   killedUniques: string[];
 }
 
-export type InteractKind = 'shrine' | 'chest';
+/** `object`: a one-use world object a quest points at (a beacon, a lever, a tome). */
+export type InteractKind = 'shrine' | 'chest' | 'object';
 
 /** Something the player can interact with (F / pad Y) in reach. */
 export interface Interactable {
   /** Content id (the shrine's or chest's id). */
   id: string;
   kind: InteractKind;
-  /** Chests: opened already (then not interactable). */
+  /** Chests and objects: used already (then not interactable). */
   used: boolean;
 }
 
@@ -221,6 +222,10 @@ export interface EnemyBrain {
   meleeHitsTaken: number;
   /** Close to this gap (m) before attacking, for a short-reach move; 0 = attack from here; unset = not decided yet. */
   stepIn?: number;
+  /** The world camp it belongs to (M4): stays dead until the player rests or respawns. */
+  camp?: string;
+  /** A unique (named) enemy: once killed it never comes back (`WorldState.killedUniques`). */
+  unique?: string;
 }
 
 export interface Projectile {
@@ -268,6 +273,11 @@ export interface Entity {
   npc?: Npc;
   pickup?: Pickup;
   owner?: PlayerId;
+  /**
+   * Placed by content at a guessed height: set down on the ground (a raycast) on the tick its cell's
+   * colliders are built (M4 camps, villagers, objects). Cleared once settled.
+   */
+  settle?: true;
   /** Presentation hint only: which model to draw. */
   view: { model: string; tint?: number };
 }

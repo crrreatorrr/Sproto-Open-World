@@ -63,7 +63,7 @@ export type SimEvent =
   | { type: 'refused'; entity: EntityId; action: string; reason: string }
   | { type: 'drink'; entity: EntityId; charges: number }
   | { type: 'pickup'; entity: EntityId; kind: 'sprouts' | 'heart' | 'item'; item?: string; amount: number }
-  | { type: 'interact'; entity: EntityId; object: string; kind: 'shrine' | 'chest' | 'npc' }
+  | { type: 'interact'; entity: EntityId; object: string; kind: 'shrine' | 'chest' | 'npc' | 'object' }
   | { type: 'trigger'; entity: EntityId; trigger: string }
   | { type: 'talk'; entity: EntityId; npc: string; node: string }
   | { type: 'dialogueEnd'; entity: EntityId; npc: string }
