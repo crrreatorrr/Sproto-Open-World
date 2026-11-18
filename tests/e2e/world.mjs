@@ -459,8 +459,9 @@ async function rpgLoop() {
     save.player.spells.push('blast');
     localStorage.setItem('sow.save', JSON.stringify(save));
   });
-  await page.reload();
-  await page.waitForFunction(() => window.__qa?.ready && window.__qa.state().screen === 'screen-title', null, { timeout: 30000 });
+  // A CI runner's software GPU can spend more than 30 s tearing down and rebooting the game.
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 180000 });
+  await page.waitForFunction(() => window.__qa?.ready && window.__qa.state().screen === 'screen-title', null, { timeout: 180000 });
   await press('down');
   s = await state();
   check(s.focused === 'Continue', 'the title offers Continue first', JSON.stringify(s.focused));

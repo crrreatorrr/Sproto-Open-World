@@ -6,5 +6,7 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/.claude/**', '**/dist/**'],
+    // Long sim runs and the baked-world scans outlast the default 5 s on a busy machine.
+    testTimeout: 30_000,
   },
 });
