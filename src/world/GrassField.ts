@@ -88,15 +88,15 @@ function grassMaterial(uniforms: Record<string, THREE.IUniform>): THREE.MeshLamb
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n${GRASS_VERTEX_PARS}`)
+      .replace('#include <common>', `#include <common>\nvarying vec3 vGrassNormal;\n${GRASS_VERTEX_PARS}`)
       // Blades light like the ground under them, whichever way they face.
-      .replace('#include <beginnormal_vertex>', 'vec3 objectNormal = vec3(0.0, 1.0, 0.0);')
+      .replace('#include <beginnormal_vertex>', 'vec3 objectNormal = vec3(0.0, 1.0, 0.0);\nvGrassNormal = normalize(normalMatrix * objectNormal);')
       .replace('#include <begin_vertex>', GRASS_BEGIN_VERTEX);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vGrassColor;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGrassColor;\nvarying vec3 vGrassNormal;')
       .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= vGrassColor;')
       // Double-sided faces would flip the normal on their backs and go dark.
-      .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nnormal = normalize(vNormal);');
+      .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nnormal = normalize(vGrassNormal);');
   };
   mat.customProgramCacheKey = () => 'grass-v1';
   return mat;
