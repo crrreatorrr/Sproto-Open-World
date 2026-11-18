@@ -13,6 +13,7 @@ import { SAVE_SCHEMA, type SaveFile } from '../save/schema';
 import { idleInput, type InputCommand } from './commands';
 import {
   ALL_SPELLS, availableChoices, interactTarget, newProgress, onKill, pickups, playerRpg, questTick, recompute, triggers, type RpgCtx,
+  refillTonics,
 } from './systems/rpg';
 import { DT, MOVE, PLAYER_BODY } from '../content/tuning';
 import { enemyBrains, muzzle } from './ai/brain';
@@ -36,7 +37,7 @@ import { stepHazards } from './combat/hazards';
 import { bossArena, bossEngaged, newBossState, type BossHost } from './systems/boss';
 import { locomotion } from './systems/locomotion';
 import { gearLocked, markTargeted } from './systems/loadout';
-import { followRiders, ridingMotion } from './systems/riding';
+import { cancelMount, followRiders, ridingMotion } from './systems/riding';
 import { vitals } from './systems/vitals';
 import type { ReadonlySimView } from './view';
 
@@ -67,6 +68,8 @@ export interface SimSnapshot {
 
 /** Ticks a dead wave enemy lies there before it's removed (wave enemies don't respawn). */
 const WAVE_CORPSE_TICKS = 150;
+/** A dead camp enemy lies there until a rest, but its body is out of view after this long (render's `CORPSE_TICKS`). */
+const CAMP_CORPSE_TICKS = 180;
 /** Settling content placements: rays start this high (m; above any terrain or prop) and go down twice as far. */
 const SETTLE_FROM_Y = 200;
 /** Most colliders created per tick when cells stream in (plan §3.2); a heightfield counts as one. */
@@ -311,13 +314,19 @@ export class SimWorld {
     },
   };
 
-  /** A boss underground has no collider, so nothing bumps into what can't be seen. */
-  private syncBurrowed(): void {
+  /** Underground, or a camp's dead whose body has faded: there is nothing to see, so nothing to bump into. */
+  private unseen(e: Entity): boolean {
+    const a = e.combat?.action;
+    return !!e.boss?.under || (!!e.brain?.camp && a?.kind === 'dead' && a.t > CAMP_CORPSE_TICKS);
+  }
+
+  /** What can't be seen has no collider; it gets its collider back when it can be. */
+  private syncUnseen(): void {
     for (const e of this.entities) {
-      if (!e.boss || !e.body) continue;
+      if ((!e.boss && !e.brain?.camp) || !e.body) continue;
       const solid = this.physics.hasCharacter(e.id);
-      if (e.boss.under && solid) this.physics.removeCharacter(e.id);
-      else if (!e.boss.under && !solid) this.physics.addCharacter(e.id, e.body, e.tf.pos);
+      if (this.unseen(e) && solid) this.physics.removeCharacter(e.id);
+      else if (!this.unseen(e) && !solid) this.physics.addCharacter(e.id, e.body, e.tf.pos);
     }
   }
 
@@ -328,12 +337,16 @@ export class SimWorld {
     });
   }
 
-  /** The player fell: every boss fight starts over (plan §4.10). Their HP comes back with `reset`. */
+  /** The player fell or left: every boss fight starts over (plan §4.10). */
   private resetBossFights(): void {
     for (const e of [...this.entities]) if (e.hazard || e.brain?.summoned) this.remove(e.id);
     for (const e of this.entities) {
       if (e.obstacle) e.obstacle.broken = false;
-      if (e.boss && e.combat?.action?.kind !== 'dead') e.boss = newBossState();
+      if (e.boss && e.brain && e.combat?.action?.kind !== 'dead') {
+        e.boss = newBossState();
+        // Whole again and back at home, however the fight was left (a fall, or a teleport out of it).
+        this.reset(e, e.brain.home, e.brain.homeYaw);
+      }
     }
   }
 
@@ -545,8 +558,8 @@ export class SimWorld {
     for (const e of this.entities) {
       if (!e.body) continue;
       const [cx, cz] = cellOf(e.tf.pos.x, e.tf.pos.z);
-      // A boss underground stays put too: it has no collider to move.
-      if (e.settle || e.boss?.under || !this.readyCells.has(cellKey(cx, cz))) out.add(e.id);
+      // Without a collider it stays put too: there is nothing to move, or to stand on the ground.
+      if (e.settle || this.unseen(e) || !this.readyCells.has(cellKey(cx, cz))) out.add(e.id);
     }
     return out;
   }
@@ -684,10 +697,10 @@ export class SimWorld {
     playerCombat(ctx, commands, this.physics, (e) => this.spawnSpellProjectile(e));
     ridingMotion(ctx);
     enemyBrains(ctx, this.rng.stream('ai'), this.physics, (o, m, t, a) => this.spawnProjectile(o, m, t, a), this.bossHost);
-    this.syncBurrowed();
+    this.syncUnseen();
     markTargeted(this.entities, this.now, (id) => this.byId.get(id));
     const noGround = this.groundless();
-    locomotion(this.entities, commands, this.physics, this.events, motion, noGround.size ? new Set([...frozen, ...noGround]) : frozen);
+    locomotion(this.entities, commands, this.physics, this.events, motion, noGround.size ? new Set([...frozen, ...noGround]) : frozen, (x, z) => this.cellReady(...cellOf(x, z)));
     bossArena(this.entities, this.physics, (e) => (e.brain ? ENEMIES[e.brain.def] : undefined));
     this.physics.step();
     followRiders(this.entities, (id) => this.byId.get(id));
@@ -738,7 +751,7 @@ export class SimWorld {
       const shrine = player.progress?.lastShrine ? this.places.get(player.progress.lastShrine) : undefined;
       this.reset(player, shrine ? { x: shrine.x + 1.5, y: shrine.y + 0.05, z: shrine.z + 1.5 } : this.spawnPoint(), this.level.spawn.yaw);
       if (player.progress) {
-        player.progress.tonics.charges = player.progress.tonics.max;
+        refillTonics(player.progress.tonics);
         player.progress.dialogue = player.progress.shop = player.progress.atShrine = null;
       }
       if (this.wave) {
@@ -846,6 +859,7 @@ export class SimWorld {
     e.tf.prevPos = { ...pos };
     e.tf.vel = { x: 0, y: 0, z: 0 };
     if (e.combat) e.combat.push = null;
+    if (e.riding) cancelMount(e, this.get(e.riding.mount));
     this.physics.teleport(e.id, e.tf.pos);
     // Leaving a sealed arena this way abandons the fight, as falling in it does: otherwise the
     // arena's wall would drag the player straight back.

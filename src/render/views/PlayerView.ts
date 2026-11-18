@@ -46,6 +46,8 @@ export class PlayerView {
   staffMounted = false;
   /** The last update showed an attack clip at the sim's clip tick (QA: command → pose). */
   attackShown = false;
+  /** The attack on show, while one is going on. */
+  private poseMove: PlayerMoveId | null = null;
   /** The last update showed a cast on the upper body (QA). */
   castShown = false;
   /** On the bull: how far its saddle has moved from its idle height this frame (m). */
@@ -132,6 +134,7 @@ export class PlayerView {
     const anim = this.animator;
     if (!anim) return;
     this.attackShown = false;
+    if (e.combat?.action?.kind !== 'attack') this.poseMove = null;
     if (e.riding) {
       this.poseRiding(e, anim);
       this.finishFrame(e, anim, dt);
@@ -174,6 +177,13 @@ export class PlayerView {
     this.glow.update(dt);
   }
 
+  /** A new move on the clip already showing (the Brawler's fourth hit replays the third's) starts it over. */
+  private startsOver(move: PlayerMoveId): boolean {
+    const shown = this.poseMove;
+    this.poseMove = move;
+    return shown !== null && shown !== move && PLAYER_MOVES[shown]?.clip === PLAYER_MOVES[move]?.clip;
+  }
+
   /**
    * On the bull the legs stay in the saddle (the Blender `ride` clip) and every action plays on the
    * upper body, scrubbed from the same sim counters as on foot, so melee and magic keep their timing.
@@ -190,7 +200,7 @@ export class PlayerView {
     switch (a?.kind) {
       case 'attack': {
         const def = PLAYER_MOVES[a.move as PlayerMoveId];
-        this.attackShown = !!def && anim.upper(def.clip, a.clipT / TICK_HZ, ENTRY_FADE);
+        this.attackShown = !!def && anim.upper(def.clip, a.clipT / TICK_HZ, ENTRY_FADE, this.startsOver(a.move as PlayerMoveId));
         return;
       }
       case 'cast': {
@@ -227,7 +237,7 @@ export class PlayerView {
       case 'attack': {
         const def = PLAYER_MOVES[a.move as PlayerMoveId];
         if (!def) return false;
-        this.attackShown = anim.scrub(def.clip, a.clipT / TICK_HZ, ENTRY_FADE);
+        this.attackShown = anim.scrub(def.clip, a.clipT / TICK_HZ, ENTRY_FADE, this.startsOver(a.move as PlayerMoveId));
         return true;
       }
       case 'dodge':

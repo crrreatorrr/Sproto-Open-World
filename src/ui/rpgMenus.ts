@@ -107,8 +107,8 @@ export class RpgMenus {
     this.sigs.set(top, sig);
     if (before === undefined) return;
     this.nav.refresh();
-    // A new dialogue node starts with its first choice focused.
-    if (top === this.dialogue) this.nav.focus(0);
+    // A new dialogue node starts with its first choice focused (a change of device keeps the focus).
+    if (top === this.dialogue && before.split('|')[0] !== sig.split('|')[0]) this.nav.focus(0);
   }
 
   /** F / pad Y in a dialogue: finish the line, or continue when there is nothing to choose. */
@@ -152,7 +152,7 @@ export class RpgMenus {
     if (!p) return null;
     switch (s) {
       case this.dialogue:
-        return `${this.node()?.key}|${this.src.choices().map((c) => c.index).join(',')}`;
+        return `${this.node()?.key}|${this.src.choices().map((c) => c.index).join(',')}|${this.src.interactGlyph()}`;
       case this.shop: {
         const flags = this.src.view()?.world.flags ?? {};
         return `${p.shop}|${p.sprouts}|${JSON.stringify(flags)}|${JSON.stringify(p.inventory)}`;

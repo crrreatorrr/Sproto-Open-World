@@ -165,6 +165,8 @@ export class App {
   private saves = 0;
   /** This frame's Start press closed the tabbed menu: it doesn't also pause. */
   private startUsed = false;
+  /** Which way the left stick was pushed on the error panel: one push moves the focus once. */
+  private panelStick = 0;
   /** The staff model shown on the player, to swap it when the equipment changes. */
   private staffShown = '';
   /** The full model to swap in for the small boot staff, once things have been calm for a while. */
@@ -243,6 +245,7 @@ export class App {
       openSettings: () => this.nav.push(this.menus.settings),
     });
     this.panels = new Panels(ui);
+    this.nav.blocked = () => this.panels.errorOpen;
     this.overlay = new Overlay(ui);
     this.nav.onMove = () => this.audio.play('uiHover');
     this.nav.onConfirm = () => {
@@ -309,7 +312,8 @@ export class App {
       if (!locked && this.state === 'playing' && this.input.pad.device === 'kbm') this.pause();
     });
     canvas.addEventListener('click', () => {
-      if (this.state === 'playing') this.input.requestLock();
+      // A menu the sim opened (dialogue, shop, shrine) keeps the cursor it needs.
+      if (this.state === 'playing' && !this.nav.open) this.input.requestLock();
     });
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Backquote' && (import.meta.env.DEV || import.meta.env.VITE_QA === '1')) this.overlay.toggle();
@@ -406,11 +410,23 @@ export class App {
         await this.stream.load();
       } catch (err) {
         this.state = 'error';
-        this.panels.showError(`Sproutvale could not load: ${errorText(err)}`, 'Retry', () => {
-          this.panels.hideError();
-          this.state = 'title';
-          void this.play();
-        });
+        this.panels.showChoice(`Sproutvale could not load: ${errorText(err)}`, [
+          {
+            label: 'Retry',
+            run: () => {
+              this.panels.hideError();
+              this.state = 'title';
+              void this.play(save);
+            },
+          },
+          {
+            label: 'Back to title',
+            run: () => {
+              this.panels.hideError();
+              this.toTitle();
+            },
+          },
+        ]);
         return;
       }
     }
@@ -475,6 +491,8 @@ export class App {
       this.input.releaseLock();
     }
     this.hud.visible = false;
+    // The veil would cover the menu, and it only lifts during play: resume puts it back if still needed.
+    if (this.groundWait) this.panels.hideVeil();
     // The world's pause is the tabbed menu (on the tab it was left on); the yard keeps the pause list.
     if (this.mode === 'world') {
       this.gameMenu.open();
@@ -492,7 +510,11 @@ export class App {
     if (this.state !== 'paused') return;
     this.nav.reset(null);
     this.state = 'playing';
-    this.hud.visible = true;
+    this.hud.visible = !this.groundWait;
+    if (this.groundWait) {
+      this.panels.showVeil('Loading Sproutvale…');
+      this.stream?.restartVeilClock();
+    }
     this.loop.reset();
     this.commands.clear();
     if (this.input.pad.device === 'kbm') this.input.requestLock();
@@ -537,13 +559,18 @@ export class App {
   /** The cell-load timeout (plan §2.9): Retry, or Return to start, pad or mouse. */
   private groundTimeout(): void {
     if (this.panels.errorOpen) return;
+    // The panel's buttons need a cursor.
+    if (this.input.locked) {
+      this.releasingLock = true;
+      this.input.releaseLock();
+    }
     this.panels.showChoice('The ground around you is taking too long to load. Check your connection.', [
       {
         label: 'Retry',
         run: () => {
           this.panels.hideError();
           this.stream?.retry();
-          this.panels.showVeil('Loading Sproutvale…');
+          if (this.state === 'playing') this.panels.showVeil('Loading Sproutvale…');
         },
       },
       { label: this.sim?.playerEntity(LOCAL_PLAYER)?.progress?.lastShrine ? 'Return to last shrine' : 'Return to start', run: () => this.returnToStart() },
@@ -568,9 +595,14 @@ export class App {
     const pad = this.input.pad;
     pad.update();
 
+    // Tracked all the time: a stick already held when the panel opens isn't a push.
+    const stick = Math.abs(pad.move.x) > Math.abs(pad.move.y) ? pad.move.x : pad.move.y;
+    const push = stick > 0.6 ? 1 : stick < -0.6 ? -1 : 0;
+    const pushed = push !== this.panelStick;
+    this.panelStick = push;
     if (this.panels.errorOpen) {
-      if (pad.wasPressed(['left', 'up'])) this.panels.move(-1);
-      if (pad.wasPressed(['right', 'down'])) this.panels.move(1);
+      if (pad.wasPressed(['left', 'up']) || (push < 0 && pushed)) this.panels.move(-1);
+      if (pad.wasPressed(['right', 'down']) || (push > 0 && pushed)) this.panels.move(1);
       if (pad.wasPressed(['a'])) this.panels.confirmError();
     } else if (this.nav.open) {
       // Start (or Esc, through MenuNav's Back) closes the tabbed menu it opened.
@@ -593,7 +625,8 @@ export class App {
     this.frameCount++;
     this.portraits.frame(dt, this.nav.top === this.rpgMenus.dialogue);
     this.renderer.render();
-    this.hud.update(pad, this.input.locked);
+    // Under a menu the cursor is free on purpose: no "click to look around".
+    this.hud.update(pad, this.input.locked || this.nav.open);
     const p = this.sim?.playerEntity(LOCAL_PLAYER);
     const fs = this.renderer.frameStats();
     const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
@@ -620,7 +653,7 @@ export class App {
     const view = this.player!;
     const simView = sim.view();
     const pad = this.input.pad;
-    if (this.input.wasPressed(KEYS.pause) || (pad.wasPressed(PAD.pause) && !this.startUsed)) {
+    if (!this.panels.errorOpen && (this.input.wasPressed(KEYS.pause) || (pad.wasPressed(PAD.pause) && !this.startUsed))) {
       this.pause();
       return;
     }
@@ -1594,9 +1627,13 @@ export function startPhysics(): Promise<void> {
   return initPhysics();
 }
 
-/** The compass bar's width: 440 px, narrower on a small window (App passes it to the HUD on resize). */
+/**
+ * The compass bar's width: 440 px, narrower on a small window so it clears the health bar (App passes
+ * it to the HUD on resize). The same sum as `.compass` in styles.css.
+ */
 function compassWidth(): number {
-  return Math.min(440, Math.round(window.innerWidth * 0.6));
+  const w = window.innerWidth;
+  return Math.max(200, Math.min(440, Math.round(w * 0.6), w - 590));
 }
 
 function errorText(err: unknown): string {

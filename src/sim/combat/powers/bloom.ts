@@ -29,7 +29,8 @@ export function stepBloom(ctx: CombatCtx, b: Entity): boolean {
   if (++a.age >= a.life) return true;
   const owner = ctx.get(a.owner);
   const v = owner?.vitals;
-  if (!owner || !v || !alive(owner)) return false;
+  if (!owner || !alive(owner)) return true; // a patch fades with its caster
+  if (!v) return false;
   if (owner.combat?.action?.kind === 'cast') a.pause = B.castPause;
   else if (a.pause > 0) a.pause--;
   if (a.pause > 0 || flatDist(owner.tf.pos, b.tf.pos) > B.radius || Math.abs(owner.tf.pos.y - b.tf.pos.y) > 2) return false;

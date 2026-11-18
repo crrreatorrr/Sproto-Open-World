@@ -37,10 +37,12 @@ export const DIALOGUE: Record<string, DialogueGraph> = {
   elder_pepe: {
     id: 'elder_pepe',
     entry: [
+      { if: [{ quest: 'q_watchtower', status: 'complete' }], node: 'after_tower' },
       { if: [{ quest: 'q_pest_control', status: 'complete' }], node: 'after' },
       { if: [{ quest: 'q_pest_control', status: 'active' }], node: 'pest_busy' },
       { if: [{ quest: 'q_wake_up', status: 'complete' }], node: 'pest_offer' },
       { if: [{ quest: 'q_wake_up', status: 'active', step: 3 }], node: 'seed_return' },
+      { if: [{ quest: 'q_wake_up', status: 'active', step: 4 }], node: 'seed_thanks' },
       { if: [{ quest: 'q_wake_up', status: 'active' }], node: 'busy' },
       { node: 'intro' },
     ],
@@ -67,11 +69,13 @@ export const DIALOGUE: Record<string, DialogueGraph> = {
       },
       pest_busy: { speaker: 'Elder Pepe', text: 'The Orchard is west, along the path past the barn. Lock on, keep your combos short, and mind your mana.' },
       after: { speaker: 'Elder Pepe', text: 'Captain Agent at the training yard needs a hand at the Watchtower. And mind the Thornwood.' },
+      after_tower: { speaker: 'Elder Pepe', text: 'The beacon burns again. I can see it from my porch. Captain Agent will know where the road goes from here.' },
     },
   },
   captain_agent: {
     id: 'captain_agent',
     entry: [
+      { if: [{ quest: 'q_scrapjaw', status: 'complete' }], node: 'after_quarry' },
       { if: [{ quest: 'q_thornwood', status: 'complete' }], node: 'after' },
       { if: [{ quest: 'q_thornwood', status: 'active' }], node: 'thorn_busy' },
       { if: [{ quest: 'q_watchtower', status: 'complete' }], node: 'thorn_offer' },
@@ -102,6 +106,7 @@ export const DIALOGUE: Record<string, DialogueGraph> = {
       },
       thorn_busy: { speaker: 'Captain Agent', text: 'The clearing is past the hill, deep in the Thornwood. Burn works on the big one, I hear.' },
       after: { speaker: 'Captain Agent', text: 'With that key, the Quarry Gate is yours to open. Rest at the gate shrine first.' },
+      after_quarry: { speaker: 'Captain Agent', text: 'Scrapjaw, down. I will be telling recruits about that one for years. Keep your guard up, all the same.' },
     },
   },
   farmer_broccoli: {

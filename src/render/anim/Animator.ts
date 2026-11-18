@@ -50,6 +50,8 @@ export class Animator {
   private upperName: string | null = null;
   private split = false;
   private readonly halves = new Map<string, THREE.AnimationAction>();
+  /** The resting copy of a clip that has been started over while it was showing. */
+  private readonly twins = new Map<string, THREE.AnimationAction>();
 
   constructor(root: THREE.Object3D, clips: readonly THREE.AnimationClip[]) {
     this.mixer = new THREE.AnimationMixer(root);
@@ -104,10 +106,12 @@ export class Animator {
 
   /**
    * Show a clip at an exact time (seconds), paused: the sim's tick counter drives it. Entering a
-   * new clip crossfades over `fade`. Returns false if the clip is missing or a one-shot covers it.
+   * new clip crossfades over `fade`; so does `restart`, which starts over the clip already showing.
+   * Returns false if the clip is missing or a one-shot covers it.
    */
-  scrub(name: string, time: number, fade = ENTRY_FADE): boolean {
+  scrub(name: string, time: number, fade = ENTRY_FADE, restart = false): boolean {
     if (this.oneShot) return false;
+    if (restart) this.swapTwin(name);
     const a = this.resolve(name);
     if (!a) return false;
     this.enter(a, fade);
@@ -156,8 +160,9 @@ export class Animator {
    * Show `name`'s upper half at `time` (seconds, paused: the sim drives it) over the base state,
    * which drops to its legs half. Returns false if the clip is missing or a one-shot covers it.
    */
-  upper(name: string, time: number, fade = ENTRY_FADE): boolean {
+  upper(name: string, time: number, fade = ENTRY_FADE, restart = false): boolean {
     if (this.oneShot) return false;
+    if (restart) this.swapTwin(name);
     const full = this.actions.get(name);
     if (!full) return false;
     const a = this.half(full, 'upper');
@@ -195,6 +200,15 @@ export class Animator {
     this.mixer.update(dt);
   }
 
+  /** One action can't fade into itself: a second copy of the clip takes over from the first. */
+  private swapTwin(name: string): void {
+    const a = this.actions.get(name);
+    if (!a) return;
+    const twin = this.twins.get(name) ?? this.mixer.clipAction(a.getClip().clone());
+    this.twins.set(name, a);
+    this.actions.set(name, twin);
+  }
+
   /** Make `a` current, crossfading out of the old one. Returns true if it changed. */
   private enter(a: THREE.AnimationAction, fade: number, force = false): boolean {
     if (a === this.current && !force) return false;
@@ -218,7 +232,7 @@ export class Animator {
   }
 
   private half(full: THREE.AnimationAction, part: 'upper' | 'lower'): THREE.AnimationAction {
-    const key = `${full.getClip().name}|${part}`;
+    const key = `${full.getClip().uuid}|${part}`;
     let a = this.halves.get(key);
     if (!a) {
       a = this.mixer.clipAction(clipHalves(full.getClip())[part]);

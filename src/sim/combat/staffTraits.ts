@@ -4,6 +4,7 @@ import { BTN, type InputCommand } from '../commands';
 import type { Action, Entity } from '../entity';
 import type { Vec3 } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
+import { affixElite } from '../systems/affixes';
 import { flatDist } from './geometry';
 import type { HitInfo } from './hits';
 import type { CombatCtx } from './playerCombat';
@@ -20,7 +21,7 @@ const has = (e: Readonly<Entity>, trait: StaffTraitId): boolean => staffTrait(e.
 /** Light enemies are the ones a shove or a lift can move: not elites, bosses or training dummies. */
 function isLight(e: Readonly<Entity>): boolean {
   const def = e.brain ? ENEMIES[e.brain.def] : undefined;
-  return e.kind === 'enemy' && !!def && !def.elite && !def.dummy;
+  return e.kind === 'enemy' && !!def && !def.elite && !def.dummy && !affixElite(e);
 }
 
 // ---------------------------------------------------------------- melee and hits
