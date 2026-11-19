@@ -3,6 +3,9 @@ import { CELL_SIZE, cellKey, type CellEntry, type RegionManifest } from '../cont
 /** Where Sproutvale's manifest lives (under public/). */
 export const SPROUTVALE = 'world/sproutvale/region.json';
 
+/** Where the Rootdeep's manifest lives (under public/). */
+export const ROOTDEEP = 'world/rootdeep/region.json';
+
 /** A public/ path as a URL the page can fetch (the build uses a relative base). */
 export function publicUrl(path: string): string {
   return import.meta.env.BASE_URL + path.replace(/^\/+/, '');
@@ -51,4 +54,29 @@ export async function loadRegion(path = SPROUTVALE, signal?: AbortSignal): Promi
   if (!Array.isArray(m.splatLayers) || m.splatLayers.length !== 4) problems.push('splatLayers must name 4 layers');
   if (problems.length) throw new Error(`${path}: ${problems.join(', ')}`);
   return new Region(m);
+}
+
+/**
+ * One streamed world from two baked regions. Cells and props are joined; everything else (origin,
+ * size, horizon, player start, fog, height range) stays the first region's, which is what the
+ * streamer and the horizon mask are built around. A prop both regions place keeps the larger
+ * capacity so neither InstancedMesh is short.
+ */
+export function mergeManifests(a: RegionManifest, b: RegionManifest): RegionManifest {
+  if (a.heightRange.min !== b.heightRange.min || a.heightRange.max !== b.heightRange.max) {
+    throw new Error(`heightRange ${a.heightRange.min}..${a.heightRange.max} != ${b.heightRange.min}..${b.heightRange.max}`);
+  }
+  const props: RegionManifest['props'] = { ...a.props };
+  for (const [key, kind] of Object.entries(b.props)) {
+    const have = props[key];
+    if (!have) props[key] = kind;
+    else if (kind.capacity > have.capacity) props[key] = { ...have, capacity: kind.capacity };
+  }
+  return { ...a, cells: [...a.cells, ...b.cells], props };
+}
+
+/** Sproutvale plus the Rootdeep, checked the same way as either manifest on its own. */
+export async function loadWorld(signal?: AbortSignal): Promise<Region> {
+  const [sproutvale, rootdeep] = await Promise.all([loadRegion(SPROUTVALE, signal), loadRegion(ROOTDEEP, signal)]);
+  return new Region(mergeManifests(sproutvale.manifest, rootdeep.manifest));
 }

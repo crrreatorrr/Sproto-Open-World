@@ -47,6 +47,8 @@ interface TerrainSrc {
   carve: { id: string; points: [number, number, number][]; bedHalfWidth: number; bankWidth: number }[];
   bowl: { id: string; center: [number, number]; flatRadius: number; radius: number; depth: number }[];
   border: { cliffWidth: number; cliffHeight: number; softWidth: number; softHeight: number };
+  /** When set, cells encode into this range instead of the measured one. Heights outside it are an error. */
+  heightRange?: { min: number; max: number };
   splat: {
     pathFade: number;
     rockSlope: [number, number];
@@ -583,7 +585,11 @@ async function bakeRegion(region: string): Promise<{ files: Map<string, Uint8Arr
     if (h < hmin) hmin = h;
     if (h > hmax) hmax = h;
   }
-  const heightRange = { min: Math.floor(hmin) - 1, max: Math.ceil(hmax) + 1 };
+  const fixed = terrainSrc.heightRange;
+  if (fixed && (hmin < fixed.min || hmax > fixed.max)) {
+    throw new Error(`height ${hmin}..${hmax} falls outside heightRange ${fixed.min}..${fixed.max}`);
+  }
+  const heightRange = fixed ?? { min: Math.floor(hmin) - 1, max: Math.ceil(hmax) + 1 };
   const span = heightRange.max - heightRange.min;
   /** The height after a Uint16 round trip, so everything placed on the ground matches the decoded cells. */
   const q = (h: number) => heightRange.min + (Math.max(0, Math.min(65535, Math.round(((h - heightRange.min) / span) * 65535))) / 65535) * span;
