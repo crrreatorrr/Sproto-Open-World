@@ -1,3 +1,4 @@
+import type { QuestOffer } from '../content/quests';
 import type { AimRay } from './commands';
 import type { Entity, EntityId, PlayerId, WorldState } from './entity';
 import type { SimEvent } from './events';
@@ -41,6 +42,8 @@ export interface ReadonlySimView {
   dialogueChoices(player: PlayerId): { index: number; text: string }[];
   /** Where a content id is (an NPC, shrine, chest or trigger), for quest markers and the compass. */
   locate(id: string): Vec3 | null;
+  /** The quests this player could take right now from a giver who is in the world. */
+  questOffers(player: PlayerId): QuestOffer[];
   /** Gear changes are refused now: an enemy targeted the player in the last 5 s and they're not at a shrine. */
   gearLocked(player: PlayerId): boolean;
   /** The wave runner's state (`?sandbox=1`), or null. */

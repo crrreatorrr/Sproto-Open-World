@@ -9,7 +9,7 @@ import { SKYFIRE_END_CARD } from '../content/packs/c6';
 import { POWER } from '../content/packs/c3';
 import { PERKS, SKILLS, type PerkId, type SkillId } from '../content/progression';
 import { staffCostMult } from '../content/packs/c2';
-import { QUESTS } from '../content/quests';
+import { QUESTS, type QuestOffer } from '../content/quests';
 import { SANDBOX } from '../content/sandbox';
 import { SPELLS, WOVEN, type SpellId } from '../content/spells';
 import { worldLevel } from '../content/world/level';
@@ -48,7 +48,7 @@ import { Tutorial, counterPrompt } from '../ui/tutorial';
 import { Reveals, affinityToast } from '../ui/Reveals';
 import { RpgHud, type HudRpgState } from '../ui/RpgHud';
 import { RpgMenus } from '../ui/rpgMenus';
-import { compassOffset, gallopLabel, headingTo, interactLabel, trackedQuest } from '../ui/rpgText';
+import { compassOffset, gallopLabel, headingTo, interactLabel, leadLine, trackedQuest } from '../ui/rpgText';
 import { loadSettings, motionScale, saveSettings, type Settings } from '../ui/settings';
 import { SurgeMeter } from '../ui/SurgeMeter';
 import { FixedLoop } from './loop';
@@ -155,6 +155,8 @@ export class App {
   private readonly tutorial = new Tutorial();
   /** The one tabbed menu (C1): Powers, Skills, Gear, Quests, Settings (world mode). */
   readonly gameMenu: GameMenu;
+  /** Where "Find a quest" is leading the player, until they take that quest. */
+  private questLead: QuestOffer | null = null;
   /** The save found at boot (or on returning to the title): Continue loads it. */
   private bootSave: SaveFile | null = null;
   /** An event asked for a save; written once after this frame's ticks. */
@@ -237,6 +239,11 @@ export class App {
       view: () => this.sim?.view() ?? null,
       player: () => this.sim?.playerEntity(LOCAL_PLAYER),
       send: (a) => this.sendUi(a),
+      questOffers: () => this.sim?.view().questOffers(LOCAL_PLAYER) ?? [],
+      questLead: () => this.questLead,
+      setQuestLead: (lead) => {
+        this.questLead = lead;
+      },
       gearLocked: () => this.sim?.view().gearLocked(LOCAL_PLAYER) ?? false,
       prompt: (keys, padButtons) => promptLabel(this.input.pad.device, this.input.pad.style, keys, padButtons),
       slotGlyph: (i) => spellSlotGlyph(i, this.input.pad.device, this.input.pad.style),
@@ -521,6 +528,7 @@ export class App {
   }
 
   quitToTitle(): void {
+    this.questLead = null;
     this.commands.clearUi();
     this.player?.dispose();
     this.player = null;
@@ -927,7 +935,10 @@ export class App {
   private rpgFrame(view: ReadonlySimView, p: Readonly<Entity>, dt: number, inMenu: boolean): void {
     const pr = p.progress;
     if (this.mode !== 'world' || !pr) return;
-    const tracker = trackedQuest(pr);
+    // The lead ends once its quest is taken (it is tracked from then on) or is no longer on offer.
+    const lead = this.questLead;
+    if (lead && !view.questOffers(LOCAL_PLAYER).some((o) => o.quest === lead.quest)) this.questLead = null;
+    const tracker = this.questLead ? leadLine(this.questLead) : trackedQuest(pr);
     let marker: HudRpgState['compass']['marker'] = null;
     const at = tracker?.marker ? view.locate(tracker.marker) : null;
     if (at) marker = { offset: compassOffset(this.rig.yaw, headingTo(p.tf.pos, at)), dist: Math.hypot(at.x - p.tf.pos.x, at.z - p.tf.pos.z) };

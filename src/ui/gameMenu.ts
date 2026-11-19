@@ -1,6 +1,8 @@
 import { ITEMS, type ItemDef } from '../content/items';
+import { NPCS } from '../content/npcs';
 import { staffCostMult } from '../content/packs/c2';
 import { BRANCHES, PERKS, PERK_IDS, SKILLS, SKILL_MAX_RANK, branchTotal, hasPerk, RESPEC_SPROUTS_PER_LEVEL, type Branch } from '../content/progression';
+import { QUESTS, type QuestOffer } from '../content/quests';
 import { SPELLS, type SpellId } from '../content/spells';
 import type { UiAction } from '../sim/commands';
 import type { Entity, Progress } from '../sim/entity';
@@ -8,7 +10,7 @@ import type { ReadonlySimView } from '../sim/view';
 import { spellIcon } from './Hud';
 import { mapSignature, renderMap } from './mapTab';
 import type { MenuNav, Screen } from './MenuNav';
-import { KIND_NAMES, SWAP_RULE, costText, gearCompare, inventoryGroups, itemStats, levelProgress, questLog, readyText, skillGain, staffTraitText, swapCooldown } from './rpgText';
+import { KIND_NAMES, SWAP_RULE, costText, gearCompare, inventoryGroups, itemStats, levelProgress, nextLead, questLog, readyText, skillGain, staffTraitText, swapCooldown } from './rpgText';
 
 export type MenuTab = 'powers' | 'skills' | 'gear' | 'quests' | 'map' | 'settings';
 
@@ -27,6 +29,11 @@ export interface GameMenuSource {
   player(): Readonly<Entity> | undefined;
   /** Queue a menu intent for the next tick (it rides a tick even while paused). */
   send(action: UiAction): void;
+  /** The quests the player could take right now. */
+  questOffers(): QuestOffer[];
+  /** The quest "Find a quest" is leading to, if any. */
+  questLead(): QuestOffer | null;
+  setQuestLead(lead: QuestOffer | null): void;
   /** Gear changes are refused right now (in combat, not at a shrine): ReadonlySimView.gearLocked. */
   gearLocked(): boolean;
   /** A prompt glyph on the active device (keys, or pad buttons). */
@@ -159,9 +166,9 @@ export class GameMenu {
         return `${JSON.stringify(p.equipment)}|${JSON.stringify(p.inventory)}|${p.level}|${p.xp}|${p.points}|${v?.hpMax}|${v?.staminaMax}|${v?.manaMax}|${this.src.gearLocked()}`;
       }
       case 'quests':
-        return `${p.tracked}|${JSON.stringify(p.quests)}`;
+        return `${p.tracked}|${JSON.stringify(p.quests)}|${this.src.questLead()?.quest}|${this.src.questOffers().map((o) => o.quest).join(',')}`;
       case 'map':
-        return e ? mapSignature(this.src.view(), e, p) : 'none';
+        return e ? mapSignature(this.src.view(), e, p, this.src.questLead()) : 'none';
       default:
         return 'settings';
     }
@@ -205,7 +212,7 @@ export class GameMenu {
       case 'map':
         return renderMap(body, this.src.view(), this.src.player()!, p!, () => this.nav.retab(() => {
           this.tab = 'quests';
-        }));
+        }), this.src.questLead());
       case 'settings':
         return this.settings(body);
     }
@@ -382,16 +389,43 @@ export class GameMenu {
 
   // --- Quests -----------------------------------------------------------------------------------
 
+  /** Back to the game, with the tracker, compass and map on the nearest quest still to do. */
+  private findQuest(offers: readonly QuestOffer[], active: readonly string[], p: Readonly<Progress>): void {
+    const me = this.src.player()?.tf.pos;
+    const view = this.src.view();
+    const lead = me && view ? nextLead(offers, me, (id) => view.locate(id), this.src.questLead()) : null;
+    this.src.setQuestLead(lead);
+    if (!lead && active.length) this.src.send({ kind: 'track', quest: active[(active.indexOf(p.tracked ?? '') + 1) % active.length] });
+    this.src.resume();
+  }
+
   private quests(body: HTMLElement, p: Readonly<Progress>): void {
     const list = el('div', 'list wide');
     const quests = questLog(p);
-    if (!quests.length) list.append(el('p', 'note', 'No quests yet. Villagers may have work for you.'));
+    const offers = this.src.questOffers();
+    const active = quests.filter((q) => q.status === 'active');
+    if (offers.length || active.length) {
+      const lead = this.src.questLead();
+      const blurb = lead
+        ? `Heading to ${NPCS[lead.npc]?.name ?? lead.npc} for ${QUESTS[lead.quest].title}.${offers.length > 1 ? ' Select to try another.' : ''}`
+        : offers.length
+          ? `${offers.length} new ${offers.length === 1 ? 'quest' : 'quests'} to take. Leads you to the nearest.`
+          : 'No new quests right now. Leads you to your next active quest.';
+      const find = button(`<span class="name">Find a quest</span><span class="blurb">${blurb}</span>`, () => this.findQuest(offers, active.map((q) => q.id), p), 'btn item-row quest');
+      find.dataset.findQuest = '';
+      list.append(find);
+    } else {
+      list.append(el('p', 'note', quests.length ? 'You have finished every quest on offer.' : 'No quests yet. Villagers may have work for you.'));
+    }
     for (const q of quests) {
       const tracked = q.status === 'active' && p.tracked === q.id;
       const lines = q.lines.map((l) => `<span class="obj${l.done ? ' done' : ''}">${l.text}</span>`).join('');
       const html = `<span class="name">${q.title}</span><span class="price">${q.status === 'complete' ? 'Complete' : tracked ? 'Tracked' : 'Track'}</span><span class="blurb">${q.step}</span>${lines}`;
       if (q.status === 'active') {
-        const b = button(html, () => this.src.send({ kind: 'track', quest: q.id }), `btn item-row quest${tracked ? ' tracked' : ''}`);
+        const b = button(html, () => {
+          this.src.setQuestLead(null);
+          this.src.send({ kind: 'track', quest: q.id });
+        }, `btn item-row quest${tracked ? ' tracked' : ''}`);
         b.dataset.quest = q.id;
         list.append(b);
       } else {

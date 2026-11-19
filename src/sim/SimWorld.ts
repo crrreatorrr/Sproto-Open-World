@@ -13,7 +13,7 @@ import type { ObstaclePlacement, RegionContent } from '../content/world/sproutva
 import { SAVE_SCHEMA, type SaveFile } from '../save/schema';
 import { idleInput, type InputCommand } from './commands';
 import {
-  ALL_SPELLS, availableChoices, interactTarget, newProgress, onKill, pickups, playerRpg, questTick, recompute, triggers, type RpgCtx,
+  ALL_SPELLS, availableChoices, interactTarget, newProgress, onKill, pickups, playerRpg, questOffers, questTick, recompute, triggers, type RpgCtx,
   refillTonics,
 } from './systems/rpg';
 import { DT, MOVE, PLAYER_BODY } from '../content/tuning';
@@ -159,6 +159,10 @@ export class SimWorld {
         return node ? availableChoices(node, p, this.world) : [];
       },
       locate: (id) => this.locate(id),
+      questOffers: (pl) => {
+        const p = this.playerEntity(pl)?.progress;
+        return p ? questOffers(p, this.world).filter((o) => this.places.has(o.npc)) : [];
+      },
       gearLocked: (pl) => {
         const p = this.playerEntity(pl);
         return !!p && gearLocked(p, this.now);

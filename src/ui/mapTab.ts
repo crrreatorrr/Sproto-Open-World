@@ -1,7 +1,8 @@
+import type { QuestOffer } from '../content/quests';
 import type { Entity, Progress } from '../sim/entity';
 import type { ReadonlySimView } from '../sim/view';
 import { publicUrl } from '../world/RegionManifest';
-import { trackedQuest } from './rpgText';
+import { leadLine, trackedQuest } from './rpgText';
 import './mapTab.css';
 
 /** Sproutvale's side (m): 8 cells of 64 m, with its south-west corner at the world's origin. */
@@ -56,11 +57,11 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''):
 };
 
 /** What the map shows: you, the tracked quest's marker, and every shrine found so far. */
-function mapPins(view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<Progress>): Pin[] {
+function mapPins(view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<Progress>, lead: QuestOffer | null): Pin[] {
   const me = e.tf.pos;
   const away = (x: number, z: number) => `${Math.round(Math.hypot(x - me.x, z - me.z))} m away`;
   const pins: Pin[] = [{ key: 'player', kind: 'player', title: 'You', detail: `Level ${p.level}`, x: me.x, z: me.z }];
-  const quest = trackedQuest(p);
+  const quest = lead ? leadLine(lead) : trackedQuest(p);
   const at = quest?.marker ? view?.locate(quest.marker) : null;
   if (quest && at) pins.push({ key: 'quest', kind: 'quest', title: quest.title, detail: `${quest.step} · ${away(at.x, at.z)}`, x: at.x, z: at.z });
   for (const id of p.discoveredShrines) {
@@ -73,8 +74,8 @@ function mapPins(view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<
 }
 
 /** Re-render the tab when any of this changes. */
-export function mapSignature(view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<Progress>): string {
-  return mapPins(view, e, p).map((q) => `${q.key}:${Math.round(q.x)},${Math.round(q.z)}:${q.detail}`).join('|') + `|${e.tf.yaw.toFixed(2)}`;
+export function mapSignature(view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<Progress>, lead: QuestOffer | null = null): string {
+  return mapPins(view, e, p, lead).map((q) => `${q.key}:${Math.round(q.x)},${Math.round(q.z)}:${q.detail}`).join('|') + `|${e.tf.yaw.toFixed(2)}`;
 }
 
 /**
@@ -82,8 +83,8 @@ export function mapSignature(view: ReadonlySimView | null, e: Readonly<Entity>, 
  * list beside it works with a pad alone: up and down walk the pins and light the one in focus, and
  * confirming the quest's row opens the Quests tab.
  */
-export function renderMap(body: HTMLElement, view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<Progress>, openQuests: () => void): void {
-  const pins = mapPins(view, e, p);
+export function renderMap(body: HTMLElement, view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<Progress>, openQuests: () => void, lead: QuestOffer | null = null): void {
+  const pins = mapPins(view, e, p, lead);
   const wrap = el('div', 'map-tab');
   const frame = el('div', 'map-frame');
   const img = el('img', 'map-image');

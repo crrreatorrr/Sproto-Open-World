@@ -7,7 +7,7 @@ import { MOUNT } from '../../content/mounts';
 import { NPCS } from '../../content/npcs';
 import { OBJECTS, usedFlag } from '../../content/objects';
 import { GROWTH, LEVEL_CAP, SKILL_EFFECT, SKILL_POINTS_PER_LEVEL, noSkills, xpForLevel } from '../../content/progression';
-import { QUESTS, type Condition, type Effect, type Objective } from '../../content/quests';
+import { QUESTS, type Condition, type Effect, type Objective, type QuestOffer } from '../../content/quests';
 import { SPELLS, defaultLoadout, type SpellId } from '../../content/spells';
 import { BTN, type UiAction } from '../commands';
 import { angleTo, flatDist } from '../combat/geometry';
@@ -182,8 +182,41 @@ export function startQuest(ctx: RpgCtx, e: Entity, id: string): void {
   const def = QUESTS[id];
   if (!def || p.quests[id]?.status === 'active' || p.quests[id]?.status === 'complete') return;
   p.quests[id] = { status: 'active', step: 0, progress: def.steps[0].objectives.map(() => 0) };
-  p.tracked ??= id;
+  // The quest you just took is the one you want to see.
+  p.tracked = id;
   ctx.events.push({ type: 'questStarted', entity: e.id, quest: id });
+}
+
+/** Does talking to this NPC now lead to them handing over this quest? */
+function offeredBy(npc: string, quest: string, p: Progress, world: WorldState): boolean {
+  const graph = DIALOGUE[NPCS[npc]?.dialogue ?? npc];
+  const first = graph?.entry.find((r) => checkAll(r.if, p, world))?.node;
+  const starts = (fx: readonly Effect[] | undefined) => !!fx?.some((x) => 'startQuest' in x && x.startQuest === quest);
+  const open = first ? [first] : [];
+  const seen = new Set<string>();
+  while (open.length) {
+    const id = open.pop()!;
+    const node = graph.nodes[id];
+    if (seen.has(id) || !node) continue;
+    seen.add(id);
+    if (starts(node.do)) return true;
+    if (node.next) open.push(node.next);
+    for (const c of node.choices ?? []) {
+      if (!checkAll(c.if, p, world)) continue;
+      if (starts(c.do)) return true;
+      if (c.next) open.push(c.next);
+    }
+  }
+  return false;
+}
+
+/** Every quest not yet taken or finished that its giver would offer right now. */
+export function questOffers(p: Progress, world: WorldState): QuestOffer[] {
+  return Object.values(QUESTS).flatMap((q) => {
+    const status = p.quests[q.id]?.status;
+    if (status === 'active' || status === 'complete' || !checkAll(q.prereq, p, world)) return [];
+    return offeredBy(q.giver, q.id, p, world) ? [{ quest: q.id, npc: q.giver }] : [];
+  });
 }
 
 const target = (o: Objective) => (o.kind === 'kill' || o.kind === 'collect' || o.kind === 'feat' ? o.count : 1);

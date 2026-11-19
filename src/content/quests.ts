@@ -68,6 +68,12 @@ export interface QuestDef {
   rewards: Effect[];
 }
 
+/** A quest the player can take right now, and who gives it. */
+export interface QuestOffer {
+  quest: string;
+  npc: string;
+}
+
 /** Progress per objective of the current step; `step` = steps.length when complete. */
 export interface QuestState {
   status: QuestStatus;
@@ -139,7 +145,7 @@ export const QUESTS: Record<string, QuestDef> = {
         // the Gatekeeper never comes back.
         onComplete: [{ give: 'quarry_key' }, { give: 'robe_quarryproof' }],
       },
-      { id: 'key', text: 'Take the Quarry Key.', objectives: [{ kind: 'collect', item: 'quarry_key', count: 1 }] },
+      { id: 'key', text: 'Take the Quarry Key.', objectives: [{ kind: 'collect', item: 'quarry_key', count: 1 }], marker: 'thornwood_clearing' },
     ],
     rewards: [{ xp: 450 }, { setFlag: 'gate.quarry.key' }],
   },
