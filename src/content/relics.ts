@@ -8,8 +8,9 @@
  *   #8 Hopeglass slows the whole world in solo play (HOPEGLASS_SLOWS_WORLD).
  *   #9 Parry window never passes PARRY_WINDOW_CAP (18 ticks, 300 ms).
  *
- * Placed-model paths are provisional until docs/plans/quest-polish-blender-assets-spec.md
- * lands. Keys are the keepsake ids; files would be models/props/totems/<id>.glb.
+ * Placed totems: docs/plans/quest-polish-blender-assets-spec.md (origin/grok/quest-polish-blender-assets).
+ * Eight GLBs at models/totems/<id>.glb. They are built on the owner's Mac and are not in this branch.
+ * Until those files are on main, the view draws a primitive stand-in off the boot path.
  */
 import { BLOCK, BUFFER, PLAYER_STATS, ROLL } from './combat';
 import { TICK_HZ } from './tuning';

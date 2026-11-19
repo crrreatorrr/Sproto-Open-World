@@ -2,7 +2,8 @@
  * Card text for totems and relics. The sim does not import this: the strings stay out of the
  * boot bundle until the Relics tab is wired into the menu.
  *
- * Placed-model paths are provisional until docs/plans/quest-polish-blender-assets-spec.md lands.
+ * Placed GLBs, from the Blender spec: public/assets/models/totems/<id>.glb.
+ * Not committed here. The Mac build lands them on main; the view uses a stand-in until then.
  */
 export interface RelicCopy {
   flavour: string;
@@ -19,7 +20,7 @@ const relic = (flavour: string, clue: string, effect: string, cap: string | null
   ({ flavour, clue, effect, cap, model: null, height: 0 });
 
 const totem = (id: string, flavour: string, clue: string, effect: string, cap: string | null, height: number): RelicCopy =>
-  ({ flavour, clue, effect, cap, model: `models/props/totems/${id}.glb`, height });
+  ({ flavour, clue, effect, cap, model: `models/totems/${id}.glb`, height });
 
 export const RELIC_COPY: Record<string, RelicCopy> = {
   relic_drowned_coins: relic(

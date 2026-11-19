@@ -1,12 +1,12 @@
 /**
- * Stand-in for a placed totem until grok/quest-polish-blender-assets publishes the GLBs.
- * Not imported from the boot graph: WorldViews loads it the first time a totem is planted.
- * Paths live on the keepsake (`models/props/totems/<id>.glb`). No new GLB is authored here.
+ * Stand-in for a placed totem. The real mesh is models/totems/<id>.glb
+ * (docs/plans/quest-polish-blender-assets-spec.md). Claude builds those GLBs on the owner's Mac.
+ * This chunk is loaded the first time a totem is planted, not with the boot script. No GLB is committed here.
  */
 import * as THREE from 'three';
 import { TOTEM_FADE_TICKS } from '../../content/relics';
 
-/** Placed heights from the plan (m). The GLB path is models/props/totems/<id>.glb once the spec lands. */
+/** Placed heights from the Blender spec (m). The file, when it exists, is models/totems/<id>.glb. */
 const HEIGHT: Record<string, number> = {
   totem_elders_hearth: 0.5,
   totem_field_warden: 1.6,

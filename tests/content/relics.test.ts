@@ -1,9 +1,11 @@
+import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { QUESTS, type QuestDef } from '../../src/content/quests';
 import { C4_QUESTS } from '../../src/content/packs/c4';
 import { C5_QUESTS } from '../../src/content/packs/c5';
 import { C6_QUESTS } from '../../src/content/packs/c6';
 import { Q_SCRAPJAW } from '../../src/content/packs/m5';
+import { RELIC_COPY } from '../../src/content/relicCopy';
 import {
   BONUS_REWARDS, HOPEGLASS_SLOWS_WORLD, KEEPSAKES, PARRY_WINDOW_CAP, RELIC_SOCKETS, TOTEM_SOCKETS,
   capBlockMessage, keepsakeForQuest, relicMods, relicShortfall, totemMods, wonToast,
@@ -62,6 +64,21 @@ describe('keepsake catalog', () => {
   it('says when a further parry relic would add nothing', () => {
     expect(relicShortfall('relic_drowned_coins', [], false)).toBe(0);
     expect(capBlockMessage('relic_drowned_coins', [], false)).toBeNull();
+  });
+
+  it('names the eight totem GLBs from the Blender spec, and does not ship the files', () => {
+    const totems = KEEPSAKES.filter((k) => k.kind === 'totem');
+    expect(totems.map((k) => RELIC_COPY[k.id].model)).toEqual([
+      'models/totems/totem_elders_hearth.glb',
+      'models/totems/totem_field_warden.glb',
+      'models/totems/totem_seekers_lantern.glb',
+      'models/totems/totem_turnstone.glb',
+      'models/totems/totem_elders_seed.glb',
+      'models/totems/totem_earthspeaker_stake.glb',
+      'models/totems/totem_ember_quench_pail.glb',
+      'models/totems/totem_skylure_post.glb',
+    ]);
+    expect(existsSync('public/assets/models/totems')).toBe(false);
   });
 
   it('toasts a relic with the equip hint only the first time', () => {
