@@ -30,7 +30,7 @@ describe('villagers keep up with the story', () => {
     const w = await bakedWorld();
     finish(w, 'q_wake_up', 'q_pest_control', 'q_watchtower', 'q_thornwood');
     prog(w).quests.q_scrapjaw = { status: 'active', step: 0, progress: [0] };
-    expect(nodes(talk(w, 'captain_agent'))).toEqual(['after']);
+    expect(nodes(talk(w, 'captain_agent'))).toEqual(['scrapjaw_busy']);
     finish(w, 'q_scrapjaw');
     expect(nodes(talk(w, 'captain_agent'))).toEqual(['after_quarry']);
     w.dispose();
@@ -39,7 +39,7 @@ describe('villagers keep up with the story', () => {
   it('Foreman Bram stops sending you to fires you already put out', async () => {
     const w = await bakedWorld();
     finish(w, 'q_tremors', 'q_deep_seam');
-    expect(nodes(talk(w, 'miner_bram'))).toEqual(['after']);
+    expect(nodes(talk(w, 'miner_bram'))).toEqual(['seam_done', 'tremors_after', 'after']);
     finish(w, 'q_smoke_hills');
     expect(nodes(talk(w, 'miner_bram'))).toEqual(['after_quiet']);
     w.dispose();

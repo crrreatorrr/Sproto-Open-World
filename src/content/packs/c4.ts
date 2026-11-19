@@ -382,6 +382,10 @@ export const C4_DIALOGUE: Record<string, DialogueGraph> = {
       { if: [{ quest: 'q_lens_flare', status: 'active' }], node: 'a2_busy' },
       { if: [{ quest: 'q_rivet_volley', status: 'available' }], node: 'a1_offer' },
       { if: [{ quest: 'q_rivet_volley', status: 'locked' }], node: 'early' },
+      // Closings wait until no job is on offer, so taking the next quest is never blocked.
+      { if: [{ quest: 'q_lens_flare', status: 'complete' }, { not: { flag: 'dialogue.q_lens_flare.done' } }], node: 'a2_done' },
+      // TODO(workstream-b): hidden until the player owns relic_elder_iron_rivet (a bonus, so it can be missed).
+      { if: [{ quest: 'q_iron_gallery', status: 'complete' }, { hasItem: 'relic_elder_iron_rivet' }, { not: { flag: 'dialogue.q_iron_gallery.rivet' } }], node: 'a3_rivet' },
       { node: 'after' },
     ],
     nodes: {
@@ -396,7 +400,7 @@ export const C4_DIALOGUE: Record<string, DialogueGraph> = {
       },
       a1_brief: { speaker: 'Watch Captain', text: 'Close the gap when they reload, and watch for the big shot: when one glows, get out of the line or throw it back at them.' },
       a1_busy: { speaker: 'Watch Captain', text: 'The salvage yard is at the east end of the Orchard. Three Gunners. Keep moving.' },
-      a1_done: { speaker: 'Watch Captain', text: 'Three Gunners down, and you are still standing. Take this ward. Raise it as the shot lands and the shot goes home.' },
+      a1_done: { speaker: 'Watch Captain', text: 'Three Gunners down, and you are still standing. Take this Turnstone. Set it down as the shot lands, and the shot goes home.' },
       next_offer: {
         speaker: 'Watch Captain',
         text: 'Two jobs left. A Lens Warden has climbed the ridge behind the Old Mill, and the salvage camps still need thinning. Which will it be?',
@@ -414,8 +418,14 @@ export const C4_DIALOGUE: Record<string, DialogueGraph> = {
           { text: 'Not yet.' },
         ],
       },
-      a2_brief: { speaker: 'Watch Captain', text: 'Roll through the beam or ward it, then hit the thing with your staff. Spells barely scratch that lens. Then study it, and see what it was looking at.' },
+      a2_brief: { speaker: 'Watch Captain', text: 'Roll through the beam or ward it, then hit the thing with your staff. Spells barely scratch that lens.' },
       a2_busy: { speaker: 'Watch Captain', text: 'The ridge behind the Old Mill, east of the river. Staff, not spells.' },
+      a2_done: {
+        speaker: 'Watch Captain',
+        text: 'Look through it. A chip of the Speaking Stone, if you believe the old talk. It shows the blow before the blow.',
+        do: [{ setFlag: 'dialogue.q_lens_flare.done' }],
+        next: 'after',
+      },
       a3_offer: {
         speaker: 'Watch Captain',
         text: 'The salvage camps keep refilling. Destroy eight Gunners and bring me five Rivets, and the armoury has a staff for you.',
@@ -424,15 +434,25 @@ export const C4_DIALOGUE: Record<string, DialogueGraph> = {
           { text: 'Not yet.' },
         ],
       },
-      a3_brief: { speaker: 'Watch Captain', text: 'There is the yard in the Orchard, and more camps east of the village and over the river. If you run short of Gunners, rest at a shrine and they will be back.' },
+      a3_brief: { speaker: 'Watch Captain', text: 'There is the yard in the Orchard, and more camps east of the village and over the river.', next: 'a3_brief_2' },
+      a3_brief_2: { speaker: 'Watch Captain', text: 'If you run short of Gunners, rest at a shrine and they will be back.' },
       a3_busy: { speaker: 'Watch Captain', text: 'Eight Gunners, five Rivets. The camps refill whenever you rest at a shrine.' },
       a3_done: { speaker: 'Watch Captain', text: 'Five Rivets, and the camps are quiet. This staff was made by people who hated those things as much as you do.' },
-      after: { speaker: 'Watch Captain', text: 'The road is safer for your work. Mind the ridge after dark.' },
+      a3_rivet: {
+        speaker: 'Watch Captain',
+        text: 'And this rivet. Iron from the kingdom under the mud. Strike it, and it answers.',
+        do: [{ setFlag: 'dialogue.q_iron_gallery.rivet' }],
+      },
+      after: { speaker: 'Watch Captain', text: 'The road is safer for your work. Mind the ridge after dark.', next: 'after_lens' },
+      after_lens: { speaker: 'Watch Captain', text: "Don't stare too long. The ridge still remembers being watched.", next: 'after_iron' },
+      after_iron: { speaker: 'Watch Captain', text: 'The rust never truly sleeps. Neither should your guard.' },
     },
   },
   ranger_moss: {
     id: 'ranger_moss',
     entry: [
+      // TODO(workstream-b): hidden until the player owns relic_sprotos_stride (a bonus, so it can be missed).
+      { if: [{ quest: 'q_hollow_giant', status: 'complete' }, { hasItem: 'relic_sprotos_stride' }], node: 'after_myth' },
       { if: [{ quest: 'q_hollow_giant', status: 'complete' }], node: 'after' },
       { if: [{ quest: 'q_hollow_giant', status: 'active' }], node: 'busy' },
       { if: [{ quest: 'q_hollow_giant', status: 'available' }], node: 'offer' },
@@ -450,6 +470,7 @@ export const C4_DIALOGUE: Record<string, DialogueGraph> = {
       },
       busy: { speaker: 'Ranger Moss', text: 'Follow the prints west. When the ground shakes, stop walking and start rolling.' },
       after: { speaker: 'Ranger Moss', text: 'The wood is quieter without it. I almost miss the footsteps.' },
+      after_myth: { speaker: 'Ranger Moss', text: 'Wear those wraps like the old stories say Sproto did. Never where the blow falls.', next: 'after' },
     },
   },
   weaver_tansy: {
@@ -473,7 +494,7 @@ export const C4_DIALOGUE: Record<string, DialogueGraph> = {
       },
       a7_brief: { speaker: 'Tansy the Weaver', text: 'Four seeds will do. Hex Wisps drift through the Thornwood. Bring them down with spells and the seeds fall loose.' },
       busy: { speaker: 'Tansy the Weaver', text: 'Four Thorn Seeds, from the Wisps in the Thornwood.' },
-      a7_done: { speaker: 'Tansy the Weaver', text: 'Lovely, still humming. Here: a wall of thorns, grown where you need it. Anything that charges into it will regret the hurry.' },
+      a7_done: { speaker: 'Tansy the Weaver', text: 'Lovely, still humming. Grown where the wild surge runs closest to the ground. And this bracer, from the same hedge.' },
       after: { speaker: 'Tansy the Weaver', text: 'Walls are only patient hedges. Remember that.' },
     },
   },
@@ -513,6 +534,7 @@ export const C4_DIALOGUE_PATCHES: DialoguePatch[] = [
       },
       a4_busy: { speaker: 'Farmer Broccoli', text: 'Bramble camps, far west and far east. The big ones carry the pumpkins. Fire does them no favours.' },
       a4_done: { speaker: 'Farmer Broccoli', text: 'Would you look at the size of them! Here, a vine for your trouble. Pull the small ones to you, and yourself to the big ones.' },
+      a4_after: { speaker: 'Farmer Broccoli', text: "Don't plant those in my rows. Once is enough." },
     },
   },
 ];
