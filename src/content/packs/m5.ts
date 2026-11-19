@@ -133,10 +133,9 @@ export const Q_SCRAPJAW: QuestDef = {
   rewards: [{ give: 'charm_ember_heart' }, { currency: 300 }, { give: 'relic_sprotos_stride' }],
 };
 
-/** The quest, and the Quarry Key's pickup starting it. */
+/** The quest. Captain Agent offers it; the Quarry Gate lock still starts it if you walk up with the key. */
 export function registerScrapjawQuest(quests: Record<string, QuestDef>): void {
   quests.q_scrapjaw = Q_SCRAPJAW;
-  quests.q_thornwood.rewards.push({ startQuest: 'q_scrapjaw' });
 }
 
 /** Elder Pepe's ending, and Captain Agent offering the quest to a save that already has the key. */
@@ -147,9 +146,9 @@ export function registerScrapjawDialogue(d: Record<string, DialogueGraph>): void
     { if: [{ quest: 'q_scrapjaw', status: 'active', step: 3 }], node: 'scrapjaw_return' },
   );
   elder.nodes.scrapjaw_return = { speaker: 'Elder Pepe', text: "The rumbling's stopped. I felt it in my knees before I heard it. You did that, Sproto?", next: 'scrapjaw_thanks' };
-  elder.nodes.scrapjaw_thanks = { speaker: 'Elder Pepe', text: "Then Sproutvale sleeps easy tonight. Take this ember from the beast's furnace, and keep that staff close. Foreman Bram's crew are back at the quarry, and he swears the ground still isn't right." };
+  // TODO(workstream-b): grant relic_hopeglass here, with the ember and the staff. The line names the glass; the item is not in the game yet.
+  elder.nodes.scrapjaw_thanks = { speaker: 'Elder Pepe', text: 'Then Sproutvale sleeps easy. This glass came out of the beast — the green the old folk called hope. Time drinks it slowly.' };
   elder.nodes.scrapjaw_after = { speaker: 'Elder Pepe', text: 'Listen to that quiet. Best sound a harvest ever had.' };
-  d.captain_agent.nodes.after.do = [{ startQuest: 'q_scrapjaw' }];
 }
 
 export const QUARRY_GATE_LOCK: ObjectDef = {

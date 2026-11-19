@@ -233,6 +233,13 @@ export const SKYFIRE_END_CARD = {
 /** Farmer Broccoli gives A10 and A11; Elder Pepe closes A12. Call after M5's and C4's dialogue is in. */
 export function registerDrakeDialogue(d: Record<string, DialogueGraph>): void {
   const farmer = d.farmer_broccoli;
+  // Standing barks once those jobs are done. Later work is spliced above this, so an open job still speaks first.
+  const pie = farmer.entry.findIndex((r) => r.node === 'after');
+  farmer.entry.splice(
+    pie, 0,
+    { if: [{ quest: 'q_bait', status: 'complete' }], node: 'a11_after' },
+    { if: [{ quest: 'q_pumpkin_strength', status: 'complete' }], node: 'a4_after' },
+  );
   // Ahead of the pumpkin jobs' busy lines and A4's standing offer: an unfinished side job never hides
   // the road to the Drake.
   const at = farmer.entry.findIndex((r) => r.node === 'pumpkins_busy');
@@ -255,7 +262,9 @@ export function registerDrakeDialogue(d: Record<string, DialogueGraph>): void {
       ],
     },
     a10_busy: { speaker: 'Farmer Broccoli', text: 'Five stacks, all smoking. Look up while you work. Something keeps crossing the sun.' },
-    a10_done: { speaker: 'Farmer Broccoli', text: 'A drake! I saw it turn over the hills, breathing fire on my hay. Here, take this: all that anger you are carrying, let it out in one great wave.' },
+    a10_done: { speaker: 'Farmer Broccoli', text: 'A drake! I saw it turn over the hills, breathing fire on my hay. Here, take this: all that anger you are carrying, let it out in one great wave.', next: 'a10_pail' },
+    a10_pail: { speaker: 'Farmer Broccoli', text: "And take the pail. You'll want it.", next: 'a10_after' },
+    a10_after: { speaker: 'Farmer Broccoli', text: "The hay will grow back. I'm not sure the sky will, if we leave that thing up there." },
     a11_offer: {
       speaker: 'Farmer Broccoli',
       text: 'That Drake will not come down for hay. It wants meat. I set three wooden sheep around the fields. Put them on the post in the open and it will swoop.',
@@ -265,7 +274,8 @@ export function registerDrakeDialogue(d: Record<string, DialogueGraph>): void {
       ],
     },
     a11_busy: { speaker: 'Farmer Broccoli', text: 'Three decoys, scattered around the Orchard. Bring them to the post in the open field.' },
-    a11_post: { speaker: 'Farmer Broccoli', text: 'The post stands in the middle of the field. Rest first. When those sheep go up, it will come, and it throws fire. Throw it back.' },
+    a11_post: { speaker: 'Farmer Broccoli', text: 'The Skylure Post stands in the middle of the field. Rest first. When those sheep go up, it will come, and it throws fire. Throw it back.' },
+    a11_after: { speaker: 'Farmer Broccoli', text: "Ugly little post, isn't it? Keep it. Flyers come down to look." },
   } satisfies DialogueGraph['nodes']);
 
   const elder = d.elder_pepe;
@@ -280,6 +290,11 @@ export function registerDrakeDialogue(d: Record<string, DialogueGraph>): void {
     { if: [{ quest: 'q_skyfire', status: 'active', step: 1 }], node: 'a12_return' },
     { if: [{ quest: 'q_skyfire', status: 'available' }], node: 'a12_offer' },
   );
+  // After the Drake's rules, so a garden bark never hides Skyfire. Skyfire's splice above sits on scrapjaw_after.
+  elder.entry.splice(
+    elder.entry.findIndex((r) => r.node === 'scrapjaw_after'), 0,
+    { if: [{ quest: 'q_elders_garden', status: 'complete' }], node: 'a5_after' },
+  );
   Object.assign(elder.nodes, {
     a12_offer: {
       speaker: 'Elder Pepe',
@@ -291,7 +306,7 @@ export function registerDrakeDialogue(d: Record<string, DialogueGraph>): void {
     },
     a12_busy: { speaker: 'Elder Pepe', text: 'Throw its fire back at it. When it falters it will come down low, and then your staff can reach it.' },
     a12_return: { speaker: 'Elder Pepe', text: 'I watched it fall from here. The whole valley watched. In all my years, Sproto, I never thought to see the sky so quiet.', next: 'a12_thanks' },
-    a12_thanks: { speaker: 'Elder Pepe', text: "This was at the heart of its fire. It's yours now. Sproutvale will tell this one for a long, long time." },
+    a12_thanks: { speaker: 'Elder Pepe', text: 'Take the plume. The ground comes up gently to meet it.' },
     a12_after: { speaker: 'Elder Pepe', text: 'Blue sky, full barns and no smoke. Best harvest I can remember.' },
   } satisfies DialogueGraph['nodes']);
 }

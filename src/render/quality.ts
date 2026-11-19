@@ -15,7 +15,7 @@ export function applyQuality(r: Renderer, fx: HitFx, level: QualityLevel): void 
   const q = QUALITY[level];
   r.renderer.setPixelRatio(Math.min(window.devicePixelRatio, q.pixelRatio));
   const sun = r.sun;
-  sun.castShadow = q.shadows;
+  r.setShadows(q.shadows);
   if (sun.shadow.mapSize.x !== q.shadowMap) {
     sun.shadow.mapSize.set(q.shadowMap, q.shadowMap);
     // The shadow pass makes a new map at the new size when it finds none.

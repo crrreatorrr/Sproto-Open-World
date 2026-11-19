@@ -1,3 +1,4 @@
+import { RD_X, isRootdeep } from '../content/packs/rootdeep';
 import type { QuestOffer } from '../content/quests';
 import type { Entity, Progress } from '../sim/entity';
 import type { ReadonlySimView } from '../sim/view';
@@ -20,7 +21,30 @@ const REGIONS: readonly { name: string; x: number; z: number }[] = [
   { name: 'The Quarry', x: 440, z: 452 },
 ];
 
-const SHRINE_NAMES: Readonly<Record<string, string>> = { shrine_first_light: 'Shrine of First Light' };
+const SHRINE_NAMES: Readonly<Record<string, string>> = {
+  shrine_first_light: 'Shrine of First Light',
+  shrine_rootdeep_lantern: 'Lantern Hall Shrine',
+  shrine_rootdeep_crossing: 'Crossing Shrine',
+};
+
+/** The eight main caves and the vault, in world x (local x + 4096) and world z. */
+const CAVE_REGIONS: readonly { name: string; x: number; z: number }[] = [
+  { name: 'Lantern Hall', x: RD_X + 168, z: 168 },
+  { name: 'Grunt Warren', x: RD_X + 256, z: 148 },
+  { name: 'Slinger Gallery', x: RD_X + 344, z: 168 },
+  { name: 'Wisp Hollow', x: RD_X + 364, z: 256 },
+  { name: 'Brute Den', x: RD_X + 344, z: 344 },
+  { name: 'Fungus Crossing', x: RD_X + 256, z: 364 },
+  { name: 'Old Mine', x: RD_X + 168, z: 344 },
+  { name: 'Echo Pit', x: RD_X + 148, z: 256 },
+  { name: 'Vault', x: RD_X + 256, z: 256 },
+];
+
+/** Which picture a world x belongs on. The cave sits at x 4096, the same 512 m square as the valley. */
+export function mapBounds(x: number): { minX: number; size: number; image: string } {
+  if (isRootdeep(x)) return { minX: RD_X, size: MAP_SIZE, image: 'world/rootdeep/map.webp' };
+  return { minX: 0, size: MAP_SIZE, image: MAP_IMAGE };
+}
 
 /** "shrine_quarry_gate" → "Quarry Gate Shrine". */
 function shrineLabel(id: string): string {
@@ -33,9 +57,9 @@ function shrineLabel(id: string): string {
  * A world point on the picture, in percent. North (+z) is up and the world is seen from above, so +x
  * is on the left: the compass calls that side west, and turning right in play turns right here.
  */
-export function mapPoint(x: number, z: number): { left: number; top: number } {
+export function mapPoint(x: number, z: number, minX = 0, size = MAP_SIZE): { left: number; top: number } {
   const clamp = (v: number) => Math.min(100, Math.max(0, v));
-  return { left: clamp((1 - x / MAP_SIZE) * 100), top: clamp((1 - z / MAP_SIZE) * 100) };
+  return { left: clamp((1 - (x - minX) / size) * 100), top: clamp((1 - z / size) * 100) };
 }
 
 type PinKind = 'player' | 'quest' | 'shrine';
@@ -75,7 +99,7 @@ function mapPins(view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<
 
 /** Re-render the tab when any of this changes. */
 export function mapSignature(view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<Progress>, lead: QuestOffer | null = null): string {
-  return mapPins(view, e, p, lead).map((q) => `${q.key}:${Math.round(q.x)},${Math.round(q.z)}:${q.detail}`).join('|') + `|${e.tf.yaw.toFixed(2)}`;
+  return mapBounds(e.tf.pos.x).image + '|' + mapPins(view, e, p, lead).map((q) => `${q.key}:${Math.round(q.x)},${Math.round(q.z)}:${q.detail}`).join('|') + `|${e.tf.yaw.toFixed(2)}`;
 }
 
 /**
@@ -85,15 +109,17 @@ export function mapSignature(view: ReadonlySimView | null, e: Readonly<Entity>, 
  */
 export function renderMap(body: HTMLElement, view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<Progress>, openQuests: () => void, lead: QuestOffer | null = null): void {
   const pins = mapPins(view, e, p, lead);
+  const bounds = mapBounds(e.tf.pos.x);
+  const cave = isRootdeep(e.tf.pos.x);
   const wrap = el('div', 'map-tab');
   const frame = el('div', 'map-frame');
   const img = el('img', 'map-image');
-  img.src = publicUrl(MAP_IMAGE);
-  img.alt = 'Map of Sproutvale';
+  img.src = publicUrl(bounds.image);
+  img.alt = cave ? 'Map of the Rootdeep' : 'Map of Sproutvale';
   img.draggable = false;
   frame.append(img, el('span', 'map-north', 'N'));
-  for (const r of REGIONS) {
-    const at = mapPoint(r.x, r.z);
+  for (const r of cave ? CAVE_REGIONS : REGIONS) {
+    const at = mapPoint(r.x, r.z, bounds.minX, bounds.size);
     const label = el('span', 'map-region', r.name);
     label.style.left = `${at.left}%`;
     label.style.top = `${at.top}%`;
@@ -101,8 +127,9 @@ export function renderMap(body: HTMLElement, view: ReadonlySimView | null, e: Re
   }
   const marks = new Map<string, HTMLElement>();
   // Drawn last to first, so you stay on top of a shrine you are standing at.
+  // Mouths are never pins: a sealed one must show nothing, and an open one is the passage itself.
   for (const pin of [...pins].reverse()) {
-    const at = mapPoint(pin.x, pin.z);
+    const at = mapPoint(pin.x, pin.z, bounds.minX, bounds.size);
     const mark = el('i', `map-pin ${pin.kind}`);
     mark.style.left = `${at.left}%`;
     mark.style.top = `${at.top}%`;
