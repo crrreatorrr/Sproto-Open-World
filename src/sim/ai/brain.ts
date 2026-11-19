@@ -176,24 +176,28 @@ function hasToken(ctx: CombatCtx, e: Entity, def: EnemyDef, move: EnemyMoveDef, 
 /** The tick a delayed swing waits on: late in the wind-up, while it can still turn to follow the player. */
 const holdTick = (move: EnemyMoveDef) => Math.max(1, Math.floor(move.windup * Math.min(move.trackUntil, 0.6)) - 1);
 
-/** `hold`: extra ticks the wind-up waits at its peak. The telegraph counts them. */
+/**
+ * `hold`: extra ticks the wind-up waits at its peak (a fighter's delayed swing); otherwise the move's
+ * own `holdTicks`. The hold lives on the action, so a boss's or the Drake's held wind-up waits too.
+ * The telegraph counts it.
+ */
 function startAttack(ctx: CombatCtx, e: Entity, move: EnemyMoveDef, target: Entity | null, hold = 0): void {
   const c = e.combat!;
   const f = e.brain!.fight;
   if (f) {
-    f.hold = hold > 0 ? hold : (move.holdTicks ?? 0);
-    f.holdAt = holdTick(move);
     f.feintAt = -1;
     f.vx = f.vz = 0;
   }
   const aim = move.area && target ? { ...target.tf.pos } : undefined;
   const wait = hold > 0 ? hold : (move.holdTicks ?? 0);
-  c.action = { kind: 'attack', move: move.id, t: 0, clipT: 0, charge: 0, charging: false, charged: false, hit: [], lunge: 0, lungeDir: { x: 0, z: 0 }, fired: 0, aim };
+  c.action = {
+    kind: 'attack', move: move.id, t: 0, clipT: 0, charge: 0, charging: false, charged: false, hit: [], lunge: 0, lungeDir: { x: 0, z: 0 }, fired: 0, aim,
+    ...(wait > 0 ? { hold: wait, holdAt: holdTick(move) } : {}),
+  };
   e.brain!.cooldowns[move.id] = move.cooldown;
   const recent = e.brain!.recent;
   recent.push(move.id);
   if (recent.length > 2) recent.shift();
-  if (e.brain!.fight) e.brain!.fight.hold = wait;
   ctx.events.push({
     type: 'telegraph', entity: e.id, move: move.id, ticks: move.windup + wait, unblockable: !!move.unblockable, decal: move.decal,
     at: aim, radius: move.area?.radius,
@@ -209,7 +213,7 @@ function runAttack(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | nu
   const ticks = clockTicks(e); // chill slows the whole attack
   const f = e.brain!.fight;
   if (ticks) {
-    if (f && f.hold > 0 && a.t === f.holdAt) f.hold--;
+    if (a.hold && a.t === a.holdAt) a.hold--;
     else a.t++;
   }
   const motion = { vx: 0, vz: 0, inputScale: 0 };

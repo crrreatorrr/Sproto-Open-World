@@ -29,7 +29,7 @@ async function attacks(def: string, seed: number, ticks = 6000): Promise<Attack[
     }
     const a = e.combat!.action;
     if (a?.kind === 'attack' && out.length) {
-      if (a.t === last && e.brain!.fight!.hold > 0) out[out.length - 1].heldAt = a.t;
+      if (a.t === last && (a.hold ?? 0) > 0) out[out.length - 1].heldAt = a.t;
       last = a.t;
     } else last = -1;
   }

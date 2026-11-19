@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ENEMIES } from '../../src/content/enemies';
-import { BIG_COIN_ADD_BELOW, BIG_COIN_ADD_COUNT, BONUS_FLAGS, GATEKEEPER_STRING3_HOLD, PEST_CAMP, PEST_WAVE_SIZE } from '../../src/content/packs/encounterTune';
+import {
+  BIG_COIN_ADD_BELOW, BIG_COIN_ADD_COUNT, BONUS_FLAGS, GATEKEEPER_STRING3_HOLD, PEST_CAMP, PEST_WAVE_SIZE, SCRAPJAW_BITE_HOLD, SCRAPJAW_BITE_WINDUP,
+} from '../../src/content/packs/encounterTune';
 import { QUESTS } from '../../src/content/quests';
 import type { SimEvent } from '../../src/sim/events';
 import { newFight } from '../../src/sim/ai/tactics';
@@ -8,6 +10,7 @@ import { questPolish, type PolishCtx } from '../../src/sim/systems/encounters';
 import type { Entity } from '../../src/sim/entity';
 import { step } from './combatHelpers';
 import { combatWorld } from './combatHelpers';
+import { bossWorld, startFight, tickAlive, until } from './bossHelpers';
 import { alive, campMembers, flatSproutvale } from './m4Helpers';
 
 function polish(w: { now: number; entities: Entity[]; world: PolishCtx['world'] }, events: SimEvent[], spawn?: PolishCtx['spawnAdd']): { added: Entity[]; dropped: { item?: string }[] } {
@@ -104,6 +107,35 @@ describe('Gatekeeper delayed swing', () => {
     expect(ticks).toBe(move.windup + GATEKEEPER_STRING3_HOLD);
     w.dispose();
   });
+});
+
+describe('Scrapjaw two-beat bite', () => {
+  it('in a real boss fight, the bite waits out its second beat: it lands at windup + hold, as the telegraph says', async () => {
+    const { w, p, boss } = await bossWorld('scrapjaw');
+    const bite = ENEMIES.scrapjaw.moves.find((m) => m.id === 'bite')!;
+    expect([bite.windup, bite.holdTicks]).toEqual([SCRAPJAW_BITE_WINDUP, SCRAPJAW_BITE_HOLD]);
+    startFight(w, p, boss, 3);
+    let telegraph: Extract<SimEvent, { type: 'telegraph' }> | undefined;
+    until(w, p, () => {
+      // Keep the player in the bite's reach, in front of it.
+      p.tf.pos = { x: boss.tf.pos.x + Math.sin(boss.tf.yaw) * 3, y: p.tf.pos.y, z: boss.tf.pos.z + Math.cos(boss.tf.yaw) * 3 };
+      telegraph = w.events.find((e): e is Extract<SimEvent, { type: 'telegraph' }> => e.type === 'telegraph' && e.entity === boss.id && e.move === 'bite');
+      return !!telegraph;
+    }, 6000, 'a bite');
+    expect(telegraph!.ticks).toBe(SCRAPJAW_BITE_WINDUP + SCRAPJAW_BITE_HOLD);
+
+    let swungAt = -1, hitAt = -1;
+    for (let t = 1; t <= telegraph!.ticks + bite.active + 4 && hitAt < 0; t++) {
+      const ev = tickAlive(w, p);
+      if (swungAt < 0 && ev.some((e) => e.type === 'swing' && e.entity === boss.id && e.move === 'bite')) swungAt = t;
+      if (ev.some((e) => e.type === 'hit' && e.attacker === boss.id && e.move === 'bite')) hitAt = t;
+    }
+    // The snap comes after both beats, not after the first one (24).
+    expect(swungAt).toBe(telegraph!.ticks);
+    expect(hitAt).toBeGreaterThanOrEqual(telegraph!.ticks);
+    expect(hitAt).toBeLessThanOrEqual(telegraph!.ticks + bite.active);
+    w.dispose();
+  }, 60_000);
 });
 
 describe('bonus feats', () => {

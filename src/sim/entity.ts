@@ -83,6 +83,12 @@ export type Action =
       fired?: number;
       /** Enemy area moves: where the circle was placed when the wind-up started. */
       aim?: Vec3;
+      /**
+       * Enemy moves: a held wind-up waits at tick `holdAt` for `hold` more ticks (a fighter's delayed
+       * swing, or the move's own `holdTicks`). On the action, so every brain (fighter, boss, Drake) holds.
+       */
+      holdAt?: number;
+      hold?: number;
     }
   | {
       /** Casting a spell (upper body; the player may walk slowly). */
@@ -348,9 +354,6 @@ export interface FightState {
   hits: number;
   hitAge: number;
   poise: number;
-  /** A delayed swing: the wind-up waits at tick `holdAt` for `hold` more ticks. */
-  holdAt: number;
-  hold: number;
   /** A feint: the wind-up breaks off at this tick (-1: it is a real attack). */
   feintAt: number;
   /** It just feinted, so the next attack is real. */
