@@ -357,7 +357,8 @@ export function resolveAttacks(ctx: CombatCtx, physics: PhysicsWorld): void {
   }
 }
 
-function lineOfSight(physics: PhysicsWorld, a: Entity, b: Entity): boolean {
+/** True when no world collider (rock, a gate, a pillar) stands between the two bodies. */
+export function lineOfSight(physics: PhysicsWorld, a: Entity, b: Entity): boolean {
   const from = { x: a.tf.pos.x, y: a.tf.pos.y + 1.2, z: a.tf.pos.z };
   const to = { x: b.tf.pos.x, y: b.tf.pos.y + (b.body?.height ?? 1.8) * 0.5, z: b.tf.pos.z };
   const dir = { x: to.x - from.x, y: to.y - from.y, z: to.z - from.z };

@@ -6,6 +6,7 @@
 import { C4_OBJECTS } from './packs/c4';
 import { C6_OBJECTS } from './packs/c6';
 import { QUARRY_GATE_LOCK } from './packs/m5';
+import { ROOTDEEP_OBJECTS } from './packs/rootdeep';
 import type { Condition, Effect } from './quests';
 
 export interface ObjectDef {
@@ -31,6 +32,7 @@ export const OBJECTS: Record<string, ObjectDef> = {
 
 Object.assign(OBJECTS, C4_OBJECTS);
 Object.assign(OBJECTS, C6_OBJECTS);
+Object.assign(OBJECTS, ROOTDEEP_OBJECTS);
 
 /** The world flag that records an object as used. */
 export const usedFlag = (id: string) => `used:${id}`;

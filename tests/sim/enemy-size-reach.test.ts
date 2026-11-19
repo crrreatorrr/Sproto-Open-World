@@ -16,11 +16,14 @@ import { BTN, cmd, combatWorld, forceEnemyAttack, hitsOn, idle, press, step, ste
 /** Heights (m) the enemies were authored at: what "bigger" is measured against. */
 const AUTHORED: Record<string, { height: number; radius: number }> = {
   brute: { height: 2.4, radius: 0.75 },
+  // Cave copies. Authored size is the base's, before the shared 1.5 scale.
+  rd_brute: { height: 2.4, radius: 0.75 },
   gatekeeper: { height: 3.2, radius: 1 },
   rivet_gunner: { height: 2, radius: 0.45 },
   lens_warden: { height: 2.1, radius: 0.5 },
   bramble_colossus: { height: 3.84, radius: 1.2 },
   hollow_giant: { height: 4.8, radius: 1.5 },
+  deep_warden: { height: 4.8, radius: 1.5 },
   scrapjaw: { height: 5.4, radius: 1.8 },
   burrowmother: { height: 5, radius: 2 },
   skyfire_drake: { height: 5, radius: 2.4 },
