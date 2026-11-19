@@ -1,0 +1,9 @@
+{
+  "seed": 20261118,
+  "kinds": {},
+  "place": [],
+  "lines": [],
+  "zones": {},
+  "scatter": [],
+  "marks": [{ "id": "rootdeep_start", "kind": "playerStart", "at": [4192, 96], "yaw": 0 }]
+}

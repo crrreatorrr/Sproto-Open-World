@@ -176,7 +176,7 @@ Rewards: 900 XP, 300 Sprouts. The trigger `rootdeep_vault` is at local (256, 256
 **Interfaces:**
 - Produces: `ROOTDEEP = 'world/rootdeep/region.json'`, `mergeManifests(a: RegionManifest, b: RegionManifest): RegionManifest`, `loadWorld(signal?: AbortSignal): Promise<Region>`, all in `src/world/RegionManifest.ts`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/world/mergeRegions.test.ts`:
 
@@ -214,16 +214,16 @@ it('has no wall the player can climb', () => { expect(wallSamplesGentlerThan(KCC
 it('grows no grass', () => { expect(grassWeightOnAnyFloorSample()).toBe(0); });
 ```
 
-- [ ] **Step 2: Run the tests and confirm they fail**
+- [x] **Step 2: Run the tests and confirm they fail**
 
 Run: `npx vitest run tests/world/mergeRegions.test.ts tests/content/rootdeep-map.test.ts`
 Expected: FAIL, `mergeManifests` is not exported and `public/world/rootdeep/region.json` does not exist.
 
-- [ ] **Step 3: Add a fixed height range to the bake**
+- [x] **Step 3: Add a fixed height range to the bake**
 
 Add `heightRange?: { min: number; max: number }` to `TerrainSrc`. When it is set, `bakeRegion` uses it instead of the measured range, and throws if any height falls outside it.
 
-- [ ] **Step 4: Write the cave's sources and bake them**
+- [x] **Step 4: Write the cave's sources and bake them**
 
 Copy `docs/plans/rootdeep-handoff/terrain.json` to `world-src/rootdeep/terrain.json` unchanged. It is the tested layout from the Design tables, in world coordinates (local x + 4096).
 
@@ -232,16 +232,16 @@ Copy `docs/plans/rootdeep-handoff/terrain.json` to `world-src/rootdeep/terrain.j
 Run: `npm run bake:world -- rootdeep && npm run bake:map -- rootdeep`
 Expected: `bake:world: wrote 130 files`, and `public/world/rootdeep/map.webp` is 512 × 512.
 
-- [ ] **Step 5: Implement `mergeManifests` and `loadWorld`, and call `loadWorld()` from `WorldSession.load`**
+- [x] **Step 5: Implement `mergeManifests` and `loadWorld`, and call `loadWorld()` from `WorldSession.load`**
 
 `loadWorld` fetches both manifests through `loadRegion`'s checks and returns `new Region(mergeManifests(sproutvale, rootdeep))`. Everything except `cells` and `props` comes from Sproutvale.
 
-- [ ] **Step 6: Run the tests and confirm they pass**
+- [x] **Step 6: Run the tests and confirm they pass**
 
 Run: `npx vitest run tests/world/mergeRegions.test.ts tests/content/rootdeep-map.test.ts && npm run bake:world -- rootdeep --check`
 Expected: all PASS, and `bake:world --check: rootdeep is up to date`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add world-src/rootdeep public/world/rootdeep tools/bake-world.ts src/world/RegionManifest.ts src/app/WorldSession.ts tests/world/mergeRegions.test.ts tests/content/rootdeep-map.test.ts docs/plans/2026-11-18-rootdeep-cave-plan.md

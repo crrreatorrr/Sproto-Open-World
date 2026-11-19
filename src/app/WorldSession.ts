@@ -5,7 +5,7 @@ import { cellOf } from '../content/world/format';
 import type { Renderer } from '../render/Renderer';
 import { CellStreamer, type CellSink, type CellView } from '../world/CellStreamer';
 import { GrassField } from '../world/GrassField';
-import { loadRegion, propPath, type Region } from '../world/RegionManifest';
+import { loadWorld, propPath, type Region } from '../world/RegionManifest';
 import { VEIL_TIMEOUT_MS, withRetry } from '../world/rings';
 import { TerrainBuilder } from '../world/TerrainBuilder';
 import { UploadBudget } from '../world/UploadBudget';
@@ -38,9 +38,9 @@ export class WorldSession {
     if (this.grass) this.grass.enabled = on;
   }
 
-  /** Load the manifest (3 retries) and set up streaming. Safe to call again after a failure. */
+  /** Load Sproutvale and the Rootdeep as one world (3 retries) and set up streaming. Safe to call again after a failure. */
   load(): Promise<Region> {
-    this.loading ??= withRetry(() => loadRegion(), sleep).then(
+    this.loading ??= withRetry(() => loadWorld(), sleep).then(
       (region) => {
         this.setup(region);
         return region;
