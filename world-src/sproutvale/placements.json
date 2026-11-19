@@ -248,6 +248,15 @@
     { "id": "burning_hay_5", "kind": "object", "at": [88, 176], "yaw": 0, "clear": 2.5 },
     { "id": "sheep_decoy_1", "kind": "object", "at": [184, 138], "yaw": 0, "clear": 2.5 },
     { "id": "sheep_decoy_2", "kind": "object", "at": [62, 178], "yaw": 0, "clear": 2.5 },
-    { "id": "sheep_decoy_3", "kind": "object", "at": [142, 216], "yaw": 0, "clear": 2.5 }
+    { "id": "sheep_decoy_3", "kind": "object", "at": [142, 216], "yaw": 0, "clear": 2.5 },
+    { "id": "rd_surface_hedge_north", "kind": "object", "at": [79.1, 226.4], "yaw": 180, "clear": 2 },
+    { "id": "rd_surface_hedge_south", "kind": "object", "at": [54.8, 133.6], "yaw": 0, "clear": 2 },
+    { "id": "rd_surface_hedge_village_east", "kind": "object", "at": [300, 123.6], "yaw": 0, "clear": 2 },
+    { "id": "rd_surface_hedge_village_west", "kind": "object", "at": [216, 123.6], "yaw": 0, "clear": 2 },
+    { "id": "rd_surface_rock_quarry_west", "kind": "object", "at": [342.9, 462.8], "yaw": 90, "clear": 2 },
+    { "id": "rd_surface_rock_quarry_south", "kind": "object", "at": [401.1, 393.7], "yaw": 0, "clear": 2 },
+    { "id": "rd_surface_rock_quarry_east", "kind": "object", "at": [451.4, 387.6], "yaw": 0, "clear": 2 },
+    { "id": "rd_surface_hedge_scarecrow", "kind": "object", "at": [164.6, 198.4], "yaw": 180, "clear": 2 },
+    { "id": "hedge_diggers", "kind": "camp", "at": [79, 240], "clear": 8 }
   ]
 }

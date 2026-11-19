@@ -50,6 +50,8 @@ export interface RegionContent {
   camps?: CampDef[];
   /** Trigger volumes: a vertical cylinder (only x and z count unless `halfHeight` is given). */
   triggers: { id: string; pos: [number, number, number]; radius: number; halfHeight?: number }[];
+  /** Hidden cave mouths (`content/packs/rootdeep.ts`). A sealed one is spawned already hidden. */
+  portals?: Placement[];
 }
 
 /** Ground y guesses by zone (the sim settles each placement onto the terrain). */

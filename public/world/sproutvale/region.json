@@ -97,14 +97,14 @@
       "cz": 1,
       "bin": "world/sproutvale/cells/c_3_1.bin",
       "json": "world/sproutvale/cells/c_3_1.json",
-      "bytes": 26148
+      "bytes": 26234
     },
     {
       "cx": 4,
       "cz": 1,
       "bin": "world/sproutvale/cells/c_4_1.bin",
       "json": "world/sproutvale/cells/c_4_1.json",
-      "bytes": 26362
+      "bytes": 26448
     },
     {
       "cx": 5,
@@ -132,7 +132,7 @@
       "cz": 2,
       "bin": "world/sproutvale/cells/c_0_2.bin",
       "json": "world/sproutvale/cells/c_0_2.json",
-      "bytes": 25948
+      "bytes": 26028
     },
     {
       "cx": 1,
@@ -195,14 +195,14 @@
       "cz": 3,
       "bin": "world/sproutvale/cells/c_1_3.bin",
       "json": "world/sproutvale/cells/c_1_3.json",
-      "bytes": 26162
+      "bytes": 26281
     },
     {
       "cx": 2,
       "cz": 3,
       "bin": "world/sproutvale/cells/c_2_3.bin",
       "json": "world/sproutvale/cells/c_2_3.json",
-      "bytes": 26539
+      "bytes": 26629
     },
     {
       "cx": 3,
@@ -398,14 +398,14 @@
       "cz": 6,
       "bin": "world/sproutvale/cells/c_6_6.bin",
       "json": "world/sproutvale/cells/c_6_6.json",
-      "bytes": 26049
+      "bytes": 26136
     },
     {
       "cx": 7,
       "cz": 6,
       "bin": "world/sproutvale/cells/c_7_6.bin",
       "json": "world/sproutvale/cells/c_7_6.json",
-      "bytes": 25979
+      "bytes": 26066
     },
     {
       "cx": 0,
@@ -447,7 +447,7 @@
       "cz": 7,
       "bin": "world/sproutvale/cells/c_5_7.bin",
       "json": "world/sproutvale/cells/c_5_7.json",
-      "bytes": 25738
+      "bytes": 25839
     },
     {
       "cx": 6,

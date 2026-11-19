@@ -1,4 +1,5 @@
 import { MOUNT } from '../../content/mounts';
+import { isRootdeep } from '../../content/packs/rootdeep';
 import { DT, KCC, MOVE } from '../../content/tuning';
 import { flatDist, yawTo } from '../combat/geometry';
 import { BTN, type CommandMap } from '../commands';
@@ -126,6 +127,12 @@ function appear(bull: Entity, caller: Entity, camYaw: number, physics: PhysicsWo
 function answer(caller: Entity, bull: Entity, camYaw: number, physics: PhysicsWorld, events: SimEvent[], ground: Ground): void {
   const m = bull.mount!;
   if (m.call || m.rider !== null) return;
+  // Past 80 m the bull appears beside the caller. In the cave that spot is the floor, so a call
+  // from the Rootdeep is refused and the bull stays at its surface home.
+  if (isRootdeep(caller.tf.pos.x)) {
+    events.push({ type: 'mountCall', entity: caller.id, mount: bull.id, phase: 'failed' });
+    return;
+  }
   const d = flatDist(bull.tf.pos, caller.tf.pos);
   if (!bull.settle && d <= MOUNT.callStop && Math.abs(bull.tf.pos.y - caller.tf.pos.y) <= LEVEL_WITH) return;
   m.call = { caller: caller.id, speed: 0, fall: 0, grounded: false, closest: d, stuck: 0, side: 1, appeared: false };
