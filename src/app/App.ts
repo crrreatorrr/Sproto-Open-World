@@ -44,6 +44,7 @@ import { GameMenu, type MenuTab } from '../ui/gameMenu';
 import { Hud, spellSlotGlyph, type HudCombat, type HudStatus } from '../ui/Hud';
 import { MenuNav, type Screen } from '../ui/MenuNav';
 import { Menus } from '../ui/menus';
+import { loadingVeilText } from '../ui/loadingVeil';
 import { Panels } from '../ui/panels';
 import { Tutorial, counterPrompt } from '../ui/tutorial';
 import { Reveals, affinityToast } from '../ui/Reveals';
@@ -480,7 +481,7 @@ export class App {
       this.sinceSave = 0;
       this.rpgHud.clearFeed();
       this.state = 'playing';
-      if (this.groundWait) this.panels.showVeil('Loading Sproutvale…');
+      if (this.groundWait) this.showGroundVeil(entity.tf.pos.x);
       else this.panels.hideVeil();
       this.hud.visible = !this.groundWait;
       this.input.requestLock();
@@ -524,7 +525,7 @@ export class App {
     this.state = 'playing';
     this.hud.visible = !this.groundWait;
     if (this.groundWait) {
-      this.panels.showVeil('Loading Sproutvale…');
+      this.showGroundVeil(this.playerX());
       this.stream?.restartVeilClock();
     }
     this.loop.reset();
@@ -584,7 +585,7 @@ export class App {
         run: () => {
           this.panels.hideError();
           this.stream?.retry();
-          if (this.state === 'playing') this.panels.showVeil('Loading Sproutvale…');
+          if (this.state === 'playing') this.showGroundVeil(this.playerX());
         },
       },
       { label: this.sim?.playerEntity(LOCAL_PLAYER)?.progress?.lastShrine ? 'Return to last shrine' : 'Return to start', run: () => this.returnToStart() },
@@ -963,6 +964,19 @@ export class App {
     this.rpgHud.update({ level: pr.level, xp: pr.xp, points: pr.points, sprouts: pr.sprouts, tonics: pr.tonics, tracker, compass: { camYaw: this.rig.yaw, marker }, prompt, ride }, dt);
   }
 
+  /** World x of the local player, or 0 before one exists. */
+  private playerX(): number {
+    return this.sim?.playerEntity(LOCAL_PLAYER)?.tf.pos.x ?? 0;
+  }
+
+  /**
+   * Hold the player behind the loading veil. The line names the region they are entering
+   * (Sproutvale on the surface, the Rootdeep in the cave).
+   */
+  private showGroundVeil(x: number): void {
+    this.panels.showVeil(loadingVeilText(x));
+  }
+
   /**
    * The world's frame while playing: stream around the player, then hold them behind the veil
    * until their cell and its neighbours have colliders (plan §3.2, §2.9). Returns true while held.
@@ -986,7 +1000,7 @@ export class App {
     if (!this.groundWait) {
       this.groundWait = true;
       this.hud.visible = false;
-      this.panels.showVeil('Loading Sproutvale…');
+      this.showGroundVeil(p.tf.pos.x);
     }
     if (ground === 'timeout') this.groundTimeout();
     return true;
@@ -1143,7 +1157,7 @@ export class App {
         if (this.stream) {
           this.groundWait = true;
           this.hud.visible = false;
-          this.panels.showVeil('Loading Sproutvale…');
+          this.showGroundVeil(who.tf.pos.x);
         }
         return;
       }
