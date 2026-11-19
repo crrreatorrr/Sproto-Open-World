@@ -4,7 +4,7 @@
  */
 import type { ItemDef } from '../items';
 
-export type StaffTraitId = 'emberSwing' | 'blink' | 'shove' | 'moonlit' | 'crusher' | 'chargedBolt' | 'brawler' | 'abduct';
+export type StaffTraitId = 'emberSwing' | 'blink' | 'shove' | 'moonlit' | 'crusher' | 'chargedBolt' | 'brawler' | 'abduct' | 'sunder';
 
 /** Each trait in words, for the Gear tab. */
 export const STAFF_TRAITS: Record<StaffTraitId, { name: string; text: string }> = {
@@ -16,6 +16,7 @@ export const STAFF_TRAITS: Record<StaffTraitId, { name: string; text: string }> 
   chargedBolt: { name: 'Charged Bolt', text: 'Hold the Bolt button to charge: up to ×3 damage for ×2 mana.' },
   brawler: { name: 'Brawler', text: 'Light strings get a fourth hit. Spells deal 10% less damage.' },
   abduct: { name: 'Abduct', text: 'Bolt hits lift a light enemy for 1 s. It can\'t act.' },
+  sunder: { name: 'Sunder', text: 'A fully charged heavy attack sends a shockwave 8 m along the ground.' },
 };
 
 /** The trait numbers (ticks at 60 Hz). */
@@ -45,6 +46,8 @@ export const TRAIT = {
   },
   brawler: { spellDamage: 0.9 },
   abduct: { ticks: 60 },
+  /** Metres, metres per second, metres, and the fraction of the sword's melee power. */
+  sunder: { range: 8, speed: 16, radius: 1.2, damage: 0.8 },
 } as const;
 
 /** Item id → trait. The Sprout Staff has none. */
@@ -57,6 +60,7 @@ const TRAIT_OF: Readonly<Record<string, StaffTraitId>> = {
   staff_shooter: 'chargedBolt',
   staff_fighter: 'brawler',
   staff_alien_ray: 'abduct',
+  staff_rootcleaver: 'sunder',
 };
 
 /** A staff's trait, or null. Saves are outside data: an inherited name like `constructor` is no staff. */

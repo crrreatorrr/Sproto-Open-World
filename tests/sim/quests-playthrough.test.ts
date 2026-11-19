@@ -101,7 +101,8 @@ describe('every quest, start to finish, on the baked world', () => {
     buy(w, 'staff_nobu');
     const p = prog(w);
     expect([...p.spells].sort()).toEqual(Object.keys(SPELLS).sort());
-    const staffs = Object.values(ITEMS).filter((i) => i.kind === 'staff' && i.id !== 'staff_alien_ray');
+    // Alien Ray is held for area 2. Rootcleaver is the vault sword: nothing grants it until that chest exists.
+    const staffs = Object.values(ITEMS).filter((i) => i.kind === 'staff' && i.id !== 'staff_alien_ray' && i.id !== 'staff_rootcleaver');
     for (const s of staffs) expect(p.inventory[s.id], s.id).toBeGreaterThan(0);
     w.dispose();
   }, 300_000);

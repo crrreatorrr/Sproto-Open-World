@@ -56,6 +56,8 @@ export const ITEMS: Record<string, ItemDef> = {
   // S1's reward (plan §4.6): the Sprout Staff's model, tinted; its perk (L3 applies Burn) comes with C2's staff traits.
   staff_gourd: { id: 'staff_gourd', name: 'Gourd Staff', kind: 'staff', rarity: 'rare', blurb: 'Smells faintly of pie.', staff: { damage: 22, spellPower: 1.0, model: 'staff_sproto' } },
   staff_fighters_might: { id: 'staff_fighters_might', name: "Fighter's Might", kind: 'staff', rarity: 'epic', blurb: 'Scrapjaw\'s bane.', staff: { damage: 32, spellPower: 1.1, model: 'staff_fighters_might' } },
+  // Rootdeep's greatsword. It uses the staff slot. Its damage is deliberately past the weapon rule.
+  staff_rootcleaver: { id: 'staff_rootcleaver', name: 'Rootcleaver', kind: 'staff', rarity: 'epic', blurb: 'Cut from the heart of the Rootdeep.', staff: { damage: 52, spellPower: 0.6, model: 'staff_rootcleaver' } },
   // Robes (tints of the player's material).
   robe_apprentice: { id: 'robe_apprentice', name: 'Apprentice Robe', kind: 'robe', rarity: 'common', blurb: 'Patched at the elbows.', robe: { physical: 0, arcane: 0, tint: 0x222222 } },
   robe_warden: { id: 'robe_warden', name: 'Warden Robe', kind: 'robe', rarity: 'rare', blurb: 'Watchtower issue.', robe: { physical: 8, arcane: 4, tint: 0x2b4a7a } },
