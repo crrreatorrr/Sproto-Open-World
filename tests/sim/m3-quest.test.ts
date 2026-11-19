@@ -104,10 +104,12 @@ describe('q_wake_up: all five objective kinds by commands (M3 acceptance 1)', ()
       ['complete', 'q_wake_up'],
     ]);
 
-    // Afterwards Pepe moves on to the next main quest (M4: Pest Control).
+    // Afterwards Pepe says the harvest myth once, then offers Pest Control.
     t(ui([{ kind: 'closeMenu' }]));
     standBy(w, 'elder_pepe');
     e = t(interact());
+    expect(evs(e, 'talk')).toMatchObject([{ node: 'wake_after' }]);
+    e = t(choose(0));
     expect(evs(e, 'talk')).toMatchObject([{ node: 'pest_offer' }]);
     w.dispose();
   });
