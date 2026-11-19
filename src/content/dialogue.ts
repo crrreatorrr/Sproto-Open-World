@@ -33,13 +33,29 @@ export interface DialogueGraph {
   nodes: Record<string, DialogueNode>;
 }
 
+/**
+ * Text-box limit. A line past this is two nodes (plan default; pending owner decision).
+ * One constant, so the split can move if the box changes.
+ */
+export const DIALOGUE_LINE_LIMIT = 150;
+
+/** Optional boss barks from the plan. Nothing speaks these yet; workstream C hooks them. */
+export const QUEST_BOSS_BARKS = {
+  gatekeeper: 'NO KEY. NO EXIT.',
+  big_coin: 'YOU WILL NOT MOVE ME.',
+} as const;
+
 export const DIALOGUE: Record<string, DialogueGraph> = {
   elder_pepe: {
     id: 'elder_pepe',
     entry: [
+      // TODO(workstream-b): after_tower_myth stays hidden until the player owns relic_drowned_coins.
+      { if: [{ quest: 'q_watchtower', status: 'complete' }, { hasItem: 'relic_drowned_coins' }], node: 'after_tower_myth' },
       { if: [{ quest: 'q_watchtower', status: 'complete' }], node: 'after_tower' },
       { if: [{ quest: 'q_pest_control', status: 'complete' }], node: 'after' },
       { if: [{ quest: 'q_pest_control', status: 'active' }], node: 'pest_busy' },
+      // Said once, then the Pest Control offer. Later jobs above this still answer first.
+      { if: [{ quest: 'q_wake_up', status: 'complete' }, { not: { flag: 'dialogue.q_wake_up.after' } }], node: 'wake_after' },
       { if: [{ quest: 'q_wake_up', status: 'complete' }], node: 'pest_offer' },
       { if: [{ quest: 'q_wake_up', status: 'active', step: 3 }], node: 'seed_return' },
       { if: [{ quest: 'q_wake_up', status: 'active', step: 4 }], node: 'seed_thanks' },
@@ -69,15 +85,26 @@ export const DIALOGUE: Record<string, DialogueGraph> = {
       },
       pest_busy: { speaker: 'Elder Pepe', text: 'The Orchard is west, along the path past the barn. Lock on, keep your combos short, and mind your mana.' },
       after: { speaker: 'Elder Pepe', text: 'Captain Agent at the training yard needs a hand at the Watchtower. And mind the Thornwood.' },
+      wake_after: {
+        speaker: 'Elder Pepe',
+        text: 'You look awake at last. They say the first Sproto slept through a harvest too.',
+        do: [{ setFlag: 'dialogue.q_wake_up.after' }],
+        next: 'pest_offer',
+      },
       after_tower: { speaker: 'Elder Pepe', text: 'The beacon burns again. I can see it from my porch. Captain Agent will know where the road goes from here.' },
+      after_tower_myth: { speaker: 'Elder Pepe', text: 'The beacon burns again. Those coins you caught — minted before the mud came. They still know the way home.' },
     },
   },
   captain_agent: {
     id: 'captain_agent',
     entry: [
       { if: [{ quest: 'q_scrapjaw', status: 'complete' }], node: 'after_quarry' },
-      { if: [{ quest: 'q_thornwood', status: 'complete' }], node: 'after' },
+      { if: [{ quest: 'q_scrapjaw', status: 'active' }], node: 'scrapjaw_busy' },
+      // Pending owner decision: offer Scrapjaw here, instead of starting it when Thornwood ends.
+      { if: [{ quest: 'q_scrapjaw', status: 'available' }, { not: { flag: 'dialogue.q_thornwood.done' } }], node: 'after' },
+      { if: [{ quest: 'q_scrapjaw', status: 'available' }], node: 'scrapjaw_offer' },
       { if: [{ quest: 'q_thornwood', status: 'active' }], node: 'thorn_busy' },
+      { if: [{ quest: 'q_watchtower', status: 'complete' }, { not: { flag: 'dialogue.q_watchtower.done' } }], node: 'tower_done' },
       { if: [{ quest: 'q_watchtower', status: 'complete' }], node: 'thorn_offer' },
       { if: [{ quest: 'q_watchtower', status: 'active', step: 0 }], node: 'parry_tip' },
       { if: [{ quest: 'q_watchtower', status: 'active' }], node: 'tower_busy' },
@@ -96,16 +123,43 @@ export const DIALOGUE: Record<string, DialogueGraph> = {
       },
       parry_tip: { speaker: 'Captain Agent', text: 'Block just as the dummy swings, not before. A parry throws a coin back where it came from, too.' },
       tower_busy: { speaker: 'Captain Agent', text: 'Up the hill, north of the village. Slingers hate it when you close in. Light the beacon, then rest at the shrine.' },
+      tower_done: {
+        speaker: 'Captain Agent',
+        text: 'The beacon shows from here. That was a proper climb, recruit. Keep those coins close.',
+        do: [{ setFlag: 'dialogue.q_watchtower.done' }],
+        next: 'tower_after',
+      },
+      tower_after: { speaker: 'Captain Agent', text: 'Still catching what they throw? Good. That habit will feed you.', next: 'thorn_offer' },
       thorn_offer: {
         speaker: 'Captain Agent',
-        text: "The beacon shows tracks into the Thornwood. Something big guards a clearing there, and it has the Quarry Key. Spells for the Wisps, your staff for the Brutes.",
+        text: 'The beacon shows tracks into the Thornwood. Something big guards a clearing there, and it has the Quarry Key.',
+        next: 'thorn_offer_2',
+      },
+      thorn_offer_2: {
+        speaker: 'Captain Agent',
+        text: 'Spells for the Wisps, your staff for the Brutes.',
         choices: [
           { text: "I'll follow them.", do: [{ startQuest: 'q_thornwood' }] },
           { text: 'Not yet.' },
         ],
       },
       thorn_busy: { speaker: 'Captain Agent', text: 'The clearing is past the hill, deep in the Thornwood. Burn works on the big one, I hear.' },
-      after: { speaker: 'Captain Agent', text: 'With that key, the Quarry Gate is yours to open. Rest at the gate shrine first.' },
+      after: {
+        speaker: 'Captain Agent',
+        text: 'With that key, the Quarry Gate is yours to open. Rest at the gate shrine first.',
+        do: [{ setFlag: 'dialogue.q_thornwood.done' }],
+        next: 'thorn_after',
+      },
+      thorn_after: { speaker: 'Captain Agent', text: 'Hands still steady? Good. The gate does not forgive a flinch.', next: 'scrapjaw_offer' },
+      scrapjaw_offer: {
+        speaker: 'Captain Agent',
+        text: 'Scrapjaw waits in the Old Quarry. A beast of rust and teeth. Parry the bite, then make him pay. Rest at the gate shrine first.',
+        choices: [
+          { text: "I'll face him.", do: [{ startQuest: 'q_scrapjaw' }] },
+          { text: 'Not yet.' },
+        ],
+      },
+      scrapjaw_busy: { speaker: 'Captain Agent', text: "Down through the ravine, past the gate. Don't let him rush you." },
       after_quarry: { speaker: 'Captain Agent', text: 'Scrapjaw, down. I will be telling recruits about that one for years. Keep your guard up, all the same.' },
     },
   },
@@ -144,6 +198,7 @@ export const DIALOGUE: Record<string, DialogueGraph> = {
   miller_pepe: {
     id: 'miller_pepe',
     entry: [
+      { if: [{ quest: 'q_mill', status: 'complete' }, { not: { flag: 'dialogue.q_mill.done' } }], node: 'mill_done' },
       { if: [{ quest: 'q_mill', status: 'complete' }], node: 'after' },
       { if: [{ quest: 'q_mill', status: 'active' }], node: 'busy' },
       { node: 'offer' },
@@ -158,7 +213,13 @@ export const DIALOGUE: Record<string, DialogueGraph> = {
         ],
       },
       busy: { speaker: 'Miller Pepe', text: 'Across the bridge and up the east bank. Big Coin hides behind his friends.' },
-      after: { speaker: 'Miller Pepe', text: 'Hear that wheel? Music. Lightning jumps from one to the next, remember that.' },
+      mill_done: {
+        speaker: 'Miller Pepe',
+        text: "Hear that wheel? Music. That grim seal was stuck in the works. The old folk say it was the tyrant Tinubu's. It will serve you now, and never him.",
+        do: [{ setFlag: 'dialogue.q_mill.done' }],
+        next: 'after',
+      },
+      after: { speaker: 'Miller Pepe', text: 'Lightning jumps from one to the next, remember that.' },
     },
   },
   collector_pepe: {
@@ -172,14 +233,21 @@ export const DIALOGUE: Record<string, DialogueGraph> = {
     nodes: {
       offer: {
         speaker: 'Collector Pepe',
-        text: 'Three relic chests, lost in the valley: one by the mill waterfall, one under the Thornwood root arch, one at the foot of the Beanstalk. Find them for me?',
+        text: 'Three relic chests, lost in the valley: one by the mill waterfall, one under the Thornwood root arch, one at the foot of the Beanstalk.',
+        next: 'offer_ask',
+      },
+      offer_ask: {
+        speaker: 'Collector Pepe',
+        text: 'Find them for me?',
         choices: [
           { text: 'A treasure hunt? Yes.', do: [{ startQuest: 'q_relics' }] },
           { text: 'Maybe later.' },
         ],
       },
       busy: { speaker: 'Collector Pepe', text: 'The mill waterfall, the root arch, the Beanstalk. Three chests, three relics.' },
-      relics_done: { speaker: 'Collector Pepe', text: 'All three! As promised: the Moonward staff, and a knot that makes woven spells sing.' },
+      relics_done: { speaker: 'Collector Pepe', text: 'All three! As promised: the Moonward staff, and a knot that makes woven spells sing.', next: 'relics_lantern' },
+      // TODO(workstream-b): grant totem_seekers_lantern with the staff and the knot. The line names it; the item is not in the game yet.
+      relics_lantern: { speaker: 'Collector Pepe', text: 'And this lantern, for the next thing the valley hid in plain sight.' },
       after: { speaker: 'Collector Pepe', text: 'My collection is complete. Well. For now.' },
     },
   },
