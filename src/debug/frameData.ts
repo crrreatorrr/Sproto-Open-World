@@ -42,7 +42,7 @@ export function frameDataLines(e: Readonly<Entity> | undefined, now = 0): string
       const charge = def.chargeable ? `   charge [${tm.chargeStart},${tm.chargeEnd}) held ${a.charge}/${CHARGE.full}${a.charging ? ' charging' : ''}${a.charged ? ' CHARGED' : ''}` : '';
       lines.push(`action: ${a.move} (${def.clip})   t ${a.t}   clip ${a.clipT}/${tm.end}${charge}`);
       lines.push(`|${bar.join('')}|`, ` ${cursor}`);
-      lines.push(`active [${tm.activeStart},${tm.activeEnd})   dodge ≥${tm.activeEnd}   combo ≥${tm.cancel}   end ${tm.end}${def.hyperArmorFrom !== undefined ? `   armor ≥${def.hyperArmorFrom}` : ''}   hits ${a.hit.length}`);
+      lines.push(`active [${tm.activeStart},${tm.activeEnd})   dodge ≥${tm.activeEnd}${def.whiffLock && !a.connected ? ` (whiff +${def.whiffLock})` : ''}   combo ≥${tm.cancel}   end ${tm.end}${def.hyperArmorFrom !== undefined ? `   armor ≥${def.hyperArmorFrom}` : ''}   hits ${a.hit.length}`);
     } else lines.push(`action: attack ${a.move} t ${a.t}`);
   } else if (a.kind === 'dodge') {
     const f = dodgeFrames(a);

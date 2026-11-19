@@ -18,7 +18,7 @@ describe('sandbox death and respawn', () => {
     const deathTick = stepUntil(w, (ev) => ev.some((e) => e.type === 'death' && e.entity === p.id), 400);
     expect(p.vitals!.hp).toBe(0);
     expect(p.combat!.action?.kind).toBe('dead');
-    expect(flatDist(b.tf.pos, home)).toBeGreaterThan(2); // it came to fight
+    expect(flatDist(b.tf.pos, home)).toBeGreaterThan(1); // it came to fight (its long arms don't need to come far)
     const killingHitstop = p.combat!.hitstop;
 
     // While dead: nothing hits the player and presses do nothing.

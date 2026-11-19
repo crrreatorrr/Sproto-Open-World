@@ -3,10 +3,12 @@ import * as THREE from 'three';
 import type { AssetLoader } from '../../assets/AssetLoader';
 import type { ModelKey } from '../../assets/manifest';
 import { ENEMIES, type EnemyDef, type EnemyMoveDef } from '../../content/enemies';
+import { affixedMove } from '../../content/enemyScale';
 import type { Entity, EntityId } from '../../sim/entity';
 import type { SimEvent } from '../../sim/events';
 import type { Vec3 } from '../../sim/math';
 import type { ReadonlySimView } from '../../sim/view';
+import { HIT_FEEL, hitTier } from '../fx/feedback';
 import type { HitFx } from '../fx/HitFx';
 import { PowerFx } from '../fx/powers';
 import { SpellFx } from '../fx/SpellFx';
@@ -43,7 +45,8 @@ interface LiveDecal {
 
 /** A definition with its body scaled (a Colossal enemy): views fit the model and the health bar to it. */
 function scaledDef(def: EnemyDef | undefined, scale: number): EnemyDef | undefined {
-  return def && scale !== 1 ? { ...def, body: { radius: def.body.radius * scale, height: def.body.height * scale } } : def;
+  if (!def || scale === 1) return def;
+  return { ...def, body: { radius: def.body.radius * scale, height: def.body.height * scale }, ...(def.hover ? { hover: def.hover * scale } : {}) };
 }
 
 /** The enemy definition behind an entity, if it has a brain. */
@@ -194,7 +197,9 @@ export class WorldViews {
     switch (e.type) {
       case 'telegraph': {
         const ent = view.get(e.entity);
-        const move = enemyDef(ent)?.moves.find((m) => m.id === e.move);
+        const authored = enemyDef(ent)?.moves.find((m) => m.id === e.move);
+        // A Colossal's blow reaches further than its definition says: the decal sits on the real hitbox.
+        const move = authored && affixedMove(authored, ent?.view.scale ?? 1);
         this.views.get(e.entity)?.telegraph?.(move, e.unblockable, e.ticks);
         const shape: DecalShape | null = e.decal ?? move?.decal ?? (e.unblockable ? 'jagged' : null);
         // A dive paints its own lane on the ground (DrakeView).
@@ -211,7 +216,8 @@ export class WorldViews {
       }
       case 'hit': {
         const from = view.get(e.attacker)?.tf.pos ?? e.pos;
-        this.views.get(e.target)?.flinch?.(from, e.heavy);
+        const tier = hitTier(e);
+        this.views.get(e.target)?.flinch?.(from, tier !== 'light', HIT_FEEL[tier].flinch);
         return;
       }
       case 'stagger':

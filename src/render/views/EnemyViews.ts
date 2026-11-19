@@ -20,8 +20,8 @@ export interface EntityView {
   update(e: Readonly<Entity>, alpha: number, dt: number): void;
   /** A wind-up started (telegraph event). */
   telegraph?(move: EnemyMoveDef | undefined, unblockable: boolean, ticks: number): void;
-  /** It was hit from `from` (world position of the attacker). */
-  flinch?(from: { x: number; z: number }, heavy: boolean): void;
+  /** It was hit from `from` (world position of the attacker). `force` scales how far it is thrown. */
+  flinch?(from: { x: number; z: number }, heavy: boolean, force?: number): void;
   /** Its poise broke: it reels back. */
   reel?(): void;
   dispose(): void;
@@ -108,12 +108,15 @@ export class BruteView implements EntityView {
   private lean = 0;
   private disposed = false;
   private readonly look: EliteLook;
+  /** How much bigger than its model's authored size it is drawn: the stride and the sink grow with it. */
+  private readonly size: number;
 
   constructor(assets: AssetLoader, readonly def: EnemyDef, readonly kind: EliteModel = 'brute') {
     this.height = def.body.height;
     this.look = ELITES[kind];
+    this.size = modelSize(kind, def);
     this.root.add(this.body, this.glow.glint);
-    this.glow.glint.position.set(0, this.height * 0.86, 0.35);
+    this.glow.glint.position.set(0, this.height * 0.86, 0.35 * this.size);
     void assets.instance(kind).then((m) => {
       if (this.disposed) {
         m.dispose();
@@ -137,10 +140,10 @@ export class BruteView implements EntityView {
     this.glow.telegraph(unblockable, ticks / TICK_HZ);
   }
 
-  flinch(from: { x: number; z: number }, heavy: boolean): void {
+  flinch(from: { x: number; z: number }, heavy: boolean, force = 1): void {
     this.glow.hit();
     // Elites shrug off hitstun (plan §4.2): the flinch is all the reaction a light hit gets.
-    this.reaction.hit(from, this.root.position, this.root.rotation.y, heavy);
+    this.reaction.hit(from, this.root.position, this.root.rotation.y, heavy, force);
   }
 
   reel(): void {
@@ -183,22 +186,24 @@ export class BruteView implements EntityView {
       } else if (a?.kind === 'stagger') {
         // Poise broken: reel back and sway, the idle slowed to a stagger.
         idle(0.35);
-        lean = -0.2 + 0.07 * Math.sin((a.t / TICK_HZ) * 7);
+        lean = a.reason === 'parried' ? -0.36 + 0.1 * Math.sin((a.t / TICK_HZ) * 11) : -0.2 + 0.07 * Math.sin((a.t / TICK_HZ) * 7);
       } else if (a?.kind === 'hitstun') {
         idle(0.5);
         lean = -0.12 * Math.max(0, 1 - a.t / Math.max(1, a.dur));
       } else if (anim) {
         const speed = Math.hypot(e.tf.vel.x, e.tf.vel.z);
+        // A longer leg covers more ground per step: the clips' paces grow with the body, so feet don't slide.
         const { walk, run, runAbove } = this.look;
+        const s = this.size;
         if (speed < 0.3) idle();
-        else if (speed < runAbove || !anim.has('run')) anim.loop('walk', Math.min(1.6, Math.max(0.5, speed / walk)));
-        else anim.loop('run', Math.min(1.5, Math.max(0.6, speed / run)));
+        else if (speed < runAbove * s || !anim.has('run')) anim.loop('walk', Math.min(1.6, Math.max(0.35, speed / (walk * s))));
+        else anim.loop('run', Math.min(1.5, Math.max(0.5, speed / (run * s))));
       }
     }
     this.lean += (lean - this.lean) * (1 - Math.exp(-14 * dt));
     this.reaction.update(dt);
     this.reaction.apply(this.body, this.lean);
-    this.body.position.y = -sink * SINK_DEPTH;
+    this.body.position.y = -sink * SINK_DEPTH * this.size;
     this.glow.setOpacity(1 - sink);
     this.root.visible = sink < 1;
     this.glow.setStatus(glowStatusOf(e));
@@ -302,7 +307,7 @@ export class DummyView implements EntityView {
     this.glow.telegraph(unblockable, ticks / TICK_HZ);
   }
 
-  flinch(from: { x: number; z: number }, heavy: boolean): void {
+  flinch(from: { x: number; z: number }, heavy: boolean, force = 1): void {
     this.glow.hit();
     // Tip away from the attacker, in the dummy's own frame.
     const p = this.root.position;
@@ -313,7 +318,7 @@ export class DummyView implements EntityView {
     const yaw = this.root.rotation.y;
     const lx = Math.cos(yaw) * dx - Math.sin(yaw) * dz;
     const lz = Math.sin(yaw) * dx + Math.cos(yaw) * dz;
-    const k = heavy ? 4.2 : 2.4;
+    const k = (heavy ? 4.2 : 2.4) * force;
     this.wx.v += lz * k;
     this.wz.v -= lx * k;
   }
@@ -357,7 +362,7 @@ export class DummyView implements EntityView {
       this.kick = Math.max(0, this.kick - dt * 5);
       this.launcher.position.z = 0.12 - 0.12 * this.kick;
     }
-    if (a?.kind === 'stagger') this.wx.v += Math.sin((a.t / TICK_HZ) * 9) * 6 * dt;
+    if (a?.kind === 'stagger') this.wx.v += Math.sin((a.t / TICK_HZ) * 9) * (a.reason === 'parried' ? 15 : 6) * dt;
     const dead = a?.kind === 'dead';
     this.tip += ((dead ? 1 : 0) - this.tip) * (1 - Math.exp(-(dead ? 8 : 5) * dt));
     if (a?.kind !== 'frozen') {
@@ -457,9 +462,15 @@ export class FallbackView implements EntityView {
  * Scale a fitted model to the EnemyDef's body when the two differ (the manifest's fitHeight is the
  * body the model was made for; a content variant may be bigger).
  */
-function fitToBody(m: ModelInstance, key: keyof typeof MODELS, def: EnemyDef): void {
+export function fitToBody(m: ModelInstance, key: keyof typeof MODELS, def: EnemyDef): void {
+  const size = modelSize(key, def);
+  if (Math.abs(size - 1) > 1e-3) m.root.scale.multiplyScalar(size);
+}
+
+/** How many times the size its model was fitted at this body stands (1 when they match). */
+export function modelSize(key: keyof typeof MODELS, def: EnemyDef): number {
   const fit = (MODELS[key] as ModelEntry).fitHeight;
-  if (fit && Math.abs(fit - def.body.height) > 1e-3) m.root.scale.multiplyScalar(def.body.height / fit);
+  return fit ? def.body.height / fit : 1;
 }
 
 /** The standard enemies' model keys (manifest.ts): M1b's three and M4's veterans and Big Coin. */
@@ -496,17 +507,20 @@ export class HumanoidEnemyView implements EntityView {
   private lean = 0;
   private time = Math.random() * 10;
   private disposed = false;
+  /** How much bigger than its model's authored size it is drawn: the stride and the sink grow with it. */
+  private readonly size: number;
 
   constructor(assets: AssetLoader, readonly def: EnemyDef, readonly kind: HumanoidModel) {
     this.hover = def.hover ?? 0;
     this.height = def.body.height + this.hover;
+    this.size = modelSize(kind, def);
     this.peaks = CAST_PEAKS[kind] ?? LIBRARY_CAST_PEAKS;
     this.root.add(this.body, this.glow.glint);
-    this.glow.glint.position.set(0, this.height * 0.88, 0.25);
+    this.glow.glint.position.set(0, this.height * 0.88, 0.25 * this.size);
     if (kind === 'wisp') {
       // A soft purple pool of light under it, so the hover gap reads.
       const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x9a4aff, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending }));
-      g.scale.set(1.4, 0.5, 1);
+      g.scale.set(1.4 * this.size, 0.5 * this.size, 1);
       g.position.y = 0.12;
       this.root.add(g);
       this.floatGlow = g;
@@ -578,6 +592,8 @@ export class HumanoidEnemyView implements EntityView {
         anim?.scrub('stun', d > 0 ? (a.t / TICK_HZ) % d : 0, 0.08);
         // The robots have no `stun` clip: they reel back and sway instead.
         if (anim && !anim.has('stun')) lean = -0.22 + 0.07 * Math.sin((a.t / TICK_HZ) * 7);
+        // Parried: thrown further back on its heels than any other stagger.
+        if (a.reason === 'parried') lean -= 0.16;
       } else if (a?.kind === 'hitstun') {
         anim?.scrub('hit', (Math.min(a.t, a.dur) / Math.max(1, a.dur)) * (anim?.duration('hit') ?? 0), 0.06);
         // Nor a `hit` clip: a short rock back on their heels.
@@ -594,7 +610,9 @@ export class HumanoidEnemyView implements EntityView {
           // Enemies keep facing their target while they circle and backstep: legs follow velocity vs facing.
           const sy = Math.sin(e.tf.yaw), cy = Math.cos(e.tf.yaw);
           const { x: vx, z: vz } = e.tf.vel;
-          anim.locomotion({ grounded: true, speed, sprinting: false, strafe: { x: -cy * vx + sy * vz, z: sy * vx + cy * vz } });
+          // A longer leg covers more ground per step: the clips play slower on a bigger body, so feet don't slide.
+          const s = this.size;
+          anim.locomotion({ grounded: true, speed: speed / s, sprinting: false, minRate: s > 1 ? 0.25 : undefined, strafe: { x: (-cy * vx + sy * vz) / s, z: (sy * vx + cy * vz) / s } });
         }
       }
     }
@@ -603,9 +621,9 @@ export class HumanoidEnemyView implements EntityView {
       this.lean += (lean - this.lean) * (1 - Math.exp(-14 * dt));
       this.reaction.update(dt);
     }
-    const bob = this.hover > 0 && a?.kind !== 'dead' ? Math.sin(this.time * BOB.rate) * BOB.amp : 0;
+    const bob = this.hover > 0 && a?.kind !== 'dead' ? Math.sin(this.time * BOB.rate) * BOB.amp * this.size : 0;
     this.reaction.apply(this.body, this.lean);
-    this.body.position.y = this.hover + bob + lift - sink * SINK_DEPTH;
+    this.body.position.y = this.hover + bob + lift - sink * SINK_DEPTH * this.size;
     this.glow.setOpacity(1 - sink);
     if (this.floatGlow) this.floatGlow.material.opacity = 0.45 * (1 - sink) * (0.85 + 0.15 * Math.sin(this.time * BOB.rate * 2));
     this.root.visible = sink < 1;

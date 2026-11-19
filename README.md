@@ -39,7 +39,9 @@ On the dev server, **F9** (or LB + RB + View) opens the placement editor: move t
 **In the yard and the wave runner** you fight with the staff (three-hit combo, chargeable heavy,
 dodge roll, block and parry) and four spells: Arcane Bolt, Blast (burns), Frost Nova (chills; three
 stacks freeze) and Chain Zap (shocks). A spell cast right after a melee hit is *woven*: faster and
-stronger. Each enemy type has weaknesses: Sprout Grunts swarm, Coin Slingers keep their distance and
+stronger. Tap block just before a blow lands to parry it: the attacker is stunned, and a heavy press
+during the stun is a riposte for huge damage. A heavy right after an ordinary block is a guard counter.
+Each enemy type has weaknesses: Sprout Grunts swarm, Coin Slingers keep their distance and
 resist magic, Hex Wisps float, resist the staff and blink away, and the Brute resists magic but
 freezes easily.
 
@@ -68,6 +70,7 @@ Then open http://localhost:5180.
 | Cast the spell in slot 1–4 (in Sproutvale you start with Bolt) | 1 2 3 4 (or E R Z X) | Hold LT + X / Y / B / A |
 | Interact: talk, open, rest | F | Y |
 | Ride or get off the Pepe Bull (east of the start) | F | Y |
+| Gallop on the Pepe Bull: press once and it keeps going, at no stamina cost, until you press again or stop (holding works too) | Left Shift | Left stick click |
 | Drink a Sprout Tonic | H | D-pad ↑ |
 | Open the menu / close it | Esc | Menu (Start) |
 | Open the menu on Quests | J | View (Back) |

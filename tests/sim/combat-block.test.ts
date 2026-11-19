@@ -41,8 +41,8 @@ const parries = (evs: TickEvents[]) => ofType(evs, 'parry');
 const blocks = (evs: TickEvents[]) => ofType(evs, 'block');
 
 describe('parry (plan §4.3)', () => {
-  it('a block raised 0–9 ticks before a frontal melee hit parries it', async () => {
-    for (const k of [0, 5, 9]) {
+  it('a block pressed 0–11 ticks before a frontal melee hit parries it', async () => {
+    for (const k of [0, 5, 11]) {
       const { w, p, d } = await swingYard();
       const evs = play(w, SWING_HIT, (i) => i >= SWING_HIT - k);
       expect(parries(evs).map((x) => [x.tick, x.ev.attacker, x.ev.target, x.ev.projectile]), `k=${k}`).toEqual([[SWING_HIT, d.id, p.id, false]]);
@@ -51,23 +51,22 @@ describe('parry (plan §4.3)', () => {
     }
   });
 
-  it('a parry staggers the attacker 60, hit-stops both 10, gives +15 mana and opens the riposte window', async () => {
+  it('a parry stuns the attacker, hit-stops both 10, gives +15 mana and opens the riposte window', async () => {
     const k = 5;
     const { w, p, d } = await swingYard();
     play(w, SWING_HIT - k - 1, () => false);
     p.vitals!.mana = 40;
     const evs = play(w, SWING_HIT, () => true);
     expect(parries(evs).length).toBe(1);
-    expect(d.combat!.action).toMatchObject({ kind: 'stagger', t: 0, dur: BLOCK.parryStagger });
-    expect(BLOCK.parryStagger).toBe(60);
+    expect(d.combat!.action).toMatchObject({ kind: 'stagger', t: 0, dur: BLOCK.parryStun.normal.ticks, reason: 'parried' });
     expect(p.combat!.hitstop).toBe(10);
     expect(d.combat!.hitstop).toBe(10);
     expect(p.vitals!.mana).toBeCloseTo(40 + 15 + (k + 1) * (1.5 / 60), 6);
-    expect(p.combat!.riposteUntil).toBe(SWING_HIT + 40);
+    expect(p.combat!.riposteUntil).toBe(SWING_HIT + BLOCK.parryHitstop + BLOCK.parryStun.normal.ticks - BLOCK.riposteStartup);
     w.dispose();
   });
 
-  it('a heavy within 40 ticks of the parry is a riposte that crits', async () => {
+  it('a heavy during the stun is a riposte that crits for the bonus damage', async () => {
     const { w, p, d } = await swingYard();
     play(w, SWING_HIT, (i) => i >= SWING_HIT - 5);
     // Pressed during the parry freeze: it fires on the first free tick.
@@ -82,15 +81,16 @@ describe('parry (plan §4.3)', () => {
     const [hit] = hitsOn(evs, d.id);
     expect(hit.ev.move).toBe('riposte');
     expect(hit.ev.crit).toBe(true);
-    // 20 × 2.5 × 1.5 (crit) = 75 (§4.2 table). The stagger from the parry is not "stunned" (a status).
+    // 20 × 2.5 × 1.5 (crit) × 1.6 (on the enemy the parry stunned) = 120.
     expect(staggered).toBe(true);
-    expect(hit.ev.damage).toBe(75);
+    expect(hit.ev.damage).toBe(120);
     expect(p.combat!.riposteUntil).toBe(0);
     w.dispose();
   });
 
-  it('the riposte window is 40 ticks: heavy started on parry+39 is a riposte, on parry+40 a plain heavy', async () => {
-    for (const [at, want] of [[SWING_HIT + 39, 'riposte'], [SWING_HIT + 40, 'heavy']] as const) {
+  it('the riposte window closes when a riposte could no longer land inside the stun', async () => {
+    const last = BLOCK.parryHitstop + BLOCK.parryStun.normal.ticks - BLOCK.riposteStartup - 1;
+    for (const [at, want] of [[SWING_HIT + last, 'riposte'], [SWING_HIT + last + 1, 'heavy']] as const) {
       const { w, p } = await swingYard();
       play(w, SWING_HIT, (i) => i >= SWING_HIT - 5);
       play(w, at, () => true, (t) => (t === at ? BTN.heavy : 0));
@@ -102,7 +102,7 @@ describe('parry (plan §4.3)', () => {
 
 describe('block (plan §4.3)', () => {
   it('after the parry window a frontal hit is blocked: 20% chip and stamina = poise / 2', async () => {
-    for (const k of [10, 25]) {
+    for (const k of [12, 25]) {
       const { w, p, d } = await swingYard();
       const evs = play(w, SWING_HIT, (i) => i >= SWING_HIT - k);
       expect(parries(evs), `k=${k}`).toEqual([]);
@@ -133,7 +133,7 @@ describe('block (plan §4.3)', () => {
     }
   });
 
-  it('re-raising within 20 ticks of the last raise gives only a 4-tick parry window', async () => {
+  it('pressing again within 20 ticks of the last press gives only a 4-tick parry window', async () => {
     const reraise = async (first: number, again: number) => {
       const { w, p } = await swingYard();
       const evs = play(w, SWING_HIT, (i) => i === SWING_HIT - first || i >= SWING_HIT - again);
@@ -145,7 +145,7 @@ describe('block (plan §4.3)', () => {
     expect(await reraise(13, 5)).toEqual({ parried: false, blocked: true, parryTicks: 4 });
     expect(await reraise(11, 3)).toEqual({ parried: true, blocked: false, parryTicks: 4 });
     // 22 ticks after the first raise (21 after lowering) the full window is back.
-    expect(await reraise(31, 9)).toEqual({ parried: true, blocked: false, parryTicks: 10 });
+    expect(await reraise(31, 9)).toEqual({ parried: true, blocked: false, parryTicks: 12 });
   });
 
   it("the Brute's slam is unblockable (even in the parry window); its punch is not", async () => {

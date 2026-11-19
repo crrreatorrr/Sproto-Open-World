@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { AssetLoader, ModelInstance } from '../../assets/AssetLoader';
 import type { Priority } from '../../assets/RequestQueue';
 import { STAFF_SOCKET, type ModelKey } from '../../assets/manifest';
-import { PLAYER_MOVES, ROLL, type PlayerMoveId } from '../../content/combat';
+import { PLAYER_MOVES, ROLL, clipTiming, type PlayerMoveId } from '../../content/combat';
 import { PLAYER_MOVE_TIMING } from '../../content/generated/playerMoveTiming';
 import { BACKSTEP, PLUNGE } from '../../content/packs/m7';
 import { SPELLS } from '../../content/spells';
@@ -29,6 +29,25 @@ const RIDE_FADE = 0.1;
 /** The rider's bounce: its rate at a standstill, and how fast it rises with the bull's speed (m/s per 1× rate). */
 const RIDE_RATE_BASE = 0.6;
 const RIDE_RATE_SPEED = 6;
+/** A driving strike throws the body forward (radians), easing in and out at this sharpness. */
+const DRIVE_LEAN = 0.24;
+const DRIVE_LEAN_SHARPNESS = 18;
+/** The rider's forward lean (radians): a little at a run, the rest as the bull opens into a gallop. */
+const RUN_LEAN = 0.07;
+const GALLOP_LEAN = 0.24;
+/** Speeds the lean builds across (m/s): from a walk up to a run, then from a run up to a gallop. */
+const RUN_LEAN_SPEEDS: readonly [number, number] = [3, 9.5];
+const GALLOP_LEAN_SPEEDS: readonly [number, number] = [10.5, 15];
+/** How quickly the lean follows the speed (1/s). */
+const LEAN_RATE = 5;
+/** The lean turns about the saddle, this high above the rider's feet origin (m), so the seat stays put. */
+const SEAT_HEIGHT = 1.28;
+/** At a gallop the body rides the saddle's bounce a little harder than the saddle itself moves. */
+const BOUNCE_GAIN = 0.15;
+/** It also rocks with the bounce (radians per metre the saddle is above its average height). */
+const BOUNCE_ROCK = 0.5;
+/** How quickly the saddle's average height follows it (1/s): the bounce is what is left over. */
+const SADDLE_MEAN_RATE = 4;
 
 /** Draws one player entity: the rigged model, its staff on `socket_staff`, and its animation. */
 export class PlayerView {
@@ -52,6 +71,10 @@ export class PlayerView {
   castShown = false;
   /** On the bull: how far its saddle has moved from its idle height this frame (m). */
   saddleLift = 0;
+  private lean = 0;
+  /** The rider's current forward lean (radians), and the saddle's average height (m). */
+  private rideLean = 0;
+  private saddleMean = 0;
 
   private staffKey: ModelKey | null = null;
   private readonly stopListening: () => void;
@@ -76,6 +99,11 @@ export class PlayerView {
   flinch(from: { x: number; z: number }, heavy: boolean): void {
     this.glow.hit();
     this.reaction.hit(from, this.root.position, this.root.rotation.y, heavy);
+  }
+
+  /** The player's own blow landed at `at`: some of it comes back up the staff. */
+  strikeRecoil(at: { x: number; z: number }, scale: number): void {
+    this.reaction.hit(at, this.root.position, this.root.rotation.y, false, scale);
   }
 
   /** A blow landed on the raised guard: the arms take it and the feet slide. */
@@ -131,6 +159,7 @@ export class PlayerView {
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
     placeEntity(this.root, e, alpha);
     if (e.riding?.state === 'riding') this.root.position.y += this.saddleLift;
+    this.leanInSaddle(e, dt);
     const anim = this.animator;
     if (!anim) return;
     this.attackShown = false;
@@ -168,13 +197,41 @@ export class PlayerView {
     this.finishFrame(e, anim, dt);
   }
 
+  /**
+   * Lean into the bull's speed and ride its bounce. Only the drawn body moves, and it turns about the
+   * saddle, so the rider stays seated and the sim's position is untouched.
+   */
+  private leanInSaddle(e: Readonly<Entity>, dt: number): void {
+    const body = this.model?.root;
+    if (!body) return;
+    const riding = e.riding?.state === 'riding';
+    const speed = e.loco?.speed ?? 0;
+    const gallop = riding ? THREE.MathUtils.smoothstep(speed, GALLOP_LEAN_SPEEDS[0], GALLOP_LEAN_SPEEDS[1]) : 0;
+    const target = riding ? RUN_LEAN * THREE.MathUtils.smoothstep(speed, RUN_LEAN_SPEEDS[0], RUN_LEAN_SPEEDS[1]) + GALLOP_LEAN * gallop : 0;
+    this.rideLean = THREE.MathUtils.damp(this.rideLean, target, LEAN_RATE, dt);
+    this.saddleMean = THREE.MathUtils.damp(this.saddleMean, riding ? this.saddleLift : 0, SADDLE_MEAN_RATE, dt);
+    const bounce = riding ? (this.saddleLift - this.saddleMean) * gallop : 0;
+    const angle = this.rideLean + bounce * BOUNCE_ROCK;
+    body.rotation.x = angle;
+    body.position.set(0, SEAT_HEIGHT * (1 - Math.cos(angle)) + bounce * BOUNCE_GAIN, -SEAT_HEIGHT * Math.sin(angle));
+  }
+
   /** Advance the clips, then the flinch and the status glow on top of them. */
   private finishFrame(e: Readonly<Entity>, anim: Animator, dt: number): void {
     anim.update(dt);
     this.reaction.update(dt);
-    this.reaction.apply(this.pivot);
+    this.lean += (this.driveLean(e) - this.lean) * (1 - Math.exp(-DRIVE_LEAN_SHARPNESS * dt));
+    this.reaction.apply(this.pivot, this.lean);
     this.glow.setStatus(glowStatusOf(e));
     this.glow.update(dt);
+  }
+
+  /** How far a sprint attack is leaning into its drive this frame. */
+  private driveLean(e: Readonly<Entity>): number {
+    const a = e.combat?.action;
+    if (a?.kind !== 'attack') return 0;
+    const def = PLAYER_MOVES[a.move as PlayerMoveId];
+    return def?.drive && a.clipT < clipTiming(def.clip).activeEnd ? DRIVE_LEAN : 0;
   }
 
   /** A new move on the clip already showing (the Brawler's fourth hit replays the third's) starts it over. */

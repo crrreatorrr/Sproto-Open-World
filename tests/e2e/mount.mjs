@@ -116,14 +116,30 @@ try {
   await shot('b3-seated');
   s = await state();
   check(/Dismount/.test(s.prompt ?? ''), 'the prompt now says Dismount', s.prompt);
+  check(/LS\s*Gallop/.test(s.prompt ?? ''), 'the prompt names the gallop button on the pad', s.prompt);
 
-  // Run: faster than sprinting on foot once the stick is held with L3.
+  // Press to run: one tap of L3 and the bull gallops with nothing held.
   await page.evaluate(() => window.__pad.axes(0, -1));
-  await page.evaluate(() => window.__pad.set('l3', true));
-  s = await until((q) => q.player.speed > 9, 'galloping', 900);
-  check(s.player.speed > 9, 'the bull gallops faster than a sprint on foot', `${s.player.speed.toFixed(1)} m/s`);
-  await page.evaluate(() => window.__pad.set('l3', false));
+  s = await until((q) => q.player.speed > 8, 'trotting', 900);
+  await press('l3');
+  s = await until((q) => q.player.speed > 14, 'galloping', 900);
+  check(s.player.speed > 14, 'one press of L3 gallops with no button held', `${s.player.speed.toFixed(1)} m/s`);
+  check(/Slow to a trot/.test(s.prompt ?? ''), 'the prompt offers the trot', s.prompt);
   await shot('b4-gallop');
+  // A hedge crosses this line 70 m north of the bull: each leg starts back at the bull, so a stop against it can't pass for a trot.
+  const backToBull = () => page.evaluate(() => window.__qa.teleport(272, 55.6));
+  await backToBull();
+  await press('l3');
+  // Wait on the speed, not a frame count: a slow software GPU covers many metres per rendered frame.
+  await until((q) => q.player.speed > 8.5 && q.player.speed < 10, 'trotting again', 900);
+  await frames(4);
+  s = await state();
+  check(s.player.speed > 8.5 && s.player.speed < 10, 'the next press slows to a trot', `${s.player.speed.toFixed(1)} m/s`);
+  await backToBull();
+  await press('l3');
+  s = await until((q) => q.player.speed > 14, 'galloping again', 900);
+  check(s.player.speed > 14, 'a third press gallops again', `${s.player.speed.toFixed(1)} m/s`);
+  await backToBull();
 
   // Melee and magic without stopping. Short actions are read from the QA log: on a slow software
   // GPU a 0.3 s Bolt can start and end between two rendered frames.

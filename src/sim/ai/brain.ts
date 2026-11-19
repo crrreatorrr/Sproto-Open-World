@@ -1,15 +1,17 @@
 import { ENEMIES, type EnemyDef, type EnemyMoveDef } from '../../content/enemies';
+import { aiStyle, type AiStyle } from '../../content/packs/aiStyles';
 import { DT } from '../../content/tuning';
 import { flatDist, toWorld, yawTo } from '../combat/geometry';
 import type { CombatCtx } from '../combat/playerCombat';
 import { clockTicks, moveScale } from '../combat/statuses';
-import type { Entity } from '../entity';
+import type { Entity, EntityId } from '../entity';
 import { affixSpeed } from '../systems/affixes';
 import { turnToward, wrapAngle } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
 import { bossAttackTick, bossEngaged, bossPreTick, bossSpeed, bossThink, type BossHost } from '../systems/boss';
 import { drakeTick } from '../systems/drake';
+import { drive, fightClock, groundAt, lookForTarget, newFight, nextBeat, readTarget, ringSlots, slotPull } from './tactics';
 
 /** Spawns one projectile for an enemy's ranged move (provided by SimWorld). `angle` fans it out. */
 export type SpawnProjectile = (owner: Entity, move: EnemyMoveDef, target: Entity, angle: number) => void;
@@ -21,6 +23,17 @@ export const TOKENS = { melee: 2, ranged: 1 } as const;
 const CIRCLE_SPEED = 1.7;
 const WAIT_BAND: [number, number] = [4, 7];
 const MIN_GAP = 0.6;
+/** A player moving away faster than this (m/s) is retreating. */
+const RETREAT_SPEED = 1.5;
+/** How long a punish or the end of a lunge keeps its next attack immediate (ticks). */
+const EAGER_TICKS = 30;
+/** It weighs up punishing a mistake once in this many ticks. */
+const PUNISH_COOLDOWN = 90;
+/** A feint breaks off this far through the wind-up, and the real attack follows this soon (ticks). */
+const FEINT_AT = 0.55;
+const FEINT_REST: [number, number] = [12, 22];
+/** Ranged: with no clear shot for this long it stops sidestepping and walks in (ticks). */
+const BLIND_LIMIT = 180;
 /** A walk home gets this many times the ticks it should take (plus a moment), then the enemy is put back there. */
 const LEASH_PATIENCE = 3;
 const LEASH_GRACE = 60;
@@ -30,10 +43,12 @@ const BLINK_GROUND_RAY = 5;
 /**
  * Enemy brains (plan §4.8). Dummies run fixed timers. Fighters approach (melee) or hold a distance
  * band (ranged), take an attack token before winding up so a group never all swings at once,
- * pick an attack by distance band and weight (never one move three times running), sometimes
- * circle after recovering, and leash home if pulled too far. Chill slows their clock and feet.
+ * pick an attack by distance band and weight (never one move three times running), keep their feet
+ * moving between attacks in the style of their type (`content/packs/aiStyles.ts`), react to what the
+ * player does, and leash home if pulled too far. Chill slows their clock and feet.
  */
 export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld, spawnProjectile: SpawnProjectile, bossHost?: BossHost): void {
+  const slots = ringSlots(ctx);
   const duels = ctx.entities.filter((e) => bossEngaged(e));
   for (const e of ctx.entities) {
     const b = e.brain;
@@ -41,6 +56,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
     if (!b || !c) continue;
     const def = ENEMIES[b.def];
     for (const k of Object.keys(b.cooldowns)) if (b.cooldowns[k] > 0) b.cooldowns[k]--;
+    fightClock(e);
     const still = () => ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
     if (ctx.frozen.has(e.id)) {
       still();
@@ -62,6 +78,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
     if (a?.kind === 'hitstun' || a?.kind === 'stagger' || a?.kind === 'frozen') {
       a.t++;
       if (a.t >= a.dur) c.action = null;
+      if (b.fight) b.fight.burst = null;
       still();
       continue;
     }
@@ -87,7 +104,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
 
     if (def.dummy) dummyThink(ctx, e, def, target);
     else if (boss) bossThink(ctx, e, def, target, rng, boss, startAttack);
-    else fighterThink(ctx, e, def, target, rng, physics);
+    else fighterThink(ctx, e, def, target, rng, physics, slots);
     // Chill slows movement too, and an affix can speed it up or slow it down.
     const m = ctx.motion.get(e.id);
     if (m) {
@@ -143,8 +160,19 @@ function hasToken(ctx: CombatCtx, e: Entity, def: EnemyDef, move: EnemyMoveDef, 
   return used === 0 || used + move.token.cost <= TOKENS[move.token.pool];
 }
 
-function startAttack(ctx: CombatCtx, e: Entity, move: EnemyMoveDef, target: Entity | null): void {
+/** The tick a delayed swing waits on: late in the wind-up, while it can still turn to follow the player. */
+const holdTick = (move: EnemyMoveDef) => Math.max(1, Math.floor(move.windup * Math.min(move.trackUntil, 0.6)) - 1);
+
+/** `hold`: extra ticks the wind-up waits at its peak. The telegraph counts them. */
+function startAttack(ctx: CombatCtx, e: Entity, move: EnemyMoveDef, target: Entity | null, hold = 0): void {
   const c = e.combat!;
+  const f = e.brain!.fight;
+  if (f) {
+    f.hold = hold;
+    f.holdAt = holdTick(move);
+    f.feintAt = -1;
+    f.vx = f.vz = 0;
+  }
   const aim = move.area && target ? { ...target.tf.pos } : undefined;
   c.action = { kind: 'attack', move: move.id, t: 0, clipT: 0, charge: 0, charging: false, charged: false, hit: [], lunge: 0, lungeDir: { x: 0, z: 0 }, fired: 0, aim };
   e.brain!.cooldowns[move.id] = move.cooldown;
@@ -152,7 +180,7 @@ function startAttack(ctx: CombatCtx, e: Entity, move: EnemyMoveDef, target: Enti
   recent.push(move.id);
   if (recent.length > 2) recent.shift();
   ctx.events.push({
-    type: 'telegraph', entity: e.id, move: move.id, ticks: move.windup, unblockable: !!move.unblockable, decal: move.decal,
+    type: 'telegraph', entity: e.id, move: move.id, ticks: move.windup + hold, unblockable: !!move.unblockable, decal: move.decal,
     at: aim, radius: move.area?.radius,
   });
 }
@@ -164,7 +192,11 @@ function runAttack(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | nu
   // Track the target during the first part of the wind-up, then commit.
   if (target && a.t < move.windup * move.trackUntil) e.tf.yaw = turnToward(e.tf.yaw, yawTo(e.tf.pos, target.tf.pos), def.turnRate * DT);
   const ticks = clockTicks(e); // chill slows the whole attack
-  if (ticks) a.t++;
+  const f = e.brain!.fight;
+  if (ticks) {
+    if (f && f.hold > 0 && a.t === f.holdAt) f.hold--;
+    else a.t++;
+  }
   const motion = { vx: 0, vz: 0, inputScale: 0 };
   if (ticks && a.t === move.windup) ctx.events.push({ type: 'swing', entity: e.id, move: move.id, heavy: !!move.hyperArmor });
   // Volleys: `count` shots, `interval` ticks apart, fanned out.
@@ -190,6 +222,10 @@ function runAttack(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | nu
     motion.vz = Math.cos(e.tf.yaw) * speed;
   }
   ctx.motion.set(e.id, motion);
+  if (f && f.feintAt >= 0 && a.t >= f.feintAt) {
+    breakOff(e, move, rng);
+    return;
+  }
   if (a.t >= move.windup + move.active + move.recovery) {
     e.combat!.action = null;
     // A string (the Gatekeeper's 3-hit): the next move starts at once, still holding its token.
@@ -198,12 +234,44 @@ function runAttack(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | nu
       startAttack(ctx, e, next, target);
       return;
     }
-    // After an attack, sometimes back off and circle for a moment.
-    if (!def.dummy && rngNext(rng) < 0.4) {
-      e.brain!.circle = rngRange(rng, 30, 70);
+    // A rest before the next attack, as long as its type likes, on its feet.
+    if (!def.dummy) {
+      const [lo, hi] = aiStyle(def.id).pause;
+      e.brain!.circle = rngRange(rng, lo, hi);
       e.brain!.circleDir = rngNext(rng) < 0.5 ? -1 : 1;
     }
   }
+}
+
+/** A feint: the wind-up stops short and nothing swings. Its cooldown is refunded, and the next attack is real. */
+function breakOff(e: Entity, move: EnemyMoveDef, rng: RngState): void {
+  const b = e.brain!;
+  const f = b.fight!;
+  e.combat!.action = null;
+  f.feintAt = -1;
+  f.feinted = true;
+  b.cooldowns[move.id] = 0;
+  b.circle = rngRange(rng, FEINT_REST[0], FEINT_REST[1]);
+}
+
+/** Starts a fighter's chosen attack, deciding whether this one is held back or is a feint. */
+function swing(ctx: CombatCtx, e: Entity, def: EnemyDef, style: AiStyle, move: EnemyMoveDef, target: Entity, gap: number, rng: RngState): void {
+  const f = e.brain!.fight!;
+  // Only a plain melee swing plays with its timing: anything with a marked circle lands when it says.
+  const plain = !move.area && !move.leap && !move.decal && !move.projectile && !move.charge && !move.unblockable;
+  let hold = 0, feintAt = -1;
+  if (plain && f.eager <= 0 && !f.feinted) {
+    // No feint on the move it just used while it has another to hand: with the real swing after it,
+    // that would read as three in a row.
+    const repeat = e.brain!.recent[e.brain!.recent.length - 1] === move.id;
+    const other = def.moves.some((m) => m !== move && !m.chainOnly && gap <= m.range && gap >= (m.minRange ?? 0));
+    if (!(repeat && other) && rngNext(rng) < style.feint) feintAt = Math.max(1, Math.floor(move.windup * FEINT_AT));
+    else if (rngNext(rng) < style.delay.chance) hold = rngRange(rng, style.delay.ticks[0], style.delay.ticks[1]);
+  }
+  f.feinted = false;
+  f.eager = 0;
+  startAttack(ctx, e, move, target, hold);
+  f.feintAt = feintAt;
 }
 
 function dummyThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | null): void {
@@ -227,7 +295,7 @@ function dummyThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | n
   }
 }
 
-function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | null, rng: RngState, physics: PhysicsWorld): void {
+function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | null, rng: RngState, physics: PhysicsWorld, slots: ReadonlyMap<EntityId, number>): void {
   // Moves the AI picks itself (a string's later hits only come as follow-ups).
   const picks = def.moves.filter((m) => !m.chainOnly);
   const b = e.brain!;
@@ -242,14 +310,6 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
     }
     e.tf.yaw = turnToward(e.tf.yaw, Math.atan2(dx, dz), def.turnRate * DT);
     ctx.motion.set(e.id, { vx: (dx / d) * speed, vz: (dz / d) * speed, inputScale: 0 });
-  };
-  const faceTarget = (t: Entity) => (e.tf.yaw = turnToward(e.tf.yaw, yawTo(e.tf.pos, t.tf.pos), def.turnRate * DT));
-  /** Circle `t` (perpendicular to the line between them), plus `radial` m/s toward (+) or away (−). */
-  const strafe = (t: Entity, dir: number, speed: number, radial = 0) => {
-    const yaw = yawTo(e.tf.pos, t.tf.pos);
-    faceTarget(t);
-    const sx = Math.cos(yaw) * dir, sz = -Math.sin(yaw) * dir;
-    ctx.motion.set(e.id, { vx: sx * speed + Math.sin(yaw) * radial, vz: sz * speed + Math.cos(yaw) * radial, inputScale: 0 });
   };
 
   // Leash: pulled too far from home, or the player it was fighting got away: walk back fast,
@@ -285,12 +345,107 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
     }
     return;
   }
+  if (b.state !== 'engage' || !b.fight) b.fight = newFight(e);
   b.state = 'engage';
+  const f = b.fight;
+  const style = aiStyle(def.id);
+  const speed = def.moveSpeed;
   const gap = flatDist(e.tf.pos, target.tf.pos) - (target.body?.radius ?? 0.35);
+  const reach = Math.min(...picks.map((m) => m.range));
 
-  if (b.circle > 0) {
-    b.circle--;
-    strafe(target, b.circleDir, CIRCLE_SPEED);
+  /** Move around the target while facing it: `lateral` m/s sideways, `radial` m/s toward it (− away). */
+  const orbit = (lateral: number, radial: number, ease?: number) => {
+    const yaw = yawTo(e.tf.pos, target.tf.pos);
+    e.tf.yaw = turnToward(e.tf.yaw, yaw, def.turnRate * DT);
+    drive(ctx, e, def, physics, Math.cos(yaw) * lateral + Math.sin(yaw) * radial, -Math.sin(yaw) * lateral + Math.cos(yaw) * radial, ease);
+  };
+  const pull = slotPull(e, target, slots) * style.flank;
+  const read = readTarget(target, e);
+  const pressing = read.tired || read.retreat > RETREAT_SPEED;
+
+  /** Its feet between attacks: circling, stepping in and back, holding its ground, as its type likes. */
+  const feet = () => {
+    nextBeat(f, e, style, rng);
+    const lateral = (f.foot === 'hold' ? 0 : b.circleDir * speed * style.strafe) + pull * speed * 0.5;
+    if (def.keepRange) {
+      const [lo, hi] = def.keepRange;
+      const radial = gap < lo - style.kite ? -speed * 0.6 : gap > hi - 1 ? speed * 0.4 : Math.sin((ctx.now + e.id * 37) / 40) * style.sway;
+      orbit(lateral, radial);
+      return;
+    }
+    const near = reach + style.band[0], far = reach + style.band[1];
+    let radial = 0;
+    if (gap < near) radial = -speed * 0.6;
+    else if (gap > far) radial = speed * (gap > far + 2 ? 1 : 0.6);
+    else if (f.foot === 'in' || pressing) radial = speed * 0.35;
+    else if (f.foot === 'out') radial = -speed * 0.35;
+    orbit(lateral, radial);
+  };
+  const startLunge = (lunge: NonNullable<AiStyle['lunge']>) => {
+    f.burst = 'lunge';
+    f.burstT = lunge.ticks;
+    f.burstSpeed = speed * lunge.speed;
+    f.lungeCd = lunge.cooldown;
+    f.cornered = 0;
+    orbit(0, f.burstSpeed, 1);
+  };
+
+  // A burst of speed runs its course first.
+  if (f.burst === 'lunge') {
+    if (--f.burstT > 0 && gap > reach - 0.15 && f.cornered <= 0) {
+      orbit(0, f.burstSpeed, 1);
+      return;
+    }
+    f.burst = null;
+    f.eager = EAGER_TICKS;
+    b.circle = 0;
+  } else if (f.burst === 'evade') {
+    if (--f.burstT > 0 && f.cornered <= 0) {
+      e.tf.yaw = turnToward(e.tf.yaw, yawTo(e.tf.pos, target.tf.pos), def.turnRate * DT);
+      drive(ctx, e, def, physics, f.burstX * f.burstSpeed, f.burstZ * f.burstSpeed, 1);
+      return;
+    }
+    f.burst = null;
+  }
+
+  // Hit too often: step out of it, backward or to the side.
+  const evade = style.evade;
+  if (evade && f.hits >= evade.hits && f.evadeCd <= 0) {
+    const yaw = yawTo(e.tf.pos, target.tf.pos);
+    const side = rngNext(rng) < 0.5 ? 1 : -1;
+    const back = rngNext(rng) < evade.back;
+    f.burst = 'evade';
+    f.burstT = evade.ticks;
+    f.burstX = back ? -Math.sin(yaw) : Math.cos(yaw) * side;
+    f.burstZ = back ? -Math.cos(yaw) : -Math.sin(yaw) * side;
+    f.burstSpeed = speed * evade.speed;
+    f.hits = 0;
+    f.evadeCd = evade.cooldown;
+    f.cornered = 0;
+    b.circle = Math.max(b.circle, 20);
+    drive(ctx, e, def, physics, f.burstX * f.burstSpeed, f.burstZ * f.burstSpeed, 1);
+    return;
+  }
+
+  const hasTokenFor = picks.some((m) => hasToken(ctx, e, def, m, target));
+
+  // A tonic or a whiffed swing nearby is an opening: drop the rest and go.
+  if (f.punishCd <= 0 && (read.drinking || read.whiffing)) {
+    f.punishCd = PUNISH_COOLDOWN;
+    const chance = read.drinking ? style.punish.heal : style.punish.whiff;
+    if (gap <= style.punish.range && hasTokenFor && rngNext(rng) < chance) {
+      b.circle = 0;
+      f.eager = EAGER_TICKS;
+      if (!def.keepRange && style.lunge && gap > reach) {
+        startLunge(style.lunge);
+        return;
+      }
+    }
+  }
+  // A player backing away gets chased down.
+  const lunge = style.lunge;
+  if (lunge && !def.keepRange && f.lungeCd <= 0 && read.retreat > RETREAT_SPEED && hasTokenFor && gap >= reach + lunge.from && gap <= reach + lunge.to) {
+    startLunge(lunge);
     return;
   }
 
@@ -302,24 +457,36 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
   const noRepeat = picks.some((m) => offCooldown(m) && inRange(m) && !thirdInARow(m));
   const ready = (m: EnemyMoveDef) => offCooldown(m) && (!noRepeat || !thirdInARow(m));
   // Token-less melee enemies hang back in the waiting band and circle, feinting in and out (plan
-  // §4.8), instead of standing in your face waiting for a slot.
-  if (!def.keepRange && def.usesTokens && !picks.some((m) => hasToken(ctx, e, def, m, target))) {
+  // §4.8), instead of standing in your face waiting for a slot. The ring spreads them around you.
+  if (!def.keepRange && def.usesTokens && !hasTokenFor) {
     const [lo, hi] = WAIT_BAND;
-    const radial = gap < lo ? -def.moveSpeed * 0.7 : gap > hi ? def.moveSpeed * 0.7 : Math.sin((ctx.now + e.id * 37) / 25) * 1.2;
-    strafe(target, b.circleDir, CIRCLE_SPEED, radial);
+    const radial = gap < lo ? -speed * 0.7 : gap > hi ? speed * 0.7 : Math.sin((ctx.now + e.id * 37) / 25) * 1.2;
+    orbit(b.circleDir * CIRCLE_SPEED + pull * speed * 0.5, radial);
     return;
   }
-  // Ranged fighters hold their band: back off when crowded (so melee them!), close in when too far.
+  // Ranged fighters hold their band: back off when crowded (so melee them!), close in when too far,
+  // and move to find a clear line of fire. Cornered, they stand and shoot.
   if (def.keepRange) {
+    lookForTarget(ctx, e, target, physics);
     const [lo, hi] = def.keepRange;
-    if (gap < lo - 3) {
-      strafe(target, b.circleDir, CIRCLE_SPEED * 0.5, -def.moveSpeed * 0.85);
+    if (gap < lo - 3 && f.cornered <= 0) {
+      orbit(b.circleDir * CIRCLE_SPEED * 0.5, -speed * 0.85, 1);
       return;
     }
-    if (gap > hi) {
-      go(target.tf.pos.x, target.tf.pos.z, def.moveSpeed);
+    if (gap > hi || f.blind > BLIND_LIMIT) {
+      orbit(0, speed, 1);
       return;
     }
+    if (!f.sight) {
+      orbit(b.circleDir * speed * 0.8, 0);
+      return;
+    }
+  }
+  // The rest after an attack. A tired or retreating player cuts it short.
+  if (b.circle > 0) {
+    b.circle -= pressing ? 1 + Math.round(style.press * 2) : 1;
+    feet();
+    return;
   }
   // Sometimes step in for a shorter-reach move instead of always swinging from the longest reach,
   // so a player who stands still still sees the whole moveset.
@@ -328,11 +495,14 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
     b.stepIn = ready(shortest) && gap > shortest.range && rngNext(rng) < 0.35 ? shortest.range - 0.2 : 0;
   }
   if (b.stepIn && gap > b.stepIn) {
-    go(target.tf.pos.x, target.tf.pos.z, def.moveSpeed);
+    orbit(pull * speed * 0.5, speed, 1);
     return;
   }
-  const options = picks.filter((m) => inRange(m) && ready(m));
-  const facing = Math.abs(wrapAngle(yawTo(e.tf.pos, target.tf.pos) - e.tf.yaw)) < 0.6;
+  const yawToTarget = yawTo(e.tf.pos, target.tf.pos);
+  // No leap onto ground that isn't there.
+  const usable = (m: EnemyMoveDef) => !m.leap || groundAt(e, physics, e.tf.pos.x + Math.sin(yawToTarget) * m.leap.distance, e.tf.pos.z + Math.cos(yawToTarget) * m.leap.distance);
+  const options = picks.filter((m) => inRange(m) && ready(m) && usable(m));
+  const facing = Math.abs(wrapAngle(yawToTarget - e.tf.yaw)) < 0.6;
   const allowed = options.filter((m) => hasToken(ctx, e, def, m, target));
   if (allowed.length && facing) {
     let total = 0;
@@ -346,23 +516,19 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
         break;
       }
     }
-    startAttack(ctx, e, pick, target);
+    swing(ctx, e, def, style, pick, target, gap, rng);
     b.stepIn = undefined;
     ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
     return;
   }
-  if (def.keepRange) {
-    // In the band but nothing to throw yet: drift sideways.
-    strafe(target, b.circleDir, CIRCLE_SPEED * 0.7);
+  // Something to swing but out of reach: close in, fanning out toward its place in the ring.
+  if (!def.keepRange && picks.some(ready) && gap > reach - MIN_GAP) {
+    const lateral = pull * speed * 0.5;
+    const k = speed / Math.hypot(lateral, speed);
+    orbit(lateral * k, speed * k, 1);
     return;
   }
-  // Close in until just inside the shortest reach, then turn to face.
-  const want = Math.min(...picks.map((m) => m.range)) - MIN_GAP;
-  if (gap > want) go(target.tf.pos.x, target.tf.pos.z, def.moveSpeed);
-  else {
-    faceTarget(target);
-    ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
-  }
+  feet();
 }
 
 /** Teleport away from the target by the blink distance, to the first clear spot. */

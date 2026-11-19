@@ -1,9 +1,13 @@
 import { MOUNT } from '../../content/mounts';
 import { DT, MOVE } from '../../content/tuning';
 import type { CombatCtx } from '../combat/playerCombat';
+import { BTN, type InputCommand } from '../commands';
 import type { Entity } from '../entity';
 import type { SimEvent } from '../events';
-import { turnToward } from '../math';
+import { approach, clamp, turnToward, wrapAngle } from '../math';
+
+/** Stick travel that counts as asking the bull to move. */
+const STICK_MOVING = 0.1;
 
 /**
  * Riding the Pepe Bull. The rider keeps their own capsule, so collisions, hits and lock-on work as
@@ -13,7 +17,7 @@ import { turnToward } from '../math';
 export function startMount(events: SimEvent[], rider: Entity, bull: Entity): void {
   if (rider.riding || rider.combat?.action || !bull.mount || bull.mount.rider !== null) return;
   bull.mount.rider = rider.id;
-  rider.riding = { mount: bull.id, state: 'mounting', dir: { x: 0, z: 0 } };
+  rider.riding = { mount: bull.id, state: 'mounting', dir: { x: 0, z: 0 }, gallop: false, holdSpent: false };
   rider.combat!.action = { kind: 'mounting', t: 0, dur: MOUNT.mountTicks };
   events.push({ type: 'mount', entity: rider.id, mount: bull.id, phase: 'start' });
 }
@@ -22,6 +26,7 @@ export function startDismount(events: SimEvent[], rider: Entity, bull: Entity): 
   const r = rider.riding;
   if (r?.state !== 'riding' || rider.combat?.action) return;
   r.state = 'dismounting';
+  r.gallop = false;
   // Off to the bull's left.
   r.dir = { x: -Math.cos(rider.tf.yaw), z: Math.sin(rider.tf.yaw) };
   bull.mount!.rider = null;
@@ -93,6 +98,7 @@ export function ridingMotion(ctx: CombatCtx): void {
     if (ctx.frozen.has(p.id)) continue;
     const m = ctx.motion.get(p.id);
     if (!m) continue;
+    if (a?.kind !== 'dodge') delete r.carry;
     switch (a?.kind) {
       case undefined:
         // The bull runs where you steer: no strafing sideways when locked on.
@@ -105,12 +111,83 @@ export function ridingMotion(ctx: CombatCtx): void {
         // Melee and magic from the saddle: the bull keeps moving, turning toward the action.
         ctx.motion.set(p.id, { vx: 0, vz: 0, inputScale: MOUNT.actionMove, faceYaw: m.faceYaw ?? p.tf.yaw });
         break;
-      case 'dodge':
-        m.vx *= MOUNT.dodgeScale;
-        m.vz *= MOUNT.dodgeScale;
+      case 'dodge': {
+        // The charge adds to the speed the bull already has: a dodge at a gallop swerves, it doesn't stop dead.
+        r.carry ??= { x: p.tf.vel.x, z: p.tf.vel.z };
+        const had = Math.hypot(r.carry.x, r.carry.z);
+        const left = Math.max(0, had - MOUNT.dodgeBrake * DT);
+        const keep = had > 1e-6 ? left / had : 0;
+        r.carry.x *= keep;
+        r.carry.z *= keep;
+        const cap = Math.max(Math.hypot(m.vx, m.vz), left) * MOUNT.dodgeScale;
+        const vx = m.vx * MOUNT.dodgeScale + r.carry.x, vz = m.vz * MOUNT.dodgeScale + r.carry.z;
+        const fit = Math.min(1, cap / Math.max(1e-6, Math.hypot(vx, vz)));
+        m.vx = vx * fit;
+        m.vz = vz * fit;
         break;
+      }
     }
   }
+}
+
+/**
+ * The sprint button in the saddle: a press starts the gallop and it stays on with nothing held; the
+ * next press, or coming to a stop, ends it. Holding the button gallops too, including when the bull
+ * sets off again under a held button. Stamina plays no part. Runs even in hit-stop, so no press is lost.
+ */
+export function gallopInput(rider: Entity, cmd: InputCommand, stick: number): void {
+  const r = rider.riding;
+  if (r?.state !== 'riding') return;
+  const pressed = (cmd.pressed & BTN.sprint) !== 0;
+  const held = pressed || (cmd.held & BTN.sprint) !== 0;
+  if (!held) r.holdSpent = false;
+  const moving = stick >= STICK_MOVING || (rider.loco?.speed ?? 0) >= MOUNT.stopSpeed;
+  if (pressed && r.gallop) {
+    r.gallop = false;
+    r.holdSpent = true;
+  } else if (!moving) r.gallop = false;
+  else if (held && !r.holdSpent) r.gallop = true;
+}
+
+/**
+ * The bull's weight, in place of the on-foot acceleration: its speed builds and brakes slowly, and
+ * its line bends only as fast as its grip allows, so a turn at a gallop is a wide arc. Steering
+ * hard across that line scrubs speed off, which tightens a hairpin. `ground` scales it all in the air.
+ */
+export function steerBull(vel: { x: number; z: number }, wish: { x: number; z: number; mag: number }, top: number, ground: number): void {
+  const speed = Math.hypot(vel.x, vel.z);
+  if (wish.mag <= 1e-4) {
+    const left = Math.max(0, speed - MOUNT.brake * ground * DT);
+    const keep = speed > 1e-6 ? left / speed : 0;
+    vel.x *= keep;
+    vel.z *= keep;
+    return;
+  }
+  const goal = Math.atan2(wish.x, wish.z);
+  const want = wish.mag * top;
+  const change = (target: number) => approach(speed, target, (target > speed ? MOUNT.accel : MOUNT.brake) * ground * DT);
+  if (speed < MOUNT.pivotSpeed) {
+    const next = change(want);
+    vel.x = Math.sin(goal) * next;
+    vel.z = Math.cos(goal) * next;
+    return;
+  }
+  const line = Math.atan2(vel.x, vel.z);
+  const off = wrapAngle(goal - line);
+  const bend = ((MOUNT.grip * ground) / speed) * DT;
+  const heading = line + clamp(off, -bend, bend);
+  const hard = clamp((Math.abs(off) - MOUNT.scrubFrom) / (MOUNT.scrubTo - MOUNT.scrubFrom), 0, 1);
+  const next = change(want * (1 - (1 - MOUNT.scrubKeep) * hard));
+  vel.x = Math.sin(heading) * next;
+  vel.z = Math.cos(heading) * next;
+}
+
+/** The bull's body follows the line it is running, or the stick when it is standing. */
+export function faceBull(tf: Entity['tf'], wish: { x: number; z: number; mag: number }): void {
+  const running = Math.hypot(tf.vel.x, tf.vel.z) > 0.5;
+  if (!running && wish.mag <= STICK_MOVING) return;
+  const to = running ? Math.atan2(tf.vel.x, tf.vel.z) : Math.atan2(wish.x, wish.z);
+  tf.yaw = turnToward(tf.yaw, to, MOUNT.yawRate * DT);
 }
 
 /** After physics: a ridden bull is where its rider is, and shows their speed. */

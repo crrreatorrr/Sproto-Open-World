@@ -10,7 +10,7 @@ import type { HitFx } from '../fx/HitFx';
 import { glowTexture } from '../fx/textures';
 import { BodyGlow } from './BodyGlow';
 import { fogMaterial } from './BossViews';
-import { attackClipTime, glowStatusOf, type EntityView } from './EnemyViews';
+import { attackClipTime, fitToBody, glowStatusOf, type EntityView } from './EnemyViews';
 import { placeEntity, spring } from './interp';
 
 /** Where the spit leaves in the `fireball` clip (seconds; the shooter's 20 of 30 frames). */
@@ -57,7 +57,7 @@ export class DrakeView implements EntityView {
   constructor(assets: AssetLoader, readonly def: EnemyDef, private readonly fx: HitFx | null) {
     this.height = def.body.height;
     this.root.add(this.body, this.glow.glint);
-    this.glow.glint.position.set(0, this.height * 0.7, 3);
+    this.glow.glint.position.set(0, this.height * 0.7, 3 * (def.size ?? 1));
     this.lane = new THREE.Mesh(this.laneGeo, this.laneMat);
     this.lane.frustumCulled = false;
     this.lane.visible = false;
@@ -69,6 +69,7 @@ export class DrakeView implements EntityView {
         m.dispose();
         return;
       }
+      fitToBody(m, 'drake', def);
       this.model = m;
       this.glow.adopt(m.root);
       this.body.add(m.root);
@@ -83,6 +84,11 @@ export class DrakeView implements EntityView {
   flinch(_from: { x: number; z: number }, heavy: boolean): void {
     this.glow.hit();
     this.recoil.v -= heavy ? 1.2 : 0.6;
+  }
+
+  /** Thrown off a blow (a parry) or its poise broke: the whole body rocks back. */
+  reel(): void {
+    this.recoil.v -= 1.6;
   }
 
   /** Spitting: the wind-up opens the jaw to the release frame, and each shot of a volley replays the spit. */
@@ -132,8 +138,12 @@ export class DrakeView implements EntityView {
         this.embers += dt;
         if (this.fx && this.embers > 0.09) {
           this.embers = 0;
-          this.fx.emit(this.root.getWorldPosition(this.at).setY(this.at.y + 2.4), 'fire', 3, 0.5, 2);
+          this.fx.emit(this.root.getWorldPosition(this.at).setY(this.at.y + this.height * 0.48), 'fire', 3, 0.5, 2);
         }
+      } else if (a?.kind === 'stagger' && a.reason === 'parried') {
+        // Thrown off its dive: nose up, wings stalling for a moment.
+        anim?.loop('fly', 0.6);
+        nose = -0.4;
       } else if (a?.kind !== 'frozen') anim?.loop('fly', 1 + Math.min(0.5, hspeed / 40));
     }
     this.pitch += (nose - this.pitch) * (1 - Math.exp(-6 * dt));
@@ -141,7 +151,7 @@ export class DrakeView implements EntityView {
     spring(this.recoil, 160, 14, dt);
     this.body.rotation.x = this.pitch + this.recoil.x;
     this.body.rotation.z = this.bank;
-    this.body.position.y = -sink * SINK_DEPTH;
+    this.body.position.y = -sink * SINK_DEPTH * (this.def.size ?? 1);
     this.glow.setOpacity(1 - sink);
     this.root.visible = sink < 1;
     this.glow.setStatus(glowStatusOf(e));
@@ -272,7 +282,7 @@ const PASS_HALF = 260;
 const PASS_SPEED = 30;
 const PASS_HEIGHT: readonly [number, number] = [38, 52];
 const PASS_SIDE: readonly [number, number] = [42, 70];
-/** It reads as a big shape at that distance. */
+/** It reads as a big shape at that distance: at least its true size, and no smaller than this. */
 const PASS_SCALE = 1.7;
 
 const between = ([lo, hi]: readonly [number, number]) => lo + Math.random() * (hi - lo);
@@ -349,7 +359,7 @@ export class DrakeFlyover {
         return;
       }
       this.model = m;
-      m.root.scale.multiplyScalar(PASS_SCALE);
+      m.root.scale.multiplyScalar(Math.max(PASS_SCALE, ENEMIES.skyfire_drake.size ?? 1));
       this.root.add(m.root);
       this.animator = new Animator(m.root, m.clips);
     });

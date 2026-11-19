@@ -8,7 +8,7 @@ import { Animator, ENTRY_FADE } from '../anim/Animator';
 import type { HitFx } from '../fx/HitFx';
 import { glowTexture } from '../fx/textures';
 import { BodyGlow } from './BodyGlow';
-import { attackClipTime, glowStatusOf, type EntityView } from './EnemyViews';
+import { attackClipTime, fitToBody, glowStatusOf, type EntityView } from './EnemyViews';
 import { placeEntity, spring } from './interp';
 import { TelegraphDecal } from './TelegraphDecal';
 
@@ -17,12 +17,16 @@ const CONTACT: Record<string, number> = { smash: 24 / 54, slam: 0.45 };
 /** Ground speed of the walk and charge clips at time scale 1 (the shooter's speeds per metre of height, at 5.4 m). */
 const WALK_CLIP_SPEED = 1.79;
 const CHARGE_CLIP_SPEED = 6.73;
+const CLIP_SPEED_HEIGHT = 5.4;
 /** Death: hold the pose, then sink and fade (ticks). */
 const SINK_DELAY = 30;
 const SINK_TICKS = 70;
 const SINK_DEPTH = 2.4;
 /** The charge's lane on the ground (m). */
 const LANE_LENGTH = 20;
+/** The arena's fog wall stands at least this high (m), and this far over the boss's head. */
+const WALL_HEIGHT = 7;
+const WALL_OVER_HEAD = 1.5;
 
 /** A vertical fade, bright at the foot: the arena's fog wall and the gate's barrier. */
 let fogTex: THREE.CanvasTexture | null = null;
@@ -67,12 +71,17 @@ export class ScrapjawView implements EntityView {
   private readonly wall: THREE.Mesh;
   private readonly wallMat = fogMaterial(0xffb070);
   private wallOn = 0;
+  private readonly wallHeight: number;
   private time = 0;
+  /** A longer leg covers more ground per step: the clips' paces grow with the body, so feet don't slide. */
+  private readonly stride: number;
 
   constructor(assets: AssetLoader, readonly def: EnemyDef, modelKey: ModelKey = 'scrapjaw') {
     this.height = def.body.height;
+    this.stride = def.body.height / CLIP_SPEED_HEIGHT;
+    this.wallHeight = Math.max(WALL_HEIGHT, def.body.height + WALL_OVER_HEAD);
     this.root.add(this.body, this.glow.glint);
-    this.glow.glint.position.set(0, this.height * 0.88, 0.8);
+    this.glow.glint.position.set(0, this.height * 0.88, 0.8 * (def.size ?? 1));
     const laneGeo = new THREE.PlaneGeometry(1, LANE_LENGTH);
     laneGeo.rotateX(-Math.PI / 2);
     laneGeo.translate(0, 0, LANE_LENGTH / 2);
@@ -81,13 +90,14 @@ export class ScrapjawView implements EntityView {
     this.lane.visible = false;
     this.root.add(this.lane);
     const r = def.boss?.arenaRadius ?? 20;
-    this.wall = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 7, 64, 1, true), this.wallMat);
+    this.wall = new THREE.Mesh(new THREE.CylinderGeometry(r, r, this.wallHeight, 64, 1, true), this.wallMat);
     this.wall.visible = false;
     void assets.instance(modelKey).then((m) => {
       if (this.disposed) {
         m.dispose();
         return;
       }
+      fitToBody(m, modelKey, def);
       this.model = m;
       this.glow.adopt(m.root);
       this.body.add(m.root);
@@ -105,6 +115,11 @@ export class ScrapjawView implements EntityView {
     this.recoil.v -= heavy ? 1.2 : 0.6;
   }
 
+  /** Thrown off a blow (a parry) or its poise broke: the whole body rocks back. */
+  reel(): void {
+    this.recoil.v -= 1.6;
+  }
+
   /** How far under the ground the body is drawn (m): the Burrowmother's burrow. */
   protected burrowDepth(_e: Readonly<Entity>, _dt: number): number {
     return 0;
@@ -117,7 +132,7 @@ export class ScrapjawView implements EntityView {
     const total = mv.windup + mv.active + mv.recovery;
     if (mv.charge) {
       if (t < mv.windup) anim.scrub('charge_start', (t / mv.windup) * anim.duration('charge_start'), ENTRY_FADE);
-      else if (t < mv.windup + mv.active) anim.loop('charge', Math.min(2.4, mv.charge.speed / CHARGE_CLIP_SPEED), ENTRY_FADE);
+      else if (t < mv.windup + mv.active) anim.loop('charge', Math.min(2.4, mv.charge.speed / (CHARGE_CLIP_SPEED * this.stride)), ENTRY_FADE);
       else anim.loop('idle');
     } else if (mv.projectile) {
       if (t < mv.windup) anim.scrub('throw_start', (t / mv.windup) * anim.duration('throw_start'), ENTRY_FADE);
@@ -152,13 +167,14 @@ export class ScrapjawView implements EntityView {
         sink = Math.min(1, Math.max(0, (a.t - SINK_DELAY) / SINK_TICKS));
       } else if (a?.kind === 'stagger' || a?.kind === 'hitstun') {
         anim?.loop('stunned', a.kind === 'stagger' && a.reason === 'broken' ? 0.75 : 1);
+        if (a.kind === 'stagger' && a.reason === 'parried') lean = -0.14;
       } else if (e.boss?.state === 'intro') {
         const ticks = this.def.boss?.introTicks ?? 120;
         anim?.scrub('roar', (e.boss.t / ticks) * (anim?.duration('roar') ?? 0), 0.25);
       } else if (anim) {
         const speed = Math.hypot(e.tf.vel.x, e.tf.vel.z);
         if (speed < 0.3) anim.loop('idle');
-        else anim.loop('walk', Math.min(1.8, Math.max(0.6, speed / WALK_CLIP_SPEED)));
+        else anim.loop('walk', Math.min(1.8, Math.max(0.4, speed / (WALK_CLIP_SPEED * this.stride))));
       }
     }
     this.lane.visible = lane > 0;
@@ -166,7 +182,7 @@ export class ScrapjawView implements EntityView {
     this.lean += (lean - this.lean) * (1 - Math.exp(-14 * dt));
     spring(this.recoil, 160, 14, dt);
     this.body.rotation.x = this.lean + this.recoil.x;
-    this.body.position.y = -sink * SINK_DEPTH - this.burrowDepth(e, dt);
+    this.body.position.y = -sink * SINK_DEPTH * (this.def.size ?? 1) - this.burrowDepth(e, dt);
     this.glow.setOpacity(1 - sink);
     this.root.visible = sink < 1;
     this.glow.setStatus(glowStatusOf(e));
@@ -183,7 +199,7 @@ export class ScrapjawView implements EntityView {
     if (!this.wall.visible) return;
     if (!this.wall.parent) this.root.parent?.add(this.wall);
     const home = e.brain?.home;
-    if (home) this.wall.position.set(home.x, home.y + 3.5, home.z);
+    if (home) this.wall.position.set(home.x, home.y + this.wallHeight / 2, home.z);
     this.wallMat.opacity = this.wallOn * (0.3 + 0.08 * Math.sin(this.time * 2.2));
   }
 

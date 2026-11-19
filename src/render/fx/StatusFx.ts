@@ -8,8 +8,13 @@ const CRYSTALS_EACH = 9;
 const MAX_FLAMES = 18;
 const FLAMES_EACH = 3;
 const MAX_FROST_RINGS = 8;
-const MAX_DIZZY = 12;
+const MAX_DIZZY = 30;
 const DIZZY_EACH = 3;
+/** A parried enemy: a bigger crown of brighter stars, and a halo. */
+const MAX_HALOS = 6;
+const STUN_STARS = 5;
+/** Ticks before a stun ends that its halo starts to flicker: the riposte is nearly gone. */
+const STUN_ENDING = 20;
 /** Seconds between the arcs that jump across a shocked body. */
 const ARC_EVERY = 0.2;
 /** Ticks a freeze takes to close over the body. */
@@ -27,10 +32,12 @@ export class StatusFx {
   private readonly flames: THREE.Sprite[] = [];
   private readonly rings: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>[] = [];
   private readonly dizzy: THREE.Sprite[] = [];
+  private readonly halos: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>[] = [];
   private frozenUsed = 0;
   private flamesUsed = 0;
   private ringsUsed = 0;
   private dizzyUsed = 0;
+  private halosUsed = 0;
   private time = 0;
   private readonly arcClock = new Map<EntityId, number>();
   private readonly wasFrozen = new Set<EntityId>();
@@ -71,12 +78,20 @@ export class StatusFx {
       this.dizzy.push(s);
       this.root.add(s);
     }
+    const haloGeo = new THREE.RingGeometry(0.8, 1, 32).rotateX(-Math.PI / 2);
+    for (let i = 0; i < MAX_HALOS; i++) {
+      const m = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0xffe27a, transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+      m.visible = false;
+      m.renderOrder = 9;
+      this.halos.push(m);
+      this.root.add(m);
+    }
   }
 
   /** Start a frame's worth of tracking. */
   begin(dt: number): void {
     this.time += dt;
-    this.frozenUsed = this.flamesUsed = this.ringsUsed = this.dizzyUsed = 0;
+    this.frozenUsed = this.flamesUsed = this.ringsUsed = this.dizzyUsed = this.halosUsed = 0;
     this.frozenNow.clear();
   }
 
@@ -90,7 +105,8 @@ export class StatusFx {
     if (s?.burn) this.burning(e.id, p, height, radius);
     if (s?.chill && a?.kind !== 'frozen') this.chilled(p, radius, s.chill.stacks);
     if (s?.shock) this.shocked(e.id, p, height, radius, dt);
-    if (a?.kind === 'stagger') this.staggered(e.id, p, height, radius);
+    if (a?.kind === 'stagger' && a.reason === 'parried') this.stunned(e.id, p, height, radius, a.dur - a.t);
+    else if (a?.kind === 'stagger') this.staggered(e.id, p, height, radius);
   }
 
   /** End the frame: hide every slot nobody claimed, and notice the freezes that broke. */
@@ -100,6 +116,7 @@ export class StatusFx {
     for (let i = this.flamesUsed; i < MAX_FLAMES; i++) this.flames[i].visible = false;
     for (let i = this.ringsUsed; i < MAX_FROST_RINGS; i++) this.rings[i].visible = false;
     for (let i = this.dizzyUsed; i < MAX_DIZZY; i++) this.dizzy[i].visible = false;
+    for (let i = this.halosUsed; i < MAX_HALOS; i++) this.halos[i].visible = false;
     for (const id of this.wasFrozen) {
       if (this.frozenNow.has(id)) continue;
       this.wasFrozen.delete(id);
@@ -184,6 +201,31 @@ export class StatusFx {
       const size = 0.3 + 0.06 * Math.sin(this.time * 12 + k);
       s.scale.set(size, size, 1);
       s.material.rotation = a;
+      s.material.color.setHex(0xffe27a);
+      s.visible = true;
+    }
+  }
+
+  /** Parried: a pulsing halo and a crown of bright stars, unmistakably open to a riposte. */
+  private stunned(id: EntityId, p: THREE.Vector3, height: number, radius: number, ticksLeft: number): void {
+    const orbit = Math.max(0.42, radius * 1.1);
+    const y = p.y + height + 0.28;
+    const fading = ticksLeft < STUN_ENDING && Math.sin(this.time * 40) < 0;
+    if (this.halosUsed < MAX_HALOS) {
+      const m = this.halos[this.halosUsed++];
+      m.position.set(p.x, y, p.z);
+      m.scale.setScalar(orbit * (1.15 + 0.12 * Math.sin(this.time * 14)));
+      m.material.opacity = fading ? 0.2 : 0.85;
+      m.visible = true;
+    }
+    for (let k = 0; k < STUN_STARS && this.dizzyUsed < MAX_DIZZY; k++) {
+      const s = this.dizzy[this.dizzyUsed++];
+      const a = this.time * 7 + (k * Math.PI * 2) / STUN_STARS + id;
+      s.position.set(p.x + Math.sin(a) * orbit, y + 0.07 * Math.sin(a * 2), p.z + Math.cos(a) * orbit);
+      const size = 0.44 + 0.1 * Math.sin(this.time * 16 + k);
+      s.scale.set(size, size, 1);
+      s.material.rotation = a;
+      s.material.color.setHex(fading ? 0xb08a30 : 0xfff6c8);
       s.visible = true;
     }
   }

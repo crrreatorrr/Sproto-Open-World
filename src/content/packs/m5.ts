@@ -156,8 +156,8 @@ export const QUARRY_GATE_LOCK: ObjectDef = {
   effects: [{ startQuest: 'q_scrapjaw' }, { openGate: 'quarry' }],
 };
 
-/** The four pillars, 12 m out from the centre on the diagonals. */
-const PILLAR_RING = 12;
+/** The four pillars, on the diagonals, close enough in for Scrapjaw to walk the gap behind them. */
+const PILLAR_RING = 10.5;
 
 /** The boss, the gate, the pillars and the quest's volumes. */
 export function addScrapjawContent(c: RegionContent): void {

@@ -319,9 +319,9 @@ export function registerC5Dialogue(d: Record<string, DialogueGraph>): void {
 
 // ---------------------------------------------------------------- where it all stands
 
-/** Three pillars on the floor, 11 m out, turned so none stands in front of the ramp. */
+/** Three pillars on the floor, turned so none stands in front of the ramp, and with room for her behind them. */
 const PILLARS = 3;
-const PILLAR_RING = 11;
+const PILLAR_RING = 8;
 
 /** The boss, her pillars, the miners and the quest volumes. Every villager has a mark in placements.json. */
 export function addDeepSeamContent(c: RegionContent): void {

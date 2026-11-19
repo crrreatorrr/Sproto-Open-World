@@ -22,7 +22,7 @@ import { CommandBuilder } from '../input/CommandBuilder';
 import { applyControlPrefs, loadControlPrefs, saveControlPrefs } from '../input/controlPrefs';
 import { promptLabel } from '../input/glyphs';
 import { Input } from '../input/Input';
-import { RUMBLE, TRAUMA } from '../render/fx/feedback';
+import { CAMERA_KICK, HIT_FEEL, RUMBLE, TRAUMA, hitTier, kickScale } from '../render/fx/feedback';
 import { HitFx, type SparkStyle } from '../render/fx/HitFx';
 import { isSoftPowerHit, powerSpark } from '../render/fx/powers';
 import { PortraitStudio } from '../render/PortraitStudio';
@@ -44,11 +44,11 @@ import { Hud, spellSlotGlyph, type HudCombat, type HudStatus } from '../ui/Hud';
 import { MenuNav, type Screen } from '../ui/MenuNav';
 import { Menus } from '../ui/menus';
 import { Panels } from '../ui/panels';
-import { Tutorial } from '../ui/tutorial';
+import { Tutorial, counterPrompt } from '../ui/tutorial';
 import { Reveals, affinityToast } from '../ui/Reveals';
 import { RpgHud, type HudRpgState } from '../ui/RpgHud';
 import { RpgMenus } from '../ui/rpgMenus';
-import { compassOffset, headingTo, interactLabel, trackedQuest } from '../ui/rpgText';
+import { compassOffset, gallopLabel, headingTo, interactLabel, trackedQuest } from '../ui/rpgText';
 import { loadSettings, motionScale, saveSettings, type Settings } from '../ui/settings';
 import { SurgeMeter } from '../ui/SurgeMeter';
 import { FixedLoop } from './loop';
@@ -734,6 +734,8 @@ export class App {
     const locked = p.combat?.lock != null ? enemyDef(view.get(p.combat.lock)) : undefined;
     this.bossMoment = Math.max(0, this.bossMoment - dt);
     this.rig.distanceScale = (def?.cameraScale ?? locked?.cameraScale ?? 1) * (this.bossMoment > 0 ? 1.25 : 1);
+    const solid = (p.combat?.lock != null ? view.get(p.combat.lock) : undefined) ?? boss;
+    this.rig.solid = solid?.body && !solid.boss?.under ? { ...solid.tf.pos, radius: solid.body.radius, height: solid.body.height } : null;
     if (this.endCardPending && !inMenu) this.showEndCard();
     // Far off over the valley, the Drake calls as it passes.
     if (this.world.flyover.takeCry()) this.audio.play('bossSlam', 0.5, 0.35);
@@ -935,7 +937,10 @@ export class App {
       if (t.kind === 'shrine') this.rpgMenus.nameShrine(t.id, t.name);
       prompt = { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.interact, PAD.interact), text: interactLabel(t.kind, t.name) };
     }
-    this.rpgHud.update({ level: pr.level, xp: pr.xp, points: pr.points, sprouts: pr.sprouts, tonics: pr.tonics, tracker, compass: { camYaw: this.rig.yaw, marker }, prompt }, dt);
+    const ride: HudRpgState['ride'] = !inMenu && p.riding?.state === 'riding'
+      ? { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.sprint, PAD.sprint), text: gallopLabel(p.riding.gallop) }
+      : null;
+    this.rpgHud.update({ level: pr.level, xp: pr.xp, points: pr.points, sprouts: pr.sprouts, tonics: pr.tonics, tracker, compass: { camYaw: this.rig.yaw, marker }, prompt, ride }, dt);
   }
 
   /**
@@ -1030,16 +1035,23 @@ export class App {
         }
         return;
       }
-      case 'parry':
+      case 'parry': {
         this.fx.burst(e.pos, 'parry');
         this.fx.ring(e.pos, 0xbfe8ff, 0.3, 2.6, 0.32);
-        this.audio.play('shieldPerfect');
+        this.fx.ring(e.pos, 0xffffff, 0.2, 1.5, 0.18);
+        // A high ring of steel over the chime: nothing like the dull knock of a plain block.
+        this.audio.play('shieldPerfect', 1.1);
+        this.audio.play('clash', 1.9, 0.9);
+        const foe = e.stun ? view.get(e.attacker) : undefined;
+        if (foe) this.fx.ring({ x: foe.tf.pos.x, y: foe.tf.pos.y + (foe.body?.height ?? 1.8) * 0.9, z: foe.tf.pos.z }, 0xffe27a, 0.3, 1.9, 0.4);
         if (e.target === me) {
           pad.rumble(RUMBLE.parry);
           this.shake(TRAUMA.parry);
-          this.flashScreen();
+          this.rig.kick(0, 0, 0, CAMERA_KICK.parry * motionScale(this.settings.shake));
+          this.flashScreen(0.65);
         }
         return;
+      }
       case 'dodgePerfect': {
         const pos = e.entity === me && this.player ? this.player.root.position : view.get(e.entity)?.tf.pos;
         if (pos) this.fx.ring(pos, 0x8ff0ff, 0.4, 2.2, 0.3);
@@ -1057,8 +1069,8 @@ export class App {
         }
         return;
       case 'stagger':
-        // Poise broken: a heavy thud on top of the hit.
-        if (e.entity !== me) this.audio.play('pillarHit', 0.6);
+        // Poise broken: a heavy thud on top of the hit (a parry has its own sharp sound).
+        if (e.entity !== me && e.reason !== 'parried') this.audio.play('pillarHit', 0.6);
         return;
       case 'telegraph':
         this.world.event(view, e);
@@ -1337,13 +1349,14 @@ export class App {
     const qa = (kind: 'hit' | 'spark' | 'sound' | 'number' | 'hitstop') => QA_LOG_ENABLED && qaLog.add({ kind, tick: view.now, hit: n, what: kind === 'hit' ? e.move : undefined });
     qa('hit');
     // Damage numbers and sparks take their style from the hit's affinity (plan §4.6): Weak! and Resisted.
-    const style: NumberStyle = hurt ? 'hurt' : e.weakSpot || e.affinity === 'weak' ? 'weak' : e.affinity === 'resist' ? 'resist' : e.crit ? 'crit' : 'normal';
+    const style: NumberStyle = hurt ? 'hurt' : e.strike ? 'crit' : e.weakSpot || e.affinity === 'weak' ? 'weak' : e.affinity === 'resist' ? 'resist' : e.crit ? 'crit' : 'normal';
     // Spell hits (the sim names the move after the spell) spark in the spell's colour.
     const spell = e.move in SPELLS ? (e.move as SpellId) : null;
     const spellSpark: SparkStyle | null = (spell && powerSpark(spell)) || (spell === 'blast' ? 'fire' : spell === 'chainZap' ? 'shock' : spell === 'frostNova' ? 'frost' : spell ? 'arcane' : null);
     const soft = isSoftPowerHit(e.move);
-    const spark: SparkStyle = style === 'normal' ? (spellSpark ?? (e.heavy ? 'heavy' : 'normal')) : style === 'weak' || style === 'resist' || !spellSpark ? style : spellSpark;
+    const spark: SparkStyle = e.strike ?? (style === 'normal' ? (spellSpark ?? (e.heavy ? 'heavy' : 'normal')) : style === 'weak' || style === 'resist' || !spellSpark ? style : spellSpark);
     if (this.fx.burst(e.pos, spark) > 0) qa('spark');
+    if (e.strike) this.fx.strike(e.pos, e.strike);
     this.polish.hit(e, spark, soft);
     // Resisted hits sound dull (plan §4.6), weak and critical ones bright.
     const rate = e.affinity === 'resist' ? 0.7 : e.affinity === 'weak' ? 1.12 : e.crit ? 1.2 : 0.95 + Math.random() * 0.1;
@@ -1358,8 +1371,17 @@ export class App {
       this.lastHitEnemy = e.target;
       this.lastHitAt = performance.now();
       if (!soft) {
-        this.shake(e.crit ? TRAUMA.crit : e.heavy ? TRAUMA.heavyHit : TRAUMA.lightHit);
-        this.input.pad.rumble(e.heavy || e.crit ? RUMBLE.heavyHit : RUMBLE.lightHit);
+        const feel = HIT_FEEL[hitTier(e)];
+        this.shake(feel.trauma);
+        this.input.pad.rumble(feel.rumble);
+        // The staff's own blows also move the camera and come back up the player's arms.
+        const from = e.attacker === me && !spell ? view.get(e.attacker)?.tf.pos : undefined;
+        if (from) {
+          const k = motionScale(this.settings.shake);
+          this.rig.kick(e.pos.x - from.x, e.pos.z - from.z, feel.kick * kickScale(e.hitstop) * k, feel.fov * k);
+          this.player?.strikeRecoil(e.pos, feel.recoil);
+        }
+        if (e.strike === 'breakCrit') this.flashScreen();
       }
     }
     if (hurt) {
@@ -1384,11 +1406,11 @@ export class App {
   }
 
   /** A white screen flash (parry), scaled by the screen flashes setting (motion sensitivity). */
-  private flashScreen(): void {
+  private flashScreen(peak = 0.35): void {
     const k = motionScale(this.settings.flash);
     if (k <= 0) return;
     const el = this.screenFlash;
-    el.style.setProperty('--flash-peak', String(0.35 * k));
+    el.style.setProperty('--flash-peak', String(peak * k));
     el.classList.remove('go');
     void el.offsetWidth;
     el.classList.add('go');
@@ -1439,7 +1461,9 @@ export class App {
     const lp = this.lockPoint(view, p);
     const c = p.combat;
     const a = c?.action;
+    const counter = c ? counterPrompt(c, view.now) : null;
     return {
+      counter: counter ? { ...counter, key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.heavy, PAD.heavy) } : null,
       player: v ? { hp: v.hp, hpMax: v.hpMax, stamina: v.stamina, staminaMax: v.staminaMax, mana: v.mana, manaMax: v.manaMax } : null,
       enemy,
       reticle: lp ? this.project(lp) : null,

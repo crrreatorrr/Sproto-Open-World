@@ -73,6 +73,11 @@ export type Action =
       /** Lunge left to apply during startup (m), and its direction. */
       lunge: number;
       lungeDir: { x: number; z: number };
+      /** Player moves: the enemy the lunge follows through startup, and how far it may still go (m). */
+      lungeTarget?: EntityId;
+      lungeLeft?: number;
+      /** Player moves: the swing has landed on someone. */
+      connected?: true;
       /** Enemy moves: projectiles fired so far. */
       fired?: number;
       /** Enemy area moves: where the circle was placed when the wind-up started. */
@@ -100,8 +105,11 @@ export type Action =
   | { kind: 'plunge'; t: number; fromY: number; landT: number }
   | { kind: 'block'; t: number; parryTicks: number }
   | { kind: 'hitstun'; t: number; dur: number; knockdown: boolean }
-  /** `broken`: its poise broke (bosses take more damage). `stunned`: it ran into something (weak spots open). */
-  | { kind: 'stagger'; t: number; dur: number; reason?: 'broken' | 'stunned' }
+  /**
+   * `broken`: its poise broke (bosses take more damage). `stunned`: it ran into something (weak spots
+   * open). `parried`: its blow was parried (a riposte hits it hardest).
+   */
+  | { kind: 'stagger'; t: number; dur: number; reason?: 'broken' | 'stunned' | 'parried'; /** This break's critical has been dealt. */ critTaken?: true }
   | { kind: 'frozen'; t: number; dur: number }
   /** Drinking a Sprout Tonic: locked for TONIC.lockTicks, healing over TONIC.healTicks. */
   | { kind: 'drink'; t: number; healPerTick: number }
@@ -129,10 +137,18 @@ export interface Combat {
   poiseDelay: number;
   defense: { physical: number; arcane: number };
   level: number;
-  /** Tick the last block was raised (parry spam). */
+  /** Tick of the last block press (parry spam). */
   lastBlockTick: number;
+  /** Block was held last tick: a press is block going down, whatever the entity was doing. */
+  blockHeld: boolean;
+  /** How long the last block press can parry for, counted from `lastBlockTick` (ticks). */
+  blockPressTicks: number;
   /** A heavy press before this tick is a riposte. */
   riposteUntil: number;
+  /** The enemy the last parry stunned: the riposte goes for it. */
+  riposteTarget: EntityId | null;
+  /** A heavy press before this tick is a guard counter (a melee blow was just blocked). */
+  guardCounterUntil: number;
   /** The next landed hit is a critical (perfect dodge). */
   critNext: boolean;
   /** Hard lock target. */
@@ -149,6 +165,11 @@ export interface Combat {
   targetedAt: number;
   /** The Momentum staff's blink is ready again from this tick. */
   blinkReadyAt?: number;
+  /** A light or heavy press before this tick is a counter (a perfect dodge just happened). */
+  counterUntil?: number;
+  /** The swing that just finished: a press before `comboUntil` continues its string. */
+  comboFrom?: PlayerMoveId;
+  comboUntil?: number;
 }
 
 /** The player's RPG state (plan §5). Saved in the SaveFile. */
@@ -217,6 +238,12 @@ export interface Riding {
   state: 'mounting' | 'riding' | 'dismounting';
   /** Dismounting: the way off (unit, world). */
   dir: { x: number; z: number };
+  /** The sprint button set the bull galloping; it stays on with no button held. */
+  gallop: boolean;
+  /** This hold of the button turned the gallop off, so it can't start it again until released. */
+  holdSpent: boolean;
+  /** Dodging: the momentum the bull carries through it (m/s). */
+  carry?: { x: number; z: number };
 }
 
 /** A talkable NPC. */
@@ -242,6 +269,51 @@ export interface Statuses {
   slowAcc?: number;
 }
 
+/** What a fighter is up to between its attacks (`sim/ai/tactics.ts`). Plain data, like all brain state. */
+export interface FightState {
+  /** The footwork beat, and ticks left in it. */
+  foot: 'strafe' | 'in' | 'out' | 'hold';
+  footT: number;
+  /** A burst of speed: a lunge at the target, or a step out of trouble along (burstX, burstZ). */
+  burst: 'lunge' | 'evade' | null;
+  burstT: number;
+  burstX: number;
+  burstZ: number;
+  /** m/s. */
+  burstSpeed: number;
+  /** Ticks until it may lunge, evade or punish again. */
+  lungeCd: number;
+  evadeCd: number;
+  punishCd: number;
+  /** Ticks in which its next attack comes at once: no held wind-up, no feint. */
+  eager: number;
+  /** Hits taken close together, ticks since the last one, and the poise last seen (how a hit shows). */
+  hits: number;
+  hitAge: number;
+  poise: number;
+  /** A delayed swing: the wind-up waits at tick `holdAt` for `hold` more ticks. */
+  holdAt: number;
+  hold: number;
+  /** A feint: the wind-up breaks off at this tick (-1: it is a real attack). */
+  feintAt: number;
+  /** It just feinted, so the next attack is real. */
+  feinted: boolean;
+  /** The velocity it asked for last tick (m/s) and where it stood then: how it notices it is stuck. */
+  vx: number;
+  vz: number;
+  lastX: number;
+  lastZ: number;
+  stuck: number;
+  /** Walking round an obstacle: ticks left, and which way it turns (+1 / -1). */
+  detour: number;
+  detourDir: number;
+  /** Ticks it still counts as cornered: a ledge or its leash stopped it. */
+  cornered: number;
+  /** Ranged: it has a clear shot, and how many ticks it has gone without one. */
+  sight: boolean;
+  blind: number;
+}
+
 /** Enemy brain state (plan §4.8). */
 export interface EnemyBrain {
   def: string;
@@ -253,9 +325,11 @@ export interface EnemyBrain {
   cooldowns: Record<string, number>;
   /** The last two moves, so none repeats more than twice in a row. */
   recent: string[];
-  /** Strafe ticks left, and direction (+1 / -1). */
+  /** Ticks left in the rest after an attack (it keeps its feet moving), and strafe direction (+1 / -1). */
   circle: number;
   circleDir: number;
+  /** Footwork, reactions and timing; set when a fight starts. */
+  fight?: FightState;
   /** Generic attack timer (dummies). */
   timer: number;
   /** Melee hits taken in a row (the Hex Wisp blinks away after enough). */

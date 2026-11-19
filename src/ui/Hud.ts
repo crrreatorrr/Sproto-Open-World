@@ -68,7 +68,16 @@ export interface HudWave {
   nextIn: number;
 }
 
+/** The riposte or guard counter on offer: the button to press and how long is left (ticks). */
+export interface HudCounter {
+  key: string;
+  text: string;
+  ticks: number;
+}
+
 export interface HudCombat {
+  /** A counter-attack is open right now. */
+  counter: HudCounter | null;
   player: HudVitals | null;
   /** The locked target, else the enemy the player hit last. */
   enemy: HudEnemy | null;
@@ -172,6 +181,12 @@ export class Hud {
   private readonly waveInfo: HTMLElement;
   private readonly banner: HTMLElement;
   private readonly toastEl: HTMLElement;
+  private readonly counterEl: HTMLElement;
+  private readonly counterKey: HTMLElement;
+  private readonly counterText: HTMLElement;
+  private readonly counterTime: HTMLElement;
+  /** The ticks the prompt on screen started with: its timer bar's full length. */
+  private counterFull = 0;
   private toastQueue: string[] = [];
   private toastLeft = 0;
   private last = '';
@@ -229,7 +244,14 @@ export class Hud {
     this.banner.className = 'wave-banner';
     this.toastEl = document.createElement('div');
     this.toastEl.className = 'toast';
-    this.root.append(vitals, this.enemy, this.reticle, this.crosshair, this.waveInfo, this.banner, this.toastEl, this.spellBar, this.prompts, this.clickHint);
+    this.counterEl = document.createElement('div');
+    this.counterEl.className = 'counter-prompt';
+    this.counterKey = document.createElement('kbd');
+    this.counterText = document.createElement('span');
+    this.counterTime = document.createElement('div');
+    this.counterTime.className = 'time';
+    this.counterEl.append(this.counterKey, this.counterText, this.counterTime);
+    this.root.append(vitals, this.enemy, this.reticle, this.crosshair, this.waveInfo, this.banner, this.toastEl, this.counterEl, this.spellBar, this.prompts, this.clickHint);
     host.appendChild(this.root);
     // The HUD hides under every menu, and showing it again restarts any animation still on an element:
     // a one-shot's class goes as soon as it has played, so an old banner doesn't come back on resume.
@@ -296,6 +318,7 @@ export class Hud {
     if (c.spells) this.spellState(c.spells);
     this.spellBar.classList.toggle('active', !!c.spells);
     this.waveState(c.wave);
+    this.counterState(c.counter);
     this.toastTick(dt);
     this.crosshair.classList.toggle('active', c.crosshair !== 'off');
     this.crosshair.classList.toggle('on-enemy', c.crosshair === 'enemy');
@@ -303,6 +326,22 @@ export class Hud {
     const showReticle = !!r && r.visible;
     this.reticle.classList.toggle('active', showReticle);
     if (r && showReticle) this.reticle.style.transform = `translate3d(${r.x.toFixed(1)}px, ${r.y.toFixed(1)}px, 0) translate(-50%, -50%)`;
+  }
+
+  /** The prompt for a riposte or guard counter, with the button for the device in use and a timer bar. */
+  private counterState(c: HudCounter | null): void {
+    this.counterEl.classList.toggle('active', !!c);
+    if (!c) {
+      this.counterFull = 0;
+      return;
+    }
+    if (this.counterKey.textContent !== c.key) this.counterKey.textContent = c.key;
+    if (this.counterText.textContent !== c.text) {
+      this.counterText.textContent = c.text;
+      this.counterFull = 0;
+    }
+    this.counterFull = Math.max(this.counterFull, c.ticks);
+    this.counterTime.style.transform = `scaleX(${(c.ticks / this.counterFull).toFixed(3)})`;
   }
 
   /** Dodge or attack pressed with no stamina: the bar flashes (plan §4.3). */

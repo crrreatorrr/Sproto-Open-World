@@ -30,8 +30,6 @@ const GROUND_SMOOTH = 0.1;
 const DOWN = { x: 0, y: -1, z: 0 };
 /** How fast the circle's centre drifts after the player (fraction per tick). */
 const CENTRE_FOLLOW = 0.012;
-/** Its flight stays this far inside the arena's wall (m). */
-const ARENA_MARGIN = 3;
 /** Rate of the slow climb and sink between the two cruising heights (radians per tick). */
 const ALTITUDE_RATE = 0.012;
 /** Off its circle (after a dive) it flies up to this much faster, at this many metres away. */
@@ -87,7 +85,7 @@ function orbit(ctx: CombatCtx, e: Entity, def: EnemyDef, s: DrakeFlight, target:
     s.cx += (target.tf.pos.x - s.cx) * CENTRE_FOLLOW;
     s.cz += (target.tf.pos.z - s.cz) * CENTRE_FOLLOW;
     // The circle's centre stays where the whole circle fits inside the arena.
-    const room = Math.max(0, def.boss!.arenaRadius - fly.orbitRadius - ARENA_MARGIN);
+    const room = Math.max(0, def.boss!.arenaRadius - fly.orbitRadius - fly.arenaMargin);
     const dx = s.cx - home.x, dz = s.cz - home.z;
     const d = Math.hypot(dx, dz);
     if (d > room) {
@@ -122,7 +120,7 @@ function planDive(e: Entity, def: EnemyDef, s: DrakeFlight, target: Entity | nul
   const yaw = yawTo(e.tf.pos, c);
   const dx = Math.sin(yaw), dz = Math.cos(yaw);
   const half = move.dive!.length / 2;
-  const radius = def.boss!.arenaRadius - ARENA_MARGIN;
+  const radius = def.boss!.arenaRadius - def.drake!.arenaMargin;
   const back = reach(c, -dx, -dz, home, radius, half);
   const fore = reach(c, dx, dz, home, radius, half);
   const lane: Lane = { ax: c.x - dx * back, az: c.z - dz * back, bx: c.x + dx * fore, bz: c.z + dz * fore, ys: [] };
@@ -197,7 +195,7 @@ function glide(e: Entity, def: EnemyDef, s: DrakeFlight, a: Stagger, target: Ent
     const yaw = yawTo(e.tf.pos, c);
     const dx = Math.sin(yaw), dz = Math.cos(yaw);
     const len = g.speed * g.ticks * DT;
-    const radius = def.boss!.arenaRadius - ARENA_MARGIN;
+    const radius = def.boss!.arenaRadius - def.drake!.arenaMargin;
     const back = reach(c, -dx, -dz, home, radius, len * 0.3);
     const fore = reach(c, dx, dz, home, radius, len * 0.7);
     s.glide = { ax: c.x - dx * back, az: c.z - dz * back, bx: c.x + dx * fore, bz: c.z + dz * fore };

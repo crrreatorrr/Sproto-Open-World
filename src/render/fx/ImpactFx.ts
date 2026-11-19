@@ -20,6 +20,8 @@ const SLASH: Partial<Record<SparkStyle, { color: number; len: number; width: num
   normal: { color: 0xfff0c0, len: 1.25, width: 0.16 },
   heavy: { color: 0xffd488, len: 2, width: 0.26 },
   crit: { color: 0xffffff, len: 2.3, width: 0.28 },
+  backstab: { color: 0xff7458, len: 2.6, width: 0.3 },
+  breakCrit: { color: 0xffedb0, len: 3.2, width: 0.36 },
   weak: { color: 0xffa040, len: 2, width: 0.26 },
   resist: { color: 0x9a9a9a, len: 0.7, width: 0.1 },
   hurt: { color: 0xff7464, len: 1.4, width: 0.2 },

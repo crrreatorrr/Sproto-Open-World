@@ -12,6 +12,17 @@ export const EVENT_SOUNDS: readonly SoundId[] = ['stunHit', 'fireBurn', 'ticketP
 export function eventSound(e: SimEvent, audio: AudioManager, me: EntityId | null): void {
   const mine = 'entity' in e && e.entity === me;
   switch (e.type) {
+    case 'hit':
+      // On top of the hit's own sound (App.presentHit): the blows worth hearing from across the field.
+      if (e.attacker !== me) return;
+      if (e.strike === 'breakCrit') {
+        audio.play('bossSlam', 1.25, 0.8);
+        audio.play('stunHit', 0.7);
+      } else if (e.strike === 'backstab') {
+        audio.play('pillarHit', 1.3, 0.8);
+        audio.play('stunHit', 1.2, 0.7);
+      } else if (e.crit) audio.play('shieldPerfect', 1.5, 0.35);
+      return;
     case 'jump':
       if (mine) audio.play('dodge', 1.35, 0.35);
       return;
