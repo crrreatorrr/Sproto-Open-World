@@ -293,6 +293,17 @@ try {
   check((await page.evaluate(() => window.__qa.log())).some((e) => e.kind === 'wave'), 'a `wave` event announces it');
   await shot('07-wave');
   if (s.enemies.length) {
+    // These checks are about the controls, not the fight: left standing, the player dies to the full
+    // wave within seconds, sooner on a slow runner, and the dead can't lock on or cast (QA cheat).
+    await page.evaluate(() => {
+      const sim = window.__qa.app.sim;
+      const tick = sim.tick.bind(sim);
+      sim.tick = (commands) => {
+        const v = sim.playerEntity(0).vitals;
+        v.hp = v.hpMax;
+        tick(commands);
+      };
+    });
     // Steer at the nearest enemy until it's well inside spell range (they come at you too).
     let dist = Infinity;
     for (let i = 0; i < 120; i++) {
