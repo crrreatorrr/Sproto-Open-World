@@ -279,7 +279,7 @@ git commit -m "Rootdeep: bake the cave map and stream it with Sproutvale"
   - `RegionContent.portals?: Placement[]`
   - the event `{ type: 'portalTravel'; entity: EntityId; portal: string; to: string }`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Build the world with `tests/sim/quests-helpers.ts`. Helpers named below that it does not already have are small functions local to this test file.
 
@@ -330,18 +330,18 @@ it('puts every surface portal within 5 m of a baked wall piece', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests and confirm they fail**
+- [x] **Step 2: Run the tests and confirm they fail**
 
 Run: `npx vitest run tests/sim/rootdeep-portals.test.ts`
 Expected: FAIL, `src/content/packs/rootdeep.ts` does not exist.
 
-- [ ] **Step 3: Add the portal table and content**
+- [x] **Step 3: Add the portal table and content**
 
 Write `ROOTDEEP_PORTALS` from the Design's entrance table, 16 entries. Surface verb: "Slip through the hedge" for hedges, "Squeeze between the rocks" for rocks. Cave verb: "Climb out". This module imports only types from the registries, like `src/content/packs/c5.ts`.
 
 Add both cave shrines to `ROOTDEEP_CONTENT` now, and name them "Lantern Hall Shrine" and "Crossing Shrine" in `shrineName`. `WORLD_CONTENT` joins every list of the two regions.
 
-- [ ] **Step 4: Add the `portal` interactable**
+- [x] **Step 4: Add the `portal` interactable**
 
 - `interactable.used` means **hidden** for a portal, so `interactTarget` already skips it. Name it with the portal's verb and give it `REACH.portal = 2.4`.
 - `interactTarget` also skips portals while `player.riding` is set. `teleportPlayer` only cancels a mount in progress, and a ridden bull follows its rider, so a rider must never travel.
@@ -349,23 +349,23 @@ Add both cave shrines to `ROOTDEEP_CONTENT` now, and name them "Lantern Hall Shr
 - `usePortal` in `rpg.ts` sets the open flag and pushes the `interact` event (kind `'portal'`) and the `portalTravel` event.
 - After the `playerRpg` loop, `SimWorld` handles each new `portalTravel` event: it calls `teleportPlayer` to the destination's `arrive` point at y 200 and sets `e.settle = true`, so the player lands on the real floor once the destination cell has colliders.
 
-- [ ] **Step 5: Keep the bull on the surface**
+- [x] **Step 5: Keep the bull on the surface**
 
 In `callMount`, return early when the shrine's position satisfies `isRootdeep(at.x)`.
 
-- [ ] **Step 6: Mark the surface spots and rebake Sproutvale**
+- [x] **Step 6: Mark the surface spots and rebake Sproutvale**
 
 Add one `placements.json` mark per surface portal (kind `object`, `clear: 2`), and one for `hedge_diggers` (kind `camp`, `clear: 8`), so scattered props keep off these spots.
 
 Run: `npm run bake:world -- sproutvale && npm run bake:map`
 Expected: the bake succeeds, and `npx vitest run tests/content` passes.
 
-- [ ] **Step 7: Run the tests and confirm they pass**
+- [x] **Step 7: Run the tests and confirm they pass**
 
 Run: `npx vitest run tests/sim/rootdeep-portals.test.ts`
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src world-src/sproutvale public/world/sproutvale tests/sim/rootdeep-portals.test.ts

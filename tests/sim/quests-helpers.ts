@@ -7,7 +7,7 @@ import { QUESTS, type Objective } from '../../src/content/quests';
 import { cellColliders, decodeCellBin } from '../../src/content/world/codec';
 import type { CellColliders, CellData, RegionManifest } from '../../src/content/world/format';
 import { worldLevel } from '../../src/content/world/level';
-import { SPROUTVALE_CONTENT } from '../../src/content/world/sproutvaleContent';
+import { WORLD_CONTENT } from '../../src/content/world/worldContent';
 import type { SaveFile } from '../../src/save/schema';
 import { BTN, idleInput, type InputCommand } from '../../src/sim/commands';
 import type { Entity, Progress } from '../../src/sim/entity';
@@ -16,25 +16,37 @@ import { initPhysics } from '../../src/sim/physics/PhysicsWorld';
 import { SimWorld } from '../../src/sim/SimWorld';
 
 /**
- * Plays quests on the real baked Sproutvale by commands. Teleports stand in for walking and enemies
+ * Plays quests on the real baked world by commands. Teleports stand in for walking and enemies
  * are finished with a Burn in the player's name (the fights have their own tests); talking, using
  * things, standing in volumes and picking things up all go through the same commands the game sends.
+ * The Rootdeep's cells are loaded too, so a portal can set the player down on the cave floor.
  */
 const PUBLIC = path.resolve(__dirname, '../../public');
-const manifest = JSON.parse(fs.readFileSync(path.join(PUBLIC, 'world/sproutvale/region.json'), 'utf8')) as RegionManifest;
-const baked: CellColliders[] = manifest.cells.map((c) => {
-  const { heights } = decodeCellBin(fs.readFileSync(path.join(PUBLIC, c.bin)), manifest.heightRange);
-  return cellColliders(JSON.parse(fs.readFileSync(path.join(PUBLIC, c.json), 'utf8')) as CellData, heights, manifest);
-});
+
+function loadBaked(regionDir: string): { manifest: RegionManifest; baked: CellColliders[] } {
+  const manifest = JSON.parse(fs.readFileSync(path.join(PUBLIC, regionDir, 'region.json'), 'utf8')) as RegionManifest;
+  const baked = manifest.cells.map((c) => {
+    const { heights } = decodeCellBin(fs.readFileSync(path.join(PUBLIC, c.bin)), manifest.heightRange);
+    return cellColliders(JSON.parse(fs.readFileSync(path.join(PUBLIC, c.json), 'utf8')) as CellData, heights, manifest);
+  });
+  return { manifest, baked };
+}
+
+const sproutvale = loadBaked('world/sproutvale');
+const rootdeep = loadBaked('world/rootdeep');
+const baked = [...sproutvale.baked, ...rootdeep.baked];
+const bakedCells = [...sproutvale.manifest.cells, ...rootdeep.manifest.cells];
 
 /** A world on the baked terrain with every cell built and every placement settled. */
 export async function bakedWorld(seed = 1, save?: SaveFile): Promise<SimWorld> {
   await initPhysics();
-  const w = new SimWorld(worldLevel(manifest), seed);
+  const w = new SimWorld(worldLevel(sproutvale.manifest), seed);
   w.spawnPlayer(0);
   for (const c of baked) w.loadCell(c);
-  for (let i = 0; i < 4000 && manifest.cells.some((c) => !w.cellReady(c.cx, c.cz)); i++) w.tick(new Map([[0, idleInput(0)]]));
-  w.populateWorld(SPROUTVALE_CONTENT);
+  const pending = () => bakedCells.some((c) => !w.cellReady(c.cx, c.cz));
+  for (let i = 0; i < 8000 && pending(); i++) w.tick(new Map([[0, idleInput(0)]]));
+  if (pending()) throw new Error('baked cells never finished building');
+  w.populateWorld(WORLD_CONTENT);
   if (save) w.applySave(save);
   for (let i = 0; i < 3; i++) w.tick(new Map([[0, idleInput(0)]]));
   return w;
