@@ -5,6 +5,8 @@ import type { SimWorld } from '../../src/sim/SimWorld';
 import { step, stepN } from './combatHelpers';
 import { choose, evs, interact, playWakeUp, standBy, ui } from './m3Helpers';
 import { alive, campMembers, collectPickups, flatSproutvale, parrySwing, slay, slayN, standAt } from './m4Helpers';
+import { QUESTS } from '../../src/content/quests';
+import { trackedQuest } from '../../src/ui/rpgText';
 
 /**
  * M4 acceptance 1 (plan §9): every quest of the Scrap Rumble's main chain (M1–M4) and the side
@@ -185,6 +187,35 @@ describe('out of order never soft-locks (M4)', () => {
     p.quests.q_watchtower = { status: 'active', step: 3, progress: [0] };
     step(w);
     expect(p.quests.q_watchtower.step).toBe(4);
+    w.dispose();
+  });
+});
+
+describe('a quest you take shows on the tracker', () => {
+  it('Lost Relics takes the tracker from the quest it was showing', async () => {
+    const { w } = await flatSproutvale();
+    const p = () => w.playerEntity(0)!.progress!;
+    p().quests.q_wake_up = { status: 'active', step: 0, progress: QUESTS.q_wake_up.steps[0].objectives.map(() => 0) };
+    p().tracked = 'q_wake_up';
+    talk(w, 'collector_pepe', [0]);
+    expect(p().quests.q_relics.status).toBe('active');
+    expect(trackedQuest(p())).toMatchObject({ id: 'q_relics', title: 'Lost Relics' });
+    w.dispose();
+  });
+
+  it('the compass leads to each relic chest in turn, then back to Collector Pepe', async () => {
+    const { w } = await flatSproutvale();
+    const p = () => w.playerEntity(0)!.progress!;
+    talk(w, 'collector_pepe', [0]);
+    for (const id of ['relic_mill', 'relic_rootarch', 'relic_beanstalk']) {
+      const marker = trackedQuest(p())!.marker;
+      expect(marker).toBe(id);
+      expect(w.view().locate(marker!)).not.toBeNull();
+      standBy(w, id);
+      step(w, interact());
+      step(w);
+    }
+    expect(trackedQuest(p())!.marker).toBe('collector_pepe');
     w.dispose();
   });
 });

@@ -11,7 +11,7 @@ import { NPCS } from '../content/npcs';
 import { LEVEL_CAP, SKILL_EFFECT, xpForLevel, xpToNext, type SkillId } from '../content/progression';
 import { SPELLS, SWAP_MIN_COOLDOWN, type SpellId } from '../content/spells';
 import { TICK_HZ } from '../content/tuning';
-import { QUESTS, type Objective, type QuestDef, type QuestState } from '../content/quests';
+import { QUESTS, type Objective, type QuestDef, type QuestOffer, type QuestState } from '../content/quests';
 import type { Progress } from '../sim/entity';
 
 /** Where the player stands on the way to the next level: 0..1 of this level's XP, and the numbers. */
@@ -87,6 +87,17 @@ export interface QuestLine {
   marker: string | null;
 }
 
+/** Where a step with no single place leads next: its first unfinished objective that has a location. */
+function nextTarget(objectives: readonly Objective[], progress: readonly number[]): string | null {
+  for (const [i, o] of objectives.entries()) {
+    if ((progress[i] ?? 0) >= 1) continue;
+    if (o.kind === 'interact') return o.object;
+    if (o.kind === 'talk') return o.npc;
+    if (o.kind === 'reach') return o.trigger;
+  }
+  return null;
+}
+
 /** A quest as the tracker and the log show it, or null for an unknown id or a quest not yet started. */
 export function questLine(id: string, state: QuestState | undefined): QuestLine | null {
   const def = QUESTS[id];
@@ -100,7 +111,7 @@ export function questLine(id: string, state: QuestState | undefined): QuestLine 
     status: done ? 'complete' : state.status,
     step: done ? 'Complete' : (step?.text ?? ''),
     lines: done || !step ? [] : objectiveLines(step.objectives, state.progress),
-    marker: done ? null : (step?.marker ?? null),
+    marker: done || !step ? null : (step.marker ?? nextTarget(step.objectives, state.progress)),
   };
 }
 
@@ -112,6 +123,23 @@ export function trackedQuest(p: Readonly<Progress>): QuestLine | null {
     if (q && q.status === 'active') return q;
   }
   return null;
+}
+
+/** The quest "Find a quest" is leading to, as the tracker shows it until the player takes it. */
+export function leadLine(lead: QuestOffer): QuestLine {
+  const def = QUESTS[lead.quest];
+  return { id: lead.quest, title: def.title, kind: def.kind, status: 'active', step: `Talk to ${NPCS[lead.npc]?.name ?? humanize(lead.npc)} to take this quest.`, lines: [], marker: lead.npc };
+}
+
+/** The nearest quest on offer; asked again, the next nearest after the one being followed. */
+export function nextLead(offers: readonly QuestOffer[], me: Readonly<{ x: number; z: number }>, locate: (id: string) => { x: number; z: number } | null, current: QuestOffer | null): QuestOffer | null {
+  const away = (o: QuestOffer) => {
+    const at = locate(o.npc);
+    return at ? Math.hypot(at.x - me.x, at.z - me.z) : Infinity;
+  };
+  const near = offers.filter((o) => away(o) < Infinity).sort((a, b) => away(a) - away(b) || a.quest.localeCompare(b.quest));
+  if (!near.length) return null;
+  return near[(near.findIndex((o) => o.quest === current?.quest) + 1) % near.length];
 }
 
 /** Every started quest for the log: active first (main before side), then complete. */
