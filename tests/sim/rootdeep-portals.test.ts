@@ -148,6 +148,41 @@ describe('hidden Rootdeep portals', () => {
     w.dispose();
   });
 
+  it('offers the open mouth, not Ride, once you have dismounted against it', async () => {
+    const w = await bakedWorld();
+    w.world.flags[portalOpenFlag('hedge_north')] = 1;
+    tick(w);
+    await mountBull(w);
+    stand(w, 'rd_surface_hedge_north');
+    press(w, BTN.interact);
+    const p = player(w);
+    for (let i = 0; i < MOUNT.dismountTicks + 8 && p.riding; i++) tick(w);
+    expect(p.riding).toBeUndefined();
+    const at = w.locate('rd_surface_hedge_north');
+    if (!at) throw new Error('no hedge mouth');
+    p.tf.yaw = p.tf.prevYaw = Math.atan2(at.x - p.tf.pos.x, at.z - p.tf.pos.z);
+    tick(w);
+    expect(w.view().interactTarget(0)?.kind).toBe('portal');
+    expect(isRootdeep(bullOf(w).tf.pos.x)).toBe(false);
+    w.dispose();
+  });
+
+  it('refuses a bull call from inside the cave and leaves the bull on the surface', async () => {
+    const w = await bakedWorld();
+    const home = bullOf(w).tf.pos.x;
+    // Grunt Warren and the vault are where a far call appears on the cave floor today.
+    // Lantern Hall is where that same call fails. Neither may bring the bull underground.
+    for (const [x, z] of [[4352, 148], [4352, 256], [4264, 168]] as const) {
+      standAt(w, x, z);
+      tick(w);
+      press(w, BTN.callMount);
+      expect(isRootdeep(bullOf(w).tf.pos.x), `${x},${z}`).toBe(false);
+      expect(bullOf(w).tf.pos.x, `${x},${z}`).toBe(home);
+      expect(w.events.some((e) => e.type === 'mountCall' && e.phase === 'failed'), `${x},${z}`).toBe(true);
+    }
+    w.dispose();
+  });
+
   it('wakes a Continue at a cave shrine on the cave floor', async () => {
     const w = await bakedWorld();
     rest(w, 'shrine_rootdeep_lantern');

@@ -332,7 +332,12 @@ export function interactTarget(player: Entity, entities: readonly Entity[]): { e
     // An object can stand on top of its prop (the beacon, about 4 m above the ground around it).
     if (d > REACH[kind] || Math.abs(player.tf.pos.y - e.tf.pos.y) > (kind === 'object' ? 6 : 2.5)) continue;
     if (d > 0.8 && angleTo(player.tf.pos, player.tf.yaw, e.tf.pos) > FRONT) continue;
-    if (d < bestD) {
+    if (d < bestD && !(best?.kind === 'portal' && kind === 'mount')) {
+      bestD = d;
+      best = { e, id, kind, name };
+    } else if (kind === 'portal' && best?.kind === 'mount') {
+      // An open mouth you are already standing in beats the bull, even when the bull is nearer.
+      // Mounts spawn first, so a tie used to keep "Ride Pepe Bull".
       bestD = d;
       best = { e, id, kind, name };
     }
