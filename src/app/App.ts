@@ -456,9 +456,12 @@ export class App {
       const view = new PlayerView(this.assets);
       const staff = this.staffModel(entity.progress?.equipment.staff);
       // The world boots with a staff's small model; the full one swaps in once things are calm.
+      // Rootcleaver has no small model of its own. A save that has it out still becomes playable
+      // on the starter's small staff, and the sword downloads once play has started.
       const bootStaff = this.stream ? STAFF_BOOT_LOD[staff] : undefined;
-      await view.load(bootStaff ?? staff);
-      this.staffShown = staff;
+      const standIn = this.stream && staff === 'staff_rootcleaver' && !bootStaff ? STAFF_BOOT_LOD.staff_sproto : undefined;
+      await view.load(standIn ?? bootStaff ?? staff);
+      this.staffShown = standIn ?? staff;
       this.staffToSharpen = bootStaff ? staff : null;
       this.staffCalmSec = 0;
       this.renderer.scene.add(view.root);
