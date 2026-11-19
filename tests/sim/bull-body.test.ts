@@ -184,6 +184,38 @@ describe('getting on and off a solid bull', () => {
   });
 });
 
+describe('resting with the bull at the shrine', () => {
+  it('leaves it on the ground, however many times you rest', async () => {
+    await initPhysics();
+    const w = new SimWorld(worldLevel({ id: 'sproutvale', playerStart: { pos: [BULL.x, VILLAGE_Y + 1, 20], yaw: 0 } }), 1);
+    w.spawnPlayer(0);
+    for (let cx = 0; cx < 8; cx++) for (let cz = 0; cz < 8; cz++) w.loadCell({ cx, cz, heights: new Float32Array(CELL_RES * CELL_RES).fill(VILLAGE_Y), shapes: [] } as CellColliders);
+    stepN(w, 30);
+    const shrine = SPROUTVALE_CONTENT.shrines[0];
+    w.populateWorld({
+      ...SPROUTVALE_CONTENT, npcs: [], chests: [], enemies: [], camps: [], objects: [], obstacles: [], triggers: [],
+      shrines: [{ ...shrine, pos: [BULL.x, VILLAGE_Y, BULL.z] }],
+    });
+    stepN(w, 5);
+    const p = w.playerEntity(0)!;
+    const bull = w.entities.find((e) => e.mount)!;
+    const rest = () => {
+      standAt(w, BULL.x, BULL.z - 2, { x: BULL.x, z: BULL.z });
+      step(w, interact());
+      expect(p.progress!.atShrine).toBe(shrine.id);
+      const c = idleInput(0);
+      c.ui = [{ kind: 'rest' }];
+      step(w, c);
+      stepN(w, 6);
+    };
+    for (let i = 0; i < 4; i++) {
+      rest();
+      expect(bull.tf.pos.y, `rest ${i + 1}`).toBeCloseTo(VILLAGE_Y, 1);
+    }
+    w.dispose();
+  });
+});
+
 describe('in the saddle the bull is as wide as it looks', () => {
   it('stops with its flank on a wall, not the rider\'s', async () => {
     const { w, p, bull } = await field();

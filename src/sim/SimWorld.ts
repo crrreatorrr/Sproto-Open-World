@@ -603,6 +603,8 @@ export class SimWorld {
     if (!this.streamed) return;
     for (const e of this.entities) {
       if (!e.settle) continue;
+      // A bull waits a tick for its own body to go, or the ray would land on its back.
+      if (e.mount && this.physics.mountBodySolid(e.id)) continue;
       const [cx, cz] = cellOf(e.tf.pos.x, e.tf.pos.z);
       if (!this.readyCells.has(cellKey(cx, cz))) continue;
       const hit = this.physics.raycast({ x: e.tf.pos.x, y: SETTLE_FROM_Y, z: e.tf.pos.z }, { x: 0, y: -1, z: 0 }, SETTLE_FROM_Y * 2);

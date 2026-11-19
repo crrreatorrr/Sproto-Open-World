@@ -20,8 +20,8 @@ const SADDLE_SAMPLES = 32;
 
 /** Over this speed the bull's line shows the slope under it (m/s); slower, it keeps the last one. */
 const PITCH_FROM = 1;
-/** A jump in position this big in one frame is a teleport, not a hill (m). */
-const TELEPORT_STEP = 3;
+/** Moving faster than this is being sent somewhere, not running (m/s). */
+const TELEPORT_SPEED = 40;
 /** The steepest the body pitches, and the most it leans into a turn (radians). */
 const MAX_PITCH = 0.6;
 const MAX_LEAN = 0.2;
@@ -135,7 +135,8 @@ export class MountView implements EntityView {
     const p = this.root.position;
     if (this.placed && dt > 0) {
       const run = Math.hypot(p.x - this.last.x, p.z - this.last.z);
-      if (run < TELEPORT_STEP && run / dt > PITCH_FROM) this.pitchGoal = slopePitch(p.y - this.last.y, run);
+      if (run / dt > TELEPORT_SPEED) this.pitchGoal = this.tilt.pitch = 0;
+      else if (run / dt > PITCH_FROM) this.pitchGoal = slopePitch(p.y - this.last.y, run);
       const turned = Math.atan2(Math.sin(this.root.rotation.y - this.lastYaw), Math.cos(this.root.rotation.y - this.lastYaw));
       this.tilt.pitch = THREE.MathUtils.damp(this.tilt.pitch, this.pitchGoal, TILT_RATE, dt);
       this.tilt.roll = THREE.MathUtils.damp(this.tilt.roll, turnLean(speed, turned / dt), TILT_RATE, dt);
@@ -202,9 +203,15 @@ export class MountView implements EntityView {
     return clip && clip.duration > 0 ? (a.mixer.clipAction(clip).time / clip.duration) % 1 : 0;
   }
 
+  /** The spine's height from the animation alone: the rider tilts with the body separately. */
   private spineHeight(): number {
+    const { x, z } = this.root.rotation;
+    this.root.rotation.x = this.root.rotation.z = 0;
     this.root.updateMatrixWorld(true);
-    return this.spine!.getWorldPosition(this.scratch).y - this.root.position.y;
+    const height = this.spine!.getWorldPosition(this.scratch).y - this.root.position.y;
+    this.root.rotation.x = x;
+    this.root.rotation.z = z;
+    return height;
   }
 
   dispose(): void {

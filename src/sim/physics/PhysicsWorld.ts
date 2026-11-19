@@ -217,6 +217,11 @@ export class PhysicsWorld {
     }
   }
 
+  /** Is this mount's body solid for queries right now? */
+  mountBodySolid(id: EntityId): boolean {
+    return this.mountBodies.get(id)?.solid ?? false;
+  }
+
   /** Make a character's capsule this wide, in place (a rider takes on the width of their mount). */
   setCharacterRadius(id: EntityId, body: Body, radius: number): void {
     const c = this.characters.get(id);
