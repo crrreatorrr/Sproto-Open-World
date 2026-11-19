@@ -21,7 +21,7 @@
     "relics": {
       "sockets": [null, null, null],
       "totem": null,
-      "owned": [],
+      "owned": ["totem_elders_hearth"],
       "seedSpent": false,
       "introduced": false,
       "giantDodges": 0,

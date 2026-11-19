@@ -1352,6 +1352,11 @@ export class App {
         this.audio.play('uiClick', 1.1);
         this.saveWanted = true;
         return;
+      case 'relicEquipped':
+      case 'totemEquipped':
+        // Socket changes are saved like a spell slot, so a reload keeps them.
+        this.saveWanted = true;
+        return;
       case 'perk':
         this.hud.waveBanner('Perk unlocked', PERKS[e.perk as PerkId]?.name ?? e.perk);
         hud.feed(PERKS[e.perk as PerkId]?.text ?? e.perk, 'level');

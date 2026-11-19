@@ -6,10 +6,10 @@ import { BLOCK, BUFFER, PLAYER_MOVES, ROLL } from '../../content/combat';
 import { ENEMIES } from '../../content/enemies';
 import { PLUNGE } from '../../content/packs/m7';
 import { GEAR_LOCK_TICKS } from '../../content/progression';
-import { QUESTS } from '../../content/quests';
+import { QUESTS, type Effect, type QuestState } from '../../content/quests';
 import {
   BONUS_REWARDS, GEAR_LOCK_TEXT, HOPEGLASS_SLOWS_WORLD, KEEPSAKES, RELIC_SOCKETS, TOTEM_HOLD_TICKS,
-  TOTEM_LIFE_TICKS, TOTEM_RECHARGE_TICKS, TOTEM_SWAPPED_TEXT, emptyRelics, isRelic, isTotem, keepsake,
+  TOTEM_LIFE_TICKS, TOTEM_RECHARGE_TICKS, TOTEM_SWAPPED_TEXT, emptyRelics, isKeepsake, isRelic, isTotem, keepsake,
   relicMods, totemMods, wonToast, type BonusReward, type RelicMods, type RelicProgress,
 } from '../../content/relics';
 import { fnv1a } from '../hash';
@@ -243,16 +243,19 @@ export function onRelicParry(ctx: Ctx, player: Entity): void {
   else run.coopFreezeUntil = ctx.now + mods.hopeglass.coopHitstop;
 }
 
-/** The parry window still open on this block, after Coins and the Grip. */
-export function parryWindowTicks(e: Entity, action: { parryTicks: number }): number {
-  const c = e.combat;
-  if (!c) return action.parryTicks;
+/**
+ * The whole parry window a block press opens, after Coins and the Grip: `pressTicks` is the press's
+ * own window (BLOCK.parryTicks, or BLOCK.spamParryTicks when mashed). The guard subtracts the ticks
+ * since the press from this, so a press too long ago, or block held through a recovery, still has none.
+ */
+export function parryWindowTicks(e: Entity, pressTicks: number): number {
+  if (!e.progress) return pressTicks;
   const coop = false;
   const mods = modsOf(e, coop);
-  const mashed = c.blockPressTicks <= BLOCK.spamParryTicks;
+  const mashed = pressTicks <= BLOCK.spamParryTicks;
   const base = mashed ? BLOCK.spamParryTicks : BLOCK.parryTicks;
   const want = mashed ? mods.spamParryTicks : mods.parryTicks;
-  return action.parryTicks + (want - base);
+  return Math.max(0, pressTicks + (want - base));
 }
 
 export function rollFrames(e: Entity, action: { back?: boolean }): { iframeStart: number; iframeEnd: number; perfectEnd: number } {
@@ -397,10 +400,37 @@ export function settleRelicBonuses(ctx: Ctx, e: Entity): void {
 /** Fallback givers: the later quest's reward list names the id, and grant is earn-once. */
 export const fallbackIds = (quest: string): string[] => BONUS_REWARDS.filter((b) => b.fallbackQuest === quest).map((b) => b.id);
 
-/** Drop sockets and owned ids the catalog no longer has. */
-export function reconcileRelics(r: RelicProgress): RelicProgress {
+/**
+ * Keepsakes the quest log says were already won, in catalog order: what the finished steps' onComplete
+ * and the finished quests' rewards give (fallback givers included). A bonus keepsake comes only from
+ * its feat or its fallback quest, never from finishing the bonus quest itself, so it is not here.
+ */
+export function keepsakesEarned(quests: Readonly<Record<string, QuestState>>): string[] {
+  const earned = new Set<string>();
+  const gives = (effects: readonly Effect[] | undefined): void => {
+    for (const fx of effects ?? []) if ('give' in fx && isKeepsake(fx.give)) earned.add(fx.give);
+  };
+  for (const [id, q] of Object.entries(quests)) {
+    const def = QUESTS[id];
+    if (!def || !q) continue;
+    const complete = q.status === 'complete';
+    const done = complete ? def.steps.length : q.status === 'active' ? Math.min(Math.max(0, q.step), def.steps.length) : 0;
+    for (let i = 0; i < done; i++) gives(def.steps[i].onComplete);
+    if (complete) gives(def.rewards);
+  }
+  for (const b of BONUS_REWARDS) if (b.fallbackQuest && quests[b.fallbackQuest]?.status === 'complete') earned.add(b.id);
+  return KEEPSAKES.filter((k) => earned.has(k.id)).map((k) => k.id);
+}
+
+/**
+ * Drop sockets and owned ids the catalog no longer has, and hand over what `quests` says was already
+ * won (a save from before keepsakes existed, or one made before a keepsake was added to a step).
+ * Earn-once: nothing is owned twice, and running it again changes nothing.
+ */
+export function reconcileRelics(r: RelicProgress, quests: Readonly<Record<string, QuestState>> = {}): RelicProgress {
   const known = new Set(KEEPSAKES.map((k) => k.id));
-  const owned = r.owned.filter((id) => known.has(id));
+  const kept = r.owned.filter((id, i) => known.has(id) && r.owned.indexOf(id) === i);
+  const owned = [...kept, ...keepsakesEarned(quests).filter((id) => !kept.includes(id))];
   const sockets = Array.from({ length: RELIC_SOCKETS }, (_, i) => {
     const id = r.sockets[i] ?? null;
     return id && owned.includes(id) && isRelic(id) ? id : null;

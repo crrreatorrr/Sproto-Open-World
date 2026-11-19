@@ -14,7 +14,8 @@ import { SAVE_SCHEMA, type SaveFile } from './schema';
  *   v2: `player.tonics: { charges, max }`, `tracked`, `discoveredShrines`.
  *   v3 (C1): `player.loadout` (4 spell slots) and `player.skills` (the skill tree) replace
  *       `player.attrs`; `points` are skill points (2 per level-up).
- *   v4: `player.relics` (3 relic sockets, 1 totem, the keepsakes won). Old saves own none.
+ *   v4: `player.relics` (3 relic sockets, 1 totem, the keepsakes won). Old saves start empty, and
+ *       reconcile hands over the keepsakes their finished quests and steps already gave.
  */
 type Raw = Record<string, unknown> & { schema?: unknown };
 
@@ -123,7 +124,9 @@ function reconcile(s: SaveFile): SaveFile {
     quests[id] = q.status !== 'active' || fits ? q : { ...q, step, progress: new Array<number>(size).fill(0) };
   }
   const tracked = p.tracked && quests[p.tracked]?.status === 'active' ? p.tracked : null;
-  const relics = reconcileRelics(p.relics ?? emptyRelics());
+  // Keepsakes come from step onComplete and quest rewards, which never run again for finished work:
+  // a save from before v4 (or before a keepsake was added to a step) is handed what it already won.
+  const relics = reconcileRelics(p.relics ?? emptyRelics(), quests);
   return { ...s, player: { ...p, inventory, equipment, quests, tracked, relics } };
 }
 

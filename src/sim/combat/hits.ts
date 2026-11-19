@@ -8,7 +8,7 @@ import { affixedMove } from '../../content/enemyScale';
 import { PERK_EFFECT, SKILL_EFFECT, hasPerk } from '../../content/progression';
 import { STATUS } from '../../content/statuses';
 import { affixAffinity, affixElite } from '../systems/affixes';
-import { blockStaminaMul, notePerfectDodge, noteReflectKill, onRelicParry, parryWindowTicks, rollFrames, tryBriar, tryGuardCounter } from '../systems/relics';
+import { blockStaminaMul, notePerfectDodge, noteReflectKill, onRelicParry, rollFrames, tryBriar, tryGuardCounter } from '../systems/relics';
 import { charmOf, staffOf } from '../systems/rpg';
 import { rootedMult } from './powers/snare';
 import { applyStatus } from './statuses';
@@ -197,7 +197,8 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   // Block (150° frontal arc) and parry (its first ticks).
   const facing = angleTo(target.tf.pos, target.tf.yaw, info.from) <= ((BLOCK.arcDeg / 2) * Math.PI) / 180;
   if (ta?.kind === 'block' && facing && !info.unblockable) {
-    if (ta.t < parryWindowTicks(target, ta)) {
+    // The block's parryTicks already include Coins and the Grip (playerCombat.updateBlock).
+    if (ta.t < ta.parryTicks) {
       tv.mana = Math.min(tv.manaMax, tv.mana + BLOCK.parryMana);
       addHitstop(target, BLOCK.parryHitstop);
       const stun = !info.projectile && !info.area && attacker.combat ? stunParried(ctx, attacker) : 0;
@@ -244,8 +245,8 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   const rolled = computeDamage(attacker, target, { ...info, crit }, weakSpot * strikeDamage(target, strike));
   let damage = rolled.damage;
   const affinity = rolled.affinity;
-  // Surgebriar: an unguarded non-boss hit can fall to block chip. Never an unblockable.
-  if (target.progress && tryBriar(ctx, target, !!info.unblockable, target.kind === 'boss' || !!target.boss)) {
+  // Surgebriar: an unguarded hit from anything but a boss can fall to block chip. Never an unblockable.
+  if (target.progress && tryBriar(ctx, target, !!info.unblockable, attacker.kind === 'boss' || !!attacker.boss)) {
     damage = Math.max(1, Math.round(damage * BLOCK.chip));
   }
   if (!info.projectile && info.kind === 'physical' && target.statuses?.chill) {

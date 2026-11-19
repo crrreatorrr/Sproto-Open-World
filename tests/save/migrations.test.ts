@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SaveError, migrate } from '../../src/save/migrations';
+import { QUESTS } from '../../src/content/quests';
 import { SAVE_SCHEMA } from '../../src/save/schema';
 import { evs, interact, standBy, tick1, village } from '../sim/m3Helpers';
 
@@ -125,12 +126,69 @@ describe('save migrations (M3 acceptance 2)', () => {
     const v3 = fixture('save-v3.json');
     const s = migrate(structuredClone(v3));
     expect(s.schema).toBe(4);
-    expect(s.player.relics).toEqual({ sockets: [null, null, null], totem: null, owned: [], seedSpent: false, introduced: false, giantDodges: 0, bonus: {} });
+    // The fixture finished Wake Up, Sproto, whose shrine step gives Elder's Hearth.
+    expect(s.player.relics).toEqual({ sockets: [null, null, null], totem: null, owned: ['totem_elders_hearth'], seedSpent: false, introduced: false, giantDodges: 0, bonus: {} });
     const p3 = v3.player as Record<string, unknown>;
     for (const k of ['level', 'xp', 'sprouts', 'equipment', 'inventory', 'spells', 'loadout', 'skills', 'points', 'tonics', 'quests', 'tracked', 'lastShrine', 'discoveredShrines'] as const) {
       expect(s.player[k], k).toEqual(p3[k]);
     }
     expect(s.world).toEqual(v3.world);
+  });
+
+  it('v3 → v4: keepsakes already won are handed over (steps done, quests done, fallback givers)', () => {
+    const v3 = fixture('save-v3.json');
+    const p = v3.player as Record<string, unknown>;
+    const done = { status: 'complete', step: 99, progress: [] };
+    const quests = { q_wake_up: done, q_pest_control: done, q_thornwood: done, q_scrapjaw: done };
+    const s = migrate({ ...structuredClone(v3), player: { ...p, quests } });
+    // In catalog order: Coins (Thornwood's fallback reward), the Grip (Thornwood's Gatekeeper step),
+    // Hopeglass (Scrapjaw's boss step), Stride (Scrapjaw's fallback reward), then the two totems.
+    expect(s.player.relics!.owned).toEqual([
+      'relic_drowned_coins', 'relic_gatekeepers_grip', 'relic_hopeglass', 'relic_sprotos_stride', 'totem_elders_hearth', 'totem_field_warden',
+    ]);
+    expect(s.player.relics!.sockets).toEqual([null, null, null]);
+    expect(s.player.relics!.totem).toBeNull();
+  });
+
+  it('v3 → v4: an active quest owns what its finished steps gave, not what is ahead or a bonus not won', () => {
+    const v3 = fixture('save-v3.json');
+    const p = v3.player as Record<string, unknown>;
+    const at = (quest: string, stepId: string) => {
+      const steps = QUESTS[quest].steps;
+      const step = steps.findIndex((x) => x.id === stepId);
+      return { status: 'active', step, progress: new Array<number>(steps[step].objectives.length).fill(0) };
+    };
+    const quests = {
+      // Past the Gatekeeper: the Grip was given.
+      q_thornwood: at('q_thornwood', 'key'),
+      // Facing Scrapjaw: Hopeglass comes when the boss step is done.
+      q_scrapjaw: at('q_scrapjaw', 'boss'),
+      // Watchtower done: its Coins are a bonus (three reflect kills), not a step reward.
+      q_watchtower: { status: 'complete', step: QUESTS.q_watchtower.steps.length, progress: [] },
+    };
+    const s = migrate({ ...structuredClone(v3), player: { ...p, quests } });
+    expect(s.player.relics!.owned).toEqual(['relic_gatekeepers_grip']);
+  });
+
+  it('a fresh save owns no keepsakes', async () => {
+    const { w } = await village();
+    const s = migrate(JSON.parse(JSON.stringify(w.toSave({ savedAt: 'now', build: 'test', region: 'sproutvale' }))));
+    expect(s.player.relics!.owned).toEqual([]);
+    w.dispose();
+  });
+
+  it('keepsakes are handed over once: reconciling again adds nothing, and owned ones keep their order', () => {
+    const v3 = fixture('save-v3.json');
+    const p = v3.player as Record<string, unknown>;
+    const done = { status: 'complete', step: 99, progress: [] };
+    const once = migrate({ ...structuredClone(v3), player: { ...p, quests: { q_wake_up: done, q_thornwood: done } } });
+    const twice = migrate(JSON.parse(JSON.stringify(once)));
+    expect(twice).toEqual(once);
+    expect(new Set(twice.player.relics!.owned).size).toBe(twice.player.relics!.owned.length);
+    // A keepsake won in play keeps its place; what the log says was won goes after it, once.
+    const played = structuredClone(once);
+    played.player.relics!.owned = ['totem_elders_hearth', 'relic_hopeglass', 'relic_hopeglass'];
+    expect(migrate(played).player.relics!.owned).toEqual(['totem_elders_hearth', 'relic_hopeglass', 'relic_drowned_coins', 'relic_gatekeepers_grip']);
   });
 
   it('a newer schema is rejected (SaveError)', () => {

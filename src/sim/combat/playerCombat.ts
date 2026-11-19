@@ -8,6 +8,7 @@ import { BACKSTEP, dodgeFrames } from '../../content/packs/m7';
 import { CAST_WALK_SCALE } from '../../content/spells';
 import { charmOf } from '../systems/rpg';
 import { slotSpell } from '../systems/loadout';
+import { parryWindowTicks } from '../systems/relics';
 import { DT, MOVE } from '../../content/tuning';
 import { BTN, idleInput, type CommandMap, type InputCommand } from '../commands';
 import type { Action, Buffered, BufferedAction, Entity } from '../entity';
@@ -500,8 +501,9 @@ function updateBlock(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
     return;
   }
   if (!held || c.action) return;
-  // What is left of the press's window: nothing when block was simply held until the guard could rise.
-  c.action = { kind: 'block', t: 0, parryTicks: Math.max(0, c.blockPressTicks - (ctx.now - c.lastBlockTick)) };
+  // What is left of the press's window (relics lengthen the window itself, not what is left of it):
+  // nothing when block was simply held until the guard could rise.
+  c.action = { kind: 'block', t: 0, parryTicks: Math.max(0, parryWindowTicks(p, c.blockPressTicks) - (ctx.now - c.lastBlockTick)) };
 }
 
 function setMotion(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
