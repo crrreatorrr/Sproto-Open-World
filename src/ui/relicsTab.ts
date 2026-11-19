@@ -3,18 +3,18 @@
  * src/ui/gameMenu.ts (held until Rootdeep Quest 4 merges): add 'relics' between Gear and Quests,
  * render this panel, and let onBack / frame call RelicsPanel.first.
  *
- * 128 px icon masters are not in this build. Cards show the 24 px silhouette inside a rarity frame.
+ * The 128 px master and the 24 px silhouette are files under public/assets/icons/keepsakes.
+ * The rarity frame is drawn here, not painted into the art.
  */
 import './relics.css';
 import { relicCopy } from '../content/relicCopy';
 import {
-  GEAR_LOCK_TEXT, KEEPSAKES, RELIC_SOCKETS, TOTEM_SWAPPED_TEXT, badgeText, capBlockMessage, foundCount, keepsake, relicShortfall,
+  GEAR_LOCK_TEXT, KEEPSAKES, RELIC_SOCKETS, TOTEM_SWAPPED_TEXT, badgeText, capBlockMessage, foundCount, keepsake, keepsakeIcon, relicShortfall,
   type KeepsakeDef,
 } from '../content/relics';
 import { QUESTS } from '../content/quests';
 import type { UiAction } from '../sim/commands';
 import type { Progress } from '../sim/entity';
-import { KEEPSAKE_ICONS } from './icons';
 
 export interface RelicCardModel {
   id: string;
@@ -105,10 +105,25 @@ const el = (tag: string, cls = '', text = ''): HTMLElement => {
   return e;
 };
 
+/** Owned cards show the 128 px master. A locked card is the currentColor silhouette, fetched as a mask. */
 const art = (id: string, locked: boolean): HTMLElement => {
-  const d = el('span', `relic-art placeholder${locked ? ' locked' : ''}`);
-  d.innerHTML = KEEPSAKE_ICONS[id] ?? '';
-  return d;
+  const files = keepsakeIcon(id);
+  if (!files || locked) {
+    const d = el('span', 'relic-art silhouette');
+    if (files) {
+      d.style.maskImage = `url("${files.svg}")`;
+      d.style.webkitMaskImage = `url("${files.svg}")`;
+    }
+    return d;
+  }
+  const img = el('img', 'relic-art') as HTMLImageElement;
+  img.src = files.png;
+  img.alt = '';
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  img.width = 128;
+  img.height = 128;
+  return img;
 };
 
 /**
@@ -183,7 +198,9 @@ function detailOf(model: RelicsModel, selected: string | null, compare: string |
   const name = el('div', `name ${card.locked ? '' : card.rarity}`);
   name.append(el('span', '', card.name), el('span', 'rarity', card.locked ? '' : card.rarity));
   if (card.badge) name.append(el('span', 'relic-badge', card.badge));
-  box.append(name);
+  const master = el('div', `relic-master ${card.locked ? '' : card.rarity}${card.equipped ? ' equipped' : ''}`);
+  master.append(art(card.id, card.locked));
+  box.append(master, name);
   if (card.locked) {
     box.append(el('p', 'blurb', card.clue));
     return box;

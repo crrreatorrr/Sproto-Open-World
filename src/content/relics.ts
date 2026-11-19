@@ -42,6 +42,8 @@ export type RankedSafe = 'yes' | 'capped' | 'solo';
 
 export interface KeepsakeDef {
   id: string;
+  /** File slug under public/assets/icons/keepsakes. Hyphens, not the item id. */
+  slug: string;
   name: string;
   kind: KeepsakeKind;
   rarity: 'common' | 'rare' | 'epic';
@@ -53,37 +55,44 @@ export interface KeepsakeDef {
 }
 
 const relic = (
-  id: string, name: string, rarity: KeepsakeDef['rarity'], ranked: RankedSafe, quest: string, step: string, bonus: string | null = null,
-): KeepsakeDef => ({ id, name, kind: 'relic', rarity, ranked, quest, step, bonus });
+  id: string, slug: string, name: string, rarity: KeepsakeDef['rarity'], ranked: RankedSafe, quest: string, step: string, bonus: string | null = null,
+): KeepsakeDef => ({ id, slug, name, kind: 'relic', rarity, ranked, quest, step, bonus });
 
 const totem = (
-  id: string, name: string, rarity: KeepsakeDef['rarity'], ranked: RankedSafe, quest: string, step: string,
-): KeepsakeDef => ({ id, name, kind: 'totem', rarity, ranked, quest, step, bonus: null });
+  id: string, slug: string, name: string, rarity: KeepsakeDef['rarity'], ranked: RankedSafe, quest: string, step: string,
+): KeepsakeDef => ({ id, slug, name, kind: 'totem', rarity, ranked, quest, step, bonus: null });
 
 export const KEEPSAKES: readonly KeepsakeDef[] = [
-  relic('relic_drowned_coins', 'Coins of the Drowned Kingdom', 'rare', 'capped', 'q_watchtower', 'slingers', 'Reflect 3 coins into Slingers'),
-  relic('relic_gatekeepers_grip', "Gatekeeper's Grip", 'rare', 'yes', 'q_thornwood', 'gatekeeper'),
-  relic('relic_hopeglass', 'Hopeglass', 'epic', 'solo', 'q_scrapjaw', 'boss'),
-  relic('relic_sprotos_stride', "Sproto's Stride", 'rare', 'capped', 'q_hollow_giant', 'giant', '3 perfect dodges against the Hollow Giant in one fight'),
-  relic('relic_tinubus_broken_seal', "Tinubu's Broken Seal", 'rare', 'yes', 'q_mill', 'coin'),
-  relic('relic_oracles_eye', "Oracle's Eye", 'epic', 'yes', 'q_lens_flare', 'lens'),
-  relic('relic_deepbreath_bellows', 'Deepbreath Bellows', 'rare', 'capped', 'q_deep_seam', 'boss'),
-  relic('relic_elder_iron_rivet', 'Elder-Iron Rivet', 'epic', 'capped', 'q_iron_gallery', 'gunners', 'Fell 2 Gunners with their own reflected charged shot'),
-  relic('relic_surgebriar', 'Surgebriar', 'rare', 'capped', 'q_weavers_thorns', 'return'),
-  relic('relic_drakeplume', 'Drakeplume', 'epic', 'yes', 'q_skyfire', 'boss'),
-  totem('totem_elders_hearth', "Elder's Hearth", 'common', 'yes', 'q_wake_up', 'shrine'),
-  totem('totem_field_warden', 'Field Warden', 'common', 'yes', 'q_pest_control', 'grunts'),
-  totem('totem_seekers_lantern', "Seeker's Lantern", 'rare', 'yes', 'q_relics', 'return'),
-  totem('totem_turnstone', 'Turnstone', 'rare', 'capped', 'q_rivet_volley', 'return'),
-  totem('totem_elders_seed', "Elder's Seed", 'epic', 'yes', 'q_elders_garden', 'shrines'),
-  totem('totem_earthspeaker_stake', 'Earthspeaker Stake', 'rare', 'capped', 'q_tremors', 'seam'),
-  totem('totem_ember_quench_pail', 'Ember-Quench Pail', 'rare', 'yes', 'q_smoke_hills', 'hay'),
-  totem('totem_skylure_post', 'Skylure Post', 'rare', 'yes', 'q_bait', 'post'),
+  relic('relic_drowned_coins', 'coins-of-the-drowned-kingdom', 'Coins of the Drowned Kingdom', 'rare', 'capped', 'q_watchtower', 'slingers', 'Reflect 3 coins into Slingers'),
+  relic('relic_gatekeepers_grip', 'gatekeepers-grip', "Gatekeeper's Grip", 'rare', 'yes', 'q_thornwood', 'gatekeeper'),
+  relic('relic_hopeglass', 'hopeglass', 'Hopeglass', 'epic', 'solo', 'q_scrapjaw', 'boss'),
+  relic('relic_sprotos_stride', 'sprotos-stride', "Sproto's Stride", 'rare', 'capped', 'q_hollow_giant', 'giant', '3 perfect dodges against the Hollow Giant in one fight'),
+  relic('relic_tinubus_broken_seal', 'tinubus-broken-seal', "Tinubu's Broken Seal", 'rare', 'yes', 'q_mill', 'coin'),
+  relic('relic_oracles_eye', 'oracles-eye', "Oracle's Eye", 'epic', 'yes', 'q_lens_flare', 'lens'),
+  relic('relic_deepbreath_bellows', 'deepbreath-bellows', 'Deepbreath Bellows', 'rare', 'capped', 'q_deep_seam', 'boss'),
+  relic('relic_elder_iron_rivet', 'elder-iron-rivet', 'Elder-Iron Rivet', 'epic', 'capped', 'q_iron_gallery', 'gunners', 'Fell 2 Gunners with their own reflected charged shot'),
+  relic('relic_surgebriar', 'surgebriar', 'Surgebriar', 'rare', 'capped', 'q_weavers_thorns', 'return'),
+  relic('relic_drakeplume', 'drakeplume', 'Drakeplume', 'epic', 'yes', 'q_skyfire', 'boss'),
+  totem('totem_elders_hearth', 'elders-hearth', "Elder's Hearth", 'common', 'yes', 'q_wake_up', 'shrine'),
+  totem('totem_field_warden', 'field-warden', 'Field Warden', 'common', 'yes', 'q_pest_control', 'grunts'),
+  totem('totem_seekers_lantern', 'seekers-lantern', "Seeker's Lantern", 'rare', 'yes', 'q_relics', 'return'),
+  totem('totem_turnstone', 'turnstone', 'Turnstone', 'rare', 'capped', 'q_rivet_volley', 'return'),
+  totem('totem_elders_seed', 'elders-seed', "Elder's Seed", 'epic', 'yes', 'q_elders_garden', 'shrines'),
+  totem('totem_earthspeaker_stake', 'earthspeaker-stake', 'Earthspeaker Stake', 'rare', 'capped', 'q_tremors', 'seam'),
+  totem('totem_ember_quench_pail', 'ember-quench-pail', 'Ember-Quench Pail', 'rare', 'yes', 'q_smoke_hills', 'hay'),
+  totem('totem_skylure_post', 'skylure-post', 'Skylure Post', 'rare', 'yes', 'q_bait', 'post'),
 ];
 
 const BY_ID = new Map(KEEPSAKES.map((k) => [k.id, k]));
 
 export const keepsake = (id: string | null | undefined): KeepsakeDef | undefined => (id ? BY_ID.get(id) : undefined);
+
+/** Lazy icon URLs. The files are fetched by the browser, not packed into the boot script. */
+export function keepsakeIcon(id: string): { png: string; svg: string } | null {
+  const slug = keepsake(id)?.slug;
+  if (!slug) return null;
+  return { png: `/assets/icons/keepsakes/${slug}.png`, svg: `/assets/icons/keepsakes/${slug}.svg` };
+}
 export const isKeepsake = (id: string): boolean => BY_ID.has(id);
 export const isRelic = (id: string): boolean => BY_ID.get(id)?.kind === 'relic';
 export const isTotem = (id: string): boolean => BY_ID.get(id)?.kind === 'totem';

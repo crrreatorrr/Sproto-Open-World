@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { KEEPSAKES } from '../../src/content/relics';
+import { KEEPSAKES, keepsakeIcon } from '../../src/content/relics';
 import { newProgress } from '../../src/sim/systems/rpg';
-import { KEEPSAKE_ICONS } from '../../src/ui/icons';
 import { pressCard, relicKey, relicPad, relicsModel } from '../../src/ui/relicsTab';
 
 describe('relics tab', () => {
@@ -41,10 +40,12 @@ describe('relics tab', () => {
     expect(relicKey('KeyF')).toBe('equip');
   });
 
-  it('has a 24px silhouette for every keepsake', () => {
-    for (const k of KEEPSAKES) {
-      expect(KEEPSAKE_ICONS[k.id], k.id).toContain('<svg');
-      expect(KEEPSAKE_ICONS[k.id]).toContain('currentColor');
-    }
+  it('points each card at a lazy icon url, not an inlined glyph', () => {
+    expect(keepsakeIcon('relic_drowned_coins')).toEqual({
+      png: '/assets/icons/keepsakes/coins-of-the-drowned-kingdom.png',
+      svg: '/assets/icons/keepsakes/coins-of-the-drowned-kingdom.svg',
+    });
+    expect(keepsakeIcon('totem_elders_hearth')?.svg).toBe('/assets/icons/keepsakes/elders-hearth.svg');
+    expect(KEEPSAKES.every((k) => keepsakeIcon(k.id)?.png.endsWith(`${k.slug}.png`))).toBe(true);
   });
 });

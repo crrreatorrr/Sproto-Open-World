@@ -4,7 +4,7 @@ import { MODELS, STAFF_BOOT_LOD, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
 import { CameraRig } from '../camera/CameraRig';
 import { ITEMS } from '../content/items';
-import { keepsake } from '../content/relics';
+import { keepsake, keepsakeIcon } from '../content/relics';
 import { affixName } from '../content/packs/c4';
 import { SKYFIRE_END_CARD } from '../content/packs/c6';
 import { POWER } from '../content/packs/c3';
@@ -1275,7 +1275,7 @@ export class App {
       case 'itemGained':
         if (e.keepsake) {
           const def = keepsake(e.item);
-          this.hud.toast(e.keepsake.text, { rarity: def?.rarity });
+          this.hud.toast(e.keepsake.text, { rarity: def?.rarity, iconUrl: keepsakeIcon(e.item)?.png });
           if (def?.rarity === 'epic') this.audio.play('victory', 0.55);
           return;
         }

@@ -4,23 +4,28 @@
 .relic-sockets, .relic-grid { display: grid; grid-template-columns: repeat(5, 72px); gap: 8px; }
 .relic-grid { grid-template-columns: repeat(5, 64px); }
 .relic-head { display: flex; justify-content: space-between; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
-.relic-socket, .relic-card {
-  position: relative; display: grid; place-items: center; padding: 4px; border: 1px solid rgba(217, 204, 176, 0.45);
+.relic-socket, .relic-card, .relic-master {
+  position: relative; display: grid; place-items: center; padding: 4px; border: 1px solid #d9ccb0;
   background: rgba(0, 0, 0, 0.28); color: inherit; font: inherit;
 }
 .relic-socket { width: 72px; height: 72px; }
 .relic-card { width: 64px; height: 64px; }
 .relic-socket.plus, .relic-card.locked { color: rgba(217, 204, 176, 0.45); }
-.relic-card.locked .relic-art { filter: brightness(0.35); }
-.relic-card.rare, .relic-socket.rare { border-color: #8fc8ff; }
-.relic-card.epic, .relic-socket.epic { border-color: #d8a0ff; }
-.relic-card.equipped, .relic-socket.filled { outline: 2px solid var(--accent); outline-offset: 1px; }
+.relic-card.locked .relic-art { opacity: 0.45; }
+.relic-card.rare, .relic-socket.rare, .relic-master.rare { border-color: #8fc8ff; }
+.relic-card.epic, .relic-socket.epic, .relic-master.epic { border-color: #d8a0ff; }
+.relic-card.equipped, .relic-socket.filled, .relic-master.equipped { outline: 2px solid #f0c548; outline-offset: 1px; }
 .relic-card.equipped::after, .relic-socket.filled::after {
   content: ''; position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; background: var(--accent);
 }
-.relic-art { width: 70%; height: 70%; }
-.relic-art svg { width: 100%; height: 100%; }
-.relic-art.placeholder { box-shadow: inset 0 0 0 1px currentColor; }
+.relic-art { width: 100%; height: 100%; object-fit: contain; }
+.relic-art.silhouette {
+  background: currentColor;
+  -webkit-mask-size: contain; mask-size: contain;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+}
+.relic-master { width: 128px; height: 128px; padding: 0; }
 .relic-detail { display: grid; gap: 4px; min-height: 7em; }
 .relic-detail .name { font-size: 20px; font-weight: 800; }
 .relic-detail .name.rare { color: #8fc8ff; }

@@ -1,4 +1,6 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { QUESTS, type QuestDef } from '../../src/content/quests';
 import { C4_QUESTS } from '../../src/content/packs/c4';
@@ -64,6 +66,47 @@ describe('keepsake catalog', () => {
   it('says when a further parry relic would add nothing', () => {
     expect(relicShortfall('relic_drowned_coins', [], false)).toBe(0);
     expect(capBlockMessage('relic_drowned_coins', [], false)).toBeNull();
+  });
+
+  it('maps each icon slug to its item id, and the files match the spec', async () => {
+    const slugs = [
+      ['relic_drowned_coins', 'coins-of-the-drowned-kingdom'],
+      ['relic_gatekeepers_grip', 'gatekeepers-grip'],
+      ['relic_hopeglass', 'hopeglass'],
+      ['relic_sprotos_stride', 'sprotos-stride'],
+      ['relic_tinubus_broken_seal', 'tinubus-broken-seal'],
+      ['relic_oracles_eye', 'oracles-eye'],
+      ['relic_deepbreath_bellows', 'deepbreath-bellows'],
+      ['relic_elder_iron_rivet', 'elder-iron-rivet'],
+      ['relic_surgebriar', 'surgebriar'],
+      ['relic_drakeplume', 'drakeplume'],
+      ['totem_elders_hearth', 'elders-hearth'],
+      ['totem_field_warden', 'field-warden'],
+      ['totem_seekers_lantern', 'seekers-lantern'],
+      ['totem_turnstone', 'turnstone'],
+      ['totem_elders_seed', 'elders-seed'],
+      ['totem_earthspeaker_stake', 'earthspeaker-stake'],
+      ['totem_ember_quench_pail', 'ember-quench-pail'],
+      ['totem_skylure_post', 'skylure-post'],
+    ] as const;
+    expect(KEEPSAKES.map((k) => [k.id, k.slug])).toEqual(slugs.map(([id, slug]) => [id, slug]));
+    for (const [, slug] of slugs) {
+      const png = path.join('public/assets/icons/keepsakes', `${slug}.png`);
+      const svg = path.join('public/assets/icons/keepsakes', `${slug}.svg`);
+      const meta = await sharp(png).metadata();
+      expect(meta, slug).toMatchObject({ width: 128, height: 128 });
+      const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const opaque = (x: number, y: number) => data[(y * info.width + x) * info.channels + 3] > 8;
+      for (let i = 0; i < 8; i++) {
+        for (let x = 0; x < info.width; x++) expect(opaque(x, i) || opaque(x, info.height - 1 - i), `${slug} padding`).toBe(false);
+        for (let y = 0; y < info.height; y++) expect(opaque(i, y) || opaque(info.width - 1 - i, y), `${slug} padding`).toBe(false);
+      }
+      const text = readFileSync(svg, 'utf8');
+      expect(text).toContain('viewBox="0 0 24 24"');
+      expect(text).toContain('currentColor');
+      const paints = [...text.matchAll(/(?:fill|stroke)="([^"]+)"/g)].map((m) => m[1]);
+      expect(paints.every((c) => c === 'currentColor' || c === 'none'), slug).toBe(true);
+    }
   });
 
   it('names the eight totem GLBs from the Blender spec, and does not ship the files', () => {
