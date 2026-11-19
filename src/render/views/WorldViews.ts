@@ -18,7 +18,8 @@ import { makeBossView } from './BossViews';
 import { makeBurrowmotherView } from './BurrowmotherView';
 import { DrakeFlyover, makeDrakeView } from './DrakeViews';
 import { BlastOrbView, BoltView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
-import { ChestView, NpcView, PickupView, ShrineView, objectView } from './RpgViews';
+import { portalShown } from '../portalShown';
+import { ChestView, NpcView, PickupView, PortalView, ShrineView, objectView } from './RpgViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
 import { QuestClues } from '../fx/questClues';
 import { CHEST_SHIMMER_M } from '../../content/packs/encounterTune';
@@ -96,6 +97,9 @@ export class WorldViews {
   /** Which enemy views cast a shadow now (near the player only). */
   private readonly shadowCast = new Map<EntityId, boolean>();
   private frame = 0;
+  /** World flags and the player, for portal mouths (set at the start of each sync). */
+  private drawFlags: Readonly<Record<string, number>> = {};
+  private drawPlayer: { x: number; z: number } | undefined;
 
   constructor(
     private readonly assets: AssetLoader,
@@ -153,6 +157,8 @@ export class WorldViews {
     this.seen.clear();
     this.status.begin(dt);
     const me = view.playerEntity(0);
+    this.drawFlags = view.world.flags;
+    this.drawPlayer = me ? { x: me.tf.pos.x, z: me.tf.pos.z } : undefined;
     for (const e of view.entities) {
       if (e.kind === 'player') {
         // Single player for now: the one player's progress lights the shrines.
@@ -169,6 +175,15 @@ export class WorldViews {
       }
       // Not drawn (far away, not set down yet, a faded corpse): the sweep below drops any old view.
       if (!wantsView(e, me, v !== undefined)) continue;
+      // A mouth's look follows the flags. Sealed (and motes out of range) returns null and is not cached.
+      if (e.interactable?.kind === 'portal' && v instanceof PortalView) {
+        const look = portalShown(e.interactable.id, e.interactable.used, this.drawFlags, e.tf.pos, this.drawPlayer);
+        if (!look) continue;
+        v.show(look);
+        this.seen.add(e.id);
+        v.update(e, alpha, dt);
+        continue;
+      }
       if (!v) {
         const made = this.make(e);
         if (!made) continue;
@@ -431,6 +446,14 @@ export class WorldViews {
     }
     if (kind === 'chest') return new ChestView(this.assets);
     if (kind === 'object') return objectView(e.view.model);
+    if (kind === 'portal') {
+      const ia = e.interactable!;
+      const look = portalShown(ia.id, ia.used, this.drawFlags, e.tf.pos, this.drawPlayer);
+      if (!look) return null;
+      const pv = new PortalView();
+      pv.show(look);
+      return pv;
+    }
     if (e.pickup) return new PickupView(e, this.assets);
     const def = scaledDef(enemyDef(e), e.view.scale ?? 1);
     switch (e.view.model) {

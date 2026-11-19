@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { AssetLoader } from '../assets/AssetLoader';
 import { TEXTURES } from '../assets/manifest';
 import type { LevelDef } from '../content/sandbox';
+import { lookFor, sunCastsShadow } from './caveLook';
 
 /** Draw calls and triangles of the last frame, split into the shadow pass and the main pass. */
 export interface FrameStats {
@@ -31,7 +32,16 @@ export class Renderer {
   readonly camera: THREE.PerspectiveCamera;
   readonly sun: THREE.DirectionalLight;
   readonly hemi: THREE.HemisphereLight;
+  /** Warm pool of light on the player. It stays in the scene: adding a light recompiles every shader. */
+  readonly torch: THREE.PointLight;
   private readonly levelGroup = new THREE.Group();
+  /** False on the surface. `setCave` does nothing when this is already the value asked for. */
+  private cave = false;
+  /** Sun shadows as the graphics quality asks (`applyQuality`). The cave can only turn them off. */
+  private shadowsWanted = true;
+  /** Fog band from the last `worldLook`, put back when the player leaves the cave. */
+  private surfaceFog: WorldLook['fog'] = { near: 80, far: 180, farPlane: 450 };
+  private readonly caveSky = new THREE.Color(0x000000);
   private readonly sunOffset = new THREE.Vector3(18, 30, 12);
   private readonly stats: FrameStats = { calls: 0, triangles: 0, shadowCalls: 0, shadowTriangles: 0 };
   private yardSky: THREE.Texture | null = null;
@@ -60,7 +70,9 @@ export class Renderer {
     s.far = 120;
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.03;
-    this.scene.add(this.sun, this.sun.target);
+    // Intensity 0 until the cave. Distance 22, decay 2: a torch, not a second sun.
+    this.torch = new THREE.PointLight(0xffc98a, 0, 22, 2);
+    this.scene.add(this.sun, this.sun.target, this.torch);
     this.scene.add(this.levelGroup);
 
     this.resize();
@@ -89,16 +101,59 @@ export class Renderer {
    * colour (so the edge of the loaded rings melts into the sky), and the far plane at 450 m.
    */
   worldLook(look: WorldLook): void {
+    this.surfaceFog = { near: look.fog.near, far: look.fog.far, farPlane: look.fog.farPlane };
+    if (!this.cave) this.applySurface();
+  }
+
+  /** The player is in the Rootdeep. No-op when the boolean has not changed. */
+  setCave(on: boolean): void {
+    if (on === this.cave) return;
+    this.cave = on;
+    if (on) this.applyCave();
+    else this.applySurface();
+  }
+
+  get inCave(): boolean {
+    return this.cave;
+  }
+
+  /** The graphics quality's shadow choice. Low keeps them off on the surface and in the cave alike. */
+  setShadows(on: boolean): void {
+    this.shadowsWanted = on;
+    this.sun.castShadow = sunCastsShadow(on, this.cave);
+  }
+
+  /** Sproutvale's daylight, from `lookFor(false)` plus the fog `worldLook` stored. */
+  private applySurface(): void {
+    const look = lookFor(false);
+    const fog = this.surfaceFog;
     this.daySky ??= daySkyTexture();
     this.scene.background = this.daySky;
-    this.scene.fog = new THREE.Fog(SKY_HAZE.getHex(), look.fog.near, look.fog.far);
-    this.camera.far = look.fog.farPlane;
+    this.scene.fog = new THREE.Fog(SKY_HAZE.getHex(), fog.near, fog.far);
+    this.camera.far = fog.farPlane;
     this.camera.updateProjectionMatrix();
     this.hemi.color.set(0xe8f4ff);
     this.hemi.groundColor.set(0x5a6a3a);
-    this.hemi.intensity = 1.3;
+    this.hemi.intensity = look.hemiIntensity;
     this.sun.color.set(0xfff4e0);
-    this.sun.intensity = 2.8;
+    this.sun.intensity = look.sunIntensity;
+    this.sun.castShadow = sunCastsShadow(this.shadowsWanted, this.cave);
+    this.torch.intensity = look.torchIntensity;
+  }
+
+  /** Black, short fog, no sun. The torch and a dim hemisphere light the rock. */
+  private applyCave(): void {
+    const look = lookFor(true);
+    this.scene.background = this.caveSky;
+    this.scene.fog = new THREE.Fog(0x050608, look.fogNear, look.fogFar);
+    this.camera.far = look.farPlane;
+    this.camera.updateProjectionMatrix();
+    this.hemi.color.set(0x6a7a8a);
+    this.hemi.groundColor.set(0x1a1a22);
+    this.hemi.intensity = look.hemiIntensity;
+    this.sun.intensity = look.sunIntensity;
+    this.sun.castShadow = sunCastsShadow(this.shadowsWanted, this.cave);
+    this.torch.intensity = look.torchIntensity;
   }
 
   private storm = false;
@@ -167,10 +222,11 @@ export class Renderer {
     this.levelGroup.clear();
   }
 
-  /** Keep the shadow box centred on the player. */
+  /** Keep the shadow box centred on the player, and the torch 2 m above their feet. */
   follow(target: THREE.Vector3): void {
     this.sun.position.copy(target).add(this.sunOffset);
     this.sun.target.position.copy(target);
+    this.torch.position.set(target.x, target.y + 2, target.z);
   }
 
   /** Compile an object's programs against this scene's lights and fog without stalling a frame. */
