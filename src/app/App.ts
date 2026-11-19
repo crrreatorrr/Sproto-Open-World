@@ -5,6 +5,7 @@ import { AudioManager } from '../audio/AudioManager';
 import { CameraRig } from '../camera/CameraRig';
 import { ITEMS } from '../content/items';
 import { affixName } from '../content/packs/c4';
+import { isRootdeep } from '../content/packs/rootdeep';
 import { SKYFIRE_END_CARD } from '../content/packs/c6';
 import { POWER } from '../content/packs/c3';
 import { PERKS, SKILLS, type PerkId, type SkillId } from '../content/progression';
@@ -468,6 +469,7 @@ export class App {
       this.polish.begin(view);
       this.target.set(entity.tf.pos.x, entity.tf.pos.y, entity.tf.pos.z);
       this.rig.snap(this.target, entity.tf.yaw);
+      if (this.stream) this.renderer.setCave(isRootdeep(entity.tf.pos.x));
       this.loop.reset();
       this.commands.clear();
       this.commands.clearUi();
@@ -528,6 +530,7 @@ export class App {
   }
 
   quitToTitle(): void {
+    this.renderer.setCave(false);
     this.questLead = null;
     this.commands.clearUi();
     this.player?.dispose();
@@ -705,6 +708,7 @@ export class App {
 
     const p = sim.playerEntity(LOCAL_PLAYER);
     if (!p) return;
+    if (this.mode === 'world') this.renderer.setCave(isRootdeep(p.tf.pos.x));
     this.autosave(simView, p, dt, held);
     this.syncEquipment(p);
     view.saddleLift = p.riding ? this.world.saddleLift(p.riding.mount) : 0;
@@ -1113,6 +1117,23 @@ export class App {
           }
         }
         return;
+      case 'portalTravel': {
+        // The sim has already moved the body. Snap the camera the way a debug teleport does, or it
+        // eases across the whole valley, and cover the jump with the veil until the new ground is up.
+        if (e.entity !== me) return;
+        const who = view.get(e.entity);
+        if (!who) return;
+        this.target.set(who.tf.pos.x, who.tf.pos.y, who.tf.pos.z);
+        this.player?.root.position.copy(this.target);
+        this.rig.snap(this.target, this.rig.yaw);
+        if (this.mode === 'world') this.renderer.setCave(isRootdeep(who.tf.pos.x));
+        if (this.stream) {
+          this.groundWait = true;
+          this.hud.visible = false;
+          this.panels.showVeil('Loading Sproutvale…');
+        }
+        return;
+      }
       case 'lock':
         if (e.entity === me && e.target !== null) this.audio.play('lockBeep');
         return;
@@ -1608,6 +1629,7 @@ export class App {
         : null,
       sandbox: WAVE_SANDBOX,
       mode: this.mode,
+      cave: this.renderer.inCave,
       groundWait: this.groundWait,
       waitingForGround: this.sim?.view().waitingForGround ?? false,
       errorAction: this.panels.focusedAction,

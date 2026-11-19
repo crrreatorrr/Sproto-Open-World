@@ -7,6 +7,7 @@ import { TICK_HZ } from '../../content/tuning';
 import type { Entity } from '../../sim/entity';
 import { Animator } from '../anim/Animator';
 import { glowTexture } from '../fx/textures';
+import type { PortalDraw } from '../portalShown';
 import { GateLockView } from './BossViews';
 import { drakeObjectView } from './DrakeViews';
 import type { EntityView } from './EnemyViews';
@@ -657,6 +658,90 @@ export class TomeView implements EntityView {
   dispose(): void {
     for (const m of this.mats) m.dispose();
     disposeSprite(this.glow);
+    this.root.removeFromParent();
+  }
+}
+
+/** Shared across every mouth. Not disposed with a view: the next mouth still uses them. */
+let portalGeo: { opening: THREE.BoxGeometry; column: THREE.CylinderGeometry } | null = null;
+function portalGeometry(): { opening: THREE.BoxGeometry; column: THREE.CylinderGeometry } {
+  portalGeo ??= {
+    opening: new THREE.BoxGeometry(1.6, 2.4, 0.16),
+    column: new THREE.CylinderGeometry(0.42, 0.55, 2.5, 6),
+  };
+  return portalGeo;
+}
+
+const MOTE_COUNT = 6;
+
+/**
+ * A hidden entrance, built from code (no model file). Sealed mouths never get one. The main door
+ * shows faint green motes until it is opened, then a flat near-black gap 1.6 m wide and 2.4 m tall.
+ * A cave mouth is a dark stone column. `show` follows the flags each frame.
+ */
+export class PortalView implements EntityView {
+  readonly root = new THREE.Group();
+  readonly height = 2.4;
+  private opening: THREE.Mesh | null = null;
+  private column: THREE.Mesh | null = null;
+  private motes: THREE.Group | null = null;
+  private readonly moteY: number[] = [];
+  private mode: PortalDraw = 'opening';
+  private t = 0;
+
+  show(mode: PortalDraw): void {
+    this.mode = mode;
+    if (mode === 'opening' && !this.opening) {
+      const mat = new THREE.MeshStandardMaterial({ color: 0x07080c, roughness: 1, metalness: 0 });
+      this.opening = new THREE.Mesh(portalGeometry().opening, mat);
+      this.opening.position.y = 1.2;
+      this.opening.castShadow = false;
+      this.opening.receiveShadow = true;
+      this.root.add(this.opening);
+    }
+    if (mode === 'column' && !this.column) {
+      const mat = new THREE.MeshStandardMaterial({ color: 0x3a424c, roughness: 0.95, metalness: 0 });
+      this.column = new THREE.Mesh(portalGeometry().column, mat);
+      this.column.position.y = 1.25;
+      this.column.castShadow = true;
+      this.column.receiveShadow = true;
+      this.root.add(this.column);
+    }
+    if (mode === 'motes' && !this.motes) {
+      this.motes = new THREE.Group();
+      for (let i = 0; i < MOTE_COUNT; i++) {
+        const mat = new THREE.SpriteMaterial({
+          map: glowTexture(), color: 0xb8ffc4, transparent: true, opacity: 0.72,
+          depthWrite: false, blending: THREE.AdditiveBlending,
+        });
+        const s = new THREE.Sprite(mat);
+        const a = (i / MOTE_COUNT) * Math.PI * 2;
+        const y = 0.9 + (i % 3) * 0.5;
+        // Local −z is the side the player walks in from (the mouth's yaw faces the wall).
+        s.position.set(Math.cos(a) * 0.55, y, -0.7 + Math.sin(a) * 0.2);
+        s.scale.setScalar(0.48 + (i % 2) * 0.18);
+        this.moteY.push(y);
+        this.motes.add(s);
+      }
+      this.root.add(this.motes);
+    }
+    if (this.opening) this.opening.visible = mode === 'opening';
+    if (this.column) this.column.visible = mode === 'column';
+    if (this.motes) this.motes.visible = mode === 'motes';
+  }
+
+  update(e: Readonly<Entity>, alpha: number, dt: number): void {
+    placeEntity(this.root, e, alpha);
+    if (this.mode !== 'motes' || !this.motes) return;
+    this.t += dt;
+    const sprites = this.motes.children;
+    for (let i = 0; i < sprites.length; i++) sprites[i].position.y = this.moteY[i] + Math.sin(this.t * 1.7 + i * 1.3) * 0.16;
+  }
+
+  dispose(): void {
+    (this.opening?.material as THREE.Material | undefined)?.dispose();
+    (this.column?.material as THREE.Material | undefined)?.dispose();
+    if (this.motes) for (const s of this.motes.children) (s as THREE.Sprite).material.dispose();
     this.root.removeFromParent();
   }
 }
