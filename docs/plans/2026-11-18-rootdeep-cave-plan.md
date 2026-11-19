@@ -134,7 +134,7 @@ The trigger `old_hedge_wall` is at (79, 231), radius 12. The camp `hedge_diggers
 
 Everything new goes in `ROOTDEEP_CONTENT`, including the surface portals, `old_hedge_wall` and `hedge_diggers`. `WORLD_CONTENT` joins it with `SPROUTVALE_CONTENT`, and the game populates `WORLD_CONTENT`. `SPROUTVALE_CONTENT` itself does not change, because its tests check the valley's own limits: 55 to 75 enemies, camps 60 m apart, and every placement inside the map border.
 
-**`q_rootdeep`, "The Rootdeep"** (side, giver `collector_pepe`):
+**`q_rootdeep`, "The Rootdeep"** (side, giver `collector_pepe`, prereq `[{ questDone: 'q_collectors_map' }]`):
 
 | Step id | Text | Objectives | Marker |
 |---|---|---|---|
@@ -225,18 +225,7 @@ Add `heightRange?: { min: number; max: number }` to `TerrainSrc`. When it is set
 
 - [ ] **Step 4: Write the cave's sources and bake them**
 
-`terrain.json` uses the Design tables with world x (local + 4096), and these fixed fields:
-
-```json
-{
-  "id": "rootdeep", "version": 1, "seed": 20261118, "origin": [64, 0], "size": [8, 8],
-  "heightRange": { "min": -8, "max": 40 },
-  "base": { "height": 16, "noise": { "amplitude": 0, "scale": 64, "octaves": 1, "persistence": 0.5, "lacunarity": 2 } },
-  "noise": [], "raise": [], "flatten": [], "paths": [],
-  "border": { "cliffWidth": 1, "cliffHeight": 0, "softWidth": 1, "softHeight": 0 },
-  "splat": { "pathFade": 1, "rockSlope": [30, 50], "zones": [{ "layer": "dirt", "weight": 1, "shape": { "rect": [4096, 0, 4608, 512] } }] }
-}
-```
+Copy `docs/plans/rootdeep-handoff/terrain.json` to `world-src/rootdeep/terrain.json` unchanged. It is the tested layout from the Design tables, in world coordinates (local x + 4096).
 
 `placements.json` has empty `kinds`, `place`, `lines`, `zones` and `scatter`, and one mark: `{ "id": "rootdeep_start", "kind": "playerStart", "at": [4192, 96], "yaw": 0 }`.
 
