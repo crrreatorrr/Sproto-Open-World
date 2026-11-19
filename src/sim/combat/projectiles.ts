@@ -1,4 +1,5 @@
 import { BLOCK } from '../../content/combat';
+import { ENEMIES } from '../../content/enemies';
 import { DT } from '../../content/tuning';
 import type { Entity } from '../entity';
 
@@ -53,13 +54,21 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
       // A parried Scrap Throw back into its shooter: a fixed share of its health, and a stagger.
       const bonus = pr.reflected && pr.reflectBonus?.shooter === tgt.id ? pr.reflectBonus : null;
       const hit = info(e, from);
-      if (bonus) hit.fixedDamage = tgt.vitals!.hpMax * bonus.hpFrac;
+      if (pr.reflected) hit.reflected = true;
+      if (pr.move) hit.source = pr.move;
+      if (bonus?.hpFrac) hit.fixedDamage = tgt.vitals!.hpMax * bonus.hpFrac;
       // A reflected fireball breaks the Drake's stance (expansion plan §3.5).
       if (bonus?.poiseFrac) hit.poise = tgt.combat.poiseMax * bonus.poiseFrac;
       const out = resolveHit(ctx, owner, tgt, hit);
       if (out === 'hit' && bonus && bonus.stagger > 0 && !isDead(tgt)) {
         tgt.combat.action = { kind: 'stagger', t: 0, dur: bonus.stagger };
         ctx.events.push({ type: 'stagger', entity: tgt.id, ticks: bonus.stagger });
+      }
+      if (out === 'hit' && bonus && e.view.model === 'burn_glob') ctx.events.push({ type: 'cue', cue: 'sizzle', entity: tgt.id, pos: { ...tgt.tf.pos } });
+      if (out === 'hit' && bonus && tgt.brain && ENEMIES[tgt.brain.def]?.drake) ctx.events.push({ type: 'cue', cue: 'crack', entity: tgt.id });
+      if (pr.reflected && isDead(tgt)) {
+        const def = tgt.brain ? ENEMIES[tgt.brain.def] : undefined;
+        if (def?.id === 'slinger' || def?.tags?.includes('slinger')) ctx.events.push({ type: 'cue', cue: 'coinRing', entity: tgt.id });
       }
       if (out === 'dodged') continue; // flies on through the roll
       if (out === 'parried') {

@@ -21,6 +21,9 @@ import { BlastOrbView, BoltView, BruteView, CoinView, DummyView, FallbackView, H
 import { portalShown } from '../portalShown';
 import { ChestView, NpcView, PickupView, PortalView, ShrineView, objectView } from './RpgViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
+import { QuestClues } from '../fx/questClues';
+import { CHEST_SHIMMER_M } from '../../content/packs/encounterTune';
+import { QUESTS } from '../../content/quests';
 import { castsShadow, wantsView } from './viewCull';
 
 const DECAL_COLOR: Record<DecalShape, number> = { circle: 0xffa23a, jagged: 0xff2a1a };
@@ -66,6 +69,7 @@ const MOUNT_DRAW_RANGE = 150;
  */
 export class WorldViews {
   readonly root = new THREE.Group();
+  private readonly clues = new QuestClues();
   readonly spells = new SpellFx();
   /** The C3 powers' visuals. */
   readonly powers: PowerFx;
@@ -189,6 +193,13 @@ export class WorldViews {
         this.root.add(v.root);
       }
       this.seen.add(e.id);
+      if (e.interactable?.id === 'quarry_gate_lock') v.keyed?.((me?.progress?.inventory.quarry_key ?? 0) > 0);
+      if (e.interactable?.id.startsWith('relic_')) {
+        const q = me?.progress?.quests.q_relics;
+        const search = !!q && q.status === 'active' && QUESTS.q_relics.steps[q.step]?.clue === 'shimmer';
+        const d = me ? Math.hypot(e.tf.pos.x - me.tf.pos.x, e.tf.pos.z - me.tf.pos.z) : 999;
+        v.shimmer?.(search ? Math.max(0, 1 - d / CHEST_SHIMMER_M) : null);
+      }
       // Skinned meshes aren't frustum culled: a bull left far behind shouldn't cost a draw.
       if (e.mount && me) v.root.visible = Math.hypot(e.tf.pos.x - me.tf.pos.x, e.tf.pos.z - me.tf.pos.z) <= MOUNT_DRAW_RANGE;
       v.update(e, alpha, dt);
@@ -208,6 +219,8 @@ export class WorldViews {
       for (const [k, sv] of this.shrines) if (sv === v) this.shrines.delete(k);
     }
     this.updateDecals(view, dt);
+    if (!this.clues.root.parent) this.root.add(this.clues.root);
+    this.clues.sync(view, me);
     this.spells.update(dt);
     this.powers.sync(view, alpha, dt);
     this.flyover.update(view, me, dt);
@@ -224,8 +237,10 @@ export class WorldViews {
         this.views.get(e.entity)?.telegraph?.(move, e.unblockable, e.ticks);
         const shape: DecalShape | null = e.decal ?? move?.decal ?? (e.unblockable ? 'jagged' : null);
         // A dive paints its own lane on the ground (DrakeView).
-        if (shape && move && !move.dive) {
-          const decal = new TelegraphDecal(shape, DECAL_COLOR[shape]);
+        const preview = !e.unblockable && (view.world.flags['lens.previewUntil'] ?? 0) > view.now;
+        const shown = shape ?? (preview ? 'circle' : null);
+        if (shown && move && !move.dive) {
+          const decal = new TelegraphDecal(shown, preview ? 0xf0c548 : DECAL_COLOR[shown]);
           this.root.add(decal.root);
           // Area attacks put their circle where they aim (the event's `at`, else the action's `aim`).
           const a = ent?.combat?.action;
@@ -243,6 +258,17 @@ export class WorldViews {
       }
       case 'stagger':
         this.views.get(e.entity)?.reel?.();
+        return;
+      case 'cue':
+        if (e.cue === 'roar' && e.pos) {
+          this.fx?.ring(e.pos, 0xc4b49a, 0.35, 7, 0.55);
+          this.fx?.emit({ x: e.pos.x, y: e.pos.y + 0.4, z: e.pos.z }, 'ash', 28, 0.6, 1.2);
+        } else if (e.cue === 'crack' && e.entity !== undefined) {
+          const at = view.get(e.entity)?.tf.pos;
+          if (at) this.fx?.emit({ x: at.x, y: at.y + 2, z: at.z }, 'ash', 10, 0.4, 0.4);
+        } else if (e.cue === 'sizzle' && e.pos) {
+          this.fx?.emit(e.pos, 'fire', 8, 0.5, 0.6);
+        }
         return;
       case 'explode':
         // Blast (plan §4.4): a fireball flash the size of the blast, a ground ring, and fire.

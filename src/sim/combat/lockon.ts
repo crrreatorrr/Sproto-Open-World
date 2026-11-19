@@ -22,7 +22,7 @@ function visible(physics: PhysicsWorld, from: Entity, to: Entity): boolean {
 }
 
 const lockable = (p: Entity, e: Entity) =>
-  !!e.combat && !!e.body && e.combat.team !== p.combat!.team && e.combat.action?.kind !== 'dead' && !e.projectile && !e.boss?.under;
+  !!e.combat && !!e.body && e.combat.team !== p.combat!.team && e.combat.action?.kind !== 'dead' && !e.projectile && !e.boss?.under && !e.brain?.held;
 
 /**
  * Hard lock (plan §4.1): acquire the best enemy in a 70° cone of the camera within 20 m with line

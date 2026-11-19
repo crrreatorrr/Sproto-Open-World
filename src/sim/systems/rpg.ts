@@ -6,6 +6,7 @@ import { DROPS, MERCHANTS } from '../../content/loot';
 import { MOUNT } from '../../content/mounts';
 import { NPCS } from '../../content/npcs';
 import { OBJECTS, usedFlag } from '../../content/objects';
+import { LENS_PREVIEW_TICKS, SEAL_HOOK } from '../../content/packs/encounterTune';
 import { ROOTDEEP_PORTALS, portalOpenFlag } from '../../content/packs/rootdeep';
 import { GROWTH, LEVEL_CAP, SKILL_EFFECT, SKILL_POINTS_PER_LEVEL, noSkills, xpForLevel } from '../../content/progression';
 import { QUESTS, type Condition, type Effect, type Objective, type QuestOffer } from '../../content/quests';
@@ -263,7 +264,13 @@ export function questTick(ctx: RpgCtx, e: Entity): void {
   }
 }
 
-function countFor(o: Objective, events: readonly SimEvent[], e: Entity, entities: readonly Entity[]): number {
+const foeIs = (entities: readonly Entity[], id: number, tag: string) => {
+  const foe = entities.find((x) => x.id === id);
+  const def = foe?.brain ? ENEMIES[foe.brain.def] : undefined;
+  return !!def && (def.id === tag || !!def.tags?.includes(tag));
+};
+
+export function countFor(o: Objective, events: readonly SimEvent[], e: Entity, entities: readonly Entity[]): number {
   let n = 0;
   for (const ev of events) {
     switch (o.kind) {
@@ -276,8 +283,12 @@ function countFor(o: Objective, events: readonly SimEvent[], e: Entity, entities
         break;
       case 'feat':
         if (o.feat === 'heavyHit' && ev.type === 'hit' && ev.attacker === e.id && ev.heavy) n++;
-        else if (o.feat === 'perfectDodge' && ev.type === 'dodgePerfect' && ev.entity === e.id) n++;
+        else if (o.feat === 'perfectDodge' && ev.type === 'dodgePerfect' && ev.entity === e.id && (!o.against || foeIs(entities, ev.attacker, o.against))) n++;
         else if (o.feat === 'parry' && ev.type === 'parry' && ev.target === e.id) n++;
+        else if (o.feat === 'reflectKill' && ev.type === 'hit' && ev.reflected && ev.attacker === e.id && (!o.against || foeIs(entities, ev.target, o.against)) && (!o.source || ev.source === o.source)) {
+          const fatal = events.some((d) => d.type === 'death' && d.entity === ev.target && d.killer === e.id);
+          if (!o.fatal || fatal) n++;
+        }
         break;
       case 'talk':
         if (ev.type === 'talk' && ev.entity === e.id && ev.npc === o.npc && (!o.node || ev.node === o.node)) n++;
@@ -420,6 +431,10 @@ function openChest(ctx: RpgCtx, e: Entity, chest: Entity, contents: { items: { i
   ctx.events.push({ type: 'interact', entity: e.id, object: ia.id, kind: 'chest' });
   for (const it of contents?.items ?? []) giveItem(ctx, e, it.item, it.count);
   if (contents?.sprouts) addSprouts(ctx, e, contents.sprouts);
+  const relics = ['relic_mill', 'relic_rootarch', 'relic_beanstalk'];
+  if (relics.includes(ia.id) && relics.every((id) => ctx.world.openedChests.includes(id))) {
+    ctx.events.push({ type: 'cue', cue: 'beanstalkReveal', hook: 'relic_beanstalk', pos: { ...chest.tf.pos } });
+  }
 }
 
 /** Step through a cave mouth: remember it is open, and tell SimWorld to move the player. */
@@ -444,6 +459,14 @@ function useObject(ctx: RpgCtx, e: Entity, obj: Entity): void {
   ctx.world.flags[usedFlag(ia.id)] = 1;
   ctx.events.push({ type: 'interact', entity: e.id, object: ia.id, kind: 'object' });
   applyEffects(ctx, e, OBJECTS[ia.id]?.effects);
+  if (ia.id === 'mill_lever') {
+    ctx.world.flags[SEAL_HOOK] = 1;
+    ctx.events.push({ type: 'cue', cue: 'sealDrop', hook: 'tinubu_seal', pos: { ...obj.tf.pos } });
+  } else if (ia.id === 'mill_lens') {
+    ctx.world.flags['lens.previewUntil'] = ctx.now + LENS_PREVIEW_TICKS;
+  } else if (ia.id === 'drake_bait_post') {
+    ctx.events.push({ type: 'cue', cue: 'distantRoar', pos: { ...obj.tf.pos } });
+  }
 }
 
 /**
@@ -599,10 +622,17 @@ export function onKill(ctx: RpgCtx, killer: Entity, dead: Entity): void {
   ctx.spawnPickup(at(0), { kind: 'sprouts', amount: rngRange(ctx.rng, table.sprouts[0], table.sprouts[1]), life: PICKUP_LIFE });
   if (rngNext(ctx.rng) < table.heartChance) ctx.spawnPickup(at(1), { kind: 'heart', amount: 1, life: PICKUP_LIFE });
   let k = 2;
+  // A carrier's pumpkin leaves with them. Knocking it off earlier already cleared `carry`.
+  if (dead.brain?.carry) {
+    ctx.spawnPickup(at(k++), { kind: 'item', item: dead.brain.carry, amount: 1, life: PICKUP_LIFE });
+    dead.brain.carry = undefined;
+  }
+  const spellKill = ctx.events.some((ev) => ev.type === 'hit' && ev.target === dead.id && ev.kind === 'arcane');
   for (const it of table.items ?? []) {
     // Gear is found once: a piece you own doesn't drop again. The roll still happens, so the loot stream stays in step.
     const owned = !ITEMS[it.item]?.stacks && (killer.progress.inventory[it.item] ?? 0) > 0;
-    if (rngNext(ctx.rng) < it.chance && !owned) ctx.spawnPickup(at(k++), { kind: 'item', item: it.item, amount: 1, life: PICKUP_LIFE });
+    const allowed = !it.when || (it.when === 'spell' && spellKill) || (it.when === 'stagger' && !!dead.brain?.wasStaggered);
+    if (rngNext(ctx.rng) < it.chance && !owned && allowed) ctx.spawnPickup(at(k++), { kind: 'item', item: it.item, amount: 1, life: PICKUP_LIFE });
   }
 }
 

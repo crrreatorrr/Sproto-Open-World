@@ -148,6 +148,18 @@ export class Renderer {
     this.torch.intensity = look.torchIntensity;
   }
 
+  private storm = false;
+
+  /** The bait post's distant roar: the orchard light drops until the Drake is down. */
+  setStorm(on: boolean): void {
+    if (on === this.storm || !(this.scene.fog instanceof THREE.Fog)) return;
+    this.storm = on;
+    this.scene.fog.color.setHex(on ? 0x6a6258 : SKY_HAZE.getHex());
+    this.hemi.intensity = on ? 0.55 : 1.3;
+    this.sun.intensity = on ? 1.15 : 2.8;
+    this.sun.color.set(on ? 0xc4b39a : 0xfff4e0);
+  }
+
   resize(): void {
     const w = window.innerWidth, h = window.innerHeight;
     this.renderer.setSize(w, h, false);

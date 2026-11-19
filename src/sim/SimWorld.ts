@@ -17,6 +17,7 @@ import {
   ALL_SPELLS, availableChoices, interactTarget, newProgress, onKill, pickups, playerRpg, questOffers, questTick, recompute, triggers, type RpgCtx,
   refillTonics,
 } from './systems/rpg';
+import { questPolish } from './systems/encounters';
 import { DT, MOVE, PLAYER_BODY } from '../content/tuning';
 import { enemyBrains, muzzle } from './ai/brain';
 import type { CommandMap } from './commands';
@@ -64,6 +65,8 @@ export interface SimSnapshot {
   players: [PlayerId, EntityId][];
   rng: Record<string, RngState>;
   wave: WaveState | null;
+  /** Camp members still waiting for their horn. */
+  pendingWaves?: { camp: string; def: string; pos: Vec3; yaw: number; wave: number; carry?: string }[];
   world?: WorldState;
   /** `${entityId}:${triggerId}` for every player inside a trigger volume. */
   triggers?: string[];
@@ -104,6 +107,8 @@ export class SimWorld {
   private nextId = 1;
   /** Wave runner state, or null outside the wave runner. */
   wave: WaveState | null = null;
+  /** Camp members that wait for a horn (the second Pest Control wave). Part of the snapshot. */
+  private pendingWaves: { camp: string; def: string; pos: Vec3; yaw: number; wave: number; carry?: string }[] = [];
   /** World flags, opened chests, killed uniques (plan §2.8). */
   world: WorldState = { flags: {}, openedChests: [], killedUniques: [] };
   /** Region content for the RPG layer: trigger volumes, chest contents, shrine positions. */
@@ -249,9 +254,18 @@ export class SimWorld {
     for (const camp of content.camps ?? []) {
       for (const m of camp.members) {
         const pos = { x: camp.pos[0] + m.at[0], y: camp.pos[1], z: camp.pos[2] + m.at[1] };
+        if ((m.wave ?? 1) > 1) {
+          this.pendingWaves.push({ camp: camp.id, def: m.def, pos, yaw: m.yaw ?? 0, wave: m.wave!, ...(m.carry ? { carry: m.carry } : {}) });
+          continue;
+        }
         const e = this.spawnEnemy(m.def, pos, m.yaw ?? 0);
         e.brain!.camp = camp.id;
         if (m.unique) e.brain!.unique = m.unique;
+        if (m.wave) e.brain!.wave = m.wave;
+        if (m.carry) {
+          e.brain!.carry = m.carry;
+          e.brain!.carryHome = m.carry;
+        }
       }
     }
     this.rollCampAffixes();
@@ -358,7 +372,7 @@ export class SimWorld {
   /** Underground, or a camp's dead whose body has faded: there is nothing to see, so nothing to bump into. */
   private unseen(e: Entity): boolean {
     const a = e.combat?.action;
-    return !!e.boss?.under || (!!e.brain?.camp && a?.kind === 'dead' && a.t > CAMP_CORPSE_TICKS);
+    return !!e.boss?.under || !!e.brain?.held || (!!e.brain?.camp && a?.kind === 'dead' && a.t > CAMP_CORPSE_TICKS);
   }
 
   /** What can't be seen has no collider; it gets its collider back when it can be. */
@@ -490,6 +504,7 @@ export class SimWorld {
         owner: owner.id, team: owner.combat!.team, kind: move.kind, damage: move.damage, poise: move.poise, radius: move.projectile.radius,
         life: Math.ceil(move.projectile.range / (sp * DT)), reflected: false,
         homing: move.projectile.homing, target: move.projectile.homing ? target.id : undefined,
+        move: move.id,
         ...(move.projectile.reflectBonus ? { reflectBonus: { ...move.projectile.reflectBonus, shooter: owner.id } } : {}),
         ...(move.projectile.status ? { status: { ...move.projectile.status } } : {}),
       },
@@ -788,6 +803,12 @@ export class SimWorld {
     }
     for (const id of pickups(rpg)) this.remove(id);
     triggers(rpg, this.triggerList, this.insideTriggers);
+    questPolish({
+      now: this.now, entities: this.entities, events: this.events, world: this.world,
+      spawnAdd: (def, pos, yaw) => this.spawnEnemy(def, pos, yaw),
+      spawnPickup: (pos, pk) => rpg.spawnPickup(pos, pk),
+    });
+    this.releasePendingWaves();
     for (const e of this.entities) if (e.progress) questTick(rpg, e);
     this.respawns();
     this.waveTick();
@@ -916,6 +937,11 @@ export class SimWorld {
       e.brain.timer = 30;
       e.brain.stepIn = undefined;
       e.brain.meleeHitsTaken = 0;
+      e.brain.called = false;
+      e.brain.dodges = 0;
+      delete e.brain.wasStaggered;
+      e.brain.fleeTo = null;
+      if (e.brain.carryHome) e.brain.carry = e.brain.carryHome;
     }
     delete e.statuses;
     delete e.powers;
@@ -955,9 +981,36 @@ export class SimWorld {
     }
   }
 
+  /**
+   * The next wave of a camp arrives when the one before it is down. Bodies stay out of the world
+   * until then, so a waiting wave adds no colliders.
+   */
+  private releasePendingWaves(): void {
+    const camps = [...new Set(this.pendingWaves.map((p) => p.camp))];
+    for (const camp of camps) {
+      const first = this.entities.filter((e) => e.brain?.camp === camp && e.brain.wave === 1);
+      if (!first.length || first.some((e) => e.combat?.action?.kind !== 'dead')) continue;
+      const due = this.pendingWaves.filter((p) => p.camp === camp);
+      this.pendingWaves = this.pendingWaves.filter((p) => p.camp !== camp);
+      for (const p of due) {
+        const e = this.spawnEnemy(p.def, p.pos, p.yaw);
+        e.brain!.camp = p.camp;
+        e.brain!.wave = p.wave;
+        if (p.carry) {
+          e.brain!.carry = p.carry;
+          e.brain!.carryHome = p.carry;
+        }
+        const affix = rollCampAffix(this.seed, p.camp, this.world.flags[CAMP_GENERATION_FLAG] ?? 0);
+        if (applyAffix(e, affix)) this.physics.addCharacter(e.id, e.body!, e.tf.pos);
+      }
+      const at = due[0].pos;
+      this.events.push({ type: 'cue', cue: 'horn', pos: { x: at.x, y: at.y, z: at.z } });
+    }
+  }
+
   /** Hash of the sim state (entities, players, rng streams, tick). Not Rapier's internals. */
   hash(): number {
-    return hashValue({ now: this.now, entities: this.entities, players: [...this.players], rng: this.rng.streams, wave: this.wave, cells: [...this.readyCells].sort(), world: this.world, triggers: [...this.insideTriggers].sort() });
+    return hashValue({ now: this.now, entities: this.entities, players: [...this.players], rng: this.rng.streams, wave: this.wave, pendingWaves: this.pendingWaves, cells: [...this.readyCells].sort(), world: this.world, triggers: [...this.insideTriggers].sort() });
   }
 
   snapshot(): SimSnapshot {
@@ -968,6 +1021,7 @@ export class SimWorld {
       players: [...this.players],
       rng: this.rng.streams,
       wave: this.wave,
+      pendingWaves: this.pendingWaves,
       world: this.world,
       triggers: [...this.insideTriggers].sort(),
     });
@@ -992,6 +1046,7 @@ export class SimWorld {
     for (const k of Object.keys(this.rng.streams)) delete this.rng.streams[k];
     Object.assign(this.rng.streams, copy.rng);
     this.wave = copy.wave ?? null;
+    this.pendingWaves = copy.pendingWaves ?? [];
     this.world = copy.world ?? { flags: {}, openedChests: [], killedUniques: [] };
     // Who stands in which trigger is sim state: a rewind before entering one must fire it again.
     this.insideTriggers.clear();

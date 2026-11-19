@@ -429,6 +429,8 @@ export class GateLockView implements EntityView {
   private readonly key = new THREE.Sprite(this.keyMat);
   private used = 0;
   private time = Math.random() * 10;
+  /** Bright only while the Quarry Key is in the bag. */
+  private armed = false;
 
   constructor() {
     const post = new THREE.Mesh(this.postGeo, this.stone);
@@ -439,11 +441,17 @@ export class GateLockView implements EntityView {
     this.root.add(post, this.key);
   }
 
+  /** The lock glows once the key is carried, and stays dark until then. */
+  keyed(on: boolean): void {
+    this.armed = on;
+  }
+
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
     placeEntity(this.root, e, alpha);
     this.time += dt;
     this.used += ((e.interactable?.used ? 1 : 0) - this.used) * (1 - Math.exp(-3 * dt));
-    this.keyMat.opacity = (1 - this.used) * (0.6 + 0.3 * Math.sin(this.time * 2.6));
+    const glow = this.armed ? 0.6 + 0.3 * Math.sin(this.time * 2.6) : 0;
+    this.keyMat.opacity = (1 - this.used) * glow;
   }
 
   dispose(): void {
