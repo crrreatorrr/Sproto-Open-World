@@ -47,6 +47,9 @@ export interface HitInfo {
   area?: boolean;
   /** The player's staff swing: only these can be a break critical or a backstab. */
   melee?: boolean;
+  /** A shot the player sent back, and the enemy move that fired it. */
+  reflected?: boolean;
+  source?: string;
 }
 
 export type HitOutcome = 'dodged' | 'parried' | 'blocked' | 'hit';
@@ -172,8 +175,8 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   const reached = target.kind !== 'player' && info.contact ? Math.max(info.contact.a.y, info.contact.b.y) + info.contact.radius : chestY;
   const chest = { x: target.tf.pos.x, y: Math.min(chestY, reached), z: target.tf.pos.z };
 
-  // The Momentum staff's blink can't be touched, and neither can a boss underground.
-  if (ta?.kind === 'blink' || target.boss?.under) return 'dodged';
+  // The Momentum staff's blink can't be touched, and neither can a boss underground or a wave still waiting.
+  if (ta?.kind === 'blink' || target.boss?.under || target.brain?.held) return 'dodged';
 
   // Roll and backstep i-frames; a hit early in them is a perfect dodge.
   if (ta?.kind === 'dodge' && ta.t >= dodgeFrames(ta).iframeStart && ta.t <= dodgeFrames(ta).iframeEnd) {
@@ -254,9 +257,12 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
     type: 'hit', attacker: attacker.id, target: target.id, move: info.move, damage, kind: info.kind, affinity, crit, heavy: info.heavy, pos: chest, hitstop,
     ...(weakSpot > 1 ? { weakSpot: true } : {}),
     ...(strike ? { strike } : {}),
+    ...(info.reflected ? { reflected: true } : {}),
+    ...(info.source ? { source: info.source } : {}),
   });
 
   if (tv.hp <= 0) {
+    if (target.brain && (tc.poise <= 0 || wasBroken || ta?.kind === 'stagger')) target.brain.wasStaggered = true;
     kill(ctx, target, attacker);
     return 'hit';
   }
@@ -318,6 +324,8 @@ export function enemyMove(e: Entity, id: string): EnemyMoveDef | undefined {
 }
 
 export function kill(ctx: CombatCtx, target: Entity, killer: Entity | null): void {
+  if (target.brain?.held) return;
+  if (target.brain && target.combat?.action?.kind === 'stagger') target.brain.wasStaggered = true;
   const def = target.brain ? ENEMIES[target.brain.def] : undefined;
   if (def?.dummy && !def.breakable) {
     // Training dummies never die: they refill.

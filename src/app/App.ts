@@ -663,6 +663,7 @@ export class App {
     const sim = this.sim!;
     const view = this.player!;
     const simView = sim.view();
+    this.renderer.setStorm((simView.world.flags['drake.baited'] ?? 0) > 0 && (simView.world.flags['boss.drake.dead'] ?? 0) === 0);
     const pad = this.input.pad;
     if (!this.panels.errorOpen && (this.input.wasPressed(KEYS.pause) || (pad.wasPressed(PAD.pause) && !this.startUsed))) {
       this.pause();
@@ -1050,6 +1051,14 @@ export class App {
         }
         return;
       }
+      case 'cue':
+        if (e.cue === 'beanstalkReveal') {
+          const at = view.locate('relic_beanstalk');
+          const me = view.playerEntity(0);
+          if (at && me) this.rig.yaw = Math.atan2(at.x - me.tf.pos.x, at.z - me.tf.pos.z);
+        } else if (e.cue === 'tremor') this.shake(0.18);
+        else if (e.cue === 'horn' || e.cue === 'bell') this.shake(0.12);
+        return;
       case 'parry': {
         this.fx.burst(e.pos, 'parry');
         this.fx.ring(e.pos, 0xbfe8ff, 0.3, 2.6, 0.32);
@@ -1064,6 +1073,7 @@ export class App {
           this.shake(TRAUMA.parry);
           this.rig.kick(0, 0, 0, CAMERA_KICK.parry * motionScale(this.settings.shake));
           this.flashScreen(0.65);
+          if (view.get(e.attacker)?.brain?.def === 'scrapjaw') this.rig.nudgeIn();
         }
         return;
       }

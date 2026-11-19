@@ -35,8 +35,12 @@ describe('every quest shows where to go', () => {
     const line = questLine(id, { status: 'active', step: i, progress: def.steps[i].objectives.map(() => 0) })!;
     expect(line.title).toBe(def.title);
     expect(line.step.length).toBeGreaterThan(0);
-    expect(line.marker).not.toBeNull();
-    expect(w.view().locate(line.marker!), line.marker!).not.toBeNull();
+    // Side-quest searches are found in the world (footprints, shimmer, scorch, carriers), not by the compass.
+    if (def.steps[i].clue) expect(line.marker).toBeNull();
+    else {
+      expect(line.marker).not.toBeNull();
+      expect(w.view().locate(line.marker!), line.marker!).not.toBeNull();
+    }
     w.dispose();
   });
 

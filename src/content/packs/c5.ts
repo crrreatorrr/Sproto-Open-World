@@ -192,6 +192,7 @@ export const C5_QUESTS: Record<string, QuestDef> = {
       {
         id: 'miners', text: 'Ask the three quarry miners about the tremors.', marker: 'miner_bram',
         objectives: [{ kind: 'talk', npc: 'miner_bram', node: 'a8_bram' }, { kind: 'talk', npc: 'miner_ketta', node: 'a8_ketta' }, { kind: 'talk', npc: 'miner_odo', node: 'a8_odo' }],
+        onComplete: [{ setFlag: 'odo.pillar' }],
       },
       { id: 'seam', text: 'Go down the ramp into the Deep Seam.', objectives: [{ kind: 'reach', trigger: 'deep_seam' }], marker: 'deep_seam' },
     ],

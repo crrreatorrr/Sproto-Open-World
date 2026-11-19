@@ -364,6 +364,23 @@ export interface EnemyBrain {
   affix?: AffixId;
   /** Called in by a boss: gone for good once dead, and gone when the fight resets. */
   summoned?: boolean;
+  /** Which wave of a scripted camp this member belongs to (1 is up; later waves wait). */
+  wave?: number;
+  /** Waiting offstage: no collider, no lock, no damage, until its wave is called. */
+  held?: boolean;
+  /** A pumpkin (or similar) worn until a hit knocks it off. `carryHome` comes back with a rest. */
+  carry?: string;
+  carryHome?: string;
+  /** Running to this ally after the thing it carried was knocked off. */
+  fleeTo?: EntityId | null;
+  /** The add phase has already been called this life. */
+  called?: boolean;
+  /** It died staggered, so a stagger-only drop still falls. */
+  wasStaggered?: boolean;
+  /** Perfect dodges against it in the current fight. */
+  dodges?: number;
+  /** Swings the parry-drill dummy has started. */
+  swings?: number;
 }
 
 /** A boss fight in progress (plan §4.10). Lives on the boss, so snapshots and hashes carry it. */
@@ -455,6 +472,8 @@ export interface Projectile {
   woven?: boolean;
   /** Parried back into `shooter`: takes this fraction of its max HP and staggers it (Scrap Throw). */
   reflectBonus?: { hpFrac: number; stagger: number; shooter: EntityId; poiseFrac?: number; homing?: number };
+  /** The enemy move that fired it, so a reflected charged shot is not just "a projectile". */
+  move?: string;
 }
 
 /**
