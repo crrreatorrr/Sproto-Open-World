@@ -116,22 +116,22 @@ try {
     await shot(`camp-${id}`);
   }
 
-  // The Watchtower beacon stands on its prop: lit from the ground, with Y.
-  await teleport(256, 267.5);
-  await frames(30);
-  s = await state();
-  const stepAround = [[256, 267.5], [253.8, 268.5], [258.2, 268.5]];
-  for (const [x, z] of stepAround) {
-    if (s.interact?.id === 'watchtower_beacon') break;
-    await teleport(x, z);
-    await frames(20);
+  // The Watchtower beacon stands on its prop: lit from the ground, with Y. This spot is 2 m south of
+  // it (objects reach 2.4 m). A Slinger close by can knock the player back or flinch them through
+  // the press, so each try starts again from the spot.
+  let offered = false, lit = false;
+  for (let i = 0; i < 6 && !lit; i++) {
+    await teleport(256, 268);
     s = await state();
+    if (s.interact?.id !== 'watchtower_beacon') continue;
+    offered = true;
+    await press('y');
+    await frames(10);
+    s = await state();
+    lit = s.objects.find((o) => o.id === 'watchtower_beacon')?.used === true;
   }
-  check(s.interact?.id === 'watchtower_beacon', 'the beacon offers its prompt from the ground', JSON.stringify(s.interact));
-  await press('y');
-  await frames(10);
-  s = await state();
-  check(s.objects.find((o) => o.id === 'watchtower_beacon')?.used === true, 'Y lights the beacon');
+  check(offered, 'the beacon offers its prompt from the ground', offered ? '' : JSON.stringify(s.interact));
+  check(lit, 'Y lights the beacon');
   await shot('beacon-lit');
 
   check(errors.length === 0, 'no console errors', errors.slice(0, 3).join(' | '));
