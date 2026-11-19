@@ -4,7 +4,7 @@ import type { CombatCtx } from '../combat/playerCombat';
 import { BTN, type InputCommand } from '../commands';
 import type { Entity } from '../entity';
 import type { SimEvent } from '../events';
-import { approach, clamp, turnToward, wrapAngle } from '../math';
+import { approach, clamp, turnToward, wrapAngle, type Vec3 } from '../math';
 
 /** Stick travel that counts as asking the bull to move. */
 const STICK_MOVING = 0.1;
@@ -87,6 +87,7 @@ export function ridingMotion(ctx: CombatCtx): void {
         p.combat!.action = null;
         if (r.state === 'mounting') {
           r.state = 'riding';
+          p.tf.pos.y += MOUNT.seatLift;
           ctx.events.push({ type: 'mount', entity: p.id, mount: r.mount, phase: 'seated' });
         } else {
           delete p.riding;
@@ -180,6 +181,24 @@ export function steerBull(vel: { x: number; z: number }, wish: { x: number; z: n
   const next = change(want * (1 - (1 - MOUNT.scrubKeep) * hard));
   vel.x = Math.sin(heading) * next;
   vel.z = Math.cos(heading) * next;
+}
+
+/** Less of a step than this share of what the slope alone would allow means something else is in the way. */
+const SLOPE_ONLY = 0.9;
+
+/**
+ * A slope shortens each step, and a rider's speed is read back from how far they really moved, so a
+ * hill would drain the bull's speed faster than it can gather it. Speed lost to the slope alone is
+ * handed back; a wall or a rock still stops it. `asked` is the speed it set out at this tick (m/s).
+ */
+export function holdPaceUphill(vel: { x: number; z: number }, asked: number, moved: Readonly<Vec3>): void {
+  const run = Math.hypot(moved.x, moved.z);
+  const speed = Math.hypot(vel.x, vel.z);
+  if (moved.y <= 0 || run < 1e-6 || speed < 1e-6 || asked <= speed) return;
+  const cos = run / Math.hypot(run, moved.y);
+  if (Math.hypot(run, moved.y) / DT < asked * cos * SLOPE_ONLY) return;
+  vel.x *= asked / speed;
+  vel.z *= asked / speed;
 }
 
 /** The bull's body follows the line it is running, or the stick when it is standing. */

@@ -712,6 +712,7 @@ export class App {
       qaLog.add({ kind: 'castPose', tick: sim.now, what: a.spell });
     }
     this.world.sync(simView, this.loop.alpha, dt);
+    if (p.riding?.state === 'riding') view.tiltWithSaddle(this.world.saddleTilt(p.riding.mount));
     this.fx.update(dt);
     this.polish.frame(simView, p, dt);
     this.target.copy(view.root.position);

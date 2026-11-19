@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mountClipRate, mountGait } from '../../src/render/views/MountView';
+import { mountClipRate, mountGait, slopePitch, turnLean } from '../../src/render/views/MountView';
 
 describe('the bull picks its gait from its speed', () => {
   it('stands, walks, runs and gallops as it speeds up', () => {
@@ -26,5 +26,23 @@ describe('the bull picks its gait from its speed', () => {
     expect(mountClipRate('run', 9.5)).toBeCloseTo(1);
     expect(mountClipRate('gallop', 17)).toBeCloseTo(1);
     expect(mountClipRate('gallop', 12)).toBeCloseTo(12 / 17);
+  });
+});
+
+describe('the bull\'s body follows the ground and the turn', () => {
+  it('raises its nose on a climb and lowers it going down, within limits', () => {
+    expect(slopePitch(0, 5)).toBe(0);
+    expect(slopePitch(1, 1)).toBeCloseTo(0.6);
+    expect(slopePitch(0.2, 1)).toBeCloseTo(Math.atan(0.2));
+    expect(slopePitch(-0.2, 1)).toBeCloseTo(-Math.atan(0.2));
+    expect(slopePitch(10, 1)).toBeLessThanOrEqual(0.6);
+  });
+
+  it('leans into a turn, harder the faster it goes, and stands level on a straight', () => {
+    expect(turnLean(17, 0)).toBeCloseTo(0);
+    expect(turnLean(10, 1)).toBeLessThan(0);
+    expect(turnLean(10, -1)).toBeGreaterThan(0);
+    expect(Math.abs(turnLean(10, 1))).toBeGreaterThan(Math.abs(turnLean(5, 1)));
+    expect(Math.abs(turnLean(17, 8))).toBeLessThanOrEqual(0.2);
   });
 });

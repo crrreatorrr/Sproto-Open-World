@@ -5,11 +5,28 @@ import type { Motion } from '../combat/playerCombat';
 import { wishDir } from '../combat/playerCombat';
 import type { Entity } from '../entity';
 import type { SimEvent } from '../events';
-import { turnToward } from '../math';
+import { approach, clamp, turnToward, wrapAngle } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
-import { faceBull, gallopInput, steerBull } from './riding';
+import { faceBull, gallopInput, holdPaceUphill, steerBull } from './riding';
 
 const JUMP_SPEED = Math.sqrt(2 * MOVE.gravity * MOVE.jumpHeight);
+
+/**
+ * A free runner's turn: their line swings onto the stick and keeps its speed, heading for `want`
+ * (m/s). Says whether it did, or whether the stick is so far round that this is a reversal.
+ */
+function carveRun(vel: { x: number; z: number }, wish: { x: number; z: number }, want: number): 'carved' | 'reversing' | null {
+  const speed = Math.hypot(vel.x, vel.z);
+  if (speed < MOVE.carveFrom) return null;
+  const line = Math.atan2(vel.x, vel.z);
+  const off = wrapAngle(Math.atan2(wish.x, wish.z) - line);
+  if (Math.abs(off) > MOVE.carveMax) return 'reversing';
+  const heading = line + clamp(off, -MOVE.carveRate * DT, MOVE.carveRate * DT);
+  const next = approach(speed, want, (want > speed ? MOVE.accel : MOVE.decel) * DT);
+  vel.x = Math.sin(heading) * next;
+  vel.z = Math.cos(heading) * next;
+  return 'carved';
+}
 
 /**
  * Moves every character through Rapier's character controller. Free players steer with their
@@ -45,26 +62,30 @@ export function locomotion(
       const riding = e.riding?.state === 'riding';
       // The bull does the running: its gallop is the rider's toggle, whatever their stamina.
       loco.sprinting = riding ? e.riding!.gallop && w.mag >= MOVE.sprintMinStick : canSprint;
-      const ground = loco.grounded ? 1 : MOVE.airControl;
+      // A bull keeps its grip over the crest of a bump: only a real jump or a fall takes it away.
+      const ground = loco.grounded || (riding && loco.coyote > 0) ? 1 : MOVE.airControl;
       if (riding) {
         steerBull(tf.vel, w, (loco.sprinting ? MOUNT.gallopSpeed : MOUNT.trotSpeed) * steer, ground);
       } else {
         const top = (loco.sprinting ? MOVE.sprintSpeed : MOVE.runSpeed) * steer;
-        const tx = w.x * top, tz = w.z * top;
-        const rate = (w.mag > 1e-4 ? MOVE.accel : MOVE.decel) * ground * DT;
-        const dx = tx - tf.vel.x, dz = tz - tf.vel.z;
-        const dl = Math.hypot(dx, dz);
-        if (dl <= rate) {
-          tf.vel.x = tx;
-          tf.vel.z = tz;
-        } else {
-          tf.vel.x += (dx / dl) * rate;
-          tf.vel.z += (dz / dl) * rate;
+        const turn = free && loco.grounded && w.mag > 0.1 ? carveRun(tf.vel, w, w.mag * top) : null;
+        if (turn !== 'carved') {
+          const tx = w.x * top, tz = w.z * top;
+          const rate = (turn === 'reversing' ? MOVE.pivotAccel : w.mag > 1e-4 ? MOVE.accel : MOVE.decel) * ground * DT;
+          const dx = tx - tf.vel.x, dz = tz - tf.vel.z;
+          const dl = Math.hypot(dx, dz);
+          if (dl <= rate) {
+            tf.vel.x = tx;
+            tf.vel.z = tz;
+          } else {
+            tf.vel.x += (dx / dl) * rate;
+            tf.vel.z += (dz / dl) * rate;
+          }
         }
       }
       if (m?.faceYaw !== undefined) tf.yaw = turnToward(tf.yaw, m.faceYaw, MOVE.turnRate * DT);
       else if (riding) faceBull(tf, w);
-      else if (w.mag > 0.1) tf.yaw = turnToward(tf.yaw, Math.atan2(w.x, w.z), MOVE.turnRate * DT);
+      else if (w.mag > 0.1) tf.yaw = turnToward(tf.yaw, Math.atan2(w.x, w.z), (free ? MOVE.runTurnRate : MOVE.turnRate) * DT);
 
       // Jump: buffered press, coyote time after a ledge. Only when free.
       if (free) {
@@ -133,10 +154,14 @@ export function locomotion(
       if (rising && res.moved.y < want.y - 1e-4) tf.vel.y = 0;
     }
     // Planar speed is what actually happened (walls stop you; no hidden speed builds up).
+    const climbing = e.riding?.state === 'riding' && loco.grounded && res.moved.y > 0;
     if (steer > 0) {
+      const asked = Math.hypot(tf.vel.x, tf.vel.z);
       tf.vel.x = (res.moved.x - px * DT) / DT;
       tf.vel.z = (res.moved.z - pz * DT) / DT;
+      if (climbing) holdPaceUphill(tf.vel, asked, res.moved);
     }
-    loco.speed = Math.hypot(res.moved.x, res.moved.z) / DT;
+    // A climbing bull's gait follows its pace along the hill, not the ground it covers on the map.
+    loco.speed = Math.hypot(res.moved.x, climbing ? res.moved.y : 0, res.moved.z) / DT;
   }
 }

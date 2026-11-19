@@ -22,6 +22,14 @@ export const MOVE = {
   airControl: 0.35,
   /** Facing turn rate toward the move direction (rad/s). */
   turnRate: 12,
+  /** How fast the body swings round while running freely (rad/s). */
+  runTurnRate: 18,
+  /** A runner over this speed (m/s) leans into a turn of up to `carveMax` radians, keeping their speed through it at `carveRate` (rad/s). */
+  carveFrom: 2,
+  carveMax: 2.6,
+  carveRate: 14,
+  /** Steering further round than that is a reversal: they plant and push off at this rate (m/s²). */
+  pivotAccel: 70,
   /** Stick magnitude needed before sprint engages. */
   sprintMinStick: 0.5,
   gravity: 26,

@@ -13,12 +13,12 @@ export const MOUNT = {
   /** Gathering speed and braking (m/s²): much heavier than a rider on foot (`MOVE.accel`, `MOVE.decel`). */
   accel: 13,
   brake: 20,
-  /** Sideways grip (m/s²). The turning circle's radius is speed² / grip: under 10 m at a full gallop. */
-  grip: 30,
+  /** Sideways grip (m/s²). The turning circle's radius is speed² / grip: about 7 m at a full gallop. */
+  grip: 42,
   /** Under this speed (m/s) the bull can set off in any direction at once. */
   pivotSpeed: 3,
   /** Steering further off its line than `scrubFrom` (radians) slows the bull, to `scrubKeep` of its speed at `scrubTo`, so a hairpin is tight. */
-  scrubFrom: Math.PI / 4,
+  scrubFrom: Math.PI / 3,
   scrubTo: (3 * Math.PI) / 4,
   scrubKeep: 0.35,
   /** How fast the bull's body swings onto the line it is running (rad/s). */
@@ -37,6 +37,14 @@ export const MOUNT = {
   travelTicks: 24,
   /** Where a dismount lands: this far to the bull's left (m). */
   dismountSide: 1.7,
+  /** The standing bull's solid body (m): half its width, half its length, and its height. */
+  bodyHalfWidth: 0.5,
+  bodyHalfLength: 1.25,
+  bodyHeight: 1.6,
+  /** In the saddle the rider's collider is as wide as the bull, so its flanks meet walls, trees and people (m). */
+  rideRadius: 0.65,
+  /** Sitting down lifts the wider collider this far clear of a slope; snapping to the ground takes it back (m). */
+  seatLift: 0.12,
   /** Resting or respawning calls an unridden bull to this offset from the shrine (m). */
   shrineOffset: [3.5, 2.5],
 } as const;

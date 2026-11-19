@@ -155,10 +155,18 @@ export class PlayerView {
     if (this.staffKey) await this.setStaff(this.staffKey);
   }
 
+  /** In the saddle the rider tilts with the bull. Call after the bull's view has updated this frame. */
+  tiltWithSaddle(tilt: Readonly<{ pitch: number; roll: number }>): void {
+    this.root.rotation.x = -tilt.pitch;
+    this.root.rotation.z = tilt.roll;
+  }
+
   /** Interpolate between the last two ticks and pose the model from the sim's state. */
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
     placeEntity(this.root, e, alpha);
     if (e.riding?.state === 'riding') this.root.position.y += this.saddleLift;
+    this.root.rotation.order = 'YXZ';
+    this.root.rotation.x = this.root.rotation.z = 0;
     this.leanInSaddle(e, dt);
     const anim = this.animator;
     if (!anim) return;

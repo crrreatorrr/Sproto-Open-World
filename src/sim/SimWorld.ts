@@ -71,6 +71,10 @@ export interface SimSnapshot {
 const WAVE_CORPSE_TICKS = 150;
 /** A dead camp enemy lies there until a rest, but its body is out of view after this long (render's `CORPSE_TICKS`). */
 const CAMP_CORPSE_TICKS = 180;
+/** The bull's body as `placeMountBody` wants it. */
+const MOUNT_BODY = [MOUNT.bodyHalfWidth, MOUNT.bodyHalfLength, MOUNT.bodyHeight / 2] as const;
+/** How far inside the bull's body someone must be to keep it from turning solid (m): leaning on it doesn't count. */
+const MOUNT_OVERLAP = 0.03;
 /** Settling content placements: rays start this high (m; above any terrain or prop) and go down twice as far. */
 const SETTLE_FROM_Y = 200;
 /** Most colliders created per tick when cells stream in (plan §3.2); a heightfield counts as one. */
@@ -227,6 +231,7 @@ export class SimWorld {
         ...(this.streamed ? { settle: true as const } : {}),
       });
       this.places.set(m.id, { ...pos });
+      this.physics.placeMountBody(this.nextId - 1, pos, MOUNT_BODY, m.yaw, false);
     }
     for (const o of content.objects ?? []) this.addInteractable(o.id, 'object', o.pos, o.yaw, (this.world.flags[usedFlag(o.id)] ?? 0) !== 0);
     for (const o of content.obstacles ?? []) this.addObstacle(o);
@@ -301,6 +306,29 @@ export class SimWorld {
       else if (!stands) this.physics.removeObstacle(e.id);
     }
     for (const id of this.physics.obstacleIds()) if (!live.has(id)) this.physics.removeObstacle(id);
+  }
+
+  /**
+   * Rapier follows the entities here too. A bull nobody is riding is solid, once it is set down and
+   * nobody is standing where it would be; in the saddle, the rider's collider is the bull's width.
+   */
+  private syncMountBodies(): void {
+    for (const e of this.entities) {
+      if (e.mount) this.physics.placeMountBody(e.id, e.tf.pos, MOUNT_BODY, e.tf.yaw, !e.settle && e.mount.rider === null && this.mountSpotClear(e));
+      else if (e.owner !== undefined && e.body) this.physics.setCharacterRadius(e.id, e.body, e.riding?.state === 'riding' ? MOUNT.rideRadius : e.body.radius);
+    }
+  }
+
+  /** Nobody is inside the bull's body: someone just climbing down, or standing where it was called to. */
+  private mountSpotClear(bull: Entity): boolean {
+    const sin = Math.sin(bull.tf.yaw), cos = Math.cos(bull.tf.yaw);
+    return !this.entities.some((e) => {
+      if (!e.body || this.unseen(e) || !this.physics.hasCharacter(e.id)) return false;
+      const dx = e.tf.pos.x - bull.tf.pos.x, dz = e.tf.pos.z - bull.tf.pos.z, dy = e.tf.pos.y - bull.tf.pos.y;
+      // How far they are from the box, along the ground. Leaning on its side is not being inside it.
+      const out = Math.hypot(Math.max(0, Math.abs(dx * cos - dz * sin) - MOUNT.bodyHalfWidth), Math.max(0, Math.abs(dx * sin + dz * cos) - MOUNT.bodyHalfLength));
+      return out < e.body.radius - MOUNT_OVERLAP && dy < MOUNT.bodyHeight && dy > -e.body.height;
+    });
   }
 
   /** What boss fights ask of the world: adds and hazards. */
@@ -668,6 +696,7 @@ export class SimWorld {
     }
     this.settleOnGround();
     this.syncObstacles();
+    this.syncMountBodies();
     this.applyCellQueue();
     // Hit-stop: frozen entities skip this tick entirely (their clocks don't run).
     const frozen = new Set<number>();
@@ -912,6 +941,7 @@ export class SimWorld {
     this.byId.clear();
     this.players.clear();
     for (const e of copy.entities) this.add(e);
+    this.syncMountBodies();
     // Rapier's queries only see colliders after a step: without this, the first tick after a restore
     // moves characters as if the rebuilt capsules weren't there.
     this.physics.step();
