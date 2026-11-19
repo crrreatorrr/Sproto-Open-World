@@ -53,10 +53,20 @@ export class DrakeView implements EntityView {
   private readonly wall: THREE.Mesh;
   private readonly wallMat = fogMaterial(0xffb070);
   private wallOn = 0;
+  /** One dark seam per reflected fireball. Three and the stance breaks. */
+  private readonly cracks: THREE.Mesh[];
 
   constructor(assets: AssetLoader, readonly def: EnemyDef, private readonly fx: HitFx | null) {
     this.height = def.body.height;
-    this.root.add(this.body, this.glow.glint);
+    const crackMat = new THREE.MeshBasicMaterial({ color: 0x1a100c, side: THREE.DoubleSide });
+    this.cracks = [0, 1, 2].map((i) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.15 * this.height, 0.55 * this.height), crackMat);
+      m.position.set((i - 1) * 0.35 * (def.size ?? 1), this.height * 0.55, 0.4 * (def.size ?? 1));
+      m.rotation.z = (i - 1) * 0.4;
+      m.visible = false;
+      return m;
+    });
+    this.root.add(this.body, this.glow.glint, ...this.cracks);
     this.glow.glint.position.set(0, this.height * 0.7, 3 * (def.size ?? 1));
     this.lane = new THREE.Mesh(this.laneGeo, this.laneMat);
     this.lane.frustumCulled = false;
@@ -109,6 +119,9 @@ export class DrakeView implements EntityView {
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
     placeEntity(this.root, e, alpha);
     this.time += dt;
+    const poise = e.combat;
+    const cracks = poise && poise.poiseMax > 0 ? Math.min(3, Math.round((1 - poise.poise / poise.poiseMax) / 0.34)) : 0;
+    this.cracks.forEach((c, i) => (c.visible = i < cracks));
     const a = e.combat?.action ?? null;
     const anim = this.animator;
     const flight = e.boss?.flight;
@@ -214,6 +227,9 @@ export class DrakeView implements EntityView {
     this.wall.removeFromParent();
     this.wall.geometry.dispose();
     this.wallMat.dispose();
+    const crackMat = this.cracks[0]?.material;
+    for (const c of this.cracks) c.geometry.dispose();
+    if (crackMat && !Array.isArray(crackMat)) crackMat.dispose();
     this.root.removeFromParent();
   }
 }

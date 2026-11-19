@@ -192,7 +192,7 @@ const matches = (e: Entity, tag: string) => {
 
 /** Kill one living enemy matching `tag`, resting at a shrine to bring the camps back if none is left. */
 export function hunt(w: SimWorld, tag: string, leaveLoot = false): SimEvent[] {
-  const find = () => w.entities.find((e) => e.brain && alive(e) && matches(e, tag) && !e.brain.summoned);
+  const find = () => w.entities.find((e) => e.brain && alive(e) && matches(e, tag) && !e.brain.summoned && !e.brain.held);
   let target = find();
   const out: SimEvent[] = [];
   if (!target) {
@@ -201,7 +201,38 @@ export function hunt(w: SimWorld, tag: string, leaveLoot = false): SimEvent[] {
   }
   if (!target) throw new Error(`no ${tag} left in the world, even after a rest`);
   standAt(w, target.brain!.home.x + 5, target.brain!.home.z + 5);
+  if (tag === 'wisp') return [...out, ...tick(w), ...spellSlay(w, target, leaveLoot)];
+  if (tag === 'bramble_colossus') {
+    target.combat!.action = { kind: 'stagger', t: 0, dur: 80, reason: 'broken' };
+    target.brain!.wasStaggered = true;
+  }
   return [...out, ...tick(w), ...slay(w, target, leaveLoot)];
+}
+
+/** Wisps only drop Thorn Seeds to a spell, so the play-through finishes them with Bolt. */
+function spellSlay(w: SimWorld, e: Entity, leaveLoot: boolean): SimEvent[] {
+  const p = w.playerEntity(0)!;
+  e.vitals!.hp = 1;
+  p.vitals!.mana = p.vitals!.manaMax;
+  standAt(w, e.tf.pos.x, e.tf.pos.z + 2);
+  p.tf.yaw = p.tf.prevYaw = Math.atan2(e.tf.pos.x - p.tf.pos.x, e.tf.pos.z - p.tf.pos.z);
+  const out: SimEvent[] = [];
+  for (let i = 0; i < 40 && alive(e); i++) {
+    p.vitals!.mana = p.vitals!.manaMax;
+    const c = idleInput(p.tf.yaw);
+    if (!p.combat?.action) {
+      c.pressed = BTN.spell1;
+      c.held = BTN.spell1;
+    }
+    out.push(...tick(w, c));
+  }
+  if (alive(e)) throw new Error('the spell did not fell the Wisp');
+  if (leaveLoot) return out;
+  for (const pk of w.entities.filter((x) => x.pickup)) {
+    w.teleportPlayer(0, { ...pk.tf.pos });
+    out.push(...tick(w));
+  }
+  return out;
 }
 
 /** Where a collect objective's item comes from. */

@@ -19,8 +19,13 @@ export type Objective =
   | { kind: 'reach'; trigger: string }
   /** Interact with object `object` (a chest, a shrine, a lever). */
   | { kind: 'interact'; object: string }
-  /** Do a combat feat `count` times: land a heavy, perfect-dodge an attack, parry one (M4 drills). */
-  | { kind: 'feat'; feat: 'heavyHit' | 'perfectDodge' | 'parry'; count: number };
+  /**
+   * Do a combat feat `count` times: land a heavy, perfect-dodge an attack, parry one (M4 drills),
+   * or fell something with a reflected shot (`reflectKill`). `against` limits it to that enemy.
+   * `source` is the enemy move the shot came from. `fatal` counts only the shot that kills.
+   * `perFight` resets the count when that fight ends short of `count`.
+   */
+  | { kind: 'feat'; feat: 'heavyHit' | 'perfectDodge' | 'parry' | 'reflectKill'; count: number; against?: string; source?: string; fatal?: boolean; perFight?: boolean };
 
 export type Effect =
   | { give: string; count?: number }
@@ -55,7 +60,17 @@ export interface QuestStep {
   objectives: Objective[];
   /** Where the compass marker points (a trigger, npc or object id), if anywhere. */
   marker?: string;
+  /**
+   * A side-quest search found in the world, so the compass stays dark: footprints, a chest shimmer,
+   * a scorch trail, or a pumpkin on a Grunt's head.
+   */
+  clue?: 'footprints' | 'shimmer' | 'scorch' | 'carriers';
   onComplete?: Effect[];
+  /**
+   * A side goal that does not gate the step. Meeting it once sets `flag` (workstream B grants the item).
+   * Only on enemies that come back, so a miss can be retried.
+   */
+  bonus?: { flag: string; objective: Objective };
 }
 
 export interface QuestDef {
@@ -125,7 +140,10 @@ export const QUESTS: Record<string, QuestDef> = {
     steps: [
       { id: 'parry', text: 'Parry the swinging dummy in the training yard (block just as it hits).', objectives: [{ kind: 'feat', feat: 'parry', count: 1 }], marker: 'training_yard' },
       { id: 'hill', text: 'Climb Watchtower Hill.', objectives: [{ kind: 'reach', trigger: 'watchtower_hill' }], marker: 'watchtower_hill' },
-      { id: 'slingers', text: 'Defeat the Coin Slingers on the hill.', objectives: [{ kind: 'kill', tag: 'slinger', count: 5 }], marker: 'watchtower_hill' },
+      {
+        id: 'slingers', text: 'Defeat the Coin Slingers on the hill.', objectives: [{ kind: 'kill', tag: 'slinger', count: 5 }], marker: 'watchtower_hill',
+        bonus: { flag: 'bonus.q_watchtower.reflect', objective: { kind: 'feat', feat: 'reflectKill', count: 3, against: 'slinger', source: 'coinBurst' } },
+      },
       { id: 'beacon', text: 'Light the beacon.', objectives: [{ kind: 'interact', object: 'watchtower_beacon' }], marker: 'watchtower_beacon' },
       { id: 'rest', text: 'Rest at the Watchtower Shrine.', objectives: [{ kind: 'interact', object: 'shrine_watchtower' }], marker: 'shrine_watchtower' },
     ],
@@ -157,7 +175,7 @@ export const QUESTS: Record<string, QuestDef> = {
     giver: 'farmer_broccoli',
     kind: 'side',
     steps: [
-      { id: 'pumpkins', text: 'Take back 5 Stolen Pumpkins from the Orchard Grunts.', objectives: [{ kind: 'collect', item: 'stolen_pumpkin', count: 5, consume: true }], marker: 'orchard_fields' },
+      { id: 'pumpkins', text: 'Take back 5 Stolen Pumpkins from the Orchard Grunts.', clue: 'carriers', objectives: [{ kind: 'collect', item: 'stolen_pumpkin', count: 5, consume: true }] },
       { id: 'return', text: 'Bring the pumpkins to Farmer Broccoli.', objectives: [{ kind: 'talk', npc: 'farmer_broccoli', node: 'pumpkins_done' }], marker: 'farmer_broccoli' },
     ],
     rewards: [{ give: 'staff_gourd' }, { currency: 120 }, { xp: 80 }],
@@ -182,6 +200,7 @@ export const QUESTS: Record<string, QuestDef> = {
     steps: [
       {
         id: 'relics', text: 'Find the three relic chests: by the mill waterfall, under the Thornwood root arch, at the Beanstalk.',
+        clue: 'shimmer',
         objectives: [{ kind: 'interact', object: 'relic_mill' }, { kind: 'interact', object: 'relic_rootarch' }, { kind: 'interact', object: 'relic_beanstalk' }],
       },
       { id: 'return', text: 'Tell Collector Pepe what you found.', objectives: [{ kind: 'talk', npc: 'collector_pepe', node: 'relics_done' }], marker: 'collector_pepe' },

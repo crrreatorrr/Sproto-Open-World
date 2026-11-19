@@ -9,6 +9,9 @@ describe("a camp enemy's body", () => {
     const [g, ...rest] = campMembers(w, 'orchard_south');
     slay(w, g);
     for (const o of rest) slay(w, o);
+    // The horn brings the second wave. Clear them too, or they stand on the walk.
+    stepN(w, 5);
+    for (const o of campMembers(w, 'orchard_south')) if (alive(o)) slay(w, o);
     expect(alive(g)).toBe(false);
     stepN(w, 700);
     // Walk straight at where it lies, from 3 m away: nothing should turn the player aside.

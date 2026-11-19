@@ -7,7 +7,7 @@ import { C4_DROPS, C4_EXTRA_DROPS, C4_STOCK, C4_STOCK_AFTER } from './packs/c4';
 export interface DropTable {
   sprouts: [number, number];
   heartChance: number;
-  items?: { item: string; chance: number }[];
+  items?: { item: string; chance: number; /** `spell`: only a spell's kill. `stagger`: only a kill while staggered. */ when?: 'spell' | 'stagger' }[];
 }
 
 export const DROPS: Record<string, DropTable> = {
@@ -17,7 +17,8 @@ export const DROPS: Record<string, DropTable> = {
   brute: { sprouts: [15, 25], heartChance: 0.3, items: [{ item: 'robe_thornweave', chance: 0.1 }] },
   dummy_straw: { sprouts: [1, 2], heartChance: 0 },
   // M4: the Orchard Grunts carry Farmer Broccoli's pumpkins (S1: 60%, plan §6.3).
-  grunt_orchard: { sprouts: [3, 6], heartChance: 0.15, items: [{ item: 'stolen_pumpkin', chance: 0.6 }] },
+  // Pumpkins sit on the carriers' heads and fall off when they're struck (encounters.ts), not as a roll.
+  grunt_orchard: { sprouts: [3, 6], heartChance: 0.15 },
   grunt_vet: { sprouts: [6, 10], heartChance: 0.2 },
   big_coin: { sprouts: [40, 60], heartChance: 1, items: [{ item: 'charm_spark_catcher', chance: 0.5 }] },
   gatekeeper: { sprouts: [80, 120], heartChance: 1 },

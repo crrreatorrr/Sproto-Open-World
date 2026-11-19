@@ -34,7 +34,7 @@ export interface CampDef {
   id: string;
   pos: [number, number, number];
   /** Members at an offset (dx, dz) from the centre; `unique` ones never come back once killed. */
-  members: { def: string; at: [number, number]; yaw?: number; unique?: string }[];
+  members: { def: string; at: [number, number]; yaw?: number; unique?: string; wave?: number; carry?: string }[];
 }
 
 export interface RegionContent {
@@ -104,8 +104,14 @@ export const SPROUTVALE_CONTENT: RegionContent = {
   ],
   camps: [
     // Orchard Fields: Grunts only (neutral profile), the first real fights (plan §6.4).
-    { id: 'orchard_south', pos: [70, G, 100], members: ring('grunt_orchard', 4, 3.5) },
-    { id: 'orchard_scarecrow', pos: [150, G, 190], members: ring('grunt_orchard', 5, 4, 0.4) },
+    {
+      id: 'orchard_south', pos: [70, G, 100],
+      members: [
+        ...ring('grunt_orchard', 4, 3.5).map((m) => ({ ...m, wave: 1, carry: 'stolen_pumpkin' })),
+        ...ring('grunt_orchard', 4, 6.5, 0.4).map((m) => ({ ...m, wave: 2 })),
+      ],
+    },
+    { id: 'orchard_scarecrow', pos: [150, G, 190], members: ring('grunt_orchard', 5, 4, 0.4).map((m, i) => (i === 0 ? { ...m, carry: 'stolen_pumpkin' } : m)) },
     { id: 'orchard_west', pos: [55, G, 215], members: ring('grunt_orchard', 5, 4, 1.1) },
     // Millrun: two Slinger outposts, and Big Coin at the mill (S2).
     { id: 'millrun_west', pos: [380, G, 186], members: [...ring('slinger', 3, 6), ...ring('grunt', 2, 2.5, 0.8)] },

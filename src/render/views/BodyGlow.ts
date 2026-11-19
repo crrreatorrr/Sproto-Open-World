@@ -8,7 +8,7 @@ const ASH_AT = { x: 0, y: 0, z: 0 };
 const GLINT_SEC = 0.28;
 const HIT_FLASH_SEC = 0.09;
 const WHITE = new THREE.Color(1, 1, 1);
-const GLINT = new THREE.Color(1, 0.92, 0.6);
+const GLINT = new THREE.Color(1, 0.78, 0.22);
 const RED = new THREE.Color(1, 0.06, 0.02);
 const BURN = new THREE.Color(1, 0.38, 0.05);
 const CHILL = new THREE.Color(0.15, 0.45, 1);
@@ -25,8 +25,9 @@ export interface GlowStatus {
 }
 
 /**
- * Per-enemy emissive feedback (plan §1, telegraphs): a white glint when a wind-up starts, a red
- * pulse through an unblockable's wind-up, and a short white flash when hit. It owns cloned
+ * Per-enemy emissive feedback (plan §1, telegraphs): one gold glint that grows across a parryable
+ * wind-up, a red pulse through an unblockable's wind-up (the jagged decal stays the unblockable
+ * cue), and a short white flash when hit. It owns cloned
  * materials so one enemy lighting up never lights up every enemy that shares a model, plus a
  * star sprite at the eyes for the glint. Status tints (burning, chilled, frozen, shocked) sit
  * under the telegraph colours. A dying body burns away through the same materials (fx/dissolve.ts).
@@ -48,6 +49,7 @@ export class BodyGlow {
   private readonly base: THREE.Color[] = [];
   private readonly tmp = new THREE.Color();
   private glintT = 0;
+  private glintDur = GLINT_SEC;
   private hitT = 0;
   private redLeft = 0;
   private time = 0;
@@ -87,11 +89,20 @@ export class BodyGlow {
     });
   }
 
-  /** A wind-up started: glint, and for an unblockable a red pulse for `seconds`. */
+  /**
+   * A wind-up started. A parryable blow grows one gold glint across `seconds`. An unblockable keeps
+   * the red body pulse; its jagged decal is drawn separately, so it gets no gold star.
+   */
   telegraph(unblockable: boolean, seconds: number): void {
-    this.glintT = GLINT_SEC;
-    this.glint.material.color.copy(unblockable ? RED : GLINT);
-    this.redLeft = unblockable ? seconds : 0;
+    if (unblockable) {
+      this.glintT = 0;
+      this.redLeft = seconds;
+      return;
+    }
+    this.glintDur = Math.max(0.2, seconds);
+    this.glintT = this.glintDur;
+    this.glint.material.color.copy(GLINT);
+    this.redLeft = 0;
   }
 
   /** The wind-up ended (it hit, or the enemy was interrupted). */
@@ -140,7 +151,7 @@ export class BodyGlow {
     this.redLeft = Math.max(0, this.redLeft - dt);
     // Red pulses (~5 Hz, faster near the end of the wind-up) up to 80%, so the body's shape still reads.
     const red = this.redLeft > 0 ? 0.3 + 0.5 * Math.abs(Math.sin(this.time * (this.redLeft < 0.25 ? 26 : 16))) : 0;
-    const white = Math.max((this.hitT / HIT_FLASH_SEC) * BodyGlow.flashScale, (this.glintT / GLINT_SEC) * 0.6);
+    const white = (this.hitT / HIT_FLASH_SEC) * BodyGlow.flashScale;
     const st = this.status;
     const t = this.time;
     // Burning flickers like a fire (two beating sines); shock snaps on and off; chill deepens per stack.
@@ -157,13 +168,14 @@ export class BodyGlow {
       if (red > 0) c.lerp(RED, red);
       this.mats[i].emissive.copy(c);
     }
-    const g = this.glintT / GLINT_SEC;
+    const g = this.glintDur > 0 ? this.glintT / this.glintDur : 0;
     this.glint.visible = g > 0;
     if (g > 0) {
-      // Pop in, then shrink and fade.
-      const s = 0.5 + 0.9 * Math.sin(Math.min(1, (1 - g) * 3) * Math.PI * 0.5) * g;
+      // One star, growing until the blow. `g` counts down from 1.
+      const u = 1 - g;
+      const s = 0.28 + 0.95 * u;
       this.glint.scale.set(s, s, 1);
-      this.glint.material.opacity = Math.min(1, g * 1.6);
+      this.glint.material.opacity = 0.45 + 0.55 * u;
       this.glint.material.rotation = this.time * 2;
     }
   }

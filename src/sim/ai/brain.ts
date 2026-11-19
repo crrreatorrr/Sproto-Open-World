@@ -58,7 +58,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
     for (const k of Object.keys(b.cooldowns)) if (b.cooldowns[k] > 0) b.cooldowns[k]--;
     fightClock(e);
     const still = () => ctx.motion.set(e.id, { vx: 0, vz: 0, inputScale: 0 });
-    if (ctx.frozen.has(e.id)) {
+    if (ctx.frozen.has(e.id) || b.held) {
       still();
       continue;
     }
@@ -168,19 +168,21 @@ function startAttack(ctx: CombatCtx, e: Entity, move: EnemyMoveDef, target: Enti
   const c = e.combat!;
   const f = e.brain!.fight;
   if (f) {
-    f.hold = hold;
+    f.hold = hold > 0 ? hold : (move.holdTicks ?? 0);
     f.holdAt = holdTick(move);
     f.feintAt = -1;
     f.vx = f.vz = 0;
   }
   const aim = move.area && target ? { ...target.tf.pos } : undefined;
+  const wait = hold > 0 ? hold : (move.holdTicks ?? 0);
   c.action = { kind: 'attack', move: move.id, t: 0, clipT: 0, charge: 0, charging: false, charged: false, hit: [], lunge: 0, lungeDir: { x: 0, z: 0 }, fired: 0, aim };
   e.brain!.cooldowns[move.id] = move.cooldown;
   const recent = e.brain!.recent;
   recent.push(move.id);
   if (recent.length > 2) recent.shift();
+  if (e.brain!.fight) e.brain!.fight.hold = wait;
   ctx.events.push({
-    type: 'telegraph', entity: e.id, move: move.id, ticks: move.windup + hold, unblockable: !!move.unblockable, decal: move.decal,
+    type: 'telegraph', entity: e.id, move: move.id, ticks: move.windup + wait, unblockable: !!move.unblockable, decal: move.decal,
     at: aim, radius: move.area?.radius,
   });
 }
@@ -283,13 +285,16 @@ function dummyThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | n
   }
   // Dummies turn to face you so you can practise from the front.
   e.tf.yaw = turnToward(e.tf.yaw, yawTo(e.tf.pos, target.tf.pos), def.turnRate * DT);
-  const move = def.moves[0];
+  let move = def.moves.find((m) => !m.chainOnly) ?? def.moves[0];
   if (!move) return;
+  // The parry drill: slow, slow, then a quicker third swing. The quest still needs a single parry.
+  if (def.id === 'dummy_swing' && (b.swings ?? 0) % 3 === 2) move = def.moves.find((m) => m.id === 'swing_fast') ?? move;
   if (b.timer > 0) {
     b.timer--;
     return;
   }
   if (flatDist(e.tf.pos, target.tf.pos) <= move.range) {
+    if (def.id === 'dummy_swing') b.swings = (b.swings ?? 0) + 1;
     startAttack(ctx, e, move, target);
     b.timer = move.cooldown;
   }
@@ -311,6 +316,15 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
     e.tf.yaw = turnToward(e.tf.yaw, Math.atan2(dx, dz), def.turnRate * DT);
     ctx.motion.set(e.id, { vx: (dx / d) * speed, vz: (dz / d) * speed, inputScale: 0 });
   };
+  // A pumpkin knocked off its head: it runs to the next Grunt, then fights again.
+  if (b.fleeTo) {
+    const to = ctx.get(b.fleeTo);
+    if (!to || to.combat?.action?.kind === 'dead' || flatDist(e.tf.pos, to.tf.pos) < 1.8) b.fleeTo = null;
+    else {
+      go(to.tf.pos.x, to.tf.pos.z, def.moveSpeed * 1.4);
+      return;
+    }
+  }
 
   // Leash: pulled too far from home, or the player it was fighting got away: walk back fast,
   // healing, ignoring the player.
