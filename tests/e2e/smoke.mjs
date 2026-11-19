@@ -293,7 +293,17 @@ try {
   check((await page.evaluate(() => window.__qa.log())).some((e) => e.kind === 'wave'), 'a `wave` event announces it');
   await shot('07-wave');
   if (s.enemies.length) {
-    // Steer at the nearest enemy until it's well inside spell range (they come at you too).
+    // These checks are about the controls, not the fight: left to it, the full wave kills the player
+    // or keeps them in hitstun, and more so on a slow runner. Hold the enemies in hit-stop (QA cheat).
+    await page.evaluate(() => {
+      const sim = window.__qa.app.sim;
+      const tick = sim.tick.bind(sim);
+      sim.tick = (commands) => {
+        for (const e of sim.entities) if (e.brain && e.combat) e.combat.hitstop = 2;
+        tick(commands);
+      };
+    });
+    // Steer at the nearest enemy until it's well inside spell range.
     let dist = Infinity;
     for (let i = 0; i < 120; i++) {
       s = await state();
@@ -334,7 +344,7 @@ try {
     check(s.player.lock !== null, 'R3 locks on to a wave enemy', JSON.stringify(s.player.lock));
     await frames(5);
 
-    // A Grunt's hit cancels a cast (hitstun replaces it), and in a live wave they reach you, so
+    // A hit cancels a cast (hitstun replaces it), and a shot already in the air can still land, so
     // try a few casts and judge the first that gets through (or the last one, if none does).
     let before = null, inFlight = false, castMana = null, log = [];
     // Watch the sim on every tick: a slow runner runs several ticks per frame, and a bolt that hits
