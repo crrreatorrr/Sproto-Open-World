@@ -38,6 +38,7 @@ import { stepHazards } from './combat/hazards';
 import { bossArena, bossEngaged, newBossState, type BossHost } from './systems/boss';
 import { locomotion } from './systems/locomotion';
 import { gearLocked, markTargeted } from './systems/loadout';
+import { mountCalls, MOUNT_RUNNER } from './systems/mountCall';
 import { cancelMount, followRiders, ridingMotion } from './systems/riding';
 import { vitals } from './systems/vitals';
 import type { ReadonlySimView } from './view';
@@ -236,6 +237,7 @@ export class SimWorld {
       });
       this.places.set(m.id, { ...pos });
       this.physics.placeMountBody(this.nextId - 1, pos, MOUNT_BODY, m.yaw, false);
+      this.physics.addMountRunner(this.nextId - 1, MOUNT_RUNNER, pos);
     }
     for (const o of content.objects ?? []) this.addInteractable(o.id, 'object', o.pos, o.yaw, (this.world.flags[usedFlag(o.id)] ?? 0) !== 0);
     for (const o of content.obstacles ?? []) this.addObstacle(o);
@@ -318,7 +320,10 @@ export class SimWorld {
    */
   private syncMountBodies(): void {
     for (const e of this.entities) {
-      if (e.mount) this.physics.placeMountBody(e.id, e.tf.pos, MOUNT_BODY, e.tf.yaw, !e.settle && e.mount.rider === null && this.mountSpotClear(e));
+      if (e.mount) {
+        this.physics.placeMountBody(e.id, e.tf.pos, MOUNT_BODY, e.tf.yaw, !e.settle && e.mount.rider === null && !e.mount.call && this.mountSpotClear(e));
+        this.physics.setMountRunning(e.id, e.tf.pos, !!e.mount.call);
+      }
       else if (e.owner !== undefined && e.body) this.physics.setCharacterRadius(e.id, e.body, e.riding?.state === 'riding' ? MOUNT.rideRadius : e.body.radius);
     }
   }
@@ -738,6 +743,7 @@ export class SimWorld {
     const noGround = this.groundless();
     locomotion(this.entities, commands, this.physics, this.events, motion, noGround.size ? new Set([...frozen, ...noGround]) : frozen, (x, z) => this.cellReady(...cellOf(x, z)));
     bossArena(this.entities, this.physics, (e) => (e.brain ? ENEMIES[e.brain.def] : undefined));
+    mountCalls(this.entities, commands, this.physics, this.events, (id) => this.byId.get(id), (x, z) => this.cellReady(...cellOf(x, z)));
     this.physics.step();
     followRiders(this.entities, (id) => this.byId.get(id));
     resolveAttacks(ctx, this.physics);
@@ -827,6 +833,8 @@ export class SimWorld {
     for (const e of this.entities) {
       const m = e.mount;
       if (!m || m.rider !== null) continue;
+      delete m.call;
+      m.speed = 0;
       e.tf.pos = at ? { x: at.x + MOUNT.shrineOffset[0], y: at.y, z: at.z + MOUNT.shrineOffset[1] } : { ...m.home };
       e.tf.prevPos = { ...e.tf.pos };
       e.tf.yaw = e.tf.prevYaw = m.homeYaw;

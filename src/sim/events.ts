@@ -84,6 +84,8 @@ export type SimEvent =
   | { type: 'drink'; entity: EntityId; charges: number }
   | { type: 'pickup'; entity: EntityId; kind: 'sprouts' | 'heart' | 'item'; item?: string; amount: number }
   | { type: 'mount'; entity: EntityId; mount: EntityId; phase: 'start' | 'seated' | 'dismount' | 'off' }
+  /** A called bull: `entity` is the player who called it. */
+  | { type: 'mountCall'; entity: EntityId; mount: EntityId; phase: 'coming' | 'appeared' | 'arrived' | 'failed' }
   | { type: 'interact'; entity: EntityId; object: string; kind: 'shrine' | 'chest' | 'npc' | 'object' }
   | { type: 'trigger'; entity: EntityId; trigger: string }
   | { type: 'talk'; entity: EntityId; npc: string; node: string }

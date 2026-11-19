@@ -17,6 +17,9 @@ const STICK_MOVING = 0.1;
 export function startMount(events: SimEvent[], rider: Entity, bull: Entity): void {
   if (rider.riding || rider.combat?.action || !bull.mount || bull.mount.rider !== null) return;
   bull.mount.rider = rider.id;
+  if (bull.mount.call && !bull.mount.call.grounded) bull.settle = true;
+  delete bull.mount.call;
+  bull.mount.speed = 0;
   rider.riding = { mount: bull.id, state: 'mounting', dir: { x: 0, z: 0 }, gallop: false, holdSpent: false };
   rider.combat!.action = { kind: 'mounting', t: 0, dur: MOUNT.mountTicks };
   events.push({ type: 'mount', entity: rider.id, mount: bull.id, phase: 'start' });

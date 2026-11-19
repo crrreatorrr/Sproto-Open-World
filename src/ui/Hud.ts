@@ -275,6 +275,7 @@ export class Hud {
       [p(KEYS.lock, PAD.lock), 'Lock on'],
       [p(KEYS.sprint, PAD.sprint), 'Sprint'],
       [p(KEYS.jump, PAD.jump), 'Jump'],
+      [p(KEYS.callMount, PAD.callMount), 'Call bull'],
       [p(KEYS.pause, PAD.pause), 'Pause'],
     ];
     const html = items.map(([k, v]) => `<span class="prompt"><kbd>${k}</kbd>${v}</span>`).join('');

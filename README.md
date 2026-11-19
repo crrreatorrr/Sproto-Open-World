@@ -71,6 +71,7 @@ Then open http://localhost:5180.
 | Interact: talk, open, rest | F | Y |
 | Ride or get off the Pepe Bull (east of the start) | F | Y |
 | Gallop on the Pepe Bull: press once and it keeps going, at no stamina cost, until you press again or stop (holding works too) | Left Shift | Left stick click |
+| Call the Pepe Bull: it runs to you, or appears nearby and runs in if it is too far away | V | D-pad ↓ |
 | Drink a Sprout Tonic | H | D-pad ↑ |
 | Open the menu / close it | Esc | Menu (Start) |
 | Open the menu on Quests | J | View (Back) |

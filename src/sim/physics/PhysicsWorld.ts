@@ -222,6 +222,49 @@ export class PhysicsWorld {
     return this.mountBodies.get(id)?.solid ?? false;
   }
 
+  /** The capsules mounts run on when called, by entity id. One each for life, switched on and off like their bodies. */
+  private readonly mountRunners = new Map<EntityId, { collider: RAPIER.Collider; centerOffset: number; on: boolean }>();
+
+  addMountRunner(id: EntityId, body: Body, feet: Readonly<Vec3>): void {
+    const centerOffset = body.height / 2 + KCC.offset;
+    const collider = this.world.createCollider(
+      RAPIER.ColliderDesc.capsule(Math.max(0.01, body.height / 2 - body.radius), body.radius)
+        .setTranslation(feet.x, feet.y + centerOffset, feet.z)
+        .setCollisionGroups(groups(GROUP.CHARACTER, GROUP.WORLD | GROUP.CHARACTER))
+        .setEnabled(false),
+    );
+    this.mountRunners.set(id, { collider, centerOffset, on: false });
+  }
+
+  /** Switch a mount's running capsule on or off; while on, it stands where the mount is. */
+  setMountRunning(id: EntityId, feet: Readonly<Vec3>, on: boolean): void {
+    const r = this.mountRunners.get(id);
+    if (!r) return;
+    if (on) r.collider.setTranslation({ x: feet.x, y: feet.y + r.centerOffset, z: feet.z });
+    if (r.on === on) return;
+    r.collider.setEnabled(on);
+    r.on = on;
+  }
+
+  /** Slide a called mount's capsule over the ground, as `moveCharacter` does for a character. */
+  moveMount(id: EntityId, feet: Readonly<Vec3>, delta: Vec3): MoveResult {
+    const r = this.mountRunners.get(id);
+    if (!r) return { moved: { x: 0, y: 0, z: 0 }, grounded: false };
+    r.collider.setTranslation({ x: feet.x, y: feet.y + r.centerOffset, z: feet.z });
+    this.controller.computeColliderMovement(r.collider, delta, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, groups(GROUP.CHARACTER, GROUP.WORLD | GROUP.CHARACTER));
+    const m = this.controller.computedMovement();
+    r.collider.setTranslation({ x: feet.x + m.x, y: feet.y + m.y + r.centerOffset, z: feet.z + m.z });
+    return { moved: { x: m.x, y: m.y, z: m.z }, grounded: this.controller.computedGrounded() };
+  }
+
+  /** Is there room for a body this size standing here? Raised a little, so the slope under it doesn't count. */
+  spotFree(feet: Readonly<Vec3>, body: Body): boolean {
+    const RAISE = 0.5;
+    const shape = new RAPIER.Capsule(Math.max(0.01, body.height / 2 - body.radius), body.radius);
+    const at = { x: feet.x, y: feet.y + RAISE + body.height / 2, z: feet.z };
+    return this.world.intersectionWithShape(at, { x: 0, y: 0, z: 0, w: 1 }, shape, undefined, groups(0xffff, GROUP.WORLD | GROUP.CHARACTER)) === null;
+  }
+
   /** Make a character's capsule this wide, in place (a rider takes on the width of their mount). */
   setCharacterRadius(id: EntityId, body: Body, radius: number): void {
     const c = this.characters.get(id);
