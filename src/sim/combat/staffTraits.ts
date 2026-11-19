@@ -1,5 +1,9 @@
+import { CHARGED_HEAVY } from '../../content/combat';
 import { ENEMIES } from '../../content/enemies';
+import { ITEMS } from '../../content/items';
 import { TRAIT, staffTrait, type StaffTraitId } from '../../content/packs/c2';
+import { SKILL_EFFECT } from '../../content/progression';
+import { DT } from '../../content/tuning';
 import { BTN, type InputCommand } from '../commands';
 import type { Action, Entity } from '../entity';
 import type { Vec3 } from '../math';
@@ -54,6 +58,43 @@ export function staffAfterReaction(ctx: CombatCtx, attacker: Entity, target: Ent
   c.action = { kind: 'stagger', t: 0, dur: TRAIT.abduct.ticks };
   c.buffer = null;
   ctx.events.push({ type: 'stagger', entity: target.id, ticks: TRAIT.abduct.ticks });
+}
+
+// ---------------------------------------------------------------- Sunder
+
+/**
+ * Metres above the feet. The ground collider fills everything at y ≤ 0, and a projectile whose ray
+ * meets the world is deleted, so a wave aimed at the floor dies on the first tick. 0.9 is inside a
+ * grunt's body and a training dummy's, and the wave's radius covers the rest. The ray stays level.
+ */
+const SUNDER_HEIGHT = 0.9;
+
+/**
+ * Sunder: one shockwave when a fully charged heavy becomes active. It uses the same spawn path as
+ * Arcane Bolt and then flies with every other projectile. Damage is physical, a fraction of the
+ * sword's melee power. The plan does not name poise, so it takes that same fraction of a charged heavy.
+ */
+export function sunderShockwave(p: Entity, spawn: (e: Omit<Entity, 'id'>) => Entity): void {
+  if (!has(p, 'sunder') || !p.combat) return;
+  const staff = ITEMS[p.progress?.equipment.staff ?? '']?.staff;
+  if (!staff) return;
+  const { range, speed, radius, damage } = TRAIT.sunder;
+  const power = staff.damage * (1 + SKILL_EFFECT.attack * (p.progress?.skills.attack ?? 0));
+  const yaw = p.tf.yaw;
+  const from = { x: p.tf.pos.x, y: p.tf.pos.y + SUNDER_HEIGHT, z: p.tf.pos.z };
+  spawn({
+    kind: 'projectile',
+    tf: {
+      pos: from, prevPos: { ...from }, yaw, prevYaw: yaw,
+      vel: { x: Math.sin(yaw) * speed, y: 0, z: Math.cos(yaw) * speed },
+    },
+    projectile: {
+      owner: p.id, team: p.combat.team, kind: 'physical', damage: power * damage,
+      poise: CHARGED_HEAVY.poise * damage, radius, life: Math.ceil(range / (speed * DT)), reflected: false,
+    },
+    // The existing bolt streak. The wave is not a spell, and it adds no new art.
+    view: { model: 'bolt' },
+  });
 }
 
 // ---------------------------------------------------------------- Blink
