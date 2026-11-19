@@ -221,31 +221,29 @@ Object.assign(QUESTS, C6_QUESTS);
 registerScrapjawQuest(QUESTS);
 
 /**
- * Quest-log clue lines (text only). The silhouette beside a quest is workstream B.
- * Handover lines in the dialogue name the same items; B grants them. Three lines that
- * remember a bonus relic stay gated on hasItem until that item exists:
- * relic_drowned_coins (elder_pepe.after_tower_myth), relic_sprotos_stride (ranger_moss.after_myth),
- * relic_elder_iron_rivet (watch_captain.a3_rivet).
+ * Quest-log clue lines. Each one is the relic or totem card's clue, so the log and the card agree.
+ * The three bonus closings (elder_pepe.after_tower_myth, ranger_moss.after_myth, watch_captain.a3_rivet)
+ * ask hasItem; a keepsake in relics.owned counts.
  */
 export const QUEST_CLUES: Record<string, string> = {
-  q_wake_up: 'The first fire still waits where you rest.',
-  q_pest_control: "Something in the fields draws every Grunt's eye.",
+  q_wake_up: 'The first fire you rest beside keeps a seat.',
+  q_pest_control: "Something in the orchard holds the small ones' gaze.",
   q_watchtower: 'A watchman once kept something under the bell.',
   q_thornwood: 'The hand that held the wood shut left something behind.',
-  q_mill: 'Something grim still sits caught in the mill wheel.',
-  q_relics: 'The valley hid one more thing in plain sight.',
-  q_rivet_volley: 'A stone by the road knows how to turn a shot.',
-  q_lens_flare: 'The ridge kept a way of seeing the blow early.',
-  q_iron_gallery: 'Old iron in the salvage still answers when struck.',
-  q_hollow_giant: 'The old stories left a way to be elsewhere when the blow falls.',
-  q_weavers_thorns: 'Where the surge runs close to the ground, the hedge keeps something.',
-  q_elders_garden: 'The garden keeps a piece of itself for the road.',
-  q_tremors: 'The ground will speak a little early, for a careful ear.',
+  q_mill: "The mill wheel once held a tyrant's mark.",
+  q_relics: 'The valley hid a light for what sits in plain sight.',
+  q_rivet_volley: 'A stone in the salvage yard turns a shot around.',
+  q_lens_flare: 'The ridge glass still looks a moment ahead.',
+  q_iron_gallery: 'Struck iron from the old camps answers back.',
+  q_hollow_giant: 'The giant prints remember a lighter step.',
+  q_weavers_thorns: "The weaver's hedge keeps a living cuff.",
+  q_elders_garden: 'The garden stones remember a seed for the road.',
+  q_tremors: 'The quarry crew left a stake that hears the ground.',
   q_deep_seam: 'The deep earth breathes for those who listen.',
-  q_scrapjaw: 'The beast carried a green the old folk still name.',
-  q_smoke_hills: 'Something for hayfires, and for worse, waits in the smoke.',
-  q_bait: 'Something in the open field calls what flies.',
-  q_skyfire: 'What falls from that sky meets the ground gently.',
+  q_scrapjaw: 'Something green slept in the beast under the quarry.',
+  q_smoke_hills: 'Smoke on the hills left a pail that puts fire out.',
+  q_bait: 'An ugly little post still brings flyers down to look.',
+  q_skyfire: 'What fell out of the sky still softens a landing.',
 };
 
 for (const [id, clue] of Object.entries(QUEST_CLUES)) if (QUESTS[id]) QUESTS[id].clue = clue;

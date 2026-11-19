@@ -152,7 +152,10 @@ export function checkCondition(c: Condition, p: Progress, world: WorldState): bo
   if ('flag' in c) return c.value === undefined ? (world.flags[c.flag] ?? 0) !== 0 : world.flags[c.flag] === c.value;
   if ('level' in c) return p.level >= c.level;
   if ('questDone' in c) return p.quests[c.questDone]?.status === 'complete';
-  return (p.inventory[c.hasItem] ?? 0) >= (c.count ?? 1);
+  // Keepsakes live on relics.owned, not in the bag. A bonus line that asks hasItem still sees one.
+  const bag = p.inventory[c.hasItem] ?? 0;
+  const kept = p.relics?.owned.includes(c.hasItem) ? 1 : 0;
+  return Math.max(bag, kept) >= (c.count ?? 1);
 }
 
 export const checkAll = (cs: readonly Condition[] | undefined, p: Progress, world: WorldState) => !cs || cs.every((c) => checkCondition(c, p, world));
