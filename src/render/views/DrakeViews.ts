@@ -27,6 +27,16 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /**
+ * Seams on the Drake. Each reflected fireball takes 0.34 of its poise, so two show before the
+ * break. The break refills the bar on that hit, and the third seam stays up while it glides.
+ */
+export function drakeCrackCount(poise: number, poiseMax: number, broken: boolean): number {
+  if (broken) return 3;
+  if (!(poiseMax > 0)) return 0;
+  return Math.min(3, Math.round((1 - poise / poiseMax) / 0.34));
+}
+
+/**
  * The Skyfire Drake (expansion plan §3.5). The model only has `fly` and `fireball`, so the body does
  * the rest: it banks into its turns, tips its nose along its flight, and paints each dive's lane on
  * the ground through the wind-up. The arena's fog wall stands while the fight is on.
@@ -120,7 +130,9 @@ export class DrakeView implements EntityView {
     placeEntity(this.root, e, alpha);
     this.time += dt;
     const poise = e.combat;
-    const cracks = poise && poise.poiseMax > 0 ? Math.min(3, Math.round((1 - poise.poise / poise.poiseMax) / 0.34)) : 0;
+    // A break refills the bar on the same hit, so the third seam has to stay up through the glide.
+    const broken = poise?.action?.kind === 'stagger' && poise.action.reason === 'broken';
+    const cracks = drakeCrackCount(poise?.poise ?? 0, poise?.poiseMax ?? 0, broken);
     this.cracks.forEach((c, i) => (c.visible = i < cracks));
     const a = e.combat?.action ?? null;
     const anim = this.animator;

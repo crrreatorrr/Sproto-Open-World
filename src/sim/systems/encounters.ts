@@ -127,7 +127,8 @@ function habits(ctx: PolishCtx): void {
   if (!player) return;
   for (const ev of ctx.events) {
     if (ev.type === 'parry' && ev.target === player.id) bump(ctx.world, 'habit.parry');
-    else if ((ev.type === 'dodge' || ev.type === 'dodgePerfect') && ev.entity === player.id) bump(ctx.world, 'habit.roll');
+    // The roll already emitted `dodge`. A perfect dodge is that same roll, not a second one.
+    else if (ev.type === 'dodge' && ev.entity === player.id) bump(ctx.world, 'habit.roll');
     else if (ev.type === 'hit' && ev.attacker === player.id && ev.move === 'light3' && !ctx.world.flags['react.broccoli.combo']) {
       ctx.world.flags['react.broccoli.combo'] = 1;
       ctx.events.push({ type: 'cue', cue: 'react', entity: player.id, hook: 'farmer_broccoli' });

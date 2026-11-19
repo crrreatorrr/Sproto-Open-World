@@ -47,15 +47,15 @@ export class QuestClues {
 
   private lay(marks: THREE.Mesh[], from: { x: number; y: number; z: number } | null, to: { x: number; y: number; z: number } | null, me: Readonly<Entity>, reach: number): void {
     if (!from || !to) return;
-    const dx = to.x - from.x, dz = to.z - from.z;
-    const near = Math.hypot(me.tf.pos.x - to.x, me.tf.pos.z - to.z);
-    const fade = Math.max(0, Math.min(1, 1 - near / reach));
-    if (fade <= 0.02) return;
+    const dx = to.x - from.x, dz = to.z - from.z, dy = to.y - from.y;
     const yaw = Math.atan2(dx, dz);
+    const fades = trailFades(from, to, me.tf.pos, marks.length, reach);
     marks.forEach((m, i) => {
+      const fade = fades[i] ?? 0;
+      m.visible = fade > 0.02;
+      if (!m.visible) return;
       const t = (i + 1) / (marks.length + 1);
-      m.visible = true;
-      m.position.set(from.x + dx * t, from.y + 0.05, from.z + dz * t);
+      m.position.set(from.x + dx * t, from.y + dy * t + 0.05, from.z + dz * t);
       m.rotation.y = yaw + (i % 2 ? 0.4 : -0.3);
       (m.material as THREE.MeshBasicMaterial).opacity = 0.25 + 0.5 * fade;
     });
@@ -67,6 +67,28 @@ export class QuestClues {
       (m.material as THREE.Material).dispose();
     }
   }
+}
+
+/**
+ * How strongly one print reads. 1 beside it, 0 at `reach` metres.
+ * Each print fades on its own distance, so a trail longer than `reach` still leads:
+ * the prints ahead appear as you walk up to them. Fading the whole trail by the
+ * distance to its far end hides it until you have already arrived.
+ */
+export function clueFade(dist: number, reach: number): number {
+  if (!(reach > 0)) return 0;
+  return Math.max(0, Math.min(1, 1 - dist / reach));
+}
+
+/** Fade of each print laid evenly from `from` to `to`, seen from `me`. */
+export function trailFades(from: { x: number; z: number }, to: { x: number; z: number }, me: { x: number; z: number }, count: number, reach: number): number[] {
+  const dx = to.x - from.x, dz = to.z - from.z;
+  const fades: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const t = (i + 1) / (count + 1);
+    fades.push(clueFade(Math.hypot(me.x - (from.x + dx * t), me.z - (from.z + dz * t)), reach));
+  }
+  return fades;
 }
 
 function mark(mat: THREE.Material, w: number, h: number): THREE.Mesh {

@@ -165,6 +165,22 @@ describe('bonus feats', () => {
   });
 });
 
+describe('habit flags', () => {
+  it('counts a parry, and a perfect dodge as the one roll that started it', async () => {
+    const { w, p } = await combatWorld();
+    polish(w, [
+      { type: 'dodge', entity: p.id },
+      { type: 'dodgePerfect', entity: p.id, attacker: 1 },
+    ]);
+    expect(w.world.flags['habit.roll']).toBe(1);
+    polish(w, [{ type: 'parry', attacker: 2, target: p.id, projectile: false, pos: { x: 0, y: 1, z: 0 }, stun: 75 }]);
+    expect(w.world.flags['habit.parry']).toBe(1);
+    for (let i = 0; i < 120; i++) polish(w, [{ type: 'dodge', entity: p.id }]);
+    expect(w.world.flags['habit.roll']).toBe(99);
+    w.dispose();
+  });
+});
+
 describe('pumpkin carriers', () => {
   it('a hit knocks the pumpkin off and the Grunt runs for the next one', async () => {
     const { w, p } = await combatWorld();
