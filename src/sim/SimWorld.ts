@@ -9,6 +9,7 @@ import { MOUNT } from '../content/mounts';
 import { NPCS } from '../content/npcs';
 import { OBJECTS, usedFlag } from '../content/objects';
 import { AFFIXES, CAMP_GENERATION_FLAG } from '../content/packs/c4';
+import { ROOTDEEP_PORTALS, isRootdeep, portalUsable } from '../content/packs/rootdeep';
 import type { ObstaclePlacement, RegionContent } from '../content/world/sproutvaleContent';
 import { SAVE_SCHEMA, type SaveFile } from '../save/schema';
 import { idleInput, type InputCommand } from './commands';
@@ -240,6 +241,8 @@ export class SimWorld {
       this.physics.addMountRunner(this.nextId - 1, MOUNT_RUNNER, pos);
     }
     for (const o of content.objects ?? []) this.addInteractable(o.id, 'object', o.pos, o.yaw, (this.world.flags[usedFlag(o.id)] ?? 0) !== 0);
+    // Hidden until syncPortals. A portal's `used` means sealed, not spent.
+    for (const p of content.portals ?? []) this.addInteractable(p.id, 'portal', p.pos, p.yaw, true);
     for (const o of content.obstacles ?? []) this.addObstacle(o);
     for (const en of content.enemies) this.spawnEnemy(en.def, { x: en.pos[0], y: en.pos[1], z: en.pos[2] }, en.yaw);
     // Camps (M4): members around the camp centre; each stays dead until a rest or a respawn.
@@ -275,7 +278,7 @@ export class SimWorld {
     }
   }
 
-  private addInteractable(id: string, kind: 'shrine' | 'chest' | 'object', p: [number, number, number], yaw: number, used: boolean): void {
+  private addInteractable(id: string, kind: 'shrine' | 'chest' | 'object' | 'portal', p: [number, number, number], yaw: number, used: boolean): void {
     const pos = { x: p[0], y: p[1], z: p[2] };
     this.add({
       id: this.nextId++, kind: 'interactable', tf: { pos, prevPos: { ...pos }, yaw, prevYaw: yaw, vel: { x: 0, y: 0, z: 0 } },
@@ -719,6 +722,7 @@ export class SimWorld {
     }
     // RPG intents and interact / potion presses first. A player in a menu or talking sends no
     // gameplay input this tick.
+    this.syncPortals();
     const rpg: RpgCtx = {
       now: this.now, entities: this.entities, events: this.events, world: this.world, rng: this.rng.stream('loot'),
       spawnPickup: (pos, pk) => this.spawnPickup(pos, pk),
@@ -730,6 +734,15 @@ export class SimWorld {
       const cmd = commands.get(e.owner);
       const busy = playerRpg(rpg, e, cmd?.pressed ?? 0, cmd?.ui ?? [], this.chests);
       if (busy) effective.set(e.owner, { ...idleInput(cmd?.camYaw ?? e.tf.yaw) });
+    }
+    // Travel is applied here, not through RpgCtx: the destination's arrive point, then a settle onto its floor.
+    for (const ev of this.events) {
+      if (ev.type !== 'portalTravel') continue;
+      const who = this.byId.get(ev.entity);
+      const dest = ROOTDEEP_PORTALS[ev.to];
+      if (!who || who.owner === undefined || !dest || who.riding) continue;
+      this.teleportPlayer(who.owner, { x: dest.arrive[0], y: SETTLE_FROM_Y, z: dest.arrive[1] });
+      who.settle = true;
     }
     commands = effective;
     const motion = new Map<number, Motion>();
@@ -827,9 +840,25 @@ export class SimWorld {
     }
   }
 
+  /**
+   * A sealed mouth draws nothing and offers nothing. `used` is refreshed every tick, including for
+   * old saves whose flags changed while the entity still said hidden.
+   */
+  private syncPortals(): void {
+    for (const e of this.entities) {
+      const ia = e.interactable;
+      if (ia?.kind !== 'portal') continue;
+      const def = ROOTDEEP_PORTALS[ia.id];
+      if (!def) continue;
+      ia.used = !portalUsable(def, this.world.flags);
+    }
+  }
+
   /** An unridden bull comes to the shrine you rest or respawn at (home, if there is none), so it is never lost. */
   private callMount(shrine: string | null): void {
     const at = shrine ? this.places.get(shrine) : undefined;
+    // Resting in the cave must not drag the bull underground. It stays where it is.
+    if (at && isRootdeep(at.x)) return;
     for (const e of this.entities) {
       const m = e.mount;
       if (!m || m.rider !== null) continue;

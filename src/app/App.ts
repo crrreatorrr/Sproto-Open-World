@@ -13,7 +13,7 @@ import { QUESTS, type QuestOffer } from '../content/quests';
 import { SANDBOX } from '../content/sandbox';
 import { SPELLS, WOVEN, type SpellId } from '../content/spells';
 import { worldLevel } from '../content/world/level';
-import { SPROUTVALE_CONTENT } from '../content/world/sproutvaleContent';
+import { WORLD_CONTENT } from '../content/world/worldContent';
 import { frameDataLines, targetLines } from '../debug/frameData';
 import { Overlay } from '../debug/Overlay';
 import { QA_LOG_ENABLED, qaLog } from '../debug/qaLog';
@@ -445,7 +445,7 @@ export class App {
       // Sproutvale's villagers, shrines, chest and training yard (its camps arrive in M4). A save
       // goes on top of the fresh world, so opened chests and found shrines come back as they were.
       if (WAVE_SANDBOX) sim.startWaves();
-      else if (this.stream) sim.populateWorld(SPROUTVALE_CONTENT);
+      else if (this.stream) sim.populateWorld(WORLD_CONTENT);
       else sim.populate();
       if (save && this.stream) sim.applySave(save);
       if (this.stream) {
@@ -455,9 +455,12 @@ export class App {
       const view = new PlayerView(this.assets);
       const staff = this.staffModel(entity.progress?.equipment.staff);
       // The world boots with a staff's small model; the full one swaps in once things are calm.
+      // Rootcleaver has no small model of its own. A save that has it out still becomes playable
+      // on the starter's small staff, and the sword downloads once play has started.
       const bootStaff = this.stream ? STAFF_BOOT_LOD[staff] : undefined;
-      await view.load(bootStaff ?? staff);
-      this.staffShown = staff;
+      const standIn = this.stream && staff === 'staff_rootcleaver' && !bootStaff ? STAFF_BOOT_LOD.staff_sproto : undefined;
+      await view.load(standIn ?? bootStaff ?? staff);
+      this.staffShown = standIn ?? staff;
       this.staffToSharpen = bootStaff ? staff : null;
       this.staffCalmSec = 0;
       this.renderer.scene.add(view.root);
