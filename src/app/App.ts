@@ -1306,6 +1306,8 @@ export class App {
         this.saveWanted = true;
         return;
       case 'questStarted':
+        // The quest just taken is the one to show, whichever quest was being led to.
+        if (e.entity === this.sim?.playerEntity(LOCAL_PLAYER)?.id) this.questLead = null;
         this.hud.waveBanner('New quest', quest(e.quest));
         hud.feed(`New quest: ${quest(e.quest)}`, 'quest');
         this.audio.play('shieldUp', 1.1);

@@ -100,7 +100,8 @@ try {
   check(h.title !== first && /^Talk to /.test(h.step), 'selecting it again leads to another quest', `${first} then ${h.title}`);
 
   // Walk up to Collector Pepe (a teleport) and take Lost Relics.
-  while ((await hud()).title !== 'Lost Relics') await findQuest();
+  for (let i = 0; i < 8 && (await hud()).title !== 'Lost Relics'; i++) await findQuest();
+  if ((await hud()).title !== 'Lost Relics') throw new Error('Find a quest never led to Lost Relics');
   await page.evaluate(() => {
     const at = window.__qa.app.sim.view().locate('collector_pepe');
     const p = window.__qa.app.sim.playerEntity(0);
@@ -117,6 +118,26 @@ try {
   check(h.title === 'Lost Relics' && /relic chests/.test(h.step), 'the tracker moves on to its first step', h.step);
   check(h.compass, 'the compass leads to the first relic chest');
   await shot('taken');
+
+  // Led to one quest, the player takes a different one: the tracker shows the one they took.
+  for (let i = 0; i < 8 && !/^Talk to /.test((await hud()).step) || (await hud()).title === 'Wake Up, Sproto'; i++) {
+    if (i >= 7) throw new Error('Find a quest never led away from Wake Up, Sproto');
+    await findQuest();
+  }
+  const ledTo = (await hud()).title;
+  await page.evaluate(() => {
+    const at = window.__qa.app.sim.view().locate('elder_pepe');
+    const p = window.__qa.app.sim.playerEntity(0);
+    window.__qa.teleport(at.x - 1.5, at.z);
+    p.tf.yaw = p.tf.prevYaw = Math.PI / 2;
+  });
+  await frames(15);
+  await press('y');
+  for (let i = 0; i < 12 && await page.evaluate(() => !window.__qa.app.sim.playerEntity(0).progress.quests.q_wake_up); i++) await press('a');
+  for (let i = 0; i < 8 && await page.evaluate(() => !!window.__qa.app.sim.playerEntity(0).progress.dialogue); i++) await press('a');
+  await frames(15);
+  h = await hud();
+  check(h.title === 'Wake Up, Sproto', 'a different quest taken replaces the lead on the tracker', `led to ${ledTo}, tracker shows ${h.title}`);
   check(errors.length === 0, 'no console errors', errors.slice(0, 3).join(' | '));
 } catch (err) {
   failures++;
