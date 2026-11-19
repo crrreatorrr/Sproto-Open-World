@@ -26,3 +26,8 @@ const CAVE: CaveLook = {
 export function lookFor(cave: boolean): CaveLook {
   return cave ? CAVE : SURFACE;
 }
+
+/** Whether the sun casts shadows: the graphics quality must want them, and the cave forbids them. */
+export function sunCastsShadow(qualityWants: boolean, cave: boolean): boolean {
+  return qualityWants && lookFor(cave).sunShadow;
+}

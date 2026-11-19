@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { AssetLoader } from '../assets/AssetLoader';
 import { TEXTURES } from '../assets/manifest';
 import type { LevelDef } from '../content/sandbox';
-import { lookFor } from './caveLook';
+import { lookFor, sunCastsShadow } from './caveLook';
 
 /** Draw calls and triangles of the last frame, split into the shadow pass and the main pass. */
 export interface FrameStats {
@@ -37,6 +37,8 @@ export class Renderer {
   private readonly levelGroup = new THREE.Group();
   /** False on the surface. `setCave` does nothing when this is already the value asked for. */
   private cave = false;
+  /** Sun shadows as the graphics quality asks (`applyQuality`). The cave can only turn them off. */
+  private shadowsWanted = true;
   /** Fog band from the last `worldLook`, put back when the player leaves the cave. */
   private surfaceFog: WorldLook['fog'] = { near: 80, far: 180, farPlane: 450 };
   private readonly caveSky = new THREE.Color(0x000000);
@@ -115,6 +117,12 @@ export class Renderer {
     return this.cave;
   }
 
+  /** The graphics quality's shadow choice. Low keeps them off on the surface and in the cave alike. */
+  setShadows(on: boolean): void {
+    this.shadowsWanted = on;
+    this.sun.castShadow = sunCastsShadow(on, this.cave);
+  }
+
   /** Sproutvale's daylight, from `lookFor(false)` plus the fog `worldLook` stored. */
   private applySurface(): void {
     const look = lookFor(false);
@@ -129,7 +137,7 @@ export class Renderer {
     this.hemi.intensity = look.hemiIntensity;
     this.sun.color.set(0xfff4e0);
     this.sun.intensity = look.sunIntensity;
-    this.sun.castShadow = look.sunShadow;
+    this.sun.castShadow = sunCastsShadow(this.shadowsWanted, this.cave);
     this.torch.intensity = look.torchIntensity;
   }
 
@@ -144,7 +152,7 @@ export class Renderer {
     this.hemi.groundColor.set(0x1a1a22);
     this.hemi.intensity = look.hemiIntensity;
     this.sun.intensity = look.sunIntensity;
-    this.sun.castShadow = look.sunShadow;
+    this.sun.castShadow = sunCastsShadow(this.shadowsWanted, this.cave);
     this.torch.intensity = look.torchIntensity;
   }
 
