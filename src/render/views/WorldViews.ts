@@ -131,6 +131,12 @@ export class WorldViews {
     return v instanceof MountView ? v.saddleLift : 0;
   }
 
+  /** How this mount's body is tilted this frame, for the rider. */
+  saddleTilt(id: EntityId): { pitch: number; roll: number } {
+    const v = this.views.get(id);
+    return v instanceof MountView ? v.tilt : { pitch: 0, roll: 0 };
+  }
+
   /** Make, update and drop views to match the sim. Call once per rendered frame. */
   sync(view: ReadonlySimView, alpha: number, dt: number): void {
     this.frame++;

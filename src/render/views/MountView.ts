@@ -18,6 +18,27 @@ const GAIT_FADE = 0.22;
 /** Saddle heights measured around each gait's loop. */
 const SADDLE_SAMPLES = 32;
 
+/** Over this speed the bull's line shows the slope under it (m/s); slower, it keeps the last one. */
+const PITCH_FROM = 1;
+/** Moving faster than this is being sent somewhere, not running (m/s). */
+const TELEPORT_SPEED = 40;
+/** The steepest the body pitches, and the most it leans into a turn (radians). */
+const MAX_PITCH = 0.6;
+const MAX_LEAN = 0.2;
+/** Lean per m/s² of cornering (radians), and how quickly the body settles into its tilt (1/s). */
+const LEAN_PER_ACCEL = 0.008;
+const TILT_RATE = 9;
+
+/** How far the nose rises for a move of `rise` over `run` of ground (radians). */
+export function slopePitch(rise: number, run: number): number {
+  return THREE.MathUtils.clamp(Math.atan2(rise, run), -MAX_PITCH, MAX_PITCH);
+}
+
+/** The body's roll into a turn, in three's sense: a left turn (yaw growing) rolls negative. */
+export function turnLean(speed: number, yawRate: number): number {
+  return THREE.MathUtils.clamp(-speed * yawRate * LEAN_PER_ACCEL, -MAX_LEAN, MAX_LEAN);
+}
+
 export type MountGait = 'idle' | 'walk' | 'run' | 'gallop';
 
 /** Each gait's clip, the ground speed it is authored for (m/s), and how far its rate may stretch. */
@@ -70,6 +91,12 @@ export class MountView implements EntityView {
    * is drawn before the bull, so this is where the saddle will be on the frame the rider reads it.
    */
   saddleLift = 0;
+  /** The body's tilt this frame: nose up on a climb, rolled into a turn (radians). The rider shares it. */
+  readonly tilt = { pitch: 0, roll: 0 };
+  private pitchGoal = 0;
+  private readonly last = new THREE.Vector3();
+  private lastYaw = 0;
+  private placed = false;
 
   constructor(assets: AssetLoader) {
     void assets.instance('pepe_bull').then((m) => {
@@ -94,12 +121,32 @@ export class MountView implements EntityView {
 
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
     placeEntity(this.root, e, alpha);
+    const speed = e.mount?.speed ?? 0;
+    this.tiltBody(speed, dt);
     const a = this.animator;
     if (!a) return;
-    const speed = e.mount?.speed ?? 0;
     this.playGait(a, mountGait(speed, this.gait), speed);
     a.update(dt);
     this.saddleLift = this.spine ? this.spineHeight() - this.spineRest + this.saddleStep(a, dt) : 0;
+  }
+
+  /** Pitch the body to the slope it is running on and lean it into its turns. */
+  private tiltBody(speed: number, dt: number): void {
+    const p = this.root.position;
+    if (this.placed && dt > 0) {
+      const run = Math.hypot(p.x - this.last.x, p.z - this.last.z);
+      if (run / dt > TELEPORT_SPEED) this.pitchGoal = this.tilt.pitch = 0;
+      else if (run / dt > PITCH_FROM) this.pitchGoal = slopePitch(p.y - this.last.y, run);
+      const turned = Math.atan2(Math.sin(this.root.rotation.y - this.lastYaw), Math.cos(this.root.rotation.y - this.lastYaw));
+      this.tilt.pitch = THREE.MathUtils.damp(this.tilt.pitch, this.pitchGoal, TILT_RATE, dt);
+      this.tilt.roll = THREE.MathUtils.damp(this.tilt.roll, turnLean(speed, turned / dt), TILT_RATE, dt);
+    }
+    this.last.copy(p);
+    this.lastYaw = this.root.rotation.y;
+    this.placed = true;
+    this.root.rotation.order = 'YXZ';
+    this.root.rotation.x = -this.tilt.pitch;
+    this.root.rotation.z = this.tilt.roll;
   }
 
   /** Walk each gait's loop once at load, so the saddle's path is known without posing the bull twice. */
@@ -156,9 +203,15 @@ export class MountView implements EntityView {
     return clip && clip.duration > 0 ? (a.mixer.clipAction(clip).time / clip.duration) % 1 : 0;
   }
 
+  /** The spine's height from the animation alone: the rider tilts with the body separately. */
   private spineHeight(): number {
+    const { x, z } = this.root.rotation;
+    this.root.rotation.x = this.root.rotation.z = 0;
     this.root.updateMatrixWorld(true);
-    return this.spine!.getWorldPosition(this.scratch).y - this.root.position.y;
+    const height = this.spine!.getWorldPosition(this.scratch).y - this.root.position.y;
+    this.root.rotation.x = x;
+    this.root.rotation.z = z;
+    return height;
   }
 
   dispose(): void {

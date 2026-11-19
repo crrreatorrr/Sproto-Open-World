@@ -99,6 +99,21 @@ try {
   await frames(30);
   await watchRiding();
 
+  // The bull is solid: running straight at its flank stops at its side. It stands long along X here.
+  await page.evaluate(() => window.__qa.teleport(272, 52));
+  await frames(30);
+  for (let i = 0; i < 60; i++) {
+    const q = await state();
+    if (q.player.pos.z > 58.5) break;
+    const sy = Math.sin(q.camYaw), cy = Math.cos(q.camYaw);
+    await page.evaluate(([x, y]) => window.__pad.axes(x, y), [sy, -cy]);
+    await frames(3);
+  }
+  await page.evaluate(() => window.__pad.axes(0, 0));
+  await frames(10);
+  const blocked = (await state()).player.pos.z;
+  check(blocked > 56.5 && blocked < 57.4, 'a runner stops at the bull\'s side', `z ${blocked.toFixed(2)}, the bull is at 58`);
+
   // Walk up to the bull, east of the start.
   await page.evaluate(() => window.__qa.teleport(272, 55.6));
   await frames(40);

@@ -50,6 +50,7 @@ interface CharacterBody {
   collider: RAPIER.Collider;
   /** Feet to capsule centre (m). */
   centerOffset: number;
+  radius: number;
 }
 
 export class PhysicsWorld {
@@ -186,6 +187,49 @@ export class PhysicsWorld {
     return [...this.obstacles.keys()];
   }
 
+  /** Standing mounts' solid bodies, by entity id. */
+  private readonly mountBodies = new Map<EntityId, { collider: RAPIER.Collider; x: number; y: number; z: number; yaw: number; solid: boolean }>();
+
+  /**
+   * Put a mount's solid box under it. Each mount keeps one collider for life and switches it on and
+   * off, so getting on and off never changes the slots the characters' colliders sit in (a replay has
+   * to meet them in the same order). `half` is half its width, length and height. Queries see the change from the next `step()`.
+   */
+  placeMountBody(id: EntityId, feet: Readonly<Vec3>, half: readonly [number, number, number], yaw: number, solid: boolean): void {
+    const SINK = 1;
+    const halfY = half[2] + SINK / 2;
+    const y = feet.y + half[2] * 2 - halfY;
+    let c = this.mountBodies.get(id);
+    if (!c) {
+      const collider = this.world.createCollider(RAPIER.ColliderDesc.cuboid(half[0], halfY, half[1]).setCollisionGroups(groups(GROUP.WORLD, 0xffff)).setEnabled(false));
+      c = { collider, x: NaN, y: NaN, z: NaN, yaw: NaN, solid: false };
+      this.mountBodies.set(id, c);
+    }
+    // Only a real change touches Rapier: a moved collider costs the broad phase work on every step.
+    if (c.x !== feet.x || c.y !== y || c.z !== feet.z || c.yaw !== yaw) {
+      c.collider.setTranslation({ x: feet.x, y, z: feet.z });
+      c.collider.setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) });
+      Object.assign(c, { x: feet.x, y, z: feet.z, yaw });
+    }
+    if (c.solid !== solid) {
+      c.collider.setEnabled(solid);
+      c.solid = solid;
+    }
+  }
+
+  /** Is this mount's body solid for queries right now? */
+  mountBodySolid(id: EntityId): boolean {
+    return this.mountBodies.get(id)?.solid ?? false;
+  }
+
+  /** Make a character's capsule this wide, in place (a rider takes on the width of their mount). */
+  setCharacterRadius(id: EntityId, body: Body, radius: number): void {
+    const c = this.characters.get(id);
+    if (!c || c.radius === radius) return;
+    c.collider.setShape(new RAPIER.Capsule(Math.max(0.01, body.height / 2 - radius), radius));
+    c.radius = radius;
+  }
+
   addCharacter(id: EntityId, body: Body, feet: Vec3): void {
     this.removeCharacter(id);
     // The controller keeps a skin of KCC.offset between the capsule and the ground, and ignores
@@ -198,7 +242,7 @@ export class PhysicsWorld {
         .setTranslation(feet.x, feet.y + centerOffset, feet.z)
         .setCollisionGroups(groups(GROUP.CHARACTER, GROUP.WORLD | GROUP.CHARACTER)),
     );
-    this.characters.set(id, { collider, centerOffset });
+    this.characters.set(id, { collider, centerOffset, radius: body.radius });
   }
 
   removeCharacter(id: EntityId): void {
