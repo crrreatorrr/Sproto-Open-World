@@ -23,9 +23,7 @@
       "totem": null,
       "owned": ["totem_elders_hearth"],
       "seedSpent": false,
-      "introduced": false,
-      "giantDodges": 0,
-      "bonus": {}
+      "introduced": false
     }
   },
   "world": {

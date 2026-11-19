@@ -8,9 +8,9 @@ import { PLUNGE } from '../../content/packs/m7';
 import { GEAR_LOCK_TICKS } from '../../content/progression';
 import { QUESTS, type Effect, type QuestState } from '../../content/quests';
 import {
-  BONUS_REWARDS, GEAR_LOCK_TEXT, HOPEGLASS_SLOWS_WORLD, KEEPSAKES, RELIC_SOCKETS, TOTEM_HOLD_TICKS,
+  BONUS_REWARDS, FLAG_GRANTS, GEAR_LOCK_TEXT, HOPEGLASS_SLOWS_WORLD, KEEPSAKES, RELIC_SOCKETS, TOTEM_HOLD_TICKS,
   TOTEM_LIFE_TICKS, TOTEM_RECHARGE_TICKS, TOTEM_SWAPPED_TEXT, emptyRelics, isKeepsake, isRelic, isTotem, keepsake,
-  relicMods, totemMods, wonToast, type BonusReward, type RelicMods, type RelicProgress,
+  relicMods, totemMods, wonToast, type RelicMods, type RelicProgress,
 } from '../../content/relics';
 import { fnv1a } from '../hash';
 import type { Entity, PlacedTotem, RelicRuntime } from '../entity';
@@ -349,63 +349,28 @@ export function turnstoneSpent(e: Entity, now: number, coop: boolean): void {
   placed.reflectAt = now + totemMods(placed.id, coop).reflectEvery;
 }
 
-const stepIs = (e: Entity, quest: string, step: string): boolean => {
-  const q = e.progress?.quests[quest];
-  if (q?.status !== 'active') return false;
-  return QUESTS[quest]?.steps[q.step]?.id === step;
-};
-
-const tagHits = (bonus: BonusReward, defId: string | undefined, tags: readonly string[] | undefined): boolean =>
-  !!defId && (defId === bonus.tag || tags?.includes(bonus.tag) === true);
-
-export function noteReflectKill(ctx: Ctx, e: Entity, victim: Entity, sourceMove: string | undefined): void {
+/**
+ * Keepsakes earned by a world flag: the bonus feats the quest runtime counts (encounters.ts sets
+ * `bonus.*`) and the seal the mill lever shakes loose (`hook.tinubu_seal`). This is the only grant
+ * path for them besides the fallback quests' rewards; grantKeepsake is earn-once, so a flag that
+ * stays set never grants twice.
+ */
+export function grantFlagKeepsakes(ctx: Ctx, e: Entity, flags: Readonly<Record<string, number>>): void {
   if (!e.progress) return;
   const r = relicProgress(e);
-  const def = victim.brain ? ENEMIES[victim.brain.def] : undefined;
-  for (const bonus of BONUS_REWARDS) {
-    if (bonus.feat !== 'reflectKill' || !stepIs(e, bonus.quest, bonus.step)) continue;
-    if (bonus.sourceMove && bonus.sourceMove !== sourceMove) continue;
-    if (!tagHits(bonus, def?.id, def?.tags)) continue;
-    r.bonus[bonus.id] = (r.bonus[bonus.id] ?? 0) + 1;
-    if (r.bonus[bonus.id] >= bonus.count) grantKeepsake(ctx, e, bonus.id);
-  }
-}
-
-export function notePerfectDodge(ctx: Ctx, e: Entity, attacker: Entity): void {
-  if (!e.progress) return;
-  const def = attacker.brain ? ENEMIES[attacker.brain.def] : undefined;
-  if (def?.id !== 'hollow_giant' && !def?.tags?.includes('hollow_giant')) return;
-  const r = relicProgress(e);
-  r.giantDodges++;
-  const bonus = BONUS_REWARDS.find((b) => b.feat === 'perfectDodge');
-  if (bonus && r.giantDodges >= bonus.count && stepIs(e, bonus.quest, bonus.step)) grantKeepsake(ctx, e, bonus.id);
-}
-
-export function settleRelicBonuses(ctx: Ctx, e: Entity): void {
-  if (!e.progress) return;
-  const r = relicProgress(e);
-  for (const bonus of BONUS_REWARDS) {
-    if (owns(r, bonus.id) || !stepIs(e, bonus.quest, bonus.step)) continue;
-    const n = bonus.feat === 'perfectDodge' ? r.giantDodges : (r.bonus[bonus.id] ?? 0);
-    if (n >= bonus.count) grantKeepsake(ctx, e, bonus.id);
-  }
-  for (const ev of ctx.events) {
-    if (ev.type !== 'death') continue;
-    const dead = ctx.entities.find((x) => x.id === ev.entity);
-    const def = dead?.brain ? ENEMIES[dead.brain.def] : undefined;
-    if (def?.id === 'hollow_giant') r.giantDodges = 0;
-  }
+  for (const g of FLAG_GRANTS) if (flags[g.flag] && !owns(r, g.id)) grantKeepsake(ctx, e, g.id);
 }
 
 /** Fallback givers: the later quest's reward list names the id, and grant is earn-once. */
 export const fallbackIds = (quest: string): string[] => BONUS_REWARDS.filter((b) => b.fallbackQuest === quest).map((b) => b.id);
 
 /**
- * Keepsakes the quest log says were already won, in catalog order: what the finished steps' onComplete
- * and the finished quests' rewards give (fallback givers included). A bonus keepsake comes only from
- * its feat or its fallback quest, never from finishing the bonus quest itself, so it is not here.
+ * Keepsakes the save says were already won, in catalog order: what the finished steps' onComplete
+ * and the finished quests' rewards give (fallback givers included), and every flag grant whose flag
+ * is set (a bonus feat done, the mill lever pulled). A bonus keepsake comes only from its flag or its
+ * fallback quest, never from finishing the bonus quest itself.
  */
-export function keepsakesEarned(quests: Readonly<Record<string, QuestState>>): string[] {
+export function keepsakesEarned(quests: Readonly<Record<string, QuestState>>, flags: Readonly<Record<string, number>> = {}): string[] {
   const earned = new Set<string>();
   const gives = (effects: readonly Effect[] | undefined): void => {
     for (const fx of effects ?? []) if ('give' in fx && isKeepsake(fx.give)) earned.add(fx.give);
@@ -419,26 +384,30 @@ export function keepsakesEarned(quests: Readonly<Record<string, QuestState>>): s
     if (complete) gives(def.rewards);
   }
   for (const b of BONUS_REWARDS) if (b.fallbackQuest && quests[b.fallbackQuest]?.status === 'complete') earned.add(b.id);
+  for (const g of FLAG_GRANTS) if (flags[g.flag] || (g.legacyFlag && flags[g.legacyFlag])) earned.add(g.id);
   return KEEPSAKES.filter((k) => earned.has(k.id)).map((k) => k.id);
 }
 
 /**
- * Drop sockets and owned ids the catalog no longer has, and hand over what `quests` says was already
- * won (a save from before keepsakes existed, or one made before a keepsake was added to a step).
- * Earn-once: nothing is owned twice, and running it again changes nothing.
+ * Drop sockets and owned ids the catalog no longer has, and hand over what `quests` and the world
+ * `flags` say was already won (a save from before keepsakes existed, one made before a keepsake was
+ * added to a step, or one whose bonus flag was set before the relics read it). Earn-once: nothing is
+ * owned twice, and running it again changes nothing. Counters an older build kept here
+ * (`giantDodges`, `bonus`) are dropped: the quest runtime counts feats in world flags now.
  */
-export function reconcileRelics(r: RelicProgress, quests: Readonly<Record<string, QuestState>> = {}): RelicProgress {
+export function reconcileRelics(
+  r: RelicProgress, quests: Readonly<Record<string, QuestState>> = {}, flags: Readonly<Record<string, number>> = {},
+): RelicProgress {
   const known = new Set(KEEPSAKES.map((k) => k.id));
   const kept = r.owned.filter((id, i) => known.has(id) && r.owned.indexOf(id) === i);
-  const owned = [...kept, ...keepsakesEarned(quests).filter((id) => !kept.includes(id))];
+  const owned = [...kept, ...keepsakesEarned(quests, flags).filter((id) => !kept.includes(id))];
   const sockets = Array.from({ length: RELIC_SOCKETS }, (_, i) => {
     const id = r.sockets[i] ?? null;
     return id && owned.includes(id) && isRelic(id) ? id : null;
   });
   const totem = r.totem && owned.includes(r.totem) && isTotem(r.totem) ? r.totem : null;
-  const bonus: Record<string, number> = {};
-  for (const [id, n] of Object.entries(r.bonus)) if (known.has(id) && Number.isInteger(n) && n >= 0) bonus[id] = n;
-  return { ...r, owned, sockets, totem, bonus };
+  const { giantDodges: _g, bonus: _b, ...rest } = r as RelicProgress & { giantDodges?: unknown; bonus?: unknown };
+  return { ...rest, owned, sockets, totem };
 }
 
 export const validRelicProgress = (v: unknown): v is RelicProgress => {
@@ -446,7 +415,5 @@ export const validRelicProgress = (v: unknown): v is RelicProgress => {
   const r = v as RelicProgress;
   return Array.isArray(r.sockets) && r.sockets.length === RELIC_SOCKETS && r.sockets.every((x) => x === null || typeof x === 'string')
     && (r.totem === null || typeof r.totem === 'string') && Array.isArray(r.owned) && r.owned.every((x) => typeof x === 'string')
-    && typeof r.seedSpent === 'boolean' && typeof r.introduced === 'boolean'
-    && typeof r.giantDodges === 'number' && Number.isInteger(r.giantDodges) && r.giantDodges >= 0
-    && !!r.bonus && typeof r.bonus === 'object';
+    && typeof r.seedSpent === 'boolean' && typeof r.introduced === 'boolean';
 };

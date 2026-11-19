@@ -9,7 +9,7 @@ import { C6_QUESTS } from '../../src/content/packs/c6';
 import { Q_SCRAPJAW } from '../../src/content/packs/m5';
 import { RELIC_COPY } from '../../src/content/relicCopy';
 import {
-  BONUS_REWARDS, HOPEGLASS_SLOWS_WORLD, KEEPSAKES, PARRY_WINDOW_CAP, RELIC_SOCKETS, TOTEM_SOCKETS,
+  BONUS_REWARDS, FLAG_GRANTS, HOPEGLASS_SLOWS_WORLD, KEEPSAKES, PARRY_WINDOW_CAP, RELIC_SOCKETS, TOTEM_SOCKETS,
   capBlockMessage, keepsakeForQuest, relicMods, relicShortfall, totemMods, wonToast,
 } from '../../src/content/relics';
 
@@ -142,7 +142,9 @@ describe('reward map', () => {
     expect(gives(QUESTS.q_wake_up, 'shrine')).toContain('totem_elders_hearth');
     expect(gives(QUESTS.q_pest_control, 'grunts')).toContain('totem_field_warden');
     expect(gives(QUESTS.q_thornwood, 'gatekeeper')).toContain('relic_gatekeepers_grip');
-    expect(gives(QUESTS.q_mill, 'coin')).toContain('relic_tinubus_broken_seal');
+    // The seal falls out of the mill wheel when the lever is pulled: one grant, from the lever's hook flag.
+    expect(FLAG_GRANTS.find((g) => g.id === 'relic_tinubus_broken_seal')?.flag).toBe('hook.tinubu_seal');
+    expect(QUESTS.q_mill.steps.flatMap((s) => gives(QUESTS.q_mill, s.id))).not.toContain('relic_tinubus_broken_seal');
     expect(gives(QUESTS.q_relics, 'return')).toContain('totem_seekers_lantern');
     expect(gives(C4_QUESTS.q_rivet_volley, 'return')).toContain('totem_turnstone');
     expect(gives(C4_QUESTS.q_lens_flare, 'lens')).toContain('relic_oracles_eye');
@@ -156,12 +158,15 @@ describe('reward map', () => {
     expect(gives(Q_SCRAPJAW, 'boss')).toContain('relic_hopeglass');
   });
 
-  it('codes the bonus feats and the fallback quests', () => {
-    expect(BONUS_REWARDS.map((b) => [b.id, b.feat, b.count, b.fallbackQuest])).toEqual([
-      ['relic_drowned_coins', 'reflectKill', 3, 'q_thornwood'],
-      ['relic_elder_iron_rivet', 'reflectKill', 2, null],
-      ['relic_sprotos_stride', 'perfectDodge', 3, 'q_scrapjaw'],
+  it('codes the bonus feats by their quest flags, and the fallback quests', () => {
+    expect(BONUS_REWARDS.map((b) => [b.id, b.flag, b.fallbackQuest])).toEqual([
+      ['relic_drowned_coins', 'bonus.q_watchtower.reflect', 'q_thornwood'],
+      ['relic_elder_iron_rivet', 'bonus.q_iron_gallery.reflect', null],
+      ['relic_sprotos_stride', 'bonus.q_hollow_giant.dodge', 'q_scrapjaw'],
     ]);
+    // Each flag is one a quest step's bonus objective raises (workstream C counts; B grants).
+    const flags = Object.values(QUESTS).flatMap((q) => q.steps.flatMap((s) => (s.bonus ? [s.bonus.flag] : [])));
+    for (const b of BONUS_REWARDS) expect(flags, b.id).toContain(b.flag);
     expect(QUESTS.q_thornwood.rewards.some((e) => 'give' in e && e.give === 'relic_drowned_coins')).toBe(true);
     expect(Q_SCRAPJAW.rewards.some((e) => 'give' in e && e.give === 'relic_sprotos_stride')).toBe(true);
     expect(keepsakeForQuest('q_pumpkins')).toBeUndefined();

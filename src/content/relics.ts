@@ -13,6 +13,8 @@
  * Until those files are on main, the view draws a primitive stand-in off the boot path.
  */
 import { BLOCK, BUFFER, PLAYER_STATS, ROLL } from './combat';
+import { usedFlag } from './objects';
+import { BONUS_FLAGS, SEAL_HOOK } from './packs/encounterTune';
 import { TICK_HZ } from './tuning';
 
 export const RELIC_SOCKETS = 3;
@@ -65,7 +67,7 @@ export const KEEPSAKES: readonly KeepsakeDef[] = [
   relic('relic_gatekeepers_grip', 'gatekeepers-grip', "Gatekeeper's Grip", 'rare', 'yes', 'q_thornwood', 'gatekeeper'),
   relic('relic_hopeglass', 'hopeglass', 'Hopeglass', 'epic', 'solo', 'q_scrapjaw', 'boss'),
   relic('relic_sprotos_stride', 'sprotos-stride', "Sproto's Stride", 'rare', 'capped', 'q_hollow_giant', 'giant'),
-  relic('relic_tinubus_broken_seal', 'tinubus-broken-seal', "Tinubu's Broken Seal", 'rare', 'yes', 'q_mill', 'coin'),
+  relic('relic_tinubus_broken_seal', 'tinubus-broken-seal', "Tinubu's Broken Seal", 'rare', 'yes', 'q_mill', 'lever'),
   relic('relic_oracles_eye', 'oracles-eye', "Oracle's Eye", 'epic', 'yes', 'q_lens_flare', 'lens'),
   relic('relic_deepbreath_bellows', 'deepbreath-bellows', 'Deepbreath Bellows', 'rare', 'capped', 'q_deep_seam', 'boss'),
   relic('relic_elder_iron_rivet', 'elder-iron-rivet', 'Elder-Iron Rivet', 'epic', 'capped', 'q_iron_gallery', 'gunners'),
@@ -102,28 +104,41 @@ export const TOTEM_IDS = KEEPSAKES.filter((k) => k.kind === 'totem').map((k) => 
 export const keepsakeForQuest = (quest: string): KeepsakeDef | undefined => KEEPSAKES.find((k) => k.quest === quest);
 
 /**
- * Bonus rewards. Feat names match the plan: `reflectKill` is the new feat (workstream C),
- * `perfectDodge` is the one the quest runtime already counts. Fallback givers hand the item
- * over when the later quest completes, so a miss is not permanent.
+ * Bonus rewards. The quest runtime (workstream C, `sim/systems/encounters.ts`) counts each feat
+ * from the step's `bonus` objective and raises its world flag; the relics system grants the keepsake
+ * when that flag is set. Fallback givers hand the item over when the later quest completes, so a
+ * miss is not permanent. Earn-once either way.
  */
 export interface BonusReward {
   id: string;
+  /** The quest whose step carries the bonus objective. */
   quest: string;
-  step: string;
-  feat: 'reflectKill' | 'perfectDodge';
-  count: number;
-  /** Enemy def id or tag the feat has to be against. */
-  tag: string;
-  /** reflectKill only: the enemy move that fired the shot. */
-  sourceMove?: string;
+  /** World flag the quest runtime sets when the feat is done (`content/packs/encounterTune.ts`). */
+  flag: string;
   /** Quest whose completion hands it over if the bonus was missed. */
   fallbackQuest: string | null;
 }
 
 export const BONUS_REWARDS: readonly BonusReward[] = [
-  { id: 'relic_drowned_coins', quest: 'q_watchtower', step: 'slingers', feat: 'reflectKill', count: 3, tag: 'slinger', fallbackQuest: 'q_thornwood' },
-  { id: 'relic_elder_iron_rivet', quest: 'q_iron_gallery', step: 'gunners', feat: 'reflectKill', count: 2, tag: 'rivet_gunner', sourceMove: 'charged_shot', fallbackQuest: null },
-  { id: 'relic_sprotos_stride', quest: 'q_hollow_giant', step: 'giant', feat: 'perfectDodge', count: 3, tag: 'hollow_giant', fallbackQuest: 'q_scrapjaw' },
+  { id: 'relic_drowned_coins', quest: 'q_watchtower', flag: BONUS_FLAGS.watchtower, fallbackQuest: 'q_thornwood' },
+  { id: 'relic_elder_iron_rivet', quest: 'q_iron_gallery', flag: BONUS_FLAGS.gallery, fallbackQuest: null },
+  { id: 'relic_sprotos_stride', quest: 'q_hollow_giant', flag: BONUS_FLAGS.giant, fallbackQuest: 'q_scrapjaw' },
+];
+
+/**
+ * Keepsakes granted when a world flag is set: the three bonus feats, and Tinubu's Broken Seal, which
+ * drops out of the mill wheel when the lever is pulled (`hook.tinubu_seal`). `legacyFlag` is a flag an
+ * older save already has for the same deed (the lever's used flag, from before the hook existed).
+ */
+export interface FlagGrant {
+  id: string;
+  flag: string;
+  legacyFlag?: string;
+}
+
+export const FLAG_GRANTS: readonly FlagGrant[] = [
+  ...BONUS_REWARDS.map((b) => ({ id: b.id, flag: b.flag })),
+  { id: 'relic_tinubus_broken_seal', flag: SEAL_HOOK, legacyFlag: usedFlag('mill_lever') },
 ];
 
 export const bonusFor = (id: string): BonusReward | undefined => BONUS_REWARDS.find((b) => b.id === id);
@@ -137,10 +152,6 @@ export interface RelicProgress {
   seedSpent: boolean;
   /** The first relic toast has told the player about the Relics tab. */
   introduced: boolean;
-  /** Perfect dodges against the Hollow Giant's current life. */
-  giantDodges: number;
-  /** Bonus progress by keepsake id. */
-  bonus: Record<string, number>;
 }
 
 export const emptyRelics = (): RelicProgress => ({
@@ -149,8 +160,6 @@ export const emptyRelics = (): RelicProgress => ({
   owned: [],
   seedSpent: false,
   introduced: false,
-  giantDodges: 0,
-  bonus: {},
 });
 
 export interface RelicMods {

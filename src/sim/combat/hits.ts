@@ -8,7 +8,7 @@ import { affixedMove } from '../../content/enemyScale';
 import { PERK_EFFECT, SKILL_EFFECT, hasPerk } from '../../content/progression';
 import { STATUS } from '../../content/statuses';
 import { affixAffinity, affixElite } from '../systems/affixes';
-import { blockStaminaMul, notePerfectDodge, noteReflectKill, onRelicParry, rollFrames, tryBriar, tryGuardCounter } from '../systems/relics';
+import { blockStaminaMul, onRelicParry, rollFrames, tryBriar, tryGuardCounter } from '../systems/relics';
 import { charmOf, staffOf } from '../systems/rpg';
 import { rootedMult } from './powers/snare';
 import { applyStatus } from './statuses';
@@ -48,12 +48,10 @@ export interface HitInfo {
   area?: boolean;
   /** The player's staff swing: only these can be a break critical or a backstab. */
   melee?: boolean;
-  /** This projectile has already been parried back. */
+  /** A shot the player parried back. */
   reflected?: boolean;
-  /** Enemy move that fired a projectile. */
+  /** The enemy move that fired a projectile. */
   sourceMove?: string;
-  /** The enemy move that fired it (the quest runtime's name for sourceMove). */
-  source?: string;
 }
 
 export type HitOutcome = 'dodged' | 'parried' | 'blocked' | 'hit';
@@ -190,7 +188,6 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
       tv.mana = Math.min(tv.manaMax, tv.mana + MANA.perfectDodge);
       tc.critNext = true;
       tc.counterUntil = ctx.now + COUNTER.window;
-      notePerfectDodge(ctx, target, attacker);
       ctx.events.push({ type: 'dodgePerfect', entity: target.id, attacker: attacker.id });
     }
     return 'dodged';
@@ -275,11 +272,10 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
     ...(weakSpot > 1 ? { weakSpot: true } : {}),
     ...(strike ? { strike } : {}),
     ...(info.reflected ? { reflected: true } : {}),
-    ...(info.source ? { source: info.source } : {}),
+    ...(info.sourceMove ? { sourceMove: info.sourceMove } : {}),
   });
 
   if (tv.hp <= 0) {
-    if (info.projectile && info.reflected && attacker.progress) noteReflectKill(ctx, attacker, target, info.sourceMove);
     if (target.brain && (tc.poise <= 0 || wasBroken || ta?.kind === 'stagger')) target.brain.wasStaggered = true;
     kill(ctx, target, attacker);
     return 'hit';

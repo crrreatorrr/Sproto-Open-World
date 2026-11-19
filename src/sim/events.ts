@@ -32,9 +32,9 @@ export type SimEvent =
       heavy: boolean;
       pos: Vec3;
       hitstop: number;
-      /** A shot the player parried back. `source` is the enemy move that fired it. */
+      /** A shot the player parried back. `sourceMove` is the enemy move that fired it. */
       reflected?: boolean;
-      source?: string;
+      sourceMove?: string;
       /** It landed on a weak spot (expansion plan §3.3). */
       weakSpot?: boolean;
       /** The first melee hit on a broken enemy, or a melee hit from behind. */

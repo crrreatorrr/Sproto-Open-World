@@ -505,7 +505,6 @@ export class SimWorld {
         owner: owner.id, team: owner.combat!.team, kind: move.kind, damage: move.damage, poise: move.poise, radius: move.projectile.radius,
         life: Math.ceil(move.projectile.range / (sp * DT)), reflected: false, sourceMove: move.id,
         homing: move.projectile.homing, target: move.projectile.homing ? target.id : undefined,
-        move: move.id,
         ...(move.projectile.reflectBonus ? { reflectBonus: { ...move.projectile.reflectBonus, shooter: owner.id } } : {}),
         ...(move.projectile.status ? { status: { ...move.projectile.status } } : {}),
       },

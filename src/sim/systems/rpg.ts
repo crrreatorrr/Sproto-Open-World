@@ -19,7 +19,7 @@ import type { SimEvent } from '../events';
 import type { Vec3 } from '../math';
 import { affixXp } from './affixes';
 import { equipSpell, gearLocked, grantSkillPoints, learnIntoLoadout, respecSkills, spendSkill } from './loadout';
-import { clearRelic, equipRelic, equipTotem, grantKeepsake, holdTotem, onShrineRest, settleRelicBonuses } from './relics';
+import { clearRelic, equipRelic, equipTotem, grantKeepsake, holdTotem, onShrineRest, grantFlagKeepsakes } from './relics';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
 import { startDismount, startMount } from './riding';
 
@@ -266,7 +266,7 @@ export function questTick(ctx: RpgCtx, e: Entity): void {
       }
     }
   }
-  settleRelicBonuses(ctx, e);
+  grantFlagKeepsakes(ctx, e, ctx.world.flags);
 }
 
 const foeIs = (entities: readonly Entity[], id: number, tag: string) => {
@@ -290,7 +290,7 @@ export function countFor(o: Objective, events: readonly SimEvent[], e: Entity, e
         if (o.feat === 'heavyHit' && ev.type === 'hit' && ev.attacker === e.id && ev.heavy) n++;
         else if (o.feat === 'perfectDodge' && ev.type === 'dodgePerfect' && ev.entity === e.id && (!o.against || foeIs(entities, ev.attacker, o.against))) n++;
         else if (o.feat === 'parry' && ev.type === 'parry' && ev.target === e.id) n++;
-        else if (o.feat === 'reflectKill' && ev.type === 'hit' && ev.reflected && ev.attacker === e.id && (!o.against || foeIs(entities, ev.target, o.against)) && (!o.source || ev.source === o.source)) {
+        else if (o.feat === 'reflectKill' && ev.type === 'hit' && ev.reflected && ev.attacker === e.id && (!o.against || foeIs(entities, ev.target, o.against)) && (!o.sourceMove || ev.sourceMove === o.sourceMove)) {
           const fatal = events.some((d) => d.type === 'death' && d.entity === ev.target && d.killer === e.id);
           if (!o.fatal || fatal) n++;
         }

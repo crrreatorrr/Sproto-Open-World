@@ -127,7 +127,7 @@ describe('save migrations (M3 acceptance 2)', () => {
     const s = migrate(structuredClone(v3));
     expect(s.schema).toBe(4);
     // The fixture finished Wake Up, Sproto, whose shrine step gives Elder's Hearth.
-    expect(s.player.relics).toEqual({ sockets: [null, null, null], totem: null, owned: ['totem_elders_hearth'], seedSpent: false, introduced: false, giantDodges: 0, bonus: {} });
+    expect(s.player.relics).toEqual({ sockets: [null, null, null], totem: null, owned: ['totem_elders_hearth'], seedSpent: false, introduced: false });
     const p3 = v3.player as Record<string, unknown>;
     for (const k of ['level', 'xp', 'sprouts', 'equipment', 'inventory', 'spells', 'loadout', 'skills', 'points', 'tonics', 'quests', 'tracked', 'lastShrine', 'discoveredShrines'] as const) {
       expect(s.player[k], k).toEqual(p3[k]);
@@ -168,6 +168,31 @@ describe('save migrations (M3 acceptance 2)', () => {
     };
     const s = migrate({ ...structuredClone(v3), player: { ...p, quests } });
     expect(s.player.relics!.owned).toEqual(['relic_gatekeepers_grip']);
+  });
+
+  it('a save whose bonus flag (or mill lever) is already set owns that keepsake after reconcile', () => {
+    const v4 = fixture('save-v4.json');
+    const world = v4.world as { flags: Record<string, number> };
+    const flagged = (flags: Record<string, number>) => migrate({ ...structuredClone(v4), world: { ...world, flags: { ...world.flags, ...flags } } }).player.relics!.owned;
+    expect(flagged({ 'bonus.q_watchtower.reflect': 1 })).toContain('relic_drowned_coins');
+    expect(flagged({ 'bonus.q_iron_gallery.reflect': 1 })).toContain('relic_elder_iron_rivet');
+    expect(flagged({ 'bonus.q_hollow_giant.dodge': 1 })).toContain('relic_sprotos_stride');
+    expect(flagged({ 'hook.tinubu_seal': 1 })).toContain('relic_tinubus_broken_seal');
+    // A save from before the lever's hook flag: the lever's used flag says it was pulled.
+    expect(flagged({ 'used:mill_lever': 1 })).toContain('relic_tinubus_broken_seal');
+    // Progress toward a bonus is not the bonus.
+    expect(flagged({ 'bonus.q_watchtower.reflect.n': 2 })).not.toContain('relic_drowned_coins');
+    expect(flagged({})).toEqual(['totem_elders_hearth']);
+  });
+
+  it('a v4 save with the old relic feat counters loads, and the counters are dropped', () => {
+    const v4 = fixture('save-v4.json');
+    const p = v4.player as { relics: Record<string, unknown> };
+    const old = { ...structuredClone(v4), player: { ...p, relics: { ...p.relics, giantDodges: 2, bonus: { relic_drowned_coins: 1 } } } };
+    const s = migrate(old);
+    expect(s.player.relics).toEqual(p.relics);
+    expect(s.player.relics).not.toHaveProperty('giantDodges');
+    expect(s.player.relics).not.toHaveProperty('bonus');
   });
 
   it('a fresh save owns no keepsakes', async () => {

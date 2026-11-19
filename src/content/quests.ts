@@ -22,10 +22,10 @@ export type Objective =
   /**
    * Do a combat feat `count` times: land a heavy, perfect-dodge an attack, parry one (M4 drills),
    * or fell something with a reflected shot (`reflectKill`). `against` limits it to that enemy.
-   * `source` is the enemy move the shot came from. `fatal` counts only the shot that kills.
+   * `sourceMove` is the enemy move the shot came from. `fatal` counts only the shot that kills.
    * `perFight` resets the count when that fight ends short of `count`.
    */
-  | { kind: 'feat'; feat: 'heavyHit' | 'perfectDodge' | 'parry' | 'reflectKill'; count: number; against?: string; source?: string; fatal?: boolean; perFight?: boolean };
+  | { kind: 'feat'; feat: 'heavyHit' | 'perfectDodge' | 'parry' | 'reflectKill'; count: number; against?: string; sourceMove?: string; fatal?: boolean; perFight?: boolean };
 
 export type Effect =
   | { give: string; count?: number }
@@ -142,7 +142,7 @@ export const QUESTS: Record<string, QuestDef> = {
       { id: 'hill', text: 'Climb Watchtower Hill.', objectives: [{ kind: 'reach', trigger: 'watchtower_hill' }], marker: 'watchtower_hill' },
       {
         id: 'slingers', text: 'Defeat the Coin Slingers on the hill.', objectives: [{ kind: 'kill', tag: 'slinger', count: 5 }], marker: 'watchtower_hill',
-        bonus: { flag: 'bonus.q_watchtower.reflect', objective: { kind: 'feat', feat: 'reflectKill', count: 3, against: 'slinger', source: 'coinBurst' } },
+        bonus: { flag: 'bonus.q_watchtower.reflect', objective: { kind: 'feat', feat: 'reflectKill', count: 3, against: 'slinger', sourceMove: 'coinBurst' } },
       },
       { id: 'beacon', text: 'Light the beacon.', objectives: [{ kind: 'interact', object: 'watchtower_beacon' }], marker: 'watchtower_beacon' },
       { id: 'rest', text: 'Rest at the Watchtower Shrine.', objectives: [{ kind: 'interact', object: 'shrine_watchtower' }], marker: 'shrine_watchtower' },
@@ -187,7 +187,8 @@ export const QUESTS: Record<string, QuestDef> = {
     kind: 'side',
     steps: [
       { id: 'mill', text: 'Go to the Old Mill across the river.', objectives: [{ kind: 'reach', trigger: 'mill' }], marker: 'mill' },
-      { id: 'coin', text: 'Defeat Big Coin.', objectives: [{ kind: 'kill', tag: 'big_coin', count: 1 }], marker: 'mill', onComplete: [{ give: 'relic_tinubus_broken_seal' }] },
+      { id: 'coin', text: 'Defeat Big Coin.', objectives: [{ kind: 'kill', tag: 'big_coin', count: 1 }], marker: 'mill' },
+      // Pulling it shakes Tinubu's Broken Seal out of the wheel: the `hook.tinubu_seal` flag grants it (sim/systems/relics.ts).
       { id: 'lever', text: 'Pull the mill lever.', objectives: [{ kind: 'interact', object: 'mill_lever' }], marker: 'mill_lever' },
     ],
     rewards: [{ learnSpell: 'chainZap' }, { xp: 200 }, { currency: 50 }],

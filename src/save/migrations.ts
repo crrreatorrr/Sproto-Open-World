@@ -124,9 +124,10 @@ function reconcile(s: SaveFile): SaveFile {
     quests[id] = q.status !== 'active' || fits ? q : { ...q, step, progress: new Array<number>(size).fill(0) };
   }
   const tracked = p.tracked && quests[p.tracked]?.status === 'active' ? p.tracked : null;
-  // Keepsakes come from step onComplete and quest rewards, which never run again for finished work:
-  // a save from before v4 (or before a keepsake was added to a step) is handed what it already won.
-  const relics = reconcileRelics(p.relics ?? emptyRelics(), quests);
+  // Keepsakes come from step onComplete, quest rewards and world flags (bonus feats, the mill lever),
+  // which never fire again for finished work: a save from before v4 (or before a keepsake was added to
+  // a step, or with a bonus flag set before the relics read it) is handed what it already won.
+  const relics = reconcileRelics(p.relics ?? emptyRelics(), quests, s.world.flags);
   return { ...s, player: { ...p, inventory, equipment, quests, tracked, relics } };
 }
 

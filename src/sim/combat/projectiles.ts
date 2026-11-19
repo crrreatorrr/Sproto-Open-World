@@ -66,8 +66,6 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
       // A parried Scrap Throw back into its shooter: a fixed share of its health, and a stagger.
       const bonus = pr.reflected && pr.reflectBonus?.shooter === tgt.id ? pr.reflectBonus : null;
       const hit = info(e, from);
-      if (pr.reflected) hit.reflected = true;
-      if (pr.move) hit.source = pr.move;
       if (bonus?.hpFrac) hit.fixedDamage = tgt.vitals!.hpMax * bonus.hpFrac;
       // A reflected fireball breaks the Drake's stance (expansion plan §3.5).
       if (bonus?.poiseFrac) hit.poise = tgt.combat.poiseMax * bonus.poiseFrac;

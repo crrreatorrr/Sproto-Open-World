@@ -28,7 +28,7 @@ function polish(w: { now: number; entities: Entity[]; world: PolishCtx['world'] 
 
 const hit = (attacker: number, target: number, extra: Partial<Extract<SimEvent, { type: 'hit' }>> = {}): SimEvent => ({
   type: 'hit', attacker, target, move: 'projectile', damage: 9, kind: 'physical', affinity: 'normal', crit: false, heavy: false,
-  pos: { x: 0, y: 1, z: 0 }, hitstop: 3, reflected: true, source: 'coinBurst', ...extra,
+  pos: { x: 0, y: 1, z: 0 }, hitstop: 3, reflected: true, sourceMove: 'coinBurst', ...extra,
 });
 
 describe('pest control waves', () => {
@@ -121,15 +121,15 @@ describe('bonus feats', () => {
     // A hit that is not a reflect does not count, and the gallery bonus wants the killing shot.
     const gun = w.spawnEnemy('rivet_gunner', { x: -3, y: 0, z: 0 });
     p.progress!.quests.q_iron_gallery = { status: 'active', step: QUESTS.q_iron_gallery.steps.findIndex((x) => x.id === 'gunners'), progress: [0, 0] };
-    polish(w, [hit(p.id, gun.id, { reflected: false, source: 'charged_shot' })]);
+    polish(w, [hit(p.id, gun.id, { reflected: false, sourceMove: 'charged_shot' })]);
     expect(w.world.flags[`${BONUS_FLAGS.gallery}.n`] ?? 0).toBe(0);
-    polish(w, [hit(p.id, gun.id, { source: 'charged_shot' })]);
+    polish(w, [hit(p.id, gun.id, { sourceMove: 'charged_shot' })]);
     expect(w.world.flags[`${BONUS_FLAGS.gallery}.n`] ?? 0).toBe(0);
-    polish(w, [hit(p.id, gun.id, { source: 'charged_shot' }), { type: 'death', entity: gun.id, killer: p.id }]);
+    polish(w, [hit(p.id, gun.id, { sourceMove: 'charged_shot' }), { type: 'death', entity: gun.id, killer: p.id }]);
     expect(w.world.flags[`${BONUS_FLAGS.gallery}.n`]).toBe(1);
-    polish(w, [hit(p.id, gun.id, { source: 'rivet_burst' }), { type: 'death', entity: gun.id, killer: p.id }]);
+    polish(w, [hit(p.id, gun.id, { sourceMove: 'rivet_burst' }), { type: 'death', entity: gun.id, killer: p.id }]);
     expect(w.world.flags[`${BONUS_FLAGS.gallery}.n`]).toBe(1);
-    polish(w, [hit(p.id, gun.id, { source: 'charged_shot' }), { type: 'death', entity: gun.id, killer: p.id }]);
+    polish(w, [hit(p.id, gun.id, { sourceMove: 'charged_shot' }), { type: 'death', entity: gun.id, killer: p.id }]);
     expect(w.world.flags[BONUS_FLAGS.gallery]).toBe(1);
     w.dispose();
   });
@@ -188,10 +188,46 @@ describe('pumpkin carriers', () => {
     const b = w.spawnEnemy('grunt_orchard', { x: 4, y: 0, z: 2 });
     a.brain!.carry = 'stolen_pumpkin';
     a.brain!.carryHome = 'stolen_pumpkin';
-    const { dropped } = polish(w, [hit(p.id, a.id, { move: 'light1', reflected: false, source: undefined })]);
+    const { dropped } = polish(w, [hit(p.id, a.id, { move: 'light1', reflected: false, sourceMove: undefined })]);
     expect(dropped.map((d) => d.item)).toEqual(['stolen_pumpkin']);
     expect(a.brain!.carry).toBeUndefined();
     expect(a.brain!.fleeTo).toBe(b.id);
+    w.dispose();
+  });
+});
+
+describe('bonus flags grant the keepsakes (workstream C counts, B grants)', () => {
+  it('the first tick a bonus flag is set, its keepsake is won, once', async () => {
+    const { w, p } = await combatWorld();
+    const gained = (ev: readonly SimEvent[], id: string) => ev.filter((e) => e.type === 'itemGained' && e.item === id).length;
+    expect(gained(step(w), 'relic_drowned_coins')).toBe(0);
+    w.world.flags[`${BONUS_FLAGS.watchtower}.n`] = 2;
+    expect(gained(step(w), 'relic_drowned_coins')).toBe(0);
+    w.world.flags[BONUS_FLAGS.watchtower] = 1;
+    expect(gained(step(w), 'relic_drowned_coins')).toBe(1);
+    expect(gained(step(w), 'relic_drowned_coins')).toBe(0);
+    w.world.flags[BONUS_FLAGS.gallery] = 1;
+    w.world.flags[BONUS_FLAGS.giant] = 1;
+    const ev = step(w);
+    expect(gained(ev, 'relic_elder_iron_rivet')).toBe(1);
+    expect(gained(ev, 'relic_sprotos_stride')).toBe(1);
+    expect(p.progress!.relics!.owned.filter((id) => id === 'relic_drowned_coins')).toHaveLength(1);
+    w.dispose();
+  });
+
+  it('three reflected coins into Slingers, through the real tick, win the Coins', async () => {
+    const { w, p } = await combatWorld();
+    const s = w.spawnEnemy('slinger', { x: 3, y: 0, z: 0 });
+    p.progress!.quests.q_watchtower = { status: 'active', step: QUESTS.q_watchtower.steps.findIndex((x) => x.id === 'slingers'), progress: [0] };
+    let won = 0;
+    for (let i = 0; i < 3; i++) {
+      // A reflected coin connecting, as stepProjectiles reports it, then the rest of the tick.
+      w.events.push(hit(p.id, s.id));
+      polish(w, w.events.splice(0));
+      won += step(w).filter((e) => e.type === 'itemGained' && e.item === 'relic_drowned_coins').length;
+    }
+    expect(w.world.flags[BONUS_FLAGS.watchtower]).toBe(1);
+    expect(won).toBe(1);
     w.dispose();
   });
 });

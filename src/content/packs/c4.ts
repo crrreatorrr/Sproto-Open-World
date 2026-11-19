@@ -317,7 +317,7 @@ export const C4_QUESTS: Record<string, QuestDef> = {
     steps: [
       {
         id: 'gunners', text: 'Destroy 8 Rivet Gunners at the salvage camps.', objectives: [{ kind: 'kill', tag: 'rivet_gunner', count: 8 }], marker: 'salvage_yard_gate',
-        bonus: { flag: 'bonus.q_iron_gallery.reflect', objective: { kind: 'feat', feat: 'reflectKill', count: 2, against: 'rivet_gunner', source: 'charged_shot', fatal: true } },
+        bonus: { flag: 'bonus.q_iron_gallery.reflect', objective: { kind: 'feat', feat: 'reflectKill', count: 2, against: 'rivet_gunner', sourceMove: 'charged_shot', fatal: true } },
       },
       { id: 'rivets', text: 'Collect 5 Rivets from the wrecks.', objectives: [{ kind: 'collect', item: 'rivet', count: 5, consume: true }], marker: 'salvage_yard_gate' },
       { id: 'return', text: 'Bring the Rivets to the Watch Captain.', objectives: [{ kind: 'talk', npc: 'watch_captain', node: 'a3_done' }], marker: 'watch_captain' },

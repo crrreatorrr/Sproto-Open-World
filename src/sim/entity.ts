@@ -519,8 +519,6 @@ export interface Projectile {
   reflectBonus?: { hpFrac: number; stagger: number; shooter: EntityId; poiseFrac?: number; homing?: number };
   /** The enemy move that fired this shot, so a reflected charged_shot can be told from a burst. */
   sourceMove?: string;
-  /** The enemy move that fired it, so a reflected charged shot is not just "a projectile". */
-  move?: string;
 }
 
 /**
