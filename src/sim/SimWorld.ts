@@ -943,6 +943,7 @@ export class SimWorld {
       e.brain.dodges = 0;
       delete e.brain.wasStaggered;
       e.brain.fleeTo = null;
+      delete e.brain.fleeUntil;
       if (e.brain.carryHome) e.brain.carry = e.brain.carryHome;
     }
     delete e.statuses;

@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { ENEMIES } from '../../src/content/enemies';
 import {
-  BIG_COIN_ADD_BELOW, BIG_COIN_ADD_COUNT, BONUS_FLAGS, GATEKEEPER_STRING3_HOLD, PEST_CAMP, PEST_WAVE_SIZE, SCRAPJAW_BITE_HOLD, SCRAPJAW_BITE_WINDUP,
+  BIG_COIN_ADD_BELOW, BIG_COIN_ADD_COUNT, BONUS_FLAGS, GATEKEEPER_STRING3_HOLD, PEST_CAMP, PEST_WAVE_SIZE, PUMPKIN_FLEE_M, PUMPKIN_FLEE_TICKS,
+  SCRAPJAW_BITE_HOLD, SCRAPJAW_BITE_WINDUP,
 } from '../../src/content/packs/encounterTune';
 import { QUESTS } from '../../src/content/quests';
 import type { SimEvent } from '../../src/sim/events';
 import { newFight } from '../../src/sim/ai/tactics';
 import { questPolish, type PolishCtx } from '../../src/sim/systems/encounters';
 import type { Entity } from '../../src/sim/entity';
-import { step } from './combatHelpers';
+import { idle, step } from './combatHelpers';
 import { combatWorld } from './combatHelpers';
 import { bossWorld, startFight, tickAlive, until } from './bossHelpers';
 import { alive, campMembers, flatSproutvale } from './m4Helpers';
@@ -218,12 +219,73 @@ describe('pumpkin carriers', () => {
     const { w, p } = await combatWorld();
     const a = w.spawnEnemy('grunt_orchard', { x: 0, y: 0, z: 2 });
     const b = w.spawnEnemy('grunt_orchard', { x: 4, y: 0, z: 2 });
+    a.brain!.camp = b.brain!.camp = 'orchard_test';
     a.brain!.carry = 'stolen_pumpkin';
     a.brain!.carryHome = 'stolen_pumpkin';
     const { dropped } = polish(w, [hit(p.id, a.id, { move: 'light1', reflected: false, sourceMove: undefined })]);
     expect(dropped.map((d) => d.item)).toEqual(['stolen_pumpkin']);
     expect(a.brain!.carry).toBeUndefined();
     expect(a.brain!.fleeTo).toBe(b.id);
+    expect(a.brain!.fleeUntil).toBe(w.now + PUMPKIN_FLEE_TICKS);
+    w.dispose();
+  });
+
+  it('runs only to the nearest Grunt of its own camp inside the flee range, and stays put when there is none', async () => {
+    const { w, p } = await combatWorld();
+    const carrier = (x: number, camp: string) => {
+      const e = w.spawnEnemy('grunt_orchard', { x, y: 0, z: 2 });
+      e.brain!.camp = camp;
+      return e;
+    };
+    const a = carrier(0, 'orchard_a');
+    const knock = () => {
+      a.brain!.carry = 'stolen_pumpkin';
+      a.brain!.fleeTo = null;
+      polish(w, [hit(p.id, a.id, { move: 'light1', reflected: false, sourceMove: undefined })]);
+      return a.brain!.fleeTo;
+    };
+    // Another camp's Grunt right beside it, its own camp's beyond the range: nowhere to run.
+    carrier(1, 'orchard_b');
+    const far = carrier(PUMPKIN_FLEE_M + 2, 'orchard_a');
+    expect(knock()).toBeNull();
+    // Of two in range, the nearer one.
+    carrier(6, 'orchard_a');
+    const near = carrier(3, 'orchard_a');
+    expect(knock()).toBe(near.id);
+    // A dead one does not count.
+    near.combat!.action = { kind: 'dead', t: 0 };
+    expect(knock()).not.toBe(near.id);
+    expect(knock()).not.toBe(far.id);
+    w.dispose();
+  });
+
+  it('gives up the run at its leash or when the time is up, and the leash brings it home', async () => {
+    // The player well away, so nothing but the run and the leash moves the Grunt.
+    const { w } = await combatWorld({ pos: { x: -60, y: 0, z: -60 } });
+    const a = w.spawnEnemy('grunt_orchard', { x: 0, y: 0, z: 0 });
+    const b = w.spawnEnemy('grunt_orchard', { x: 200, y: 0, z: 0 });
+    a.brain!.camp = b.brain!.camp = 'orchard_a';
+    // Even a stale run to a far ally (an old save, a moved Grunt) ends at the leash.
+    a.brain!.fleeTo = b.id;
+    a.brain!.fleeUntil = w.now + 100_000;
+    const leash = ENEMIES.grunt_orchard.leashRange;
+    let fromHome = 0;
+    for (let i = 0; i < 3000 && a.brain!.fleeTo; i++) {
+      step(w, idle());
+      fromHome = Math.hypot(a.tf.pos.x - a.brain!.home.x, a.tf.pos.z - a.brain!.home.z);
+    }
+    expect(a.brain!.fleeTo).toBeNull();
+    expect(fromHome).toBeLessThan(leash + 1);
+    for (let i = 0; i < 1200 && Math.hypot(a.tf.pos.x, a.tf.pos.z) > 1.5; i++) step(w, idle());
+    expect(Math.hypot(a.tf.pos.x, a.tf.pos.z)).toBeLessThan(1.5);
+    expect(a.brain!.fleeTo).toBeNull();
+
+    // Time up: it stops running even with the ally still ahead.
+    b.tf.pos = { x: 8, y: 0, z: 0 };
+    a.brain!.fleeTo = b.id;
+    a.brain!.fleeUntil = w.now + 5;
+    for (let i = 0; i < 10; i++) step(w, idle());
+    expect(a.brain!.fleeTo).toBeNull();
     w.dispose();
   });
 });

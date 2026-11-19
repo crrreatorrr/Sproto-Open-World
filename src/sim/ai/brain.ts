@@ -333,11 +333,15 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
     e.tf.yaw = turnToward(e.tf.yaw, Math.atan2(dx, dz), def.turnRate * DT);
     ctx.motion.set(e.id, { vx: (dx / d) * speed, vz: (dz / d) * speed, inputScale: 0 });
   };
-  // A pumpkin knocked off its head: it runs to the next Grunt, then fights again.
+  // A pumpkin knocked off its head: it runs to a nearby Grunt of its camp, then fights again. Never
+  // past its leash and never for long: the leash below still brings it home.
   if (b.fleeTo) {
     const to = ctx.get(b.fleeTo);
-    if (!to || to.combat?.action?.kind === 'dead' || flatDist(e.tf.pos, to.tf.pos) < 1.8) b.fleeTo = null;
-    else {
+    const over = ctx.now >= (b.fleeUntil ?? 0) || fromHome > def.leashRange;
+    if (over || !to || to.combat?.action?.kind === 'dead' || flatDist(e.tf.pos, to.tf.pos) < 1.8) {
+      b.fleeTo = null;
+      delete b.fleeUntil;
+    } else {
       go(to.tf.pos.x, to.tf.pos.z, def.moveSpeed * 1.4);
       return;
     }

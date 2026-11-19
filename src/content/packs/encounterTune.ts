@@ -34,6 +34,9 @@ export const LENS_PREVIEW_TICKS = 300;
 
 /** How many Orchard Grunts wear a pumpkin. */
 export const PUMPKIN_CARRIERS = 5;
+/** A carrier whose pumpkin is knocked off runs to the nearest Grunt of its own camp this close (m), for at most this long. */
+export const PUMPKIN_FLEE_M = 10;
+export const PUMPKIN_FLEE_TICKS = 180;
 
 /** Tremors: the quarry rumbles inside this radius (m) of this point while the quest is active. */
 export const TREMOR_AT: readonly [number, number] = [400, 430];

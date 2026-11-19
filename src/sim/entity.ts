@@ -417,8 +417,9 @@ export interface EnemyBrain {
   /** A pumpkin (or similar) worn until a hit knocks it off. `carryHome` comes back with a rest. */
   carry?: string;
   carryHome?: string;
-  /** Running to this ally after the thing it carried was knocked off. */
+  /** Running to this ally (a Grunt of its own camp) after the thing it carried was knocked off, until `fleeUntil`. */
   fleeTo?: EntityId | null;
+  fleeUntil?: number;
   /** The add phase has already been called this life. */
   called?: boolean;
   /** It died staggered, so a stagger-only drop still falls. */
