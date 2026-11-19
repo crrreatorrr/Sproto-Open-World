@@ -97,7 +97,7 @@ export const QUESTS: Record<string, QuestDef> = {
         id: 'seed', text: 'Bring the Sprout Seed to Elder Pepe.', marker: 'elder_pepe',
         objectives: [{ kind: 'collect', item: 'sprout_seed', count: 1, consume: true }, { kind: 'talk', npc: 'elder_pepe', node: 'seed_return' }],
       },
-      { id: 'shrine', text: 'Rest at the Shrine of First Light.', objectives: [{ kind: 'interact', object: 'shrine_first_light' }], marker: 'shrine_first_light' },
+      { id: 'shrine', text: 'Rest at the Shrine of First Light.', objectives: [{ kind: 'interact', object: 'shrine_first_light' }], marker: 'shrine_first_light', onComplete: [{ give: 'totem_elders_hearth' }] },
     ],
     rewards: [{ xp: 60 }, { currency: 20 }],
   },
@@ -111,7 +111,7 @@ export const QUESTS: Record<string, QuestDef> = {
     prereq: [{ quest: 'q_wake_up', status: 'complete' }],
     steps: [
       { id: 'orchard', text: 'Go west to the Orchard Fields.', objectives: [{ kind: 'reach', trigger: 'orchard_fields' }], marker: 'orchard_fields' },
-      { id: 'grunts', text: 'Drive off the Grunts in the Orchard.', objectives: [{ kind: 'kill', tag: 'grunt', count: 8 }], marker: 'orchard_fields' },
+      { id: 'grunts', text: 'Drive off the Grunts in the Orchard.', objectives: [{ kind: 'kill', tag: 'grunt', count: 8 }], marker: 'orchard_fields', onComplete: [{ give: 'totem_field_warden' }] },
       { id: 'farmer', text: 'Tell Farmer Broccoli the fields are clear.', objectives: [{ kind: 'talk', npc: 'farmer_broccoli', node: 'pest_done' }], marker: 'farmer_broccoli' },
     ],
     rewards: [{ learnSpell: 'blast' }, { xp: 180 }, { currency: 40 }],
@@ -143,11 +143,11 @@ export const QUESTS: Record<string, QuestDef> = {
         id: 'gatekeeper', text: 'Defeat the Gatekeeper.', objectives: [{ kind: 'kill', tag: 'gatekeeper', count: 1 }], marker: 'thornwood_clearing',
         // The key and the robe are given, not dropped: a drop could fade before you pick it up, and
         // the Gatekeeper never comes back.
-        onComplete: [{ give: 'quarry_key' }, { give: 'robe_quarryproof' }],
+        onComplete: [{ give: 'quarry_key' }, { give: 'robe_quarryproof' }, { give: 'relic_gatekeepers_grip' }],
       },
       { id: 'key', text: 'Take the Quarry Key.', objectives: [{ kind: 'collect', item: 'quarry_key', count: 1 }], marker: 'thornwood_clearing' },
     ],
-    rewards: [{ xp: 450 }, { setFlag: 'gate.quarry.key' }],
+    rewards: [{ xp: 450 }, { setFlag: 'gate.quarry.key' }, { give: 'relic_drowned_coins' }],
   },
 
   // ---- M4: side quests (plan §6.3) ----
@@ -169,7 +169,7 @@ export const QUESTS: Record<string, QuestDef> = {
     kind: 'side',
     steps: [
       { id: 'mill', text: 'Go to the Old Mill across the river.', objectives: [{ kind: 'reach', trigger: 'mill' }], marker: 'mill' },
-      { id: 'coin', text: 'Defeat Big Coin.', objectives: [{ kind: 'kill', tag: 'big_coin', count: 1 }], marker: 'mill' },
+      { id: 'coin', text: 'Defeat Big Coin.', objectives: [{ kind: 'kill', tag: 'big_coin', count: 1 }], marker: 'mill', onComplete: [{ give: 'relic_tinubus_broken_seal' }] },
       { id: 'lever', text: 'Pull the mill lever.', objectives: [{ kind: 'interact', object: 'mill_lever' }], marker: 'mill_lever' },
     ],
     rewards: [{ learnSpell: 'chainZap' }, { xp: 200 }, { currency: 50 }],
@@ -184,7 +184,7 @@ export const QUESTS: Record<string, QuestDef> = {
         id: 'relics', text: 'Find the three relic chests: by the mill waterfall, under the Thornwood root arch, at the Beanstalk.',
         objectives: [{ kind: 'interact', object: 'relic_mill' }, { kind: 'interact', object: 'relic_rootarch' }, { kind: 'interact', object: 'relic_beanstalk' }],
       },
-      { id: 'return', text: 'Tell Collector Pepe what you found.', objectives: [{ kind: 'talk', npc: 'collector_pepe', node: 'relics_done' }], marker: 'collector_pepe' },
+      { id: 'return', text: 'Tell Collector Pepe what you found.', objectives: [{ kind: 'talk', npc: 'collector_pepe', node: 'relics_done' }], marker: 'collector_pepe', onComplete: [{ give: 'totem_seekers_lantern' }] },
     ],
     rewards: [{ give: 'staff_moonward' }, { give: 'charm_scholars_knot' }, { xp: 300 }],
   },

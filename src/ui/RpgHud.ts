@@ -186,8 +186,9 @@ export class RpgHud {
   }
 
   private trackerState(q: QuestLine | null): void {
+    const mark = q?.mark ? `<span class="quest-mark" title="Something waits on this quest."><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v18H7z" fill="none" stroke="currentColor" stroke-width="2"/></svg></span>` : '';
     const html = q
-      ? `<div class="title">${esc(q.title)}</div><div class="step">${esc(q.step)}</div>${q.lines.map((l) => `<div class="obj${l.done ? ' done' : ''}">${esc(l.text)}</div>`).join('')}`
+      ? `<div class="title">${mark}${esc(q.title)}</div><div class="step">${esc(q.step)}</div>${q.lines.map((l) => `<div class="obj${l.done ? ' done' : ''}">${esc(l.text)}</div>`).join('')}`
       : '';
     if (html === this.last.tracker) return;
     this.last.tracker = html;

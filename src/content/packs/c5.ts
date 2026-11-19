@@ -176,6 +176,7 @@ export const C5_QUESTS: Record<string, QuestDef> = {
       {
         id: 'shrines', text: 'Lay a hand on the three shrines: First Light, the Watchtower and the Quarry Gate.',
         objectives: [{ kind: 'interact', object: 'shrine_first_light' }, { kind: 'interact', object: 'shrine_watchtower' }, { kind: 'interact', object: 'shrine_quarry_gate' }],
+        onComplete: [{ give: 'totem_elders_seed' }],
       },
       { id: 'return', text: 'Tell Elder Pepe the shrines are awake.', objectives: [{ kind: 'talk', npc: 'elder_pepe', node: 'a5_done' }], marker: 'elder_pepe' },
     ],
@@ -193,7 +194,7 @@ export const C5_QUESTS: Record<string, QuestDef> = {
         id: 'miners', text: 'Ask the three quarry miners about the tremors.', marker: 'miner_bram',
         objectives: [{ kind: 'talk', npc: 'miner_bram', node: 'a8_bram' }, { kind: 'talk', npc: 'miner_ketta', node: 'a8_ketta' }, { kind: 'talk', npc: 'miner_odo', node: 'a8_odo' }],
       },
-      { id: 'seam', text: 'Go down the ramp into the Deep Seam.', objectives: [{ kind: 'reach', trigger: 'deep_seam' }], marker: 'deep_seam' },
+      { id: 'seam', text: 'Go down the ramp into the Deep Seam.', objectives: [{ kind: 'reach', trigger: 'deep_seam' }], marker: 'deep_seam', onComplete: [{ give: 'totem_earthspeaker_stake' }] },
     ],
     rewards: [{ give: 'charm_seam_lamp' }, { xp: 900 }, { currency: 80 }, { startQuest: 'q_deep_seam' }],
   },
@@ -211,7 +212,7 @@ export const C5_QUESTS: Record<string, QuestDef> = {
       },
       {
         id: 'boss', text: 'Defeat the Burrowmother.', objectives: [{ kind: 'kill', tag: 'burrowmother', count: 1 }], marker: 'deep_seam_floor',
-        onComplete: [{ setFlag: 'boss.burrowmother.dead' }, { skillPoints: 1 }],
+        onComplete: [{ setFlag: 'boss.burrowmother.dead' }, { skillPoints: 1 }, { give: 'relic_deepbreath_bellows' }],
       },
     ],
     rewards: [{ learnSpell: 'emberBreath' }, { give: 'robe_moleskin' }, { xp: 1000 }, { currency: 250 }],

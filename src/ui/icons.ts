@@ -23,6 +23,31 @@ const BLOOM = svg(`<circle cx="12" cy="12" r="2.600" fill="currentColor"/><circl
 const BREATH = svg(`<path d="M2 12l9-5.500v11z" fill="currentColor"/><path d="M14 6c2 2 1 4 3 6-2 2-1 4-3 6M19 5c2 4 2 10 0 14" ${line}/>`);
 const SURGE = svg(`<path d="M12 21v-9" ${line}/><path d="M12 12c0-4-3-7-8-7 0 4 3 7 8 7zM12 12c0-4 3-7 8-7 0 4-3 7-8 7z" fill="currentColor"/><path d="M2 21h20M6 17.500H3M21 17.500h-3" ${line}/>`);
 
+const keep = (body: string) => svg(body);
+const kLine = 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+
+/** 24×24 silhouettes for the 18 keepsakes. 128 px colour art is a separate master. */
+export const KEEPSAKE_ICONS: Record<string, string> = {
+  relic_drowned_coins: keep(`<circle cx="8" cy="14" r="3.2" ${kLine}/><circle cx="12.2" cy="10.5" r="3.2" ${kLine}/><circle cx="16" cy="14.5" r="3.2" ${kLine}/>`),
+  relic_gatekeepers_grip: keep(`<path d="M7 16c0-4 2-6 5-6s5 2 5 6v3H7z" ${kLine}/><path d="M8 10V8M12 10V7M16 10V8" ${kLine}/>`),
+  relic_hopeglass: keep(`<path d="M8 3h8M8 21h8M9 4l3 7-3 7M15 4l-3 7 3 7" ${kLine}/>`),
+  relic_sprotos_stride: keep(`<ellipse cx="8" cy="14" rx="3" ry="5" ${kLine}/><ellipse cx="16" cy="14" rx="3" ry="5" ${kLine}/>`),
+  relic_tinubus_broken_seal: keep(`<circle cx="11" cy="11" r="5" ${kLine}/><path d="M8 14l6-6M14 16l6 4" ${kLine}/>`),
+  relic_oracles_eye: keep(`<circle cx="12" cy="12" r="7" ${kLine}/><circle cx="12" cy="12" r="3" ${kLine}/>`),
+  relic_deepbreath_bellows: keep(`<path d="M6 16c0-6 4-10 8-10 3 4 2 8 0 10H6z" ${kLine}/><path d="M14 8c3 1 5 2 6 4" ${kLine}/>`),
+  relic_elder_iron_rivet: keep(`<path d="M12 4l3 3-3 2-3-2zM12 9v10" ${kLine}/><path d="M9 19h6" ${kLine}/>`),
+  relic_surgebriar: keep(`<path d="M7 18c2-6 8-6 10 0" ${kLine}/><path d="M8 12l-2-3M12 10V6M16 12l2-3" ${kLine}/>`),
+  relic_drakeplume: keep(`<path d="M6 20c4-2 8-8 12-16-4 2-8 8-12 16z" ${kLine}/>`),
+  totem_elders_hearth: keep(`<ellipse cx="12" cy="15" rx="7" ry="3.5" ${kLine}/><circle cx="12" cy="14" r="1.6" fill="currentColor"/>`),
+  totem_field_warden: keep(`<path d="M6 9h12l-2 3H8zM12 12v8M9 20h6" ${kLine}/>`),
+  totem_seekers_lantern: keep(`<path d="M9 6h6l1 3H8zM8 9h8v8l-4 3-4-3zM12 3v3" ${kLine}/>`),
+  totem_turnstone: keep(`<path d="M9 20V7l3-3 3 3v13" ${kLine}/>`),
+  totem_elders_seed: keep(`<circle cx="12" cy="14" r="4" ${kLine}/><path d="M12 10V5M12 6c2-1 3-2 3-3" ${kLine}/>`),
+  totem_earthspeaker_stake: keep(`<path d="M12 3v14M8 20h8M7 16c2 1 3 1 5 0s3-1 5 0" ${kLine}/>`),
+  totem_ember_quench_pail: keep(`<path d="M8 8h8l-1 12H9zM7 8h10" ${kLine}/>`),
+  totem_skylure_post: keep(`<path d="M12 21V6M12 8c4-1 6-1 7 1M12 12c-4 0-6 1-7 2" ${kLine}/>`),
+};
+
 export const ICONS = {
   physical: SWORD,
   arcane: RUNE,

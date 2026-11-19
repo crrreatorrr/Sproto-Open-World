@@ -8,6 +8,7 @@ import type { Vec3 } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { bodySegment, flatDist, segmentSegmentDistSq } from './geometry';
 import { resolveHit, type HitInfo } from './hits';
+import { turnstoneReady, turnstoneSpent } from '../systems/relics';
 import type { CombatCtx } from './playerCombat';
 import { wardProjectile } from './powers/mirrorWard';
 import { snareHit } from './powers/snare';
@@ -24,6 +25,7 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
   for (const e of ctx.entities) {
     const pr = e.projectile;
     if (!pr) continue;
+    if (ctx.frozen.has(e.id)) continue;
     if (pr.homing && pr.target !== undefined) steer(e, ctx.get(pr.target));
     const from = { ...e.tf.pos };
     const to = { x: from.x + e.tf.vel.x * DT, y: from.y + e.tf.vel.y * DT, z: from.z + e.tf.vel.z * DT };
@@ -32,6 +34,16 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
     if (ward === 'blocked') {
       dead.push(e.id);
       continue;
+    }
+    // Turnstone turns one shot, and stays quiet while Mirror Ward is already doing it.
+    if (!pr.reflected && pr.team === 'enemy' && !ward) {
+      const stone = turnstoneReady(ctx.entities, from, ctx.now, false);
+      if (stone) {
+        const coop = ctx.entities.filter((p) => p.kind === 'player').length > 1;
+        turnstoneSpent(stone, ctx.now, coop);
+        reflect(e, stone, ctx);
+        continue;
+      }
     }
     const seg = { x: to.x - from.x, y: to.y - from.y, z: to.z - from.z };
     const segLen = Math.hypot(seg.x, seg.y, seg.z);
@@ -96,6 +108,7 @@ function info(e: Entity, from: Vec3): HitInfo {
   return {
     move: pr.spell ?? 'projectile', base: pr.damage, kind: pr.kind, poise: pr.poise, hitstun: pr.knockdown ? 45 : 18, knockdown: !!pr.knockdown,
     pushback: pr.knockdown ? 1.5 : 0.4, hitstop: pr.spell ? 0 : 3, unblockable: !!pr.spell, heavy: !!pr.explode, crit: false, mana: 0, from, projectile: true,
+    reflected: pr.reflected, sourceMove: pr.sourceMove,
   };
 }
 

@@ -187,7 +187,7 @@ export class Hud {
   private readonly counterTime: HTMLElement;
   /** The ticks the prompt on screen started with: its timer bar's full length. */
   private counterFull = 0;
-  private toastQueue: string[] = [];
+  private toastQueue: { text: string; rarity?: string; icon?: string }[] = [];
   private toastLeft = 0;
   private last = '';
   private lastEnemyName = '';
@@ -364,9 +364,9 @@ export class Hud {
   }
 
   /** A one-line explanation under the top of the screen, shown for a few seconds; they queue. */
-  toast(text: string): void {
-    if (this.toastQueue.includes(text)) return;
-    this.toastQueue.push(text);
+  toast(text: string, extra?: { rarity?: string; icon?: string }): void {
+    if (this.toastQueue.some((t) => t.text === text)) return;
+    this.toastQueue.push({ text, ...extra });
     if (this.toastLeft <= 0) this.nextToast();
   }
 
@@ -485,7 +485,11 @@ export class Hud {
   private nextToast(): void {
     const t = this.toastQueue.shift();
     if (!t) return;
-    this.toastEl.textContent = t;
+    this.toastEl.classList.remove('rare', 'epic');
+    if (t.icon) {
+      this.toastEl.innerHTML = `<span class="relic-art">${t.icon}</span>${t.text}`;
+      if (t.rarity) this.toastEl.classList.add(t.rarity);
+    } else this.toastEl.textContent = t.text;
     this.toastLeft = TOAST_SEC;
     restartClass(this.toastEl, 'active');
   }

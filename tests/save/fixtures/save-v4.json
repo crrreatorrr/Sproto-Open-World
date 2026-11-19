@@ -1,0 +1,36 @@
+{
+  "schema": 4,
+  "savedAt": "2026-11-17T12:00:00.000Z",
+  "build": "c1",
+  "region": "sproutvale",
+  "player": {
+    "level": 3,
+    "xp": 240,
+    "skills": { "spellPower": 2, "protection": 0, "focus": 1, "attack": 0, "defense": 0, "stamina": 0 },
+    "points": 1,
+    "sprouts": 35,
+    "equipment": { "staff": "staff_sproto", "robe": "robe_apprentice", "charm": "charm_second_wind" },
+    "inventory": { "staff_sproto": 1, "robe_apprentice": 1, "charm_second_wind": 1 },
+    "spells": ["bolt", "blast", "frostNova"],
+    "loadout": ["frostNova", "bolt", null, "blast"],
+    "tonics": { "charges": 2, "max": 4 },
+    "quests": { "q_wake_up": { "status": "complete", "step": 5, "progress": [] } },
+    "tracked": null,
+    "lastShrine": "shrine_first_light",
+    "discoveredShrines": ["shrine_first_light", "shrine_watchtower"],
+    "relics": {
+      "sockets": [null, null, null],
+      "totem": null,
+      "owned": [],
+      "seedSpent": false,
+      "introduced": false,
+      "giantDodges": 0,
+      "bonus": {}
+    }
+  },
+  "world": {
+    "flags": { "bought:merchant_village:charm_second_wind": 1 },
+    "openedChests": ["chest_training"],
+    "killedUniques": []
+  }
+}

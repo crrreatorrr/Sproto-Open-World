@@ -411,6 +411,11 @@ export class ChestView implements EntityView {
     this.glint.material.opacity = (1 - this.open) * (0.3 + 0.25 * Math.sin(this.t * 3));
   }
 
+  /** Seeker's Lantern: a brighter twinkle on a chest inside its shimmer. */
+  shimmer(): void {
+    this.glint.material.opacity = Math.min(1, this.glint.material.opacity + 0.5);
+  }
+
   dispose(): void {
     this.slot.dispose();
     for (const m of this.mats) m.dispose();

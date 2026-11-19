@@ -1,7 +1,9 @@
 import { ITEMS, STARTING_GEAR } from '../content/items';
+import { emptyRelics } from '../content/relics';
 import { LEVEL_CAP, SKILL_IDS, SKILL_MAX_RANK, pointsForLevel } from '../content/progression';
 import { QUESTS } from '../content/quests';
 import { LOADOUT_SLOTS, SPELLS } from '../content/spells';
+import { reconcileRelics, validRelicProgress } from '../sim/systems/relics';
 import { SAVE_SCHEMA, type SaveFile } from './schema';
 
 /**
@@ -12,6 +14,7 @@ import { SAVE_SCHEMA, type SaveFile } from './schema';
  *   v2: `player.tonics: { charges, max }`, `tracked`, `discoveredShrines`.
  *   v3 (C1): `player.loadout` (4 spell slots) and `player.skills` (the skill tree) replace
  *       `player.attrs`; `points` are skill points (2 per level-up).
+ *   v4: `player.relics` (3 relic sockets, 1 totem, the keepsakes won). Old saves own none.
  */
 type Raw = Record<string, unknown> & { schema?: unknown };
 
@@ -44,6 +47,11 @@ const STEPS: Record<number, (s: Raw) => Raw> = {
     const oldTotal = Object.values(from).reduce((a, b) => a + b, 0) + (typeof player.points === 'number' ? player.points : 0);
     player.points = Math.max(pointsForLevel(level), oldTotal) - spent;
     return { ...s, schema: 3, player };
+  },
+  3: (s) => {
+    const player = { ...(s.player as Record<string, unknown>) };
+    player.relics = emptyRelics();
+    return { ...s, schema: 4, player };
   },
 };
 
@@ -78,6 +86,7 @@ function validate(s: Raw): SaveFile {
     validSkills(p.skills) && validSpells(p.spells) && validLoadout(p.loadout, p.spells) && isTable(p.equipment) &&
     isTable(p.inventory) && Object.values(p.inventory).every(isCount) && isTable(p.quests) &&
     isTable(p.tonics) && isCount(p.tonics.charges) && isCount(p.tonics.max) && Array.isArray(p.discoveredShrines) &&
+    validRelicProgress(p.relics) &&
     isTable(w.flags) && Array.isArray(w.openedChests) && Array.isArray(w.killedUniques);
   if (!ok) throw new SaveError('missing fields');
   return s as unknown as SaveFile;
@@ -114,7 +123,8 @@ function reconcile(s: SaveFile): SaveFile {
     quests[id] = q.status !== 'active' || fits ? q : { ...q, step, progress: new Array<number>(size).fill(0) };
   }
   const tracked = p.tracked && quests[p.tracked]?.status === 'active' ? p.tracked : null;
-  return { ...s, player: { ...p, inventory, equipment, quests, tracked } };
+  const relics = reconcileRelics(p.relics ?? emptyRelics());
+  return { ...s, player: { ...p, inventory, equipment, quests, tracked, relics } };
 }
 
 /** Every skill present, an integer rank 0–10. */

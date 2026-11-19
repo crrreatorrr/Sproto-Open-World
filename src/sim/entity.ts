@@ -1,6 +1,7 @@
 import type { DamageKind, PlayerMoveId } from '../content/combat';
 import type { AffixId } from '../content/packs/c4';
 import type { SkillRanks } from '../content/progression';
+import type { RelicProgress } from '../content/relics';
 import type { QuestState } from '../content/quests';
 import type { SpellId } from '../content/spells';
 import type { StatusId } from '../content/statuses';
@@ -123,6 +124,8 @@ export interface Buffered {
   ttl: number;
   /** Pressed after the current attack's activeStart: held until its cancel opens. */
   untilCancel: boolean;
+  /** Tinubu's Broken Seal has already lengthened this press. */
+  relic?: true;
 }
 
 export interface Combat {
@@ -202,6 +205,40 @@ export interface Progress {
   shop: string | null;
   /** At a shrine (Rest / Skills menu): which one. */
   atShrine: string | null;
+  /** Relic sockets, the totem, and what has been won. Absent on a progress built before that save. */
+  relics?: RelicProgress;
+}
+
+/** Session clocks for relics. Not saved: a load starts them over. */
+export interface RelicRuntime {
+  hopeglassUntil: number;
+  hopeglassReadyAt: number;
+  /** Co-op Hopeglass: freeze until this tick instead of slowing the world. */
+  coopFreezeUntil: number;
+  rivetReadyAt: number;
+  briarReadyAt: number;
+  burnImmuneUntil: number;
+  holdTicks: number;
+  totemReadyAt: number;
+  lanternUntil: number;
+  lanternAt?: { x: number; z: number };
+  /** comboUntil last seen, so the Seal lengthens each new chain once. */
+  chainSeen: number;
+}
+
+/** A totem standing in the world. Age is in ticks; it fades over its last 2 s. */
+export interface PlacedTotem {
+  id: string;
+  age: number;
+  life: number;
+  x: number;
+  y: number;
+  z: number;
+  drawn: boolean;
+  reflectAt: number;
+  splashed: boolean;
+  lured: boolean;
+  seeded: boolean;
 }
 
 /** World flags and per-session world state (plan §2.8). */
@@ -361,6 +398,12 @@ export interface EnemyBrain {
   affix?: AffixId;
   /** Called in by a boss: gone for good once dead, and gone when the fight resets. */
   summoned?: boolean;
+  /** Field Warden: walk here until this tick. */
+  lure?: { x: number; z: number; until: number };
+  /** Earthspeaker Stake: movement multiplier (1 when it isn't pulling). */
+  speedMul?: number;
+  /** Skylure Post: glide low until this tick. */
+  lowUntil?: number;
 }
 
 /** A boss fight in progress (plan §4.10). Lives on the boss, so snapshots and hashes carry it. */
@@ -376,6 +419,8 @@ export interface BossState {
   summoned: boolean;
   /** Underground (dormant, or mid-burrow): nothing can touch it, and it has no collider. */
   under?: boolean;
+  /** Skylure Post already pulled this boss down in this phase. */
+  skylurePhase?: number;
   /** A boss that flies (the Skyfire Drake): where it is in the air. */
   flight?: DrakeFlight;
 }
@@ -452,6 +497,8 @@ export interface Projectile {
   woven?: boolean;
   /** Parried back into `shooter`: takes this fraction of its max HP and staggers it (Scrap Throw). */
   reflectBonus?: { hpFrac: number; stagger: number; shooter: EntityId; poiseFrac?: number; homing?: number };
+  /** The enemy move that fired this shot, so a reflected charged_shot can be told from a burst. */
+  sourceMove?: string;
 }
 
 /**
@@ -488,6 +535,10 @@ export interface Entity {
    * colliders are built (M4 camps, villagers, objects). Cleared once settled.
    */
   settle?: true;
+  /** Session relic clocks (Hopeglass, cooldowns). Not part of the save. */
+  relicRun?: RelicRuntime;
+  /** The totem this player has standing in the world. */
+  placedTotem?: PlacedTotem;
   /** Presentation hint only: which model to draw. */
   view: { model: string; tint?: number; scale?: number };
 }

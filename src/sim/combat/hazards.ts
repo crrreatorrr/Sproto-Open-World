@@ -2,7 +2,8 @@ import { STATUS } from '../../content/statuses';
 import type { Entity } from '../entity';
 import { flatDist } from './geometry';
 import { resolveHit } from './hits';
-import { iframes, type CombatCtx } from './playerCombat';
+import { inRollFrames } from '../systems/relics';
+import type { CombatCtx } from './playerCombat';
 import { applyStatus } from './statuses';
 
 /** Standing in fire tops the Burn back up once it has burned down to this many ticks. */
@@ -20,7 +21,7 @@ export function stepHazards(ctx: CombatCtx): number[] {
   const gone: number[] = [];
   for (const e of ctx.entities) {
     const h = e.hazard;
-    if (!h) continue;
+    if (!h || ctx.frozen.has(e.id)) continue;
     const owner = ctx.get(h.owner);
     if (!owner || owner.combat?.action?.kind === 'dead' || --h.life <= 0) {
       gone.push(e.id);
@@ -33,7 +34,7 @@ export function stepHazards(ctx: CombatCtx): number[] {
     }
     for (const p of ctx.entities) {
       if (p.kind !== 'player' || p.combat?.action?.kind === 'dead' || !inReach(p, e, h.radius)) continue;
-      if (iframes(p.combat?.action ?? null)) continue;
+      if (p.combat?.action?.kind === 'blink' || (p.combat?.action?.kind === 'dodge' && inRollFrames(p, p.combat.action))) continue;
       const burn = p.statuses?.burn;
       if (!burn || burn.ticks < BURN_REFRESH_BELOW) applyStatus(ctx, p, 'burn', 1, owner.id);
     }

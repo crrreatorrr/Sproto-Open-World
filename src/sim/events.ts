@@ -76,7 +76,10 @@ export type SimEvent =
   | { type: 'xp'; entity: EntityId; amount: number; total: number }
   /** `points`: skill points this level-up gave. */
   | { type: 'levelUp'; entity: EntityId; level: number; points: number }
-  | { type: 'itemGained'; entity: EntityId; item: string; count: number }
+  | { type: 'itemGained'; entity: EntityId; item: string; count: number; keepsake?: { kind: 'relic' | 'totem'; first: boolean; text: string } }
+  | { type: 'relicEquipped'; entity: EntityId; item: string | null; socket: number }
+  | { type: 'totemEquipped'; entity: EntityId; item: string | null; swapped: boolean }
+  | { type: 'totemPlaced'; entity: EntityId; item: string; pos: Vec3 }
   | { type: 'currency'; entity: EntityId; amount: number; total: number }
   | { type: 'equip'; entity: EntityId; item: string; slot: 'staff' | 'robe' | 'charm' }
   | { type: 'bought'; entity: EntityId; merchant: string; item: string; price: number }

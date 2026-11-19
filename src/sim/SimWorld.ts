@@ -38,6 +38,7 @@ import { stepHazards } from './combat/hazards';
 import { bossArena, bossEngaged, newBossState, type BossHost } from './systems/boss';
 import { locomotion } from './systems/locomotion';
 import { gearLocked, markTargeted } from './systems/loadout';
+import { relicSlowTick } from './systems/relics';
 import { mountCalls, MOUNT_RUNNER } from './systems/mountCall';
 import { cancelMount, followRiders, ridingMotion } from './systems/riding';
 import { vitals } from './systems/vitals';
@@ -485,7 +486,7 @@ export class SimWorld {
       tf: { pos: from, prevPos: { ...from }, yaw: owner.tf.yaw, prevYaw: owner.tf.yaw, vel: { x: (d.x / len) * sp, y: (d.y / len) * sp, z: (d.z / len) * sp } },
       projectile: {
         owner: owner.id, team: owner.combat!.team, kind: move.kind, damage: move.damage, poise: move.poise, radius: move.projectile.radius,
-        life: Math.ceil(move.projectile.range / (sp * DT)), reflected: false,
+        life: Math.ceil(move.projectile.range / (sp * DT)), reflected: false, sourceMove: move.id,
         homing: move.projectile.homing, target: move.projectile.homing ? target.id : undefined,
         ...(move.projectile.reflectBonus ? { reflectBonus: { ...move.projectile.reflectBonus, shooter: owner.id } } : {}),
         ...(move.projectile.status ? { status: { ...move.projectile.status } } : {}),
@@ -717,6 +718,8 @@ export class SimWorld {
         frozen.add(e.id);
       }
     }
+    // Hopeglass: solo play skips every other tick; co-op adds a short freeze instead of slowing time.
+    if (relicSlowTick(this.entities, this.now)) for (const e of this.entities) frozen.add(e.id);
     // RPG intents and interact / potion presses first. A player in a menu or talking sends no
     // gameplay input this tick.
     const rpg: RpgCtx = {
@@ -728,7 +731,7 @@ export class SimWorld {
       // Hit-stop freezes combat, not menus: intents and interact/potion presses still apply.
       if (!e.progress || e.owner === undefined) continue;
       const cmd = commands.get(e.owner);
-      const busy = playerRpg(rpg, e, cmd?.pressed ?? 0, cmd?.ui ?? [], this.chests);
+      const busy = playerRpg(rpg, e, cmd?.pressed ?? 0, cmd?.ui ?? [], this.chests, cmd?.held ?? 0);
       if (busy) effective.set(e.owner, { ...idleInput(cmd?.camYaw ?? e.tf.yaw) });
     }
     commands = effective;
@@ -753,7 +756,7 @@ export class SimWorld {
     for (const { entity, source } of tickStatuses(ctx)) {
       if (entity.combat?.action?.kind !== 'dead') kill(ctx, entity, this.byId.get(source) ?? null);
     }
-    vitals(this.entities, frozen);
+    vitals(this.entities, frozen, this.now);
     // Kills feed XP and loot; then pickups, triggers and the quest runtime see this tick's events.
     for (const ev of [...this.events]) {
       if (ev.type !== 'death' || ev.killer === null) continue;

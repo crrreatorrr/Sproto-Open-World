@@ -184,6 +184,7 @@ export const C6_QUESTS: Record<string, QuestDef> = {
       {
         id: 'hay', text: 'Douse the 5 burning haystacks around the Orchard.', marker: 'orchard_fields',
         objectives: HAY.map((_, i) => ({ kind: 'interact' as const, object: hayId(i) })),
+        onComplete: [{ give: 'totem_ember_quench_pail' }],
       },
       { id: 'return', text: 'Tell Farmer Broccoli the fires are out.', objectives: [{ kind: 'talk', npc: 'farmer_broccoli', node: 'a10_done' }], marker: 'farmer_broccoli' },
     ],
@@ -198,7 +199,7 @@ export const C6_QUESTS: Record<string, QuestDef> = {
     prereq: [{ questDone: 'q_smoke_hills' }],
     steps: [
       { id: 'decoys', text: 'Collect the 3 Sheep Decoys set out around the Orchard.', objectives: [{ kind: 'collect', item: 'sheep_decoy', count: 3, consume: true }], marker: 'orchard_fields' },
-      { id: 'post', text: 'Set the decoys on the bait post in the open field.', objectives: [{ kind: 'interact', object: 'drake_bait_post' }], marker: 'drake_bait_post' },
+      { id: 'post', text: 'Set the decoys on the bait post in the open field.', objectives: [{ kind: 'interact', object: 'drake_bait_post' }], marker: 'drake_bait_post', onComplete: [{ give: 'totem_skylure_post' }] },
     ],
     rewards: [{ give: 'charm_drake_scale' }, { xp: 400 }, { startQuest: 'q_skyfire' }],
   },
@@ -212,7 +213,7 @@ export const C6_QUESTS: Record<string, QuestDef> = {
     steps: [
       {
         id: 'boss', text: 'Bring down the Skyfire Drake over the Orchard.', objectives: [{ kind: 'kill', tag: 'skyfire_drake', count: 1 }], marker: 'drake_arena',
-        onComplete: [{ setFlag: 'boss.drake.dead' }, { skillPoints: 1 }],
+        onComplete: [{ setFlag: 'boss.drake.dead' }, { skillPoints: 1 }, { give: 'relic_drakeplume' }],
       },
       { id: 'elder', text: 'Tell Elder Pepe the sky is clear.', objectives: [{ kind: 'talk', npc: 'elder_pepe', node: 'a12_return' }], marker: 'elder_pepe' },
     ],

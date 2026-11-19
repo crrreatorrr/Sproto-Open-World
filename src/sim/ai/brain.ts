@@ -83,6 +83,19 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
       continue;
     }
 
+    // Field Warden: ordinary enemies walk to the straw figure instead of the player.
+    const lure = b.lure;
+    if (lure && ctx.now >= lure.until) delete b.lure;
+    else if (lure && a?.kind !== 'attack') {
+      const dx = lure.x - e.tf.pos.x, dz = lure.z - e.tf.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 0.4) {
+        e.tf.yaw = turnToward(e.tf.yaw, Math.atan2(dx, dz), def.turnRate * DT);
+        ctx.motion.set(e.id, { vx: (dx / d) * def.moveSpeed, vz: (dz / d) * def.moveSpeed, inputScale: 0 });
+      } else still();
+      continue;
+    }
+
     // The Hex Wisp blinks away after enough melee hits in a row.
     if (def.blink && b.meleeHitsTaken >= def.blink.hits) {
       b.meleeHitsTaken = 0;

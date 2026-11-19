@@ -76,6 +76,7 @@ function tickTimers(ctx: CombatCtx, e: Entity): void {
 export function stepPowers(ctx: CombatCtx): number[] {
   const gone: number[] = [];
   for (const e of ctx.entities) {
+    if (ctx.frozen.has(e.id)) continue;
     const a = e.powerArea;
     if (!a) {
       tickTimers(ctx, e);

@@ -20,6 +20,7 @@ import { DrakeFlyover, makeDrakeView } from './DrakeViews';
 import { BlastOrbView, BoltView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
 import { ChestView, NpcView, PickupView, ShrineView, objectView } from './RpgViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
+import { decalLead, lanternShimmer, oracleEquipped } from '../relicCues';
 import { castsShadow, wantsView } from './viewCull';
 
 const DECAL_COLOR: Record<DecalShape, number> = { circle: 0xffa23a, jagged: 0xff2a1a };
@@ -177,6 +178,7 @@ export class WorldViews {
       // Skinned meshes aren't frustum culled: a bull left far behind shouldn't cost a draw.
       if (e.mount && me) v.root.visible = Math.hypot(e.tf.pos.x - me.tf.pos.x, e.tf.pos.z - me.tf.pos.z) <= MOUNT_DRAW_RANGE;
       v.update(e, alpha, dt);
+      if (e.interactable?.kind === 'chest' && v instanceof ChestView && view.entities.some((p) => p.kind === 'player' && lanternShimmer(p, view.now, e.tf.pos))) v.shimmer();
       if (e.brain) this.enemyShadow(e, v, me);
       if (e.statuses) this.statusParticles(e, v, dt);
       if (e.combat) this.status.track(e, v.root, v.height, e.body?.radius ?? 0.4, dt);
@@ -193,6 +195,7 @@ export class WorldViews {
       for (const [k, sv] of this.shrines) if (sv === v) this.shrines.delete(k);
     }
     this.updateDecals(view, dt);
+    this.syncTotems(view);
     this.spells.update(dt);
     this.powers.sync(view, alpha, dt);
     this.flyover.update(view, me, dt);
@@ -335,6 +338,21 @@ export class WorldViews {
    * will land. They fill with the sim's tick counter, so hit-stop pauses them too, and go when the
    * active frames end or the attack is interrupted.
    */
+  private totemSync: ((root: THREE.Object3D, entities: readonly { id: number; placedTotem?: { id: string; age: number; life: number; x: number; y: number; z: number } }[]) => void) | null = null;
+
+  /** The stand-in chunk loads the first time a totem is planted, not with the boot script. */
+  private syncTotems(view: ReadonlySimView): void {
+    if (!view.entities.some((e) => e.placedTotem) && !this.totemSync) return;
+    if (!this.totemSync) {
+      void import('./TotemStandIn').then((m) => {
+        this.totemSync = m.syncTotemStandIns;
+        m.syncTotemStandIns(this.root, view.entities);
+      });
+      return;
+    }
+    this.totemSync(this.root, view.entities);
+  }
+
   private updateDecals(view: ReadonlySimView, dt: number): void {
     for (let i = this.decals.length - 1; i >= 0; i--) {
       const d = this.decals[i];
@@ -346,9 +364,11 @@ export class WorldViews {
         this.decals.splice(i, 1);
         continue;
       }
-      const progress = a.t / Math.max(1, d.move.windup);
+      const lead = decalLead(view.entities, e.tf.pos);
+      const gold = oracleEquipped(view.entities) && d.move.decal !== 'jagged' && !d.move.unblockable;
+      const progress = Math.min(1, (a.t + lead) / Math.max(1, d.move.windup));
       if (d.at) {
-        d.decal.update(d.at.x, d.at.y, d.at.z, 0, d.radius, progress, dt);
+        d.decal.update(d.at.x, d.at.y, d.at.z, 0, d.radius, progress, dt, gold);
         continue;
       }
       const v = this.views.get(d.entity);
@@ -362,12 +382,12 @@ export class WorldViews {
           const f = far + d.move.hitbox.forward;
           const spot = { x: p.x + Math.sin(yaw) * f, y: p.y, z: p.z + Math.cos(yaw) * f, yaw };
           if (a.t >= d.move.windup) d.landing = spot;
-          d.decal.update(spot.x, spot.y, spot.z, yaw, d.radius, progress, dt);
-        } else d.decal.update(d.landing.x, d.landing.y, d.landing.z, d.landing.yaw, d.radius, progress, dt);
+          d.decal.update(spot.x, spot.y, spot.z, yaw, d.radius, progress, dt, gold);
+        } else d.decal.update(d.landing.x, d.landing.y, d.landing.z, d.landing.yaw, d.radius, progress, dt, gold);
         continue;
       }
       const f = d.move.hitbox.forward;
-      d.decal.update(p.x + Math.sin(yaw) * f, p.y, p.z + Math.cos(yaw) * f, yaw, d.radius, progress, dt);
+      d.decal.update(p.x + Math.sin(yaw) * f, p.y, p.z + Math.cos(yaw) * f, yaw, d.radius, progress, dt, gold);
     }
   }
 

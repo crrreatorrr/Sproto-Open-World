@@ -11,7 +11,7 @@ const fixture = (name: string): Record<string, unknown> => JSON.parse(fs.readFil
 
 describe('save migrations (M3 acceptance 2)', () => {
   it(`the current schema is ${SAVE_SCHEMA} and has a fixture`, () => {
-    expect(SAVE_SCHEMA).toBe(3);
+    expect(SAVE_SCHEMA).toBe(4);
     expect(fixture(`save-v${SAVE_SCHEMA}.json`).schema).toBe(SAVE_SCHEMA);
   });
 
@@ -48,7 +48,7 @@ describe('save migrations (M3 acceptance 2)', () => {
   it('v2 → v3: known spells go to their old slots; attributes map to skills; total points = 2 × (level − 1)', () => {
     const v2 = fixture('save-v2.json');
     const s = migrate(structuredClone(v2));
-    expect(s.schema).toBe(3);
+    expect(s.schema).toBe(SAVE_SCHEMA);
     expect(s.player.loadout).toEqual(['bolt', 'blast', null, null]);
     expect(s.player.skills).toEqual({ spellPower: 1, protection: 0, focus: 0, attack: 0, defense: 0, stamina: 0 });
     expect(s.player.points).toBe(1);
@@ -117,8 +117,20 @@ describe('save migrations (M3 acceptance 2)', () => {
   });
 
   it('the current schema passes unchanged', () => {
+    const v4 = fixture('save-v4.json');
+    expect(migrate(structuredClone(v4))).toEqual(v4);
+  });
+
+  it('v3 → v4: an old save grows empty relic sockets and keeps everything else', () => {
     const v3 = fixture('save-v3.json');
-    expect(migrate(structuredClone(v3))).toEqual(v3);
+    const s = migrate(structuredClone(v3));
+    expect(s.schema).toBe(4);
+    expect(s.player.relics).toEqual({ sockets: [null, null, null], totem: null, owned: [], seedSpent: false, introduced: false, giantDodges: 0, bonus: {} });
+    const p3 = v3.player as Record<string, unknown>;
+    for (const k of ['level', 'xp', 'sprouts', 'equipment', 'inventory', 'spells', 'loadout', 'skills', 'points', 'tonics', 'quests', 'tracked', 'lastShrine', 'discoveredShrines'] as const) {
+      expect(s.player[k], k).toEqual(p3[k]);
+    }
+    expect(s.world).toEqual(v3.world);
   });
 
   it('a newer schema is rejected (SaveError)', () => {

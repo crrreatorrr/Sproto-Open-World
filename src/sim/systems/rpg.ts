@@ -2,6 +2,7 @@ import { PLAYER_STATS } from '../../content/combat';
 import { DIALOGUE, type DialogueNode } from '../../content/dialogue';
 import { ENEMIES } from '../../content/enemies';
 import { HEART_HEAL, INVENTORY_CAP, ITEMS, STARTING_GEAR, TONIC, type Slot } from '../../content/items';
+import { emptyRelics, isKeepsake } from '../../content/relics';
 import { DROPS, MERCHANTS } from '../../content/loot';
 import { MOUNT } from '../../content/mounts';
 import { NPCS } from '../../content/npcs';
@@ -16,6 +17,7 @@ import type { SimEvent } from '../events';
 import type { Vec3 } from '../math';
 import { affixXp } from './affixes';
 import { equipSpell, gearLocked, grantSkillPoints, learnIntoLoadout, respecSkills, spendSkill } from './loadout';
+import { clearRelic, equipRelic, equipTotem, grantKeepsake, holdTotem, onShrineRest, settleRelicBonuses } from './relics';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
 import { startDismount, startMount } from './riding';
 
@@ -44,6 +46,7 @@ export function newProgress(spells: SpellId[]): Progress {
     inventory: { [STARTING_GEAR.staff]: 1, [STARTING_GEAR.robe]: 1 },
     spells: [...spells], loadout: defaultLoadout(spells), tonics: { charges: TONIC.charges, max: TONIC.charges },
     quests: {}, tracked: null, lastShrine: null, discoveredShrines: [], dialogue: null, shop: null, atShrine: null,
+    relics: emptyRelics(),
   };
 }
 
@@ -113,6 +116,7 @@ export function grantXp(ctx: RpgCtx, e: Entity, amount: number): void {
 }
 
 export function giveItem(ctx: RpgCtx, e: Entity, item: string, count = 1): boolean {
+  if (isKeepsake(item)) return grantKeepsake(ctx, e, item);
   const p = e.progress!;
   const def = ITEMS[item];
   if (!def) return false;
@@ -260,6 +264,7 @@ export function questTick(ctx: RpgCtx, e: Entity): void {
       }
     }
   }
+  settleRelicBonuses(ctx, e);
 }
 
 function countFor(o: Objective, events: readonly SimEvent[], e: Entity, entities: readonly Entity[]): number {
@@ -427,7 +432,7 @@ function useObject(ctx: RpgCtx, e: Entity, obj: Entity): void {
  * its contents. Returns true while the player is in a menu or talking (their gameplay input is
  * ignored this tick).
  */
-export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly UiAction[], chests: ReadonlyMap<string, { items: { item: string; count: number }[]; sprouts?: number }>): boolean {
+export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly UiAction[], chests: ReadonlyMap<string, { items: { item: string; count: number }[]; sprouts?: number }>, held = 0): boolean {
   const p = e.progress!;
   const dead = e.combat?.action?.kind === 'dead';
   for (const a of ui) {
@@ -466,6 +471,15 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
       case 'track':
         if (p.quests[a.quest]?.status === 'active') p.tracked = a.quest;
         break;
+      case 'equipRelic':
+        equipRelic(ctx, e, a.item, a.socket);
+        break;
+      case 'clearRelic':
+        clearRelic(ctx, e, a.socket);
+        break;
+      case 'equipTotem':
+        equipTotem(ctx, e, a.item);
+        break;
     }
   }
   const busy = !!(p.dialogue || p.shop || p.atShrine);
@@ -483,6 +497,7 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
       ctx.events.push({ type: 'interact', entity: e.id, object: t.id, kind: 'shrine' });
     }
   }
+  holdTotem(ctx, e, (held & BTN.interact) !== 0, !!(p.dialogue || p.shop || p.atShrine) || !!interactTarget(e, ctx.entities));
   if ((pressed & BTN.potion) && !e.combat?.action) drinkTonic(ctx, e);
   return !!(p.dialogue || p.shop || p.atShrine);
 }
@@ -509,6 +524,7 @@ export function rest(ctx: RpgCtx, e: Entity, shrine: string): void {
   p.lastShrine = shrine;
   if (!p.discoveredShrines.includes(shrine)) p.discoveredShrines.push(shrine);
   delete e.statuses;
+  onShrineRest(e, ctx.now);
   ctx.events.push({ type: 'shrineRest', entity: e.id, shrine });
   // Resting at a shrine also counts as interacting with it (the test quest's last step).
   ctx.events.push({ type: 'interact', entity: e.id, object: shrine, kind: 'shrine' });
