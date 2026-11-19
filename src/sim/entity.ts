@@ -248,15 +248,18 @@ export interface WorldState {
   killedUniques: string[];
 }
 
-/** `object`: a one-use world object a quest points at (a beacon, a lever, a tome). */
-export type InteractKind = 'shrine' | 'chest' | 'object';
+/** `object`: a one-use world object a quest points at (a beacon, a lever, a tome). `portal`: a hidden cave mouth. */
+export type InteractKind = 'shrine' | 'chest' | 'object' | 'portal';
 
 /** Something the player can interact with (F / pad Y) in reach. */
 export interface Interactable {
   /** Content id (the shrine's or chest's id). */
   id: string;
   kind: InteractKind;
-  /** Chests and objects: used already (then not interactable). */
+  /**
+   * Chests and objects: used already (then not interactable).
+   * A portal: hidden. `SimWorld` sets this every tick from the world flags, so a sealed mouth has no prompt.
+   */
   used: boolean;
 }
 

@@ -89,7 +89,9 @@ export type SimEvent =
   | { type: 'mount'; entity: EntityId; mount: EntityId; phase: 'start' | 'seated' | 'dismount' | 'off' }
   /** A called bull: `entity` is the player who called it. */
   | { type: 'mountCall'; entity: EntityId; mount: EntityId; phase: 'coming' | 'appeared' | 'arrived' | 'failed' }
-  | { type: 'interact'; entity: EntityId; object: string; kind: 'shrine' | 'chest' | 'npc' | 'object' }
+  | { type: 'interact'; entity: EntityId; object: string; kind: 'shrine' | 'chest' | 'npc' | 'object' | 'portal' }
+  /** Travel through a hidden entrance. `portal` is the mouth used; `to` is the mouth arrived at. */
+  | { type: 'portalTravel'; entity: EntityId; portal: string; to: string }
   | { type: 'trigger'; entity: EntityId; trigger: string }
   | { type: 'talk'; entity: EntityId; npc: string; node: string }
   | { type: 'dialogueEnd'; entity: EntityId; npc: string }

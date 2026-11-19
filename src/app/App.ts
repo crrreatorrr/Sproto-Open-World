@@ -14,7 +14,7 @@ import { QUESTS, type QuestOffer } from '../content/quests';
 import { SANDBOX } from '../content/sandbox';
 import { SPELLS, WOVEN, type SpellId } from '../content/spells';
 import { worldLevel } from '../content/world/level';
-import { SPROUTVALE_CONTENT } from '../content/world/sproutvaleContent';
+import { WORLD_CONTENT } from '../content/world/worldContent';
 import { frameDataLines, targetLines } from '../debug/frameData';
 import { Overlay } from '../debug/Overlay';
 import { QA_LOG_ENABLED, qaLog } from '../debug/qaLog';
@@ -446,7 +446,7 @@ export class App {
       // Sproutvale's villagers, shrines, chest and training yard (its camps arrive in M4). A save
       // goes on top of the fresh world, so opened chests and found shrines come back as they were.
       if (WAVE_SANDBOX) sim.startWaves();
-      else if (this.stream) sim.populateWorld(SPROUTVALE_CONTENT);
+      else if (this.stream) sim.populateWorld(WORLD_CONTENT);
       else sim.populate();
       if (save && this.stream) sim.applySave(save);
       if (this.stream) {
