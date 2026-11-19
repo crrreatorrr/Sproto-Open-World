@@ -35,7 +35,7 @@ export interface ReadonlySimView {
    * What the player would interact with if they pressed Interact now (nearest in reach and in
    * front): an NPC to talk to, a shrine to rest at, a chest to open. Null when nothing is in reach.
    */
-  interactTarget(player: PlayerId): { entity: EntityId; id: string; kind: 'npc' | 'shrine' | 'chest' | 'object' | 'mount'; name: string } | null;
+  interactTarget(player: PlayerId): { entity: EntityId; id: string; kind: 'npc' | 'shrine' | 'chest' | 'object' | 'portal' | 'mount'; name: string } | null;
   /** The enemy under the centre of the screen, if any (the crosshair lights up on one). */
   aimTarget(player: PlayerId, ray: AimRay): EntityId | null;
   /** The choices on the player's current dialogue node that pass their conditions (index = what to send). */

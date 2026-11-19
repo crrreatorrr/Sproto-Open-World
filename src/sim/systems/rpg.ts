@@ -6,6 +6,7 @@ import { DROPS, MERCHANTS } from '../../content/loot';
 import { MOUNT } from '../../content/mounts';
 import { NPCS } from '../../content/npcs';
 import { OBJECTS, usedFlag } from '../../content/objects';
+import { ROOTDEEP_PORTALS, portalOpenFlag } from '../../content/packs/rootdeep';
 import { GROWTH, LEVEL_CAP, SKILL_EFFECT, SKILL_POINTS_PER_LEVEL, noSkills, xpForLevel } from '../../content/progression';
 import { QUESTS, type Condition, type Effect, type Objective, type QuestOffer } from '../../content/quests';
 import { SPELLS, defaultLoadout, type SpellId } from '../../content/spells';
@@ -296,7 +297,7 @@ function countFor(o: Objective, events: readonly SimEvent[], e: Entity, entities
 
 // ---------------------------------------------------------------- interaction, dialogue, menus
 
-const REACH = { npc: 2.6, shrine: 3, chest: 2.4, object: 2.4, mount: MOUNT.reach } as const;
+const REACH = { npc: 2.6, shrine: 3, chest: 2.4, object: 2.4, portal: 2.4, mount: MOUNT.reach } as const;
 const FRONT = (80 * Math.PI) / 180;
 
 /** The nearest NPC, shrine or unopened chest within reach and roughly in front of the player. */
@@ -318,9 +319,14 @@ export function interactTarget(player: Entity, entities: readonly Entity[]): { e
       id = MOUNT.id;
       name = `Ride ${MOUNT.name}`;
     } else if (e.interactable && !(e.interactable.kind !== 'shrine' && e.interactable.used)) {
+      // A rider must never travel: teleport only cancels a mount in progress, and the bull follows.
+      if (e.interactable.kind === 'portal' && player.riding) continue;
       kind = e.interactable.kind;
       id = e.interactable.id;
-      name = kind === 'shrine' ? shrineName(id) : kind === 'object' ? `${OBJECTS[id]?.verb ?? 'Use'} ${OBJECTS[id]?.name ?? id}` : 'Old chest';
+      name = kind === 'shrine' ? shrineName(id)
+        : kind === 'portal' ? (ROOTDEEP_PORTALS[id]?.verb ?? 'Enter')
+          : kind === 'object' ? `${OBJECTS[id]?.verb ?? 'Use'} ${OBJECTS[id]?.name ?? id}`
+            : 'Old chest';
     } else continue;
     const d = flatDist(player.tf.pos, e.tf.pos);
     // An object can stand on top of its prop (the beacon, about 4 m above the ground around it).
@@ -340,7 +346,10 @@ export function interactTarget(player: Entity, entities: readonly Entity[]): { e
 }
 
 export const shrineName = (id: string) =>
-  ({ shrine_first_light: 'Shrine of First Light', shrine_watchtower: 'Watchtower Shrine', shrine_quarry_gate: 'Quarry Gate Shrine' })[id] ?? 'Shrine';
+  ({
+    shrine_first_light: 'Shrine of First Light', shrine_watchtower: 'Watchtower Shrine', shrine_quarry_gate: 'Quarry Gate Shrine',
+    shrine_rootdeep_lantern: 'Lantern Hall Shrine', shrine_rootdeep_crossing: 'Crossing Shrine',
+  })[id] ?? 'Shrine';
 
 /** The available choices on a node (conditions checked), with their index into node.choices. */
 export function availableChoices(node: DialogueNode, p: Progress, world: WorldState): { index: number; text: string }[] {
@@ -406,6 +415,16 @@ function openChest(ctx: RpgCtx, e: Entity, chest: Entity, contents: { items: { i
   ctx.events.push({ type: 'interact', entity: e.id, object: ia.id, kind: 'chest' });
   for (const it of contents?.items ?? []) giveItem(ctx, e, it.item, it.count);
   if (contents?.sprouts) addSprouts(ctx, e, contents.sprouts);
+}
+
+/** Step through a cave mouth: remember it is open, and tell SimWorld to move the player. */
+function usePortal(ctx: RpgCtx, e: Entity, portal: Entity): void {
+  const ia = portal.interactable;
+  const def = ia ? ROOTDEEP_PORTALS[ia.id] : undefined;
+  if (!ia || !def) return;
+  ctx.world.flags[portalOpenFlag(def.key)] = 1;
+  ctx.events.push({ type: 'interact', entity: e.id, object: ia.id, kind: 'portal' });
+  ctx.events.push({ type: 'portalTravel', entity: e.id, portal: def.id, to: def.to });
 }
 
 /** Use a one-use world object (M4): it stays used (a world flag) and applies its effects. */
@@ -476,6 +495,7 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
     if (t?.kind === 'npc') startTalk(ctx, e, t.id);
     else if (t?.kind === 'chest') openChest(ctx, e, t.e, chests.get(t.id));
     else if (t?.kind === 'object') useObject(ctx, e, t.e);
+    else if (t?.kind === 'portal') usePortal(ctx, e, t.e);
     else if (t?.kind === 'mount') (e.riding ? startDismount : startMount)(ctx.events, e, t.e);
     else if (t?.kind === 'shrine') {
       if (!p.discoveredShrines.includes(t.id)) p.discoveredShrines.push(t.id);
