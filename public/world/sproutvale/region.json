@@ -574,7 +574,7 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 46
+      "capacity": 45
     },
     "grove_hay": {
       "path": "models/props/grove_hay.glb",
