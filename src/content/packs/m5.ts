@@ -8,6 +8,7 @@ import type { EnemyDef, EnemyMoveDef } from '../enemies';
 import type { ObjectDef } from '../objects';
 import type { QuestDef } from '../quests';
 import type { RegionContent } from '../world/sproutvaleContent';
+import { SCRAPJAW_BITE_HOLD, SCRAPJAW_BITE_WINDUP } from './encounterTune';
 
 /** The Old Quarry's floor: the bowl's centre (world-src/sproutvale/terrain.json). */
 export const QUARRY_CENTRE: readonly [number, number] = [440, 452];
@@ -21,6 +22,11 @@ const GATE_YAW = (62 * Math.PI) / 180;
 const melee = { kind: 'physical' } as const;
 
 const MOVES: EnemyMoveDef[] = [
+  // Phase 1's bite: two beats (a wind-up, then a hold), then the snap. The gold glint is the parry cue.
+  {
+    ...melee, id: 'bite', phases: [1], windup: SCRAPJAW_BITE_WINDUP, active: 6, recovery: 40, damage: 36, poise: 36, hitbox: { forward: 3.4, up: 2.2, radius: 1.8 },
+    range: 5.2, weight: 4, cooldown: 70, knockback: 1, trackUntil: 0.5, hitstop: 7, clip: 'smash', holdTicks: SCRAPJAW_BITE_HOLD,
+  },
   // Phase 1 and 2: one heavy overhand. Sidestep it, then punish the long recovery.
   {
     ...melee, id: 'smash', phases: [1, 2], windup: 30, active: 6, recovery: 46, damage: 40, poise: 40, hitbox: { forward: 3.2, up: 1.6, radius: 2.2 },

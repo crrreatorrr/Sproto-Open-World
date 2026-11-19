@@ -24,6 +24,10 @@ export interface EntityView {
   flinch?(from: { x: number; z: number }, heavy: boolean, force?: number): void;
   /** Its poise broke: it reels back. */
   reel?(): void;
+  /** The Quarry Gate's lock: glow only while the key is carried. */
+  keyed?(on: boolean): void;
+  /** A relic chest's quest shimmer, 0..1. Null keeps the chest's own twinkle. */
+  shimmer?(strength: number | null): void;
   dispose(): void;
 }
 
@@ -509,13 +513,18 @@ export class HumanoidEnemyView implements EntityView {
   private disposed = false;
   /** How much bigger than its model's authored size it is drawn: the stride and the sink grow with it. */
   private readonly size: number;
+  /** A carried pumpkin, worn on the head until a hit knocks it off. Shared mesh, one material. */
+  private readonly pumpkin = new THREE.Mesh(pumpkinGeo(), pumpkinMat());
 
   constructor(assets: AssetLoader, readonly def: EnemyDef, readonly kind: HumanoidModel) {
     this.hover = def.hover ?? 0;
     this.height = def.body.height + this.hover;
     this.size = modelSize(kind, def);
     this.peaks = CAST_PEAKS[kind] ?? LIBRARY_CAST_PEAKS;
-    this.root.add(this.body, this.glow.glint);
+    this.pumpkin.position.set(0, this.height * 0.96, 0.08 * this.size);
+    this.pumpkin.castShadow = true;
+    this.pumpkin.visible = false;
+    this.root.add(this.body, this.glow.glint, this.pumpkin);
     this.glow.glint.position.set(0, this.height * 0.88, 0.25 * this.size);
     if (kind === 'wisp') {
       // A soft purple pool of light under it, so the hover gap reads.
@@ -557,6 +566,8 @@ export class HumanoidEnemyView implements EntityView {
 
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
     placeEntity(this.root, e, alpha);
+    this.root.visible = !e.brain?.held;
+    this.pumpkin.visible = !!e.brain?.carry && !e.brain.held;
     const a = e.combat?.action ?? null;
     const anim = this.animator;
     const frozen = a?.kind === 'frozen';
@@ -642,6 +653,11 @@ export class HumanoidEnemyView implements EntityView {
     this.root.removeFromParent();
   }
 }
+
+let pumpkinGeometry: THREE.SphereGeometry | null = null;
+let pumpkinMaterial: THREE.MeshStandardMaterial | null = null;
+const pumpkinGeo = () => (pumpkinGeometry ??= new THREE.SphereGeometry(0.22, 8, 6));
+const pumpkinMat = () => (pumpkinMaterial ??= new THREE.MeshStandardMaterial({ color: 0xe07020, roughness: 0.7 }));
 
 /** Shared geometry for spell projectiles. */
 let spellGeo: { streak: THREE.BufferGeometry; core: THREE.BufferGeometry } | null = null;

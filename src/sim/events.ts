@@ -32,6 +32,9 @@ export type SimEvent =
       heavy: boolean;
       pos: Vec3;
       hitstop: number;
+      /** A shot the player parried back. `source` is the enemy move that fired it. */
+      reflected?: boolean;
+      source?: string;
       /** It landed on a weak spot (expansion plan §3.3). */
       weakSpot?: boolean;
       /** The first melee hit on a broken enemy, or a melee hit from behind. */
@@ -116,4 +119,9 @@ export type SimEvent =
   | { type: 'bossImpact'; boss: EntityId; pos: Vec3; pillar: boolean }
   | { type: 'bossDefeated'; boss: EntityId }
   | { type: 'rockLand'; pos: Vec3; radius: number }
-  | { type: 'gateOpened'; gate: string };
+  | { type: 'gateOpened'; gate: string }
+  /**
+   * A beat the presentation plays, and that another workstream can hook.
+   * `hook` names the thing (the mill seal, a villager's reaction) without putting words in the sim.
+   */
+  | { type: 'cue'; cue: 'horn' | 'bell' | 'whine' | 'roar' | 'crack' | 'sizzle' | 'coinRing' | 'sealDrop' | 'beanstalkReveal' | 'distantRoar' | 'hum' | 'chord' | 'tremor' | 'react'; entity?: EntityId; pos?: Vec3; frac?: number; hook?: string };

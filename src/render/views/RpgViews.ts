@@ -367,6 +367,8 @@ export class ChestView implements EntityView {
   private readonly slot: ModelSlot;
   private open = 0;
   private t = 0;
+  /** Quest shimmer 0..1, or null for the chest's own twinkle. */
+  private clue: number | null = null;
 
   constructor(assets: AssetLoader | null = null) {
     const g = shared();
@@ -406,13 +408,26 @@ export class ChestView implements EntityView {
     const used = e.interactable?.used ?? false;
     this.open += ((used ? 1 : 0) - this.open) * (1 - Math.exp(-6 * dt));
     this.lid.rotation.x = -this.open * 1.9;
-    // Unopened chests twinkle so they read from across the yard.
-    this.glint.visible = this.open < 0.95;
-    this.glint.material.opacity = (1 - this.open) * (0.3 + 0.25 * Math.sin(this.t * 3));
+    // Unopened chests twinkle so they read from across the yard. A relic chest on a search
+    // shimmers only as strongly as the quest asked (nothing past its radius).
+    const pulse = 0.3 + 0.25 * Math.sin(this.t * 3);
+    if (this.clue === null) {
+      this.glint.visible = this.open < 0.95;
+      this.glint.material.opacity = (1 - this.open) * pulse;
+    } else {
+      this.glint.visible = this.clue > 0.04 && this.open < 0.95;
+      this.glint.material.opacity = this.clue * (0.35 + pulse);
+    }
   }
 
-  /** Seeker's Lantern: a brighter twinkle on a chest inside its shimmer. */
-  shimmer(): void {
+  shimmer(strength: number | null): void {
+    this.clue = strength;
+  }
+
+  /** Seeker's Lantern: a brighter twinkle on a chest inside its shimmer, even past a search's radius. */
+  lanternTwinkle(): void {
+    if (this.open >= 0.95) return;
+    this.glint.visible = true;
     this.glint.material.opacity = Math.min(1, this.glint.material.opacity + 0.5);
   }
 
@@ -429,6 +444,7 @@ const PICKUP_LOOK = {
   sprouts: { color: 0x5fe06a, emissive: 0x1f8a2a, glow: 0x8fff8a },
   heart: { color: 0xff4a5a, emissive: 0x8a0a1a, glow: 0xff8a8a },
   item: { color: 0xf2c230, emissive: 0x6a4a00, glow: 0xffe08a },
+  rivet: { color: 0xffd36a, emissive: 0xff9a2a, glow: 0xffe08a },
   tonic: { color: 0x6fd0ff, emissive: 0x0a4a6a, glow: 0x9fe8ff },
 } as const;
 /** The models for each look, and the size (m, largest side) they are drawn at. */
@@ -444,6 +460,7 @@ const BLINK_TICKS = 2 * TICK_HZ;
 function pickupLook(e: Readonly<Entity>): keyof typeof PICKUP_LOOK {
   const p = e.pickup;
   if (!p || p.kind !== 'item') return p?.kind ?? 'item';
+  if (p.item === 'rivet') return 'rivet';
   const item = p.item ? ITEMS[p.item] : undefined;
   return item?.kind === 'consumable' || p.item?.includes('tonic') ? 'tonic' : 'item';
 }

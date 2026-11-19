@@ -76,14 +76,14 @@
       "cz": 1,
       "bin": "world/sproutvale/cells/c_0_1.bin",
       "json": "world/sproutvale/cells/c_0_1.json",
-      "bytes": 25753
+      "bytes": 25721
     },
     {
       "cx": 1,
       "cz": 1,
       "bin": "world/sproutvale/cells/c_1_1.bin",
       "json": "world/sproutvale/cells/c_1_1.json",
-      "bytes": 26315
+      "bytes": 26561
     },
     {
       "cx": 2,
@@ -574,7 +574,7 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 46
+      "capacity": 45
     },
     "grove_hay": {
       "path": "models/props/grove_hay.glb",

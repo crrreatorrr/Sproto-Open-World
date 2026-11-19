@@ -63,7 +63,8 @@ describe('camps (plan §6.5)', () => {
   it('about 60 enemies in the area', () => {
     const n = camps.reduce((k, c) => k + c.members.length, 0);
     expect(n).toBeGreaterThanOrEqual(55);
-    expect(n).toBeLessThanOrEqual(75);
+    // The second Pest Control wave is four more Grunts. They are not in the world until the horn.
+    expect(n).toBeLessThanOrEqual(80);
   });
 
   it('camps are at least 60 m apart', () => {
@@ -116,6 +117,7 @@ describe('quests (plan §6.2, §6.3)', () => {
   const obtainable = new Set<string>([
     ...C.chests.flatMap((c) => c.chest.items.map((i) => i.item)),
     ...Object.values(DROPS).flatMap((d) => (d.items ?? []).map((i) => i.item)),
+    ...camps.flatMap((c) => c.members.flatMap((m) => (m.carry ? [m.carry] : []))),
     ...Object.values(QUESTS).flatMap((q) => q.steps.flatMap((s) => (s.onComplete ?? []).flatMap((e) => ('give' in e ? [e.give] : [])))),
     ...Object.values(OBJECTS).flatMap((o) => (o.effects ?? []).flatMap((e) => ('give' in e ? [e.give] : []))),
   ]);

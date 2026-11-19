@@ -174,18 +174,18 @@ describe('Hex Wisp', () => {
     }
   });
 
-  it('blinks 6 m away from the player after taking 2 melee hits', async () => {
+  it('blinks 6 m away from the player after one staff hit', async () => {
     const { w, p } = await combatWorld();
     const wisp = w.spawnEnemy('wisp', { x: 0, y: 0, z: 1.6 }, Math.PI);
-    // Held in place for the first hit (this close it backs straight off); the hits' hitstun takes over.
+    // Held in place for the hit (this close it backs straight off); the hit's stun takes over.
     wisp.combat!.action = { kind: 'stagger', t: 0, dur: 9999 };
-    const evs = stepN(w, 90, (i) => (i === 0 || i === 22 ? press(BTN.light) : idle()));
+    const evs = stepN(w, 50, (i) => (i === 0 ? press(BTN.light) : idle()));
     const hits = hitsOn(evs, wisp.id);
-    expect(hits.map((x) => x.ev.move)).toEqual(['light1', 'light2']);
+    expect(hits.map((x) => x.ev.move)).toEqual(['light1']);
     const blinks = evOf(evs, 'blink', wisp.id);
     expect(blinks.length).toBe(1);
     const [b] = blinks;
-    expect(b.tick).toBeGreaterThan(hits[1].tick);
+    expect(b.tick).toBeGreaterThan(hits[0].tick);
     expect(flatDist(b.ev.from, b.ev.to)).toBeCloseTo(6, 6);
     expect(flatDist(b.ev.to, p.tf.pos)).toBeGreaterThan(flatDist(b.ev.from, p.tf.pos) + 5);
     expect(wisp.brain!.meleeHitsTaken).toBe(0);

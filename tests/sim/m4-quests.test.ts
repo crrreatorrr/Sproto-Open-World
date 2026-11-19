@@ -102,7 +102,7 @@ describe('side quests (plan §6.3)', () => {
     // Clear the Orchard and pick up what drops; rest to bring the camps back until five are in hand.
     let picked = 0;
     for (let round = 0; round < 5 && prog().quests.q_pumpkins.step === 0; round++) {
-      for (const g of w.entities.filter((x) => x.brain?.camp?.startsWith('orchard') && alive(x))) {
+      for (const g of w.entities.filter((x) => x.brain?.camp?.startsWith('orchard') && alive(x) && !x.brain.held)) {
         // Pumpkins can also be walked over while fighting the next Grunt: count every pickup.
         picked += evs([...slay(w, g), ...collectPickups(w)], 'pickup').filter((x) => x.item === 'stolen_pumpkin').length;
         if (prog().quests.q_pumpkins.step > 0) break;
@@ -203,14 +203,12 @@ describe('a quest you take shows on the tracker', () => {
     w.dispose();
   });
 
-  it('the compass leads to each relic chest in turn, then back to Collector Pepe', async () => {
+  it('the relic search has no compass; opening the last chest turns the step back to Collector Pepe', async () => {
     const { w } = await flatSproutvale();
     const p = () => w.playerEntity(0)!.progress!;
     talk(w, 'collector_pepe', [0]);
     for (const id of ['relic_mill', 'relic_rootarch', 'relic_beanstalk']) {
-      const marker = trackedQuest(p())!.marker;
-      expect(marker).toBe(id);
-      expect(w.view().locate(marker!)).not.toBeNull();
+      expect(trackedQuest(p())!.marker).toBeNull();
       standBy(w, id);
       step(w, interact());
       step(w);
