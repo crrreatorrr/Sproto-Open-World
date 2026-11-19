@@ -50,27 +50,25 @@ export interface KeepsakeDef {
   ranked: RankedSafe;
   quest: string;
   step: string;
-  /** Bonus unlock words, when it is not a plain step reward. */
-  bonus: string | null;
 }
 
 const relic = (
-  id: string, slug: string, name: string, rarity: KeepsakeDef['rarity'], ranked: RankedSafe, quest: string, step: string, bonus: string | null = null,
-): KeepsakeDef => ({ id, slug, name, kind: 'relic', rarity, ranked, quest, step, bonus });
+  id: string, slug: string, name: string, rarity: KeepsakeDef['rarity'], ranked: RankedSafe, quest: string, step: string,
+): KeepsakeDef => ({ id, slug, name, kind: 'relic', rarity, ranked, quest, step });
 
 const totem = (
   id: string, slug: string, name: string, rarity: KeepsakeDef['rarity'], ranked: RankedSafe, quest: string, step: string,
-): KeepsakeDef => ({ id, slug, name, kind: 'totem', rarity, ranked, quest, step, bonus: null });
+): KeepsakeDef => ({ id, slug, name, kind: 'totem', rarity, ranked, quest, step });
 
 export const KEEPSAKES: readonly KeepsakeDef[] = [
-  relic('relic_drowned_coins', 'coins-of-the-drowned-kingdom', 'Coins of the Drowned Kingdom', 'rare', 'capped', 'q_watchtower', 'slingers', 'Reflect 3 coins into Slingers'),
+  relic('relic_drowned_coins', 'coins-of-the-drowned-kingdom', 'Coins of the Drowned Kingdom', 'rare', 'capped', 'q_watchtower', 'slingers'),
   relic('relic_gatekeepers_grip', 'gatekeepers-grip', "Gatekeeper's Grip", 'rare', 'yes', 'q_thornwood', 'gatekeeper'),
   relic('relic_hopeglass', 'hopeglass', 'Hopeglass', 'epic', 'solo', 'q_scrapjaw', 'boss'),
-  relic('relic_sprotos_stride', 'sprotos-stride', "Sproto's Stride", 'rare', 'capped', 'q_hollow_giant', 'giant', '3 perfect dodges against the Hollow Giant in one fight'),
+  relic('relic_sprotos_stride', 'sprotos-stride', "Sproto's Stride", 'rare', 'capped', 'q_hollow_giant', 'giant'),
   relic('relic_tinubus_broken_seal', 'tinubus-broken-seal', "Tinubu's Broken Seal", 'rare', 'yes', 'q_mill', 'coin'),
   relic('relic_oracles_eye', 'oracles-eye', "Oracle's Eye", 'epic', 'yes', 'q_lens_flare', 'lens'),
   relic('relic_deepbreath_bellows', 'deepbreath-bellows', 'Deepbreath Bellows', 'rare', 'capped', 'q_deep_seam', 'boss'),
-  relic('relic_elder_iron_rivet', 'elder-iron-rivet', 'Elder-Iron Rivet', 'epic', 'capped', 'q_iron_gallery', 'gunners', 'Fell 2 Gunners with their own reflected charged shot'),
+  relic('relic_elder_iron_rivet', 'elder-iron-rivet', 'Elder-Iron Rivet', 'epic', 'capped', 'q_iron_gallery', 'gunners'),
   relic('relic_surgebriar', 'surgebriar', 'Surgebriar', 'rare', 'capped', 'q_weavers_thorns', 'return'),
   relic('relic_drakeplume', 'drakeplume', 'Drakeplume', 'epic', 'yes', 'q_skyfire', 'boss'),
   totem('totem_elders_hearth', 'elders-hearth', "Elder's Hearth", 'common', 'yes', 'q_wake_up', 'shrine'),
@@ -238,7 +236,7 @@ export function capBlockMessage(id: string, equipped: readonly (string | null)[]
   if (!def || relicShortfall(id, equipped, coop) <= 0) return null;
   const other = equipped.find((x) => x && x !== id && keepsake(x)?.kind === 'relic');
   const name = other ? keepsake(other)!.name : def.name;
-  return `Already at the cap: parry window is 300 ms. This relic adds nothing with ${name} equipped.`;
+  return `Parry window is already 300 ms with ${name}.`;
 }
 
 export const badgeText = (ranked: RankedSafe): string | null => (ranked === 'solo' ? 'Solo only' : ranked === 'capped' ? 'Capped in co-op' : null);

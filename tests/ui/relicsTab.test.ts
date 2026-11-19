@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { relicCopy } from '../../src/content/relicCopy';
 import { KEEPSAKES, keepsakeIcon } from '../../src/content/relics';
 import { newProgress } from '../../src/sim/systems/rpg';
-import { pressCard, relicKey, relicPad, relicsModel } from '../../src/ui/relicsTab';
+import { MENU_TABS } from '../../src/ui/gameMenu';
+import { pressCard, relicKey, relicPad, relicsModel, setRelicCopy } from '../../src/ui/relicsTab';
+
+setRelicCopy(relicCopy);
 
 describe('relics tab', () => {
   it('hides keepsakes from quests the player has not seen, and silhouettes the rest', () => {
@@ -38,6 +42,10 @@ describe('relics tab', () => {
     expect(relicKey('KeyC')).toBe('compare');
     expect(relicKey('Tab')).toBe('jump');
     expect(relicKey('KeyF')).toBe('equip');
+  });
+
+  it('sits between Gear and Quests', () => {
+    expect(MENU_TABS.map((t) => t.id)).toEqual(['powers', 'skills', 'gear', 'relics', 'quests', 'map', 'settings']);
   });
 
   it('points each card at a lazy icon url, not an inlined glyph', () => {

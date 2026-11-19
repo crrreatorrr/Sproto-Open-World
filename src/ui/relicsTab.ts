@@ -1,18 +1,15 @@
 /**
- * The Relics tab (quest polish menu spec). It only queues UiActions. GameMenu wiring waits on
- * src/ui/gameMenu.ts (held until Rootdeep Quest 4 merges): add 'relics' between Gear and Quests,
- * render this panel, and let onBack / frame call RelicsPanel.first.
- *
- * The 128 px master and the 24 px silhouette are files under public/assets/icons/keepsakes.
- * The rarity frame is drawn here, not painted into the art.
+ * The Relics tab (quest polish menu spec). GameMenu mounts it between Gear and Quests.
+ * It only queues UiActions. Card text is fetched from /ui/relic-copy.json so those strings
+ * stay out of the boot script. The 128 px master and the 24 px silhouette are files under
+ * public/assets/icons/keepsakes. The rarity frame is drawn here, not painted into the art.
  */
 import './relics.css';
-import { relicCopy } from '../content/relicCopy';
+import type { RelicCopy } from '../content/relicCopy';
 import {
   GEAR_LOCK_TEXT, KEEPSAKES, RELIC_SOCKETS, TOTEM_SWAPPED_TEXT, badgeText, capBlockMessage, foundCount, keepsake, keepsakeIcon, relicShortfall,
   type KeepsakeDef,
 } from '../content/relics';
-import { QUESTS } from '../content/quests';
 import type { UiAction } from '../sim/commands';
 import type { Progress } from '../sim/entity';
 
@@ -28,7 +25,6 @@ export interface RelicCardModel {
   clue: string;
   cap: string | null;
   badge: string | null;
-  won: string;
   dim: boolean;
 }
 
@@ -41,17 +37,33 @@ export interface RelicsModel {
   message: string | null;
 }
 
+let copyOf: (id: string) => RelicCopy | undefined = () => undefined;
+
+/** Tests and the menu share one lookup. The menu fills it from the fetched JSON. */
+export function setRelicCopy(copy: (id: string) => RelicCopy | undefined): void {
+  copyOf = copy;
+}
+
+/** Fetched once, the first time the Relics tab opens. A failure leaves the cards without text. */
+export function loadRelicCopy(): Promise<void> {
+  return fetch('/ui/relic-copy.json').then(async (res) => {
+    if (!res.ok) return;
+    const data = await res.json() as Record<string, RelicCopy>;
+    setRelicCopy((id) => data[id]);
+  });
+}
+
 const cardOf = (def: KeepsakeDef, p: Progress, locked: boolean): RelicCardModel => {
   const r = p.relics;
   const owned = !!r?.owned.includes(def.id);
   const equipped = owned && (r?.sockets.includes(def.id) || r?.totem === def.id);
   const dim = owned && relicShortfall(def.id, r?.sockets ?? []) > 0;
-  const text = relicCopy(def.id);
+  const text = copyOf(def.id);
   return {
     id: def.id, kind: def.kind, rarity: def.rarity,
     name: owned ? def.name : '????',
     locked: !owned, equipped, effect: text?.effect ?? '', flavour: text?.flavour ?? '', clue: text?.clue ?? '', cap: text?.cap ?? null,
-    badge: badgeText(def.ranked), won: `Won at: ${QUESTS[def.quest]?.title ?? def.quest}`, dim: dim && !locked,
+    badge: badgeText(def.ranked), dim: dim && !locked,
   };
 };
 
@@ -105,118 +117,91 @@ const el = (tag: string, cls = '', text = ''): HTMLElement => {
   return e;
 };
 
-/** Owned cards show the 128 px master. A locked card is the currentColor silhouette, fetched as a mask. */
+const btn = (cls: string, x: number, y: number): HTMLButtonElement => {
+  const b = el('button', cls) as HTMLButtonElement;
+  b.type = 'button';
+  b.dataset.nav = '';
+  b.dataset.gx = String(x);
+  b.dataset.gy = String(y);
+  return b;
+};
+
+/** Owned cards show the 128 px master. A locked card masks the currentColor silhouette. */
 const art = (id: string, locked: boolean): HTMLElement => {
   const files = keepsakeIcon(id);
   if (!files || locked) {
     const d = el('span', 'relic-art silhouette');
-    if (files) {
-      d.style.maskImage = `url("${files.svg}")`;
-      d.style.webkitMaskImage = `url("${files.svg}")`;
-    }
+    if (files) d.style.maskImage = `url("${files.svg}")`;
     return d;
   }
   const img = el('img', 'relic-art') as HTMLImageElement;
   img.src = files.png;
-  img.alt = '';
-  img.loading = 'lazy';
-  img.decoding = 'async';
-  img.width = 128;
-  img.height = 128;
   return img;
 };
 
-/**
- * Builds the tab into `body`. `onAction` is the menu's send. Returns the selected id so a
- * re-render can keep it. Pad: confirm equips, compare shows both lines, jump moves between the
- * sockets and the grid. Those keys are handled by `relicKey`.
- */
+function detailOf(model: RelicsModel, selected: string | null, compare: string | null): HTMLElement {
+  const box = el('div', 'relic-detail');
+  const card = model.cards.find((c) => c.id === selected);
+  if (!card) return box;
+  const name = el('div', `name ${card.locked ? '' : card.rarity}`);
+  name.append(el('span', '', card.name), el('span', 'rarity', card.locked ? '' : card.rarity));
+  if (card.badge) name.append(el('span', 'relic-badge', card.badge));
+  box.append(art(card.id, card.locked), name);
+  if (card.locked) return box.append(el('p', 'blurb', card.clue)), box;
+  box.append(el('p', `trait${card.dim ? ' dim' : ''}`, card.effect), el('p', 'blurb', card.flavour));
+  if (card.cap) box.append(el('p', '', card.cap));
+  const bonus = copyOf(card.id)?.bonus;
+  if (bonus) box.append(el('p', '', bonus));
+  if (compare) {
+    const row = el('div', 'relic-compare');
+    row.append(el('p', 'trait', card.effect), el('p', 'trait', model.sockets[0]?.effect ?? 'Empty socket.'));
+    box.append(row);
+  }
+  return box;
+}
+
+/** Sockets, the owned grid, and the detail card. Confirm equips; compare and jump are relicKey. */
 export function renderRelics(
   body: HTMLElement,
   model: RelicsModel,
   selected: string | null,
   compare: string | null,
   onSelect: (id: string) => void,
+  onActivate: (id: string) => void,
   onReplace: (socket: number) => void,
 ): void {
-  body.replaceChildren();
   const root = el('div', 'relics');
   const head = el('div', 'relic-head');
-  head.append(el('span', '', 'Equipped relics'), el('span', '', `${model.found} found`));
+  head.append(el('span', '', `${model.found} found`));
   if (model.locked) root.append(el('p', 'note locked', GEAR_LOCK_TEXT));
   if (model.message) root.append(el('p', 'note', model.message));
   const sockets = el('div', 'relic-sockets');
-  model.sockets.forEach((s, i) => {
-    const b = el('button', `relic-socket${s ? ` filled ${s.rarity}` : ' plus'}`) as HTMLButtonElement;
-    b.type = 'button';
-    b.dataset.nav = '';
-    b.dataset.gx = String(i);
-    b.dataset.gy = '0';
-    b.dataset.socket = String(i);
-    if (s) {
-      b.append(art(s.id, false));
+  const socket = (card: RelicCardModel | null, x: number, onClick: (() => void) | null) => {
+    const b = btn(`relic-socket${card ? ` filled ${card.rarity}` : ' plus'}`, x, 0);
+    b.dataset.socket = String(x);
+    if (card && onClick) {
+      b.append(art(card.id, false));
       b.disabled = model.locked;
-      b.addEventListener('click', () => onReplace(i));
+      b.addEventListener('click', onClick);
     } else b.textContent = '+';
     sockets.append(b);
-  });
-  const totem = el('button', `relic-socket${model.totem ? ` filled ${model.totem.rarity}` : ' plus'}`) as HTMLButtonElement;
-  totem.type = 'button';
-  totem.dataset.nav = '';
-  totem.dataset.gx = '3';
-  totem.dataset.gy = '0';
-  totem.dataset.totem = '';
-  if (model.totem) totem.append(art(model.totem.id, false));
-  else totem.textContent = '+';
-  sockets.append(totem);
+  };
+  model.sockets.forEach((s, i) => socket(s, i, () => onReplace(i)));
+  socket(model.totem, 3, null);
   const grid = el('div', 'relic-grid');
   model.cards.forEach((c, i) => {
-    const b = el('button', `relic-card ${c.rarity}${c.equipped ? ' equipped' : ''}${c.locked ? ' locked' : ''}${c.dim ? ' dim' : ''}`) as HTMLButtonElement;
-    b.type = 'button';
-    b.dataset.nav = '';
-    b.dataset.gx = String(i % 5);
-    b.dataset.gy = String(1 + Math.floor(i / 5));
+    const b = btn(`relic-card ${c.rarity}${c.equipped ? ' equipped' : ''}${c.locked ? ' locked' : ''}${c.dim ? ' dim' : ''}`, i % 5, 1 + Math.floor(i / 5));
     b.dataset.id = c.id;
-    b.append(art(c.id, c.locked), el('span', 'sr', c.name));
+    b.append(art(c.id, c.locked));
     b.disabled = model.locked && !c.locked;
-    b.addEventListener('click', () => onSelect(c.id));
-    b.addEventListener('mouseenter', () => onSelect(c.id));
+    b.addEventListener('click', () => onActivate(c.id));
+    const pick = () => onSelect(c.id);
+    b.addEventListener('focus', pick);
+    b.addEventListener('mouseenter', pick);
     grid.append(b);
   });
-  const detail = detailOf(model, selected, compare);
-  root.append(head, sockets, grid, detail);
-  body.append(root);
-}
-
-function detailOf(model: RelicsModel, selected: string | null, compare: string | null): HTMLElement {
-  const box = el('div', 'relic-detail');
-  const card = model.cards.find((c) => c.id === selected) ?? null;
-  if (!card) {
-    box.append(el('p', 'note', 'Choose a relic or a totem.'));
-    return box;
-  }
-  const name = el('div', `name ${card.locked ? '' : card.rarity}`);
-  name.append(el('span', '', card.name), el('span', 'rarity', card.locked ? '' : card.rarity));
-  if (card.badge) name.append(el('span', 'relic-badge', card.badge));
-  const master = el('div', `relic-master ${card.locked ? '' : card.rarity}${card.equipped ? ' equipped' : ''}`);
-  master.append(art(card.id, card.locked));
-  box.append(master, name);
-  if (card.locked) {
-    box.append(el('p', 'blurb', card.clue));
-    return box;
-  }
-  const effect = el('p', `trait${card.dim ? ' dim' : ''}`, card.effect);
-  box.append(effect, el('p', 'blurb', `"${card.flavour}"`), el('p', '', card.won));
-  if (card.cap) box.append(el('p', '', card.cap));
-  const def = keepsake(card.id);
-  if (def?.bonus) box.append(el('p', '', def.bonus));
-  if (compare) {
-    const other = model.sockets[0];
-    const row = el('div', 'relic-compare');
-    row.append(el('p', 'trait', card.effect), el('p', 'trait', other?.effect ?? 'Empty socket.'));
-    box.append(row);
-  }
-  return box;
+  root.append(head, sockets, grid, detailOf(model, selected, compare));
+  body.replaceChildren(root);
 }
 
 /** Keyboard while the tab is up. Confirm is the grid button's click (Enter / pad A). */

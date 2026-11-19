@@ -20,6 +20,11 @@ export interface Screen {
    * right (D-pad, left stick, arrows, WASD) move the focus in that direction.
    */
   grid?(): boolean;
+  /**
+   * A key or pad button this screen uses itself (the Relics tab's compare and jump). Return true
+   * when the press was used, so the menu does not also treat it as navigation.
+   */
+  onExtra?(input: string): boolean;
 }
 
 export type NavDir = 'up' | 'down' | 'left' | 'right';
@@ -92,7 +97,8 @@ export class MenuNav {
           this.back();
           break;
         default:
-          return;
+          if (!this.top.onExtra?.(e.code)) return;
+          break;
       }
       // The press is used by the menu: gameplay must not also see it (Input skips handled keys).
       e.preventDefault();
@@ -295,6 +301,8 @@ export class MenuNav {
     else if (pad.wasPressed(['b'])) this.back();
     else if (s.onTab && pad.wasPressed(['lb'])) this.tab(-1);
     else if (s.onTab && pad.wasPressed(['rb'])) this.tab(1);
+    else if (pad.wasPressed(['x'])) s.onExtra?.('x');
+    else if (pad.wasPressed(['y'])) s.onExtra?.('y');
     if (this.top !== s) return; // the press changed screens
     const grid = !!s.grid?.();
     let dir: NavDir | null = null;

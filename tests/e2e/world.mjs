@@ -270,11 +270,11 @@ async function rpgLoop() {
   s = await state();
   check(s.state === 'paused' && s.screen === 'screen-menu' && s.menuTab === 'powers', 'Start opens the tabbed menu on Powers', `${s.state} ${s.screen} ${s.menuTab}`);
   const toured = [s.menuTab];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 7; i++) {
     await press('rb');
     toured.push((await state()).menuTab);
   }
-  check(toured.join() === 'powers,skills,gear,quests,map,settings,powers', 'RB tours every tab and wraps', toured.join());
+  check(toured.join() === 'powers,skills,gear,relics,quests,map,settings,powers', 'RB tours every tab and wraps', toured.join());
   await press('lb');
   s = await state();
   check(s.menuTab === 'settings', 'LB goes back a tab (and wraps)', s.menuTab);

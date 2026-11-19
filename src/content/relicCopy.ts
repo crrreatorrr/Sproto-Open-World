@@ -1,6 +1,6 @@
 /**
- * Card text for totems and relics. The sim does not import this: the strings stay out of the
- * boot bundle until the Relics tab is wired into the menu.
+ * Card text for totems and relics. The sim does not import this. The menu fetches
+ * public/ui/relic-copy.json, so these strings stay out of the boot script.
  *
  * Placed GLBs, from the Blender spec: public/assets/models/totems/<id>.glb.
  * Not committed here. The Mac build lands them on main; the view uses a stand-in until then.
@@ -10,23 +10,25 @@ export interface RelicCopy {
   clue: string;
   effect: string;
   cap: string | null;
+  /** How a bonus relic is earned early. Null when the quest step is the only way. */
+  bonus: string | null;
   /** Provisional GLB under public/assets. Null for relics (no placed model). */
   model: string | null;
   /** Placed height in metres. 0 for a relic. */
   height: number;
 }
 
-const relic = (flavour: string, clue: string, effect: string, cap: string | null): RelicCopy =>
-  ({ flavour, clue, effect, cap, model: null, height: 0 });
+const relic = (flavour: string, clue: string, effect: string, cap: string | null, bonus: string | null = null): RelicCopy =>
+  ({ flavour, clue, effect, cap, bonus, model: null, height: 0 });
 
 const totem = (id: string, flavour: string, clue: string, effect: string, cap: string | null, height: number): RelicCopy =>
-  ({ flavour, clue, effect, cap, model: `models/totems/${id}.glb`, height });
+  ({ flavour, clue, effect, cap, bonus: null, model: `models/totems/${id}.glb`, height });
 
 export const RELIC_COPY: Record<string, RelicCopy> = {
   relic_drowned_coins: relic(
     'Minted in the lost kingdom before the mud came. They still know the way home.',
     'A watchman once kept something under the bell.',
-    'Parry window +4 ticks (200 → 267 ms).', 'Cap: parry window never above 300 ms.'),
+    'Parry window +4 ticks (200 → 267 ms).', 'Cap: parry window never above 300 ms.', 'Reflect 3 coins into Slingers'),
   relic_gatekeepers_grip: relic(
     'Taken from the hand that held Thornwood shut.',
     'The hand that held the wood shut left something behind.',
@@ -38,7 +40,7 @@ export const RELIC_COPY: Record<string, RelicCopy> = {
   relic_sprotos_stride: relic(
     'Wraps of the beast-hero Sproto, who was never where the blow fell.',
     'The giant prints remember a lighter step.',
-    'Roll i-frames end 17 → 20; a perfect dodge ends 9 → 12.', 'Cap: i-frames never end after tick 21; a perfect dodge never after 12.'),
+    'Roll i-frames end 17 → 20; a perfect dodge ends 9 → 12.', 'Cap: i-frames never end after tick 21; a perfect dodge never after 12.', '3 perfect dodges against the Hollow Giant in one fight'),
   relic_tinubus_broken_seal: relic(
     "Pried from the tyrant's hoard. It holds the moment open, and never again for him.",
     "The mill wheel once held a tyrant's mark.",
@@ -54,7 +56,7 @@ export const RELIC_COPY: Record<string, RelicCopy> = {
   relic_elder_iron_rivet: relic(
     'Iron from the lost kingdom. Strike it, and it answers.',
     'Struck iron from the old camps answers back.',
-    '10% chance a blocked melee blow fires a free Guard Counter. 3 s cooldown.', 'Cap: the chance never passes 15%.'),
+    '10% chance a blocked melee blow fires a free Guard Counter. 3 s cooldown.', 'Cap: the chance never passes 15%.', 'Fell 2 Gunners with their own reflected charged shot'),
   relic_surgebriar: relic(
     'Grown where the wild surge runs closest to the ground. Blows lose their nerve in it.',
     "The weaver's hedge keeps a living cuff.",

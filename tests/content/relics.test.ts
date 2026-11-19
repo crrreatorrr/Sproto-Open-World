@@ -68,6 +68,11 @@ describe('keepsake catalog', () => {
     expect(capBlockMessage('relic_drowned_coins', [], false)).toBeNull();
   });
 
+  it('keeps the fetched card text equal to the catalog', () => {
+    const file = JSON.parse(readFileSync('public/ui/relic-copy.json', 'utf8'));
+    expect(file).toEqual(RELIC_COPY);
+  });
+
   it('maps each icon slug to its item id, and the files match the spec', async () => {
     const slugs = [
       ['relic_drowned_coins', 'coins-of-the-drowned-kingdom'],
