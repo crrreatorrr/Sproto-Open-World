@@ -20,6 +20,7 @@ import type { ObjectDef } from '../objects';
 import type { QuestDef } from '../quests';
 import type { SpellId } from '../spells';
 import type { RegionContent } from '../world/sproutvaleContent';
+import { GUNNER_REFLECT_STAGGER } from './encounterTune';
 
 /** Spells C3 defines: named here by id, so this pack doesn't depend on the order the two land in. */
 const spell = (id: string) => id as SpellId;
@@ -55,7 +56,7 @@ export const C4_ENEMIES: Record<string, EnemyDef> = {
       },
       {
         id: 'charged_shot', windup: 54, active: 1, recovery: 36, damage: 28, kind: 'physical', poise: 20, hitbox: { forward: 0.7, up: 1.5, radius: 0.2 }, range: 22, minRange: 6, weight: 1.5, cooldown: 240,
-        hyperArmor: true, trackUntil: 0.85, hitstop: 6, clip: 'cast_big', projectile: { speed: 34, radius: 0.4, range: 30 }, token: { pool: 'ranged', cost: 1 },
+        hyperArmor: true, trackUntil: 0.85, hitstop: 6, clip: 'cast_big', cue: 'whine', projectile: { speed: 34, radius: 0.4, range: 30, reflectBonus: { hpFrac: 0, stagger: GUNNER_REFLECT_STAGGER } }, token: { pool: 'ranged', cost: 1 },
       },
     ],
   },
@@ -246,13 +247,13 @@ export const C4_DROPS: Record<string, DropTable> = {
   rivet_gunner: { sprouts: [10, 18], heartChance: 0.25, items: [{ item: 'rivet', chance: 0.8 }] },
   lens_warden: { sprouts: [40, 70], heartChance: 1 },
   hollow_giant: { sprouts: [100, 160], heartChance: 1 },
-  bramble_colossus: { sprouts: [60, 90], heartChance: 1, items: [{ item: 'giant_pumpkin', chance: 1 }] },
+  bramble_colossus: { sprouts: [60, 90], heartChance: 1, items: [{ item: 'giant_pumpkin', chance: 1, when: 'stagger' }] },
   bramble_thrall: { sprouts: [6, 10], heartChance: 0.2 },
 };
 
 /** Extra items on drop tables that already exist: A7's Thorn Seeds come from Hex Wisps. */
-export const C4_EXTRA_DROPS: Record<string, { item: string; chance: number }[]> = {
-  wisp: [{ item: 'thorn_seed', chance: 0.45 }],
+export const C4_EXTRA_DROPS: Record<string, { item: string; chance: number; when?: 'spell' | 'stagger' }[]> = {
+  wisp: [{ item: 'thorn_seed', chance: 0.45, when: 'spell' }],
 };
 
 /** Added to Trader Pepe's stock. */
@@ -314,7 +315,10 @@ export const C4_QUESTS: Record<string, QuestDef> = {
     kind: 'side',
     prereq: [{ questDone: 'q_rivet_volley' }],
     steps: [
-      { id: 'gunners', text: 'Destroy 8 Rivet Gunners at the salvage camps.', objectives: [{ kind: 'kill', tag: 'rivet_gunner', count: 8 }], marker: 'salvage_yard_gate' },
+      {
+        id: 'gunners', text: 'Destroy 8 Rivet Gunners at the salvage camps.', objectives: [{ kind: 'kill', tag: 'rivet_gunner', count: 8 }], marker: 'salvage_yard_gate',
+        bonus: { flag: 'bonus.q_iron_gallery.reflect', objective: { kind: 'feat', feat: 'reflectKill', count: 2, against: 'rivet_gunner', source: 'charged_shot', fatal: true } },
+      },
       { id: 'rivets', text: 'Collect 5 Rivets from the wrecks.', objectives: [{ kind: 'collect', item: 'rivet', count: 5, consume: true }], marker: 'salvage_yard_gate' },
       { id: 'return', text: 'Bring the Rivets to the Watch Captain.', objectives: [{ kind: 'talk', npc: 'watch_captain', node: 'a3_done' }], marker: 'watch_captain' },
     ],
@@ -341,11 +345,14 @@ export const C4_QUESTS: Record<string, QuestDef> = {
     kind: 'side',
     prereq: [{ level: 6 }],
     steps: [
-      { id: 'track1', text: 'Follow the giant tracks west from the Ranger.', objectives: [{ kind: 'reach', trigger: 'giant_track_1' }], marker: 'giant_track_1' },
-      { id: 'track2', text: 'Follow the tracks deeper into the Thornwood.', objectives: [{ kind: 'reach', trigger: 'giant_track_2' }], marker: 'giant_track_2' },
-      { id: 'track3', text: 'The tracks turn past the Brute patrol.', objectives: [{ kind: 'reach', trigger: 'giant_track_3' }], marker: 'giant_track_3' },
-      { id: 'track4', text: 'The prints are fresh here.', objectives: [{ kind: 'reach', trigger: 'giant_track_4' }], marker: 'giant_track_4' },
-      { id: 'giant', text: 'Bring down the Hollow Giant.', objectives: [{ kind: 'kill', tag: 'hollow_giant', count: 1 }], marker: 'giant_track_4' },
+      { id: 'track1', text: 'Follow the giant tracks west from the Ranger.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_1' }] },
+      { id: 'track2', text: 'Follow the tracks deeper into the Thornwood.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_2' }] },
+      { id: 'track3', text: 'The tracks turn past the Brute patrol.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_3' }] },
+      { id: 'track4', text: 'The prints are fresh here.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_4' }] },
+      {
+        id: 'giant', text: 'Bring down the Hollow Giant.', objectives: [{ kind: 'kill', tag: 'hollow_giant', count: 1 }], marker: 'giant_track_4',
+        bonus: { flag: 'bonus.q_hollow_giant.dodge', objective: { kind: 'feat', feat: 'perfectDodge', count: 3, against: 'hollow_giant', perFight: true } },
+      },
     ],
     rewards: [{ give: 'staff_fighter' }, { xp: 600 }, { currency: 120 }],
   },

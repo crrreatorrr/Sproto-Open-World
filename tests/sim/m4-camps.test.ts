@@ -98,7 +98,10 @@ describe('camps stay down until you rest (plan §2.9)', () => {
 
   it('every camp in the content spawns all its members', async () => {
     const { w } = await flatSproutvale();
-    for (const camp of SPROUTVALE_CONTENT.camps ?? []) expect(campMembers(w, camp.id).map((e) => e.brain!.def), camp.id).toEqual(camp.members.map((m) => m.def));
+    for (const camp of SPROUTVALE_CONTENT.camps ?? []) {
+      const standing = camp.members.filter((m) => (m.wave ?? 1) === 1);
+      expect(campMembers(w, camp.id).map((e) => e.brain!.def), camp.id).toEqual(standing.map((m) => m.def));
+    }
     w.dispose();
   });
 

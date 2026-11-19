@@ -5,6 +5,7 @@
 import type { DamageKind } from './combat';
 import { ENEMY_SIZES, scaleEnemy } from './enemyScale';
 import { C4_ENEMIES } from './packs/c4';
+import { BIG_COIN_ADD_BELOW, BIG_COIN_ADD_COUNT, BIG_COIN_ADD_DEF, DRILL_FAST_WINDUP, GATEKEEPER_STRING3_HOLD } from './packs/encounterTune';
 import { BURROWMOTHER } from './packs/c5';
 import { DRAKE, type DrakeDef } from './packs/c6';
 import { SCRAPJAW } from './packs/m5';
@@ -105,6 +106,10 @@ export interface EnemyMoveDef {
   minRange?: number;
   /** Telegraph decal shape on the ground (area attacks). */
   decal?: 'circle' | 'jagged';
+  /** Extra ticks the wind-up waits before the swing (the Gatekeeper's third hit, Scrapjaw's second beat). */
+  holdTicks?: number;
+  /** A sound cue through the wind-up (the Gunner's rising whine). */
+  cue?: 'whine';
   /** Hit-stop when it connects (ticks). */
   hitstop: number;
   /** Clip the view plays (falls back to procedural motion). */
@@ -185,6 +190,8 @@ export interface EnemyDef {
   boss?: BossDef;
   /** It fights in the air; the brain is `sim/systems/drake.ts`. */
   drake?: DrakeDef;
+  /** Below this fraction of max HP it calls `count` of `def` (Big Coin's bell). Once per life. */
+  adds?: { below: number; def: string; count: number; cue: 'bell' };
 }
 
 const NORMAL_PROFILE = { damage: { physical: 'normal', arcane: 'normal' }, status: { burn: 'normal', chill: 'normal', shock: 'normal' } } as const;
@@ -217,6 +224,8 @@ export const ENEMIES: Record<string, EnemyDef> = {
     dummy: 'swing',
     moves: [
       { id: 'swing', windup: 24, active: 6, recovery: 30, damage: 8, kind: 'physical', poise: 10, hitbox: { forward: 1.0, up: 1.1, radius: 0.9 }, range: 2.6, weight: 1, cooldown: 90, trackUntil: 0.5, hitstop: 3 },
+      // Every third swing of the parry drill: the same blow, a shorter wind-up, so the gold glint closes faster.
+      { id: 'swing_fast', windup: DRILL_FAST_WINDUP, active: 6, recovery: 20, damage: 8, kind: 'physical', poise: 10, hitbox: { forward: 1.0, up: 1.1, radius: 0.9 }, range: 2.6, weight: 0, cooldown: 0, trackUntil: 0.5, hitstop: 3, chainOnly: true },
     ],
   },
   dummy_shooter: {
@@ -330,7 +339,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     respawnTicks: 300,
     usesTokens: true,
     keepRange: [8, 12],
-    blink: { hits: 2, distance: 6 },
+    blink: { hits: 1, distance: 6 },
     hover: 0.6,
     moves: [
       {
@@ -353,6 +362,7 @@ ENEMIES.grunt_vet = { ...ENEMIES.grunt, id: 'grunt_vet', name: 'Veteran Grunt', 
 ENEMIES.big_coin = {
   ...ENEMIES.slinger, id: 'big_coin', name: 'Big Coin', model: 'big_coin', hp: 210, poise: 45, xp: 90, level: 3, body: { radius: 0.5, height: 2.3 },
   staggerTicks: 40, tags: ['slinger'],
+  adds: { below: BIG_COIN_ADD_BELOW, def: BIG_COIN_ADD_DEF, count: BIG_COIN_ADD_COUNT, cue: 'bell' },
 };
 ENEMIES.gatekeeper = {
   id: 'gatekeeper',
@@ -379,7 +389,7 @@ ENEMIES.gatekeeper = {
     // A 3-hit string: the second and third hits chain on (`followUp`); dodge each one.
     { id: 'string', windup: 28, active: 5, recovery: 8, damage: 18, kind: 'physical', poise: 14, hitbox: { forward: 1.8, up: 1.2, radius: 1.1 }, range: 3.0, weight: 2, cooldown: 120, trackUntil: 0.7, hitstop: 4, clip: 'smash', followUp: 'string2', token: { pool: 'melee', cost: 2 } },
     { id: 'string2', windup: 20, active: 5, recovery: 8, damage: 18, kind: 'physical', poise: 14, hitbox: { forward: 1.8, up: 1.2, radius: 1.1 }, range: 3.0, weight: 0, cooldown: 0, trackUntil: 0.7, hitstop: 4, clip: 'smash', followUp: 'string3', chainOnly: true, token: { pool: 'melee', cost: 2 } },
-    { id: 'string3', windup: 20, active: 5, recovery: 30, damage: 18, kind: 'physical', poise: 18, hitbox: { forward: 1.9, up: 1.0, radius: 1.2 }, range: 3.0, weight: 0, cooldown: 0, trackUntil: 0.5, hitstop: 5, clip: 'smash', chainOnly: true, token: { pool: 'melee', cost: 2 } },
+    { id: 'string3', windup: 20, active: 5, recovery: 30, damage: 18, kind: 'physical', poise: 18, hitbox: { forward: 1.9, up: 1.0, radius: 1.2 }, range: 3.0, weight: 0, cooldown: 0, trackUntil: 0.5, hitstop: 5, clip: 'smash', chainOnly: true, holdTicks: GATEKEEPER_STRING3_HOLD, token: { pool: 'melee', cost: 2 } },
     {
       id: 'ground_wave', windup: 40, active: 6, recovery: 40, damage: 35, kind: 'physical', poise: 30, hitbox: { forward: 0, up: 0.4, radius: 0 }, range: 9, minRange: 3, weight: 1, cooldown: 300,
       unblockable: true, hyperArmor: true, trackUntil: 0, hitstop: 8, clip: 'smash', area: { radius: 3.5 }, decal: 'jagged', token: { pool: 'melee', cost: 2 },

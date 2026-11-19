@@ -27,6 +27,16 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /**
+ * Seams on the Drake. Each reflected fireball takes 0.34 of its poise, so two show before the
+ * break. The break refills the bar on that hit, and the third seam stays up while it glides.
+ */
+export function drakeCrackCount(poise: number, poiseMax: number, broken: boolean): number {
+  if (broken) return 3;
+  if (!(poiseMax > 0)) return 0;
+  return Math.min(3, Math.round((1 - poise / poiseMax) / 0.34));
+}
+
+/**
  * The Skyfire Drake (expansion plan §3.5). The model only has `fly` and `fireball`, so the body does
  * the rest: it banks into its turns, tips its nose along its flight, and paints each dive's lane on
  * the ground through the wind-up. The arena's fog wall stands while the fight is on.
@@ -53,10 +63,20 @@ export class DrakeView implements EntityView {
   private readonly wall: THREE.Mesh;
   private readonly wallMat = fogMaterial(0xffb070);
   private wallOn = 0;
+  /** One dark seam per reflected fireball. Three and the stance breaks. */
+  private readonly cracks: THREE.Mesh[];
 
   constructor(assets: AssetLoader, readonly def: EnemyDef, private readonly fx: HitFx | null) {
     this.height = def.body.height;
-    this.root.add(this.body, this.glow.glint);
+    const crackMat = new THREE.MeshBasicMaterial({ color: 0x1a100c, side: THREE.DoubleSide });
+    this.cracks = [0, 1, 2].map((i) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.15 * this.height, 0.55 * this.height), crackMat);
+      m.position.set((i - 1) * 0.35 * (def.size ?? 1), this.height * 0.55, 0.4 * (def.size ?? 1));
+      m.rotation.z = (i - 1) * 0.4;
+      m.visible = false;
+      return m;
+    });
+    this.root.add(this.body, this.glow.glint, ...this.cracks);
     this.glow.glint.position.set(0, this.height * 0.7, 3 * (def.size ?? 1));
     this.lane = new THREE.Mesh(this.laneGeo, this.laneMat);
     this.lane.frustumCulled = false;
@@ -109,6 +129,11 @@ export class DrakeView implements EntityView {
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
     placeEntity(this.root, e, alpha);
     this.time += dt;
+    const poise = e.combat;
+    // A break refills the bar on the same hit, so the third seam has to stay up through the glide.
+    const broken = poise?.action?.kind === 'stagger' && poise.action.reason === 'broken';
+    const cracks = drakeCrackCount(poise?.poise ?? 0, poise?.poiseMax ?? 0, broken);
+    this.cracks.forEach((c, i) => (c.visible = i < cracks));
     const a = e.combat?.action ?? null;
     const anim = this.animator;
     const flight = e.boss?.flight;
@@ -214,6 +239,9 @@ export class DrakeView implements EntityView {
     this.wall.removeFromParent();
     this.wall.geometry.dispose();
     this.wallMat.dispose();
+    const crackMat = this.cracks[0]?.material;
+    for (const c of this.cracks) c.geometry.dispose();
+    if (crackMat && !Array.isArray(crackMat)) crackMat.dispose();
     this.root.removeFromParent();
   }
 }

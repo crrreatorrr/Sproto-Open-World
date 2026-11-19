@@ -182,7 +182,7 @@ export const C6_QUESTS: Record<string, QuestDef> = {
     prereq: [{ questDone: 'q_deep_seam' }],
     steps: [
       {
-        id: 'hay', text: 'Douse the 5 burning haystacks around the Orchard.', marker: 'orchard_fields',
+        id: 'hay', text: 'Douse the 5 burning haystacks around the Orchard.', clue: 'scorch',
         objectives: HAY.map((_, i) => ({ kind: 'interact' as const, object: hayId(i) })),
       },
       { id: 'return', text: 'Tell Farmer Broccoli the fires are out.', objectives: [{ kind: 'talk', npc: 'farmer_broccoli', node: 'a10_done' }], marker: 'farmer_broccoli' },
