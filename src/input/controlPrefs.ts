@@ -34,6 +34,7 @@ export const ACTION_LABELS: Record<ControlAction, string> = {
   spellModifier: 'Spell modifier (hold)',
   interact: 'Interact',
   potion: 'Potion',
+  callMount: 'Call the Pepe Bull',
   questLog: 'Quest log',
   inventory: 'Gear',
   pause: 'Pause',

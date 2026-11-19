@@ -214,6 +214,74 @@ try {
   await shot('b7-dismounting');
   s = await until((q) => q.player.riding === null, 'the ground');
   check(s.player.riding === null, 'the player is back on foot');
+
+  // Call the bull with the D-pad. Read every frame: a slow software GPU shows few of them.
+  check(/Call bull/.test(await page.evaluate(() => document.body.innerText)), 'the controls bar shows how to call the bull');
+  await page.evaluate(() => {
+    const sim = window.__qa.app.sim;
+    const bull = sim.entities.find((e) => e.mount);
+    window.__bull = { top: 0, jump: 0, last: null };
+    const look = () => {
+      const w = window.__bull, at = bull.tf.pos;
+      if (w.last) w.jump = Math.max(w.jump, Math.hypot(at.x - w.last.x, at.z - w.last.z));
+      w.last = { x: at.x, z: at.z };
+      w.top = Math.max(w.top, bull.mount.speed);
+      requestAnimationFrame(look);
+    };
+    requestAnimationFrame(look);
+  });
+  const bullNow = () => page.evaluate(() => {
+    const sim = window.__qa.app.sim, b = sim.entities.find((e) => e.mount), p = sim.playerEntity(0);
+    return { x: b.tf.pos.x, z: b.tf.pos.z, away: Math.hypot(b.tf.pos.x - p.tf.pos.x, b.tf.pos.z - p.tf.pos.z), called: !!b.mount.call, speed: b.mount.speed, ...window.__bull };
+  });
+  const goTo = async (x, z) => {
+    await page.evaluate(([a, c]) => {
+      const v = window.__qa.app.sim.playerEntity(0).vitals;
+      v.hp = v.hpMax;
+      window.__qa.teleport(a, c);
+    }, [x, z]);
+    await frames(2);
+    await page.waitForFunction(() => {
+      const q = window.__qa.state();
+      return q.state === 'playing' && !q.groundWait && !q.waitingForGround;
+    }, null, { timeout: 180000, polling: 'raf' });
+    await frames(10);
+  };
+  const arrives = async (what) => {
+    for (let i = 0; i < 400; i++) {
+      const b = await bullNow();
+      if (!b.called && b.away < 4) return b;
+      await frames(3);
+    }
+    throw new Error(`timed out waiting for ${what}`);
+  };
+
+  // Near: it runs over the ground, with no jump in position.
+  let b = await bullNow();
+  const toVillage = Math.atan2(256 - b.x, 58 - b.z);
+  await goTo(b.x + Math.sin(toVillage) * 35, b.z + Math.cos(toVillage) * 35);
+  await page.evaluate(() => Object.assign(window.__bull, { top: 0, jump: 0, last: null }));
+  await press('down');
+  b = await arrives('the bull to run over');
+  check(b.top > 5, 'D-pad down calls the bull and it runs to the player', `top speed ${b.top.toFixed(1)} m/s, ${b.away.toFixed(1)} m away`);
+  check(b.jump < 8, 'it covers the ground without teleporting', `biggest step ${b.jump.toFixed(1)} m`);
+  await shot('b9-called');
+
+  // Far: it appears out of sight a short way off and runs in.
+  await goTo(420, 60);
+  await page.evaluate(() => Object.assign(window.__bull, { top: 0, jump: 0, last: null }));
+  b = await bullNow();
+  check(b.away > 80, 'the bull is left far behind', `${b.away.toFixed(0)} m away`);
+  await press('down');
+  let first = await bullNow();
+  for (let i = 0; i < 40 && first.away > 40; i++) {
+    await frames(2);
+    first = await bullNow();
+  }
+  check(first.away <= 30 && first.away > 4, 'from far away it appears a short way off', `${first.away.toFixed(1)} m away`);
+  b = await arrives('the bull to run in');
+  check(b.top > 5, 'and runs the rest of the way in', `top speed ${b.top.toFixed(1)} m/s, ${b.away.toFixed(1)} m away`);
+  await shot('b10-called-far');
   await frames(30);
   await shot('b8-off');
   check(errors.length === 0, 'no console errors', errors.slice(0, 3).join(' | '));

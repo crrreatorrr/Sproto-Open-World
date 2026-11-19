@@ -24,6 +24,7 @@ export const BTN = {
   spell2: 1 << 10,
   spell3: 1 << 11,
   spell4: 1 << 12,
+  callMount: 1 << 13,
 } as const;
 export type ButtonName = keyof typeof BTN;
 

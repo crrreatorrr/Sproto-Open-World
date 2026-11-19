@@ -224,12 +224,29 @@ export interface Interactable {
 }
 
 /** A rideable animal. It has no body of its own: while ridden it follows its rider. */
+/** A bull on its way to the player who called it. */
+export interface MountCall {
+  caller: EntityId;
+  /** How fast it is running (m/s), how fast it is falling, and whether it is on the ground. */
+  speed: number;
+  fall: number;
+  grounded: boolean;
+  /** The closest it has got, and the ticks since it last got closer. */
+  closest: number;
+  stuck: number;
+  /** Which way it last went round something (-1 or 1). */
+  side: number;
+  /** It has already appeared near the player once on this call. */
+  appeared: boolean;
+}
+
 export interface Mount {
   rider: EntityId | null;
   home: Vec3;
   homeYaw: number;
   /** Planar speed (m/s), for its legs. */
   speed: number;
+  call?: MountCall;
 }
 
 /** On a mount, or getting on or off it. */

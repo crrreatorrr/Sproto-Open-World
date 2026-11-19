@@ -58,12 +58,12 @@ export class CommandBuilder {
       if (wasPressed) pressed |= BTN[name];
     };
     // Keyboard + mouse.
-    for (const name of ['jump', 'sprint', 'dodge', 'light', 'heavy', 'block', 'lock', 'interact', 'potion', 'spell1', 'spell2', 'spell3', 'spell4'] as const) {
+    for (const name of ['jump', 'sprint', 'dodge', 'light', 'heavy', 'block', 'lock', 'interact', 'potion', 'callMount', 'spell1', 'spell2', 'spell3', 'spell4'] as const) {
       btn(name, inp.isDown(KEYS[name]), inp.wasPressed(KEYS[name]));
     }
     // Pad: face buttons are spells while the modifier is held, their own action otherwise.
     this.spellMode = pad.isDown(PAD.spellModifier);
-    for (const name of ['sprint', 'light', 'heavy', 'block', 'lock', 'potion'] as const) {
+    for (const name of ['sprint', 'light', 'heavy', 'block', 'lock', 'potion', 'callMount'] as const) {
       btn(name, pad.isDown(PAD[name]), pad.wasPressed(PAD[name]));
     }
     if (this.spellMode) {

@@ -1274,6 +1274,10 @@ export class App {
         hud.feed(`Bought ${ITEMS[e.item]?.name ?? e.item} for ${e.price} Sprouts`, 'item');
         this.audio.play('uiClick', 0.8);
         return;
+      case 'mountCall':
+        if (e.phase === 'coming' || e.phase === 'appeared') hud.feed('The Pepe Bull is on its way', 'item');
+        else if (e.phase === 'failed') hud.feed('The Pepe Bull can\'t reach you here', 'item');
+        return;
       case 'refused':
         this.rpgMenus.event(e);
         this.hud.toast(e.reason);

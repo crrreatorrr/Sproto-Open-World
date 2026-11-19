@@ -45,6 +45,19 @@ export const MOUNT = {
   rideRadius: 0.65,
   /** Sitting down lifts the wider collider this far clear of a slope; snapping to the ground takes it back (m). */
   seatLift: 0.12,
+  /** Called from within this distance, the bull runs to the player over the ground (m). */
+  callRange: 80,
+  /** From further away, or when it can't get through, it appears behind the camera at one of these distances and runs in (m). */
+  callAppear: [28, 20],
+  /** It pulls up this far from the player: close enough to ride (m). */
+  callStop: 2.6,
+  /** It drops from a gallop to a trot this far out (m). */
+  callTrotWithin: 14,
+  /** Getting no closer by `callProgress` metres for this many ticks means it can't get through. */
+  callStuckTicks: 90,
+  callProgress: 1.5,
+  /** The capsule it runs on (m). */
+  callRadius: 0.6,
   /** Resting or respawning calls an unridden bull to this offset from the shrine (m). */
   shrineOffset: [3.5, 2.5],
 } as const;

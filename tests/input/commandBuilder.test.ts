@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PAD } from '../../src/input/bindings';
 import { CommandBuilder } from '../../src/input/CommandBuilder';
 import type { Input } from '../../src/input/Input';
 import { BTN } from '../../src/sim/commands';
@@ -29,6 +30,18 @@ describe('command builder', () => {
     const first = b.take(0);
     expect(first.pressed & BTN.jump).toBeTruthy();
     expect(b.take(0).pressed & BTN.jump).toBeFalsy();
+  });
+
+  it('V and the D-pad down both call the Pepe Bull', () => {
+    const f = fakeInput();
+    const b = new CommandBuilder(f.input);
+    f.down.add('KeyV');
+    f.pressed.add('KeyV');
+    b.frame();
+    expect(b.take(0).pressed & BTN.callMount).toBeTruthy();
+    expect(PAD.callMount).toEqual(['down']);
+    const taken = (Object.entries(PAD) as [string, string[]][]).filter(([name, btn]) => name !== 'callMount' && btn.includes('down'));
+    expect(taken).toEqual([]);
   });
 
   it('keyboard movement is normalized; camera yaw rides along', () => {

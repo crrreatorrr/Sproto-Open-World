@@ -25,6 +25,8 @@ export const KEYS = {
   spell4: ['Digit4', 'KeyX'],
   interact: ['KeyF'],
   potion: ['KeyH'],
+  /** Whistle for the Pepe Bull. */
+  callMount: ['KeyV'],
   /** Straight to the tabbed menu's Quests / Gear tab. */
   questLog: ['KeyJ'],
   inventory: ['KeyI'],
@@ -43,6 +45,8 @@ export const PAD = {
   spellModifier: ['lt'],
   interact: ['y'],
   potion: ['up'],
+  /** Whistle for the Pepe Bull. */
+  callMount: ['down'],
   /** View / Select: the tabbed menu on its Quests tab. */
   questLog: ['back'],
   pause: ['start'],
