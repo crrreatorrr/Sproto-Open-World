@@ -116,7 +116,7 @@ try {
   h = await hud();
   check(h.tracked === 'q_relics', 'the quest taken is the one tracked', h.tracked);
   check(h.title === 'Lost Relics' && /relic chests/.test(h.step), 'the tracker moves on to its first step', h.step);
-  check(h.compass, 'the compass leads to the first relic chest');
+  check(!h.compass, 'the relic search has no compass marker; the chests shimmer in the world');
   await shot('taken');
 
   // Led to one quest, the player takes a different one: the tracker shows the one they took.

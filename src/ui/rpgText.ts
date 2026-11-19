@@ -111,7 +111,7 @@ export function questLine(id: string, state: QuestState | undefined): QuestLine 
     status: done ? 'complete' : state.status,
     step: done ? 'Complete' : (step?.text ?? ''),
     lines: done || !step ? [] : objectiveLines(step.objectives, state.progress),
-    marker: done || !step ? null : (step.marker ?? nextTarget(step.objectives, state.progress)),
+    marker: done || !step || step.clue ? null : (step.marker ?? nextTarget(step.objectives, state.progress)),
   };
 }
 

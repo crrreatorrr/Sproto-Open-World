@@ -95,6 +95,21 @@ export function eventSound(e: SimEvent, audio: AudioManager, me: EntityId | null
     case 'bossPhase':
       audio.play('bossRise');
       return;
+    case 'cue':
+      if (e.cue === 'horn') audio.play('bossRoar', 1.6, 0.55);
+      else if (e.cue === 'bell') audio.play('shieldPerfect', 1.8, 0.7);
+      else if (e.cue === 'whine') audio.play('stunCharge', 0.55 + (e.frac ?? 0) * 1.1, 0.2 + (e.frac ?? 0) * 0.35);
+      else if (e.cue === 'roar' || e.cue === 'distantRoar') audio.play('bossRoar', e.cue === 'distantRoar' ? 0.55 : 1, e.cue === 'distantRoar' ? 0.45 : 0.8);
+      else if (e.cue === 'coinRing') audio.play('shieldPerfect', 2.1, 0.85);
+      else if (e.cue === 'crack') audio.play('pillarHit', 1.4, 0.45);
+      else if (e.cue === 'sizzle') audio.play('fireBurn', 1.3, 0.4);
+      else if (e.cue === 'hum') audio.play('shieldUp', 0.5 + (e.frac ?? 0.5), 0.15 + (e.frac ?? 0) * 0.35);
+      else if (e.cue === 'chord') {
+        audio.play('shieldUp', 0.7, 0.45);
+        audio.play('shieldPerfect', 1.2, 0.35);
+      } else if (e.cue === 'tremor') audio.play('pillarHit', 0.45, 0.35);
+      else if (e.cue === 'sealDrop') audio.play('ticketPickup', 0.8, 0.7);
+      return;
     case 'bossSummon':
       audio.play('bossRoar', 1.25, 0.7);
       return;

@@ -97,6 +97,8 @@ export class CameraRig {
   private rise = 0;
   private fovBoost = 0;
   private time = 0;
+  /** Seconds left of a brief push-in (Scrapjaw's parried bite). */
+  private pushInT = 0;
   private padHeldEdge = 0;
   private readonly kickAt = new THREE.Vector3();
   private readonly kickVel = new THREE.Vector3();
@@ -192,6 +194,11 @@ export class CameraRig {
     this.trauma = Math.min(1, this.trauma + amount);
   }
 
+  /** Pull the camera in for a short beat, then ease back out. */
+  nudgeIn(seconds = 0.45): void {
+    this.pushInT = Math.max(this.pushInT, seconds);
+  }
+
   /** A blow landed along (dx, dz): lurch that way by about `metres` and punch in by `fov` degrees. */
   kick(dx: number, dz: number, metres: number, fov = 0): void {
     const d = Math.hypot(dx, dz);
@@ -258,7 +265,8 @@ export class CameraRig {
     const shoulder = this.tmp.copy(this.pivot).addScaledVector(this.right, this.shoulder);
 
     this.scaleNow = damp(this.scaleNow, this.distanceScale, 3, dt);
-    const reach = CAM.distance * this.scaleNow;
+    if (this.pushInT > 0) this.pushInT = Math.max(0, this.pushInT - dt);
+    const reach = CAM.distance * this.scaleNow * (this.pushInT > 0 ? 0.78 : 1);
     this.desired.copy(this.forward).multiplyScalar(-reach);
     const backHit = view.sphereCast(shoulder, this.desired, r);
     const maxDist = this.clearOfSolid(shoulder, backHit ? Math.max(0, backHit.distance - 0.02) : reach);
