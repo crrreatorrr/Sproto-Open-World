@@ -359,7 +359,7 @@ export class GameMenu {
     const gear = el('div', 'gear');
     if (locked) gear.append(el('p', 'note locked', 'Locked in combat: gear changes 5 s after the last enemy loses interest, or at a shrine.'));
     const slot = (label: string, id: string | null) => row(label, id ? (ITEMS[id]?.name ?? id) : 'empty');
-    gear.append(el('h3', '', 'Equipped'), slot('Staff', p.equipment.staff), slot('Robe', p.equipment.robe), slot('Charm', p.equipment.charm));
+    gear.append(el('h3', '', 'Equipped'), slot('Weapon', p.equipment.staff), slot('Robe', p.equipment.robe), slot('Charm', p.equipment.charm));
     const worn = (it: ItemDef) => (it.kind === 'staff' ? ITEMS[p.equipment.staff] : it.kind === 'robe' ? ITEMS[p.equipment.robe] : undefined);
     for (const g of inventoryGroups(p)) {
       gear.append(el('h3', '', KIND_NAMES[g.kind]));

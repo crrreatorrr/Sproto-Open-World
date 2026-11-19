@@ -18,7 +18,7 @@ import { aimSwingDir, resolveAim } from './aim';
 import { angleTo, flatDist, yawTo } from './geometry';
 import { advancePlunge, plungeCancels, plungeMotion, tryPlunge } from './plunge';
 import { advanceCast, castFacing, startCast, type SpawnSpellProjectile } from './spells';
-import { brawlerChains, tryBlink } from './staffTraits';
+import { brawlerChains, sunderShockwave, tryBlink } from './staffTraits';
 
 /** Per-tick motion an action asks for: planar velocity (m/s), and whether input steers it. */
 export interface Motion {
@@ -93,7 +93,7 @@ export function playerCombat(ctx: CombatCtx, commands: CommandMap, physics: Phys
     for (const k of Object.keys(c.cooldowns) as (keyof typeof c.cooldowns)[]) if (c.cooldowns[k]! > 0) c.cooldowns[k]!--;
     if (c.action?.kind === 'cast') advanceCast(ctx, p, cmd, physics, spawn);
     else if (c.action?.kind === 'plunge') advancePlunge(ctx, p, physics);
-    else advance(p, cmd, ctx);
+    else advance(p, cmd, ctx, spawn);
     tryConsume(p, cmd, ctx, physics);
     updateBlock(p, cmd, ctx);
     tickBuffer(c);
@@ -146,7 +146,7 @@ function tickBuffer(c: NonNullable<Entity['combat']>): void {
   if (b.ttl <= 0) c.buffer = null;
 }
 
-function advance(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
+function advance(p: Entity, cmd: InputCommand, ctx: CombatCtx, spawn: SpawnSpellProjectile): void {
   const c = p.combat!;
   const a = c.action;
   if (!a) return;
@@ -172,7 +172,12 @@ function advance(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
       for (let i = 0; i < steps; i++) {
         a.clipT++;
         if (def.chargeable && heavyHeld && a.clipT === tm.chargeStart && a.charge === 0) a.charging = true;
-        if (a.clipT === tm.activeStart) ctx.events.push({ type: 'swing', entity: p.id, move: a.move, heavy: def.mv >= 2 });
+        if (a.clipT === tm.activeStart) {
+          ctx.events.push({ type: 'swing', entity: p.id, move: a.move, heavy: def.mv >= 2 });
+          // The charging branch above returns before the clip can reach activeStart, so this is
+          // the tick a held heavy is both charged and active. One wave, and only on that tick.
+          if (a.charged) sunderShockwave(p, spawn);
+        }
         if (a.clipT >= tm.end) {
           c.action = null;
           c.comboFrom = a.move as PlayerMoveId;
