@@ -7,7 +7,7 @@ import { DROPS, MERCHANTS } from '../../content/loot';
 import { MOUNT } from '../../content/mounts';
 import { NPCS } from '../../content/npcs';
 import { OBJECTS, usedFlag } from '../../content/objects';
-import { LENS_PREVIEW_TICKS, SEAL_HOOK } from '../../content/packs/encounterTune';
+import { LENS_PREVIEW_FLAG, LENS_PREVIEW_TICKS, SEAL_HOOK } from '../../content/packs/encounterTune';
 import { ROOTDEEP_PORTALS, portalOpenFlag } from '../../content/packs/rootdeep';
 import { GROWTH, LEVEL_CAP, SKILL_EFFECT, SKILL_POINTS_PER_LEVEL, noSkills, xpForLevel } from '../../content/progression';
 import { QUESTS, type Condition, type Effect, type Objective, type QuestOffer } from '../../content/quests';
@@ -468,7 +468,7 @@ function useObject(ctx: RpgCtx, e: Entity, obj: Entity): void {
     ctx.world.flags[SEAL_HOOK] = 1;
     ctx.events.push({ type: 'cue', cue: 'sealDrop', hook: 'tinubu_seal', pos: { ...obj.tf.pos } });
   } else if (ia.id === 'mill_lens') {
-    ctx.world.flags['lens.previewUntil'] = ctx.now + LENS_PREVIEW_TICKS;
+    ctx.world.flags[LENS_PREVIEW_FLAG] = ctx.now + LENS_PREVIEW_TICKS;
   } else if (ia.id === 'drake_bait_post') {
     ctx.events.push({ type: 'cue', cue: 'distantRoar', pos: { ...obj.tf.pos } });
   }

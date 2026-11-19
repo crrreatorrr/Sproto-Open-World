@@ -18,6 +18,7 @@ import {
   refillTonics,
 } from './systems/rpg';
 import { questPolish } from './systems/encounters';
+import { LENS_PREVIEW_FLAG } from '../content/packs/encounterTune';
 import { DT, MOVE, PLAYER_BODY } from '../content/tuning';
 import { enemyBrains, muzzle } from './ai/brain';
 import type { CommandMap } from './commands';
@@ -92,6 +93,16 @@ interface QueuedCell {
   bodyMade: boolean;
   /** Next prop shape to add. */
   next: number;
+}
+
+/** World flags that hold a tick of this session (the clock restarts at 0 on load), never saved. */
+const SESSION_FLAGS: readonly string[] = [LENS_PREVIEW_FLAG];
+
+/** A copy of the world state for a save, or from one, without the session-only flags. */
+function savedWorld(world: WorldState): WorldState {
+  const copy = structuredClone(world);
+  for (const k of SESSION_FLAGS) delete copy.flags[k];
+  return copy;
 }
 
 /**
@@ -435,7 +446,7 @@ export class SimWorld {
     void _d;
     void _s;
     void _a;
-    return { schema: SAVE_SCHEMA, ...meta, player: rest, world: structuredClone(this.world) };
+    return { schema: SAVE_SCHEMA, ...meta, player: rest, world: savedWorld(this.world) };
   }
 
   /** Load a save into the spawned player and the world (call after spawnPlayer / populateWorld). */
@@ -443,7 +454,8 @@ export class SimWorld {
     const e = this.playerEntity(player);
     if (!e) throw new Error('applySave: no player');
     e.progress = { ...structuredClone(save.player), dialogue: null, shop: null, atShrine: null };
-    this.world = structuredClone(save.world);
+    // A save made before session ticks were kept out still has them: drop them, the clock restarts.
+    this.world = savedWorld(save.world);
     this.rollCampAffixes();
     for (const x of this.entities) {
       if (x.interactable?.kind === 'chest') x.interactable.used = this.world.openedChests.includes(x.interactable.id);

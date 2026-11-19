@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ENEMIES } from '../../src/content/enemies';
 import {
-  BIG_COIN_ADD_BELOW, BIG_COIN_ADD_COUNT, BONUS_FLAGS, GATEKEEPER_STRING3_HOLD, PEST_CAMP, PEST_WAVE_SIZE, PUMPKIN_FLEE_M, PUMPKIN_FLEE_TICKS,
-  SCRAPJAW_BITE_HOLD, SCRAPJAW_BITE_WINDUP,
+  BIG_COIN_ADD_BELOW, BIG_COIN_ADD_COUNT, BONUS_FLAGS, GATEKEEPER_STRING3_HOLD, LENS_PREVIEW_FLAG, PEST_CAMP, PEST_WAVE_SIZE, PUMPKIN_FLEE_M,
+  PUMPKIN_FLEE_TICKS, SCRAPJAW_BITE_HOLD, SCRAPJAW_BITE_WINDUP,
 } from '../../src/content/packs/encounterTune';
 import { QUESTS } from '../../src/content/quests';
 import type { SimEvent } from '../../src/sim/events';
@@ -322,6 +322,22 @@ describe('bonus flags grant the keepsakes (workstream C counts, B grants)', () =
     }
     expect(w.world.flags[BONUS_FLAGS.watchtower]).toBe(1);
     expect(won).toBe(1);
+    w.dispose();
+  });
+});
+
+describe('lens preview', () => {
+  it('is a tick of this session: never saved, and dropped from an older save on load', async () => {
+    const { w } = await flatSproutvale();
+    w.world.flags[LENS_PREVIEW_FLAG] = w.now + 300;
+    const save = w.toSave({ savedAt: 'now', build: 'test', region: 'sproutvale' });
+    expect(save.world.flags[LENS_PREVIEW_FLAG]).toBeUndefined();
+    // Still in the live world.
+    expect(w.world.flags[LENS_PREVIEW_FLAG]).toBe(w.now + 300);
+    const old = structuredClone(save);
+    old.world.flags[LENS_PREVIEW_FLAG] = 99_999;
+    w.applySave(old);
+    expect(w.world.flags[LENS_PREVIEW_FLAG]).toBeUndefined();
     w.dispose();
   });
 });

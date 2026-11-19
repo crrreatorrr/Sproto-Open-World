@@ -23,7 +23,7 @@ import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
 import { TOTEM_FADE_TICKS } from '../../content/relics';
 import { decalLead, lanternShimmer, oracleEquipped } from '../relicCues';
 import { QuestClues } from '../fx/questClues';
-import { CHEST_SHIMMER_M } from '../../content/packs/encounterTune';
+import { CHEST_SHIMMER_M, LENS_PREVIEW_FLAG } from '../../content/packs/encounterTune';
 import { QUESTS } from '../../content/quests';
 import { castsShadow, wantsView } from './viewCull';
 
@@ -226,7 +226,7 @@ export class WorldViews {
         this.views.get(e.entity)?.telegraph?.(move, e.unblockable, e.ticks);
         const shape: DecalShape | null = e.decal ?? move?.decal ?? (e.unblockable ? 'jagged' : null);
         // A dive paints its own lane on the ground (DrakeView).
-        const preview = !e.unblockable && (view.world.flags['lens.previewUntil'] ?? 0) > view.now;
+        const preview = !e.unblockable && (view.world.flags[LENS_PREVIEW_FLAG] ?? 0) > view.now;
         const shown = shape ?? (preview ? 'circle' : null);
         if (shown && move && !move.dive) {
           const decal = new TelegraphDecal(shown, preview ? 0xf0c548 : DECAL_COLOR[shown]);
