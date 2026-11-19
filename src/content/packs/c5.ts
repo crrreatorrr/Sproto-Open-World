@@ -228,9 +228,12 @@ const C5_DIALOGUE: Record<string, DialogueGraph> = {
     id: 'miner_bram',
     entry: [
       { if: [{ quest: 'q_smoke_hills', status: 'complete' }], node: 'after_quiet' },
+      { if: [{ quest: 'q_deep_seam', status: 'complete' }, { not: { flag: 'dialogue.q_deep_seam.done' } }], node: 'seam_done' },
       { if: [{ quest: 'q_deep_seam', status: 'complete' }], node: 'after' },
+      { if: [{ quest: 'q_deep_seam', status: 'active' }, { not: { flag: 'dialogue.q_tremors.done' } }], node: 'tremors_done' },
       { if: [{ quest: 'q_deep_seam', status: 'active' }], node: 'go' },
       { if: [{ quest: 'q_deep_seam', status: 'available' }], node: 'a9_offer' },
+      { if: [{ quest: T, status: 'active', step: 1 }, { not: { flag: 'dialogue.q_tremors.done' } }], node: 'tremors_done' },
       { if: [{ quest: T, status: 'active', step: 1 }], node: 'go' },
       { if: [{ quest: T, status: 'active' }], node: 'a8_bram' },
       { if: [{ quest: T, status: 'available' }], node: 'offer' },
@@ -256,8 +259,21 @@ const C5_DIALOGUE: Record<string, DialogueGraph> = {
           { text: 'Not yet.' },
         ],
       },
+      tremors_done: {
+        speaker: 'Foreman Bram',
+        text: 'You heard them. The ground tells on her, if you listen. Take this stake. It listens first.',
+        do: [{ setFlag: 'dialogue.q_tremors.done' }],
+        next: 'go',
+      },
       go: { speaker: 'Foreman Bram', text: 'The ramp is the only way back up from the pit floor. Rest before you go down.' },
-      after: { speaker: 'Foreman Bram', text: 'The ground has gone still. First quiet shift we have had in years. There is smoke over the Orchard, though. Farmer Broccoli could use you.' },
+      seam_done: {
+        speaker: 'Foreman Bram',
+        text: 'The ground has gone still. First quiet shift we have had in years. That bellows is yours. The seam can spare a little breath.',
+        do: [{ setFlag: 'dialogue.q_deep_seam.done' }],
+        next: 'tremors_after',
+      },
+      tremors_after: { speaker: 'Foreman Bram', text: "Ketta and Odo will talk your ear off now. Let them. They've earned a quiet story.", next: 'after' },
+      after: { speaker: 'Foreman Bram', text: 'There is smoke over the Orchard, though. Farmer Broccoli could use you.' },
       after_quiet: { speaker: 'Foreman Bram', text: 'The ground has gone still and the sky has cleared. First quiet shift we have had in years.' },
     },
   },
@@ -316,6 +332,7 @@ export function registerC5Dialogue(d: Record<string, DialogueGraph>): void {
   elder.nodes.a5_brief = { speaker: 'Elder Pepe', text: 'First Light is close by, then the Watchtower, then the Quarry Gate. A hand on each stone is all they ask.' };
   elder.nodes.a5_busy = { speaker: 'Elder Pepe', text: 'First Light, the Watchtower, the Quarry Gate. A hand on each stone.' };
   elder.nodes.a5_done = { speaker: 'Elder Pepe', text: 'I can feel them humming from here. Take this: plant a bloom where you stand, and it will mend you while it lives.' };
+  elder.nodes.a5_after = { speaker: 'Elder Pepe', text: 'The stones remember you now. So does the garden.' };
 }
 
 // ---------------------------------------------------------------- where it all stands
