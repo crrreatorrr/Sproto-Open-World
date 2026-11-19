@@ -60,6 +60,8 @@ export const MODELS = {
   staff_momentum: { path: 'models/staffs/staff_momentum.glb' },
   staff_nobu: { path: 'models/staffs/staff_nobu.glb' },
   staff_fighters_might: { path: 'models/staffs/staff_fighters_might.glb' },
+  /** Rootcleaver. No boot LOD: it downloads the first time it is equipped, after the world is playable. */
+  staff_rootcleaver: { path: 'models/staffs/staff_rootcleaver.glb' },
   /** C2: loaded the first time one is equipped, never in the critical download. Each is its own only LOD. */
   staff_shooter: { path: 'models/staffs/staff_shooter.glb' },
   staff_fighter: { path: 'models/staffs/staff_fighter.glb' },
