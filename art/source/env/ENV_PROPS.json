@@ -1,6 +1,66 @@
 {
   "_doc": "Written by tools/build-env-props.mjs. Environment-kit props this repo builds itself (art/tools/env); scripts/check-assets.mjs reads it.",
   "props": {
+    "town_bridge": {
+      "kit": "town",
+      "landmark": true
+    },
+    "town_canal_wall": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_clock_tower": {
+      "kit": "town",
+      "landmark": true
+    },
+    "town_cobble_patch": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_fence": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_house_blue": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_house_corner": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_house_narrow": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_house_red": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_keep": {
+      "kit": "town",
+      "landmark": true
+    },
+    "town_lamp": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_market_stall": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_planter": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_props_cluster": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_stairs": {
+      "kit": "town",
+      "landmark": false
+    },
     "wf_basalt_cliff": {
       "kit": "waterfalls",
       "landmark": true
