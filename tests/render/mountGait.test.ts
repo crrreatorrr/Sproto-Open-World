@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import type { AssetLoader } from '../../src/assets/AssetLoader';
 import type { Entity } from '../../src/sim/entity';
+import { MOUNT } from '../../src/content/mounts';
 import { MountView, mountClipRate, mountGait, slopePitch, turnLean } from '../../src/render/views/MountView';
 
 describe('the bull picks its gait from its speed', () => {
@@ -24,11 +25,12 @@ describe('the bull picks its gait from its speed', () => {
     expect(mountGait(3, 'gallop')).toBe('walk');
   });
 
-  it('plays each clip at the rate that keeps planted hooves still', () => {
-    expect(mountClipRate('walk', 2.6)).toBeCloseTo(1);
-    expect(mountClipRate('run', 9.5)).toBeCloseTo(1);
-    expect(mountClipRate('gallop', 17)).toBeCloseTo(1);
-    expect(mountClipRate('gallop', 12)).toBeCloseTo(12 / 17);
+  it('plays each clip at the rate that keeps planted hooves still: slower on a bigger bull', () => {
+    const s = MOUNT.scale;
+    expect(mountClipRate('walk', 2.6)).toBeCloseTo(1 / s);
+    expect(mountClipRate('run', 9.5)).toBeCloseTo(1 / s);
+    expect(mountClipRate('gallop', 17)).toBeCloseTo(1 / s);
+    expect(mountClipRate('gallop', 12)).toBeCloseTo(12 / 17 / s);
   });
 });
 

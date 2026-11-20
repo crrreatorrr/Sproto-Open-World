@@ -321,7 +321,8 @@ const FRONT = (80 * Math.PI) / 180;
 
 /** The nearest NPC, shrine or unopened chest within reach and roughly in front of the player. */
 export function interactTarget(player: Entity, entities: readonly Entity[]): { e: Entity; id: string; kind: 'npc' | 'mount' | InteractKind; name: string } | null {
-  if (player.riding && player.riding.state !== 'riding') return null;
+  // Getting on or off, or flying: nothing to talk to, and no getting down in mid-air.
+  if (player.riding && (player.riding.state !== 'riding' || player.riding.flight)) return null;
   let best: { e: Entity; id: string; kind: 'npc' | 'mount' | InteractKind; name: string } | null = null;
   let bestD = Infinity;
   for (const e of entities) {

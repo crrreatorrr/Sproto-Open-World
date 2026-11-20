@@ -4,6 +4,7 @@ import type { CombatCtx } from '../combat/playerCombat';
 import { BTN, type InputCommand } from '../commands';
 import type { Entity } from '../entity';
 import type { SimEvent } from '../events';
+import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { approach, clamp, turnToward, wrapAngle, type Vec3 } from '../math';
 
 /** Stick travel that counts as asking the bull to move. */
@@ -27,7 +28,7 @@ export function startMount(events: SimEvent[], rider: Entity, bull: Entity): voi
 
 export function startDismount(events: SimEvent[], rider: Entity, bull: Entity): void {
   const r = rider.riding;
-  if (r?.state !== 'riding' || rider.combat?.action) return;
+  if (r?.state !== 'riding' || r.flight || rider.combat?.action) return;
   r.state = 'dismounting';
   r.gallop = false;
   // Off to the bull's left.
@@ -221,5 +222,109 @@ export function followRiders(entities: readonly Entity[], get: (id: number) => E
     bull.tf.pos = { ...p.tf.pos };
     bull.tf.yaw = p.tf.yaw;
     bull.mount.speed = p.loco?.speed ?? 0;
+    const f = p.riding.flight;
+    if (f) bull.mount.fly = { pitch: f.pitch, bank: f.bank };
+    else delete bull.mount.fly;
   }
+}
+
+/** A surface facing up this much or more is ground the bull runs up, not a wall in front of its nose. */
+const NOSE_GROUND_NORMAL = 0.6;
+
+/**
+ * Take back the part of a ridden bull's move this tick that would put its nose into a wall. Only
+ * the forward part is checked: sideways, and turning, the round collider is what keeps it clear.
+ */
+export function noseStop(physics: PhysicsWorld, tf: Readonly<Entity['tf']>, want: Vec3): void {
+  const fx = Math.sin(tf.yaw), fz = Math.cos(tf.yaw);
+  const ahead = want.x * fx + want.z * fz;
+  if (ahead <= 1e-6) return;
+  const clear = MOUNT.bodyHalfLength - MOUNT.noseRadius;
+  const origin = { x: tf.pos.x, y: tf.pos.y + MOUNT.noseHeight, z: tf.pos.z };
+  const hit = physics.sphereCastNormal(origin, { x: fx * (clear + ahead), y: 0, z: fz * (clear + ahead) }, MOUNT.noseRadius);
+  if (!hit || hit.normal.y >= NOSE_GROUND_NORMAL) return;
+  const cut = ahead - Math.max(0, hit.distance - clear);
+  if (cut <= 0) return;
+  want.x -= fx * cut;
+  want.z -= fz * cut;
+}
+
+/**
+ * Count the rider's jump presses: three in a quick run take the bull up into flight, or, flying,
+ * drop it out of the air. Runs every tick in the saddle (in hit-stop too, so no press is lost).
+ * The first press on the ground is still an ordinary jump.
+ */
+export function flightJumps(rider: Entity, cmd: InputCommand, events: SimEvent[]): void {
+  const r = rider.riding;
+  if (r?.state !== 'riding') return;
+  if (r.jumps && --r.jumps.window <= 0) delete r.jumps;
+  if ((cmd.pressed & BTN.jump) === 0) return;
+  const j = (r.jumps ??= { count: 0, window: 0 });
+  j.count++;
+  j.window = MOUNT.fly.jumpWindow;
+  if (j.count < 3) return;
+  delete r.jumps;
+  if (r.flight) {
+    delete r.flight;
+    events.push({ type: 'mountFlight', entity: rider.id, mount: r.mount, phase: 'dropped' });
+    return;
+  }
+  const tf = rider.tf;
+  r.flight = { pitch: MOUNT.fly.takeoffPitch, bank: 0, speed: Math.max(Math.hypot(tf.vel.x, tf.vel.z), MOUNT.fly.cruise * 0.75), age: 0 };
+  events.push({ type: 'mountFlight', entity: rider.id, mount: r.mount, phase: 'takeoff' });
+}
+
+/**
+ * One tick of flight, flown like a plane: the stick's forward pushes the nose down and its back
+ * lifts it, its sides bank, and a bank turns it; let go and it levels out. The gallop button is the
+ * throttle (drag bleeds off speed above it), and a dive trades height for speed. Take-off climbs
+ * clear of the ground before the stick has the nose. Touching the ground lands it.
+ */
+export function flyBull(
+  e: Entity,
+  cmd: InputCommand,
+  physics: PhysicsWorld,
+  hasGround: (x: number, z: number) => boolean,
+  events: SimEvent[],
+): void {
+  const r = e.riding!, f = r.flight!, tf = e.tf, loco = e.loco!, F = MOUNT.fly;
+  f.age++;
+  const sx = clamp(cmd.move.x, -1, 1), sy = clamp(cmd.move.y, -1, 1);
+  const climbOut = f.age <= F.takeoffTicks ? F.takeoffPitch : -Infinity;
+  f.pitch = approach(f.pitch, Math.max(-sy * F.pitchMax, climbOut), F.pitchRate * DT);
+  f.bank = approach(f.bank, sx * F.bankMax, F.bankRate * DT);
+  // Banked right, it turns right: the stick's right is the bull's right, which is toward lower yaw.
+  tf.yaw = wrapAngle(tf.yaw - f.bank * F.turnPerBank * DT);
+  const goal = r.gallop ? F.boost : F.cruise;
+  f.speed = approach(f.speed, goal, (f.speed < goal ? F.throttle : F.drag) * DT) - Math.sin(f.pitch) * F.dive * DT;
+  f.speed = clamp(f.speed, F.slowest, F.boost * 1.25);
+  const flat = Math.cos(f.pitch) * f.speed;
+  const want = { x: Math.sin(tf.yaw) * flat * DT, y: Math.sin(f.pitch) * f.speed * DT, z: Math.cos(tf.yaw) * flat * DT };
+  if (tf.pos.y + want.y > F.ceiling) want.y = Math.min(want.y, Math.max(0, F.ceiling - tf.pos.y));
+  noseStop(physics, tf, want);
+  const lead = MOUNT.rideRadius;
+  const out = (d: number) => d + Math.sign(d) * lead;
+  if (!hasGround(tf.pos.x + out(want.x), tf.pos.z)) want.x = 0;
+  if (!hasGround(tf.pos.x + out(want.x), tf.pos.z + out(want.z))) want.z = 0;
+  const res = physics.moveCharacter(e.id, tf.pos, want);
+  tf.pos.x += res.moved.x;
+  tf.pos.y += res.moved.y;
+  tf.pos.z += res.moved.z;
+  tf.vel = { x: res.moved.x / DT, y: res.moved.y / DT, z: res.moved.z / DT };
+  loco.speed = Math.hypot(res.moved.x, res.moved.y, res.moved.z) / DT;
+  loco.sprinting = r.gallop;
+  loco.jumpBuffer = 0;
+  loco.coyote = 0;
+  loco.landedTicks = 0;
+  loco.grounded = false;
+  if (!res.grounded || f.age <= F.takeoffTicks) return;
+  // Down on the ground: running again, at the speed it came in with.
+  delete r.flight;
+  loco.grounded = true;
+  loco.landedTicks = 1;
+  loco.coyote = MOVE.coyoteTicks;
+  const fall = -Math.min(0, tf.vel.y);
+  tf.vel.y = 0;
+  events.push({ type: 'land', entity: e.id, fallSpeed: fall, pos: { ...tf.pos } });
+  events.push({ type: 'mountFlight', entity: e.id, mount: r.mount, phase: 'landed' });
 }

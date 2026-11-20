@@ -734,6 +734,8 @@ export class App {
     this.fx.update(dt);
     this.polish.frame(simView, p, dt);
     this.target.copy(view.root.position);
+    this.rig.riding = p.riding !== undefined && p.riding.state !== 'dismounting';
+    this.rig.flight = p.riding?.flight ? { yaw: p.tf.yaw, pitch: p.riding.flight.pitch } : null;
     this.rig.update(dt, this.target, simView, p.loco?.sprinting ?? false, this.speakerPoint(simView, p) ?? this.lockPoint(simView, p));
     this.renderer.follow(this.target);
     // Screen-space UI projects through this frame's camera.
@@ -960,7 +962,8 @@ export class App {
       prompt = { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.interact, PAD.interact), text: interactLabel(t.kind, t.name) };
     }
     const ride: HudRpgState['ride'] = !inMenu && p.riding?.state === 'riding'
-      ? { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.sprint, PAD.sprint), text: gallopLabel(p.riding.gallop) }
+      // Flying, the same button is the throttle.
+      ? { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.sprint, PAD.sprint), text: p.riding.flight ? (p.riding.gallop ? 'Cruise' : 'Boost') : gallopLabel(p.riding.gallop) }
       : null;
     this.rpgHud.update({ level: pr.level, xp: pr.xp, points: pr.points, sprouts: pr.sprouts, tonics: pr.tonics, tracker, compass: { camYaw: this.rig.yaw, marker }, prompt, ride }, dt);
   }
