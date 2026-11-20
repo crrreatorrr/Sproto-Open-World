@@ -86,10 +86,25 @@ your pad's glyphs when you use it.
 **Feedback** works as in Sproto Duel and Sproto Shooter: the hub SDK's window (`vendor/hub-sdk`,
 adapter `src/hub/feedback.ts`) freezes the game, takes a screenshot with the menus and HUD on it,
 and sends the note with where you are, your state and the last few milestones (deaths, quest steps,
-boss phases). Notes send only from a signed-in hub visit (`#t=<ticket>`). The hub does not list
-`sproto-open-world` yet, so for now the window says feedback needs a hub visit; once metaverse-hub
-registers the game and the SDK is re-vendored, `src/hub/link.ts` redeems the ticket with no other
-change. Dev and QA builds take `?feedbackMock`, which keeps sent notes on `window.__feedbackSent`.
+boss phases). Notes send only from a signed-in hub visit (`#t=<ticket>`).
+
+**The hub** (`src/hub/link.ts`, as Sproto Shooter's): the plaza's Sproto Open World ring stands
+beside Sproto Shooter's. Walking into it opens this game with a one-time ticket (`#t=`), which
+redeems to a game session of the same hub account you signed in with, so your hub login is your
+account here too. The title shows who is signed in (or Guest, or Not signed in) and where your save
+lives. **Return to Hub** (title and pause screens, pad or mouse; in the world, Quit to title first)
+closes the session and puts you back at the ring (`/hub/#from=sproto-open-world`).
+
+**Saves follow the account** (`src/save/slot.ts`, `src/save/accountSave.ts`, hub-sdk
+`createProgressStore`): from a hub visit the game loads and writes that account's save, kept in this
+browser as `sow.account@<playerId>` and in the account's cloud save (`save.get` / `save.put`), so it
+carries over to any device you sign in on. The copy written last on the save's line wins (a write
+counter, then the time). Play outside the hub keeps the browser's own `sow.save` (with its `.bak`),
+and, as in the other games, that save never moves into an account. While a portal visit signs in the
+title says so and offers no Play until it knows whose save to show. The game earns no Tickets and
+grants no Relic.
+
+Dev and QA builds take `?feedbackMock`, which keeps sent notes on `window.__feedbackSent`.
 
 **The yard (`?yard=1`):** a passive dummy and a swinging dummy (practise parrying) just ahead to the left, a
 coin-shooting dummy behind you to the right (parry the coin to send it back), and the Brute further
@@ -108,7 +123,8 @@ clips.
 | `src/content` | Tuning and level data; `generated/` comes from `npm run gen:moves` |
 | `src/app` | The game shell: loop, states, wiring |
 | `src/input`, `src/camera`, `src/render`, `src/ui`, `src/audio` | Presentation and devices |
-| `src/hub`, `vendor/hub-sdk` | The hub feedback window's adapter and the vendored `@metaverse/hub-sdk` |
+| `src/hub`, `vendor/hub-sdk` | The hub visit (account, Return to Hub), the feedback window's adapter and the vendored `@metaverse/hub-sdk` |
+| `src/save` | The save file, its migrations, the browser slot and the hub account's cloud slot |
 | `art/` | Blender sources and the player's melee clip pipeline (`art/README.md`) |
 | `world-src/`, `public/world/` | World sources (terrain stamps, placements) and the baked cells (`npm run bake:world -- sproutvale`) |
 | `src/world`, `src/workers` | The client-side streamer, terrain meshes, prop instancing and the horizon |
