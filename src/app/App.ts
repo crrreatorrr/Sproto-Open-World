@@ -953,19 +953,24 @@ export class App {
     const slots: [WeaponSlotView, WeaponSlotView, WeaponSlotView, WeaponSlotView] = [
       toSlot(bar[0] ?? null), toSlot(bar[1] ?? null), toSlot(bar[2] ?? null), toSlot(bar[3] ?? null),
     ];
+    const gunRt = this.sim?.gunRuntime(LOCAL_PLAYER);
+    const rt = gunRt && activeGun && gunRt.gunId === activeGun.itemId ? gunRt.runtime : null;
+    const totalReloadTicks = activeGun ? Math.max(1, Math.round(activeGun.base.reloadTime * 60)) : 1;
     const ammo = activeGun && prog.ammo ? {
-      mag: activeGun.base.magSize,
+      mag: rt ? rt.mag : activeGun.base.magSize,
       magSize: activeGun.base.magSize,
       reserve: prog.ammo[activeGun.ammoType] ?? 0,
     } : null;
+    const reloading = !!rt && rt.reloadTicks > 0;
+    const reloadProgress = reloading && rt ? Math.max(0, Math.min(1, 1 - rt.reloadTicks / totalReloadTicks)) : 0;
     this.weaponBar.update({
       slots,
       activeSlot: prog.activeWeaponSlot ?? 0,
       device: this.input.pad.device,
       padStyle: this.input.pad.style,
       ammo,
-      reloading: false,
-      reloadProgress: 0,
+      reloading,
+      reloadProgress,
       showCrosshair: !!activeGun,
       spread: activeGun ? (aiming ? activeGun.base.adsSpread : activeGun.base.spread) : 0,
       hitFlash: 0,

@@ -15,7 +15,11 @@ import type { ObstaclePlacement, RegionContent } from '../content/world/sproutva
 import { SAVE_SCHEMA, type SaveFile } from '../save/schema';
 import { getDungeon } from '../content/dungeons/catalog';
 import type { DungeonId } from '../content/dungeons/types';
+import { gunDef } from '../content/guns';
+import { createGunRuntimeState, startReload, tickReload, type GunRuntimeState } from './combat/ballistics';
 import { createDungeonSession, stepDungeon, type DungeonEvent, type DungeonSessionState } from './dungeon/DungeonDirector';
+import { computeClassModifiers } from './systems/classSkills';
+import { createMovementTechState, stepMovementTech, type MovementTechState } from './systems/movementTech';
 import { BTN, idleInput, type InputCommand } from './commands';
 import {
   ALL_SPELLS, availableChoices, giveItem, grantXp, interactTarget, newProgress, onKill, pickups, playerRpg, questOffers, questTick, recompute, triggers, type RpgCtx,
@@ -129,6 +133,10 @@ export class SimWorld {
   dungeon: DungeonSessionState | null = null;
   /** Dungeon events emitted during the most recent tick. */
   dungeonEvents: readonly DungeonEvent[] = [];
+  /** Per-player ability-gated movement tech state (Slide, Dash, Double-Jump, Grapple). */
+  private readonly moveTech = new Map<PlayerId, MovementTechState>();
+  /** Per-player gun runtime state (magazine, reload progress). */
+  private readonly gunState = new Map<PlayerId, { gunId: string; runtime: GunRuntimeState }>();
   /** Camp members that wait for a horn (the second Pest Control wave). Part of the snapshot. */
   private pendingWaves: { camp: string; def: string; pos: Vec3; yaw: number; wave: number; carry?: string }[] = [];
   /** World flags, opened chests, killed uniques (plan §2.8). */
@@ -876,8 +884,99 @@ export class SimWorld {
     this.respawns();
     this.waveTick();
     this.dungeonTick(rpg, commands);
+    this.movementTechTick(effective);
+    this.gunRuntimeTick(effective);
     this.fallGuard();
     this.now++;
+  }
+
+  /** Readonly snapshot of a player's live gun magazine and reload state, or null if not holding a gun. */
+  gunRuntime(player: PlayerId): { gunId: string; runtime: Readonly<GunRuntimeState> } | null {
+    return this.gunState.get(player) ?? null;
+  }
+
+  /** Step ability-gated Slide, Dash, Double-Jump, and Grapple (no-op when all abilities are locked). */
+  private movementTechTick(commands: CommandMap): void {
+    const dungDef = this.dungeon ? getDungeon(this.dungeon.dungeonId) : null;
+    for (const e of this.entities) {
+      if (e.owner === undefined || !e.progress || !e.loco || e.combat?.action?.kind === 'dead') continue;
+      const ab = e.progress.abilities;
+      if (!ab || (!ab.slide && !ab.dash && !ab.doubleJump && !ab.grapple)) continue;
+      let st = this.moveTech.get(e.owner);
+      if (!st) {
+        st = createMovementTechState();
+        this.moveTech.set(e.owner, st);
+      }
+      const cmd = commands.get(e.owner);
+      const mounted = e.riding !== undefined && e.riding.state !== 'dismounting';
+      const mods = computeClassModifiers(e.progress.class, e.progress.skills);
+      const yaw = cmd?.camYaw ?? e.tf.yaw;
+      const wishX = cmd ? cmd.move.x * Math.cos(yaw) + cmd.move.y * Math.sin(yaw) : 0;
+      const wishZ = cmd ? -cmd.move.x * Math.sin(yaw) + cmd.move.y * Math.cos(yaw) : 0;
+      const vel = { x: e.tf.vel.x, y: e.tf.vel.y, z: e.tf.vel.z };
+      const res = stepMovementTech(
+        st,
+        {
+          pos: e.tf.pos,
+          vel,
+          yaw,
+          aimDir: cmd?.aim?.dir,
+          wishX,
+          wishZ,
+          grounded: e.loco.grounded,
+          sprinting: e.loco.sprinting,
+          slidePressed: !!((cmd?.pressed ?? 0) & BTN.slide),
+          dashPressed: !!((cmd?.pressed ?? 0) & BTN.dash),
+          jumpPressed: !!((cmd?.pressed ?? 0) & BTN.jump),
+          grappleHeld: !!((cmd?.held ?? 0) & BTN.grapple),
+          grappleAnchors: dungDef?.grappleAnchors.map((a) => ({ id: a.id, at: a.pos, r: a.radius })),
+          noGrapple: dungDef?.noGrapple,
+          dt: DT,
+        },
+        ab,
+        mounted,
+        mods.movementCooldownMult,
+        (origin, dir, maxDist) => {
+          const hit = this.physics.raycast(origin, dir, maxDist);
+          return hit ? { point: hit.point, dist: hit.distance } : null;
+        },
+      );
+      if (res.active !== null || res.doubleJumped || res.slideHopped) {
+        e.tf.vel.x = res.vel.x;
+        e.tf.vel.y = res.vel.y;
+        e.tf.vel.z = res.vel.z;
+        const m = this.physics.moveCharacter(e.id, e.tf.pos, { x: res.vel.x * DT, y: res.vel.y * DT, z: res.vel.z * DT });
+        e.tf.pos.x += m.moved.x;
+        e.tf.pos.y += m.moved.y;
+        e.tf.pos.z += m.moved.z;
+        e.loco.grounded = m.grounded;
+      }
+    }
+  }
+
+  /** Track per-player gun magazine & reload state when holding any of the 9 fixed guns. */
+  private gunRuntimeTick(commands: CommandMap): void {
+    for (const e of this.entities) {
+      if (e.owner === undefined || !e.progress) continue;
+      const gun = gunDef(e.progress.equipment.staff);
+      if (!gun) {
+        this.gunState.delete(e.owner);
+        continue;
+      }
+      const mods = computeClassModifiers(e.progress.class, e.progress.skills);
+      const skillMods = { reloadMult: mods.reloadSpeedMult, fireRateMult: mods.fireRateMult, dmgMult: mods.gunDmgMult };
+      let entry = this.gunState.get(e.owner);
+      if (!entry || entry.gunId !== gun.itemId) {
+        entry = { gunId: gun.itemId, runtime: createGunRuntimeState(gun.id, e.progress.level, skillMods) };
+        this.gunState.set(e.owner, entry);
+      }
+      const cmd = commands.get(e.owner);
+      const ammo = (e.progress.ammo ??= defaultAmmo());
+      if (cmd && (cmd.pressed & BTN.reload)) {
+        startReload(entry.runtime, gun.id, ammo, e.progress.level, skillMods);
+      }
+      tickReload(entry.runtime, gun.id, ammo, e.progress.level, skillMods);
+    }
   }
 
   /** Boot an instanced Campaign Dungeon (L01-L10): compiles Rapier colliders and places player at spawn. */
