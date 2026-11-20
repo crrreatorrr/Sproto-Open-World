@@ -1,4 +1,4 @@
-import { CLASSES, CLASS_IDS, type ClassId } from '../content/classes';
+import { CLASSES, CLASS_IDS, CLASS_PASSIVES, type ClassId } from '../content/classes';
 import { padGlyph, PAD_BUTTONS, type GamepadInput } from '../input/Gamepad';
 import {
   ACTION_LABELS, KEY_ACTIONS, KEY_SLOTS, PAD_ACTIONS, bindKey, bindPad, clearKey, defaultControlPrefs,
@@ -159,9 +159,10 @@ export class Menus {
       const list = el('div', 'list class-list');
       for (const id of CLASS_IDS) {
         const c = CLASSES[id];
+        const passive = CLASS_PASSIVES[id];
         const b = button('', () => this.actions.play(id), 'btn class-card');
         b.dataset.class = id;
-        b.append(el('span', 'label', c.name), el('span', 'blurb', c.blurb));
+        b.append(el('span', 'label', c.name), el('span', 'blurb', `${c.blurb} ${passive.name}: ${passive.text}`));
         list.append(b);
       }
       list.append(button('Back', () => this.nav.pop()));

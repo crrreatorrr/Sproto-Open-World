@@ -779,7 +779,20 @@ export class SimWorld {
       // Hit-stop freezes combat, not menus: intents and interact/potion presses still apply.
       if (!e.progress || e.owner === undefined) continue;
       const cmd = commands.get(e.owner);
-      const busy = playerRpg(rpg, e, cmd?.pressed ?? 0, cmd?.ui ?? [], this.chests, cmd?.held ?? 0);
+      let uiActions = cmd?.ui ?? [];
+      if (cmd && (cmd.weaponSlot !== undefined || (cmd.pressed & BTN.swapWeapon) !== 0)) {
+        const bar = e.progress.weapons ?? [e.progress.equipment.staff, null, null, null];
+        const cur = e.progress.activeWeaponSlot ?? 0;
+        let next = cmd.weaponSlot;
+        if (next === undefined) {
+          for (let step = 1; step <= bar.length; step++) {
+            const idx = (cur + step) % bar.length;
+            if (bar[idx]) { next = idx; break; }
+          }
+        }
+        if (next !== undefined && next !== cur) uiActions = [...uiActions, { kind: 'selectWeaponSlot', slot: next }];
+      }
+      const busy = playerRpg(rpg, e, cmd?.pressed ?? 0, uiActions, this.chests, cmd?.held ?? 0);
       if (busy) effective.set(e.owner, { ...idleInput(cmd?.camYaw ?? e.tf.yaw) });
       // The Brick Phone never swings on Light attack: that button is the phone's (systems/travel.ts).
       else if (cmd && wieldsPhone(e) && ((cmd.pressed | cmd.held) & BTN.light)) effective.set(e.owner, { ...cmd, pressed: cmd.pressed & ~BTN.light, held: cmd.held & ~BTN.light });

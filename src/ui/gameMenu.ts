@@ -1,9 +1,9 @@
-import { canWield } from '../content/classes';
+import { CLASS_PASSIVES, canWield, classOf } from '../content/classes';
 import { ITEMS, TRAVEL_DEVICE, type ItemDef } from '../content/items';
 import { isRootdeep } from '../content/packs/rootdeep';
 import { NPCS } from '../content/npcs';
 import { staffCostMult } from '../content/packs/c2';
-import { BRANCHES, PERKS, PERK_IDS, SKILLS, SKILL_MAX_RANK, branchTotal, hasPerk, RESPEC_SPROUTS_PER_LEVEL, type Branch } from '../content/progression';
+import { BRANCHES, BRANCH_IDS, PERKS, PERK_IDS, SKILL_MAX_RANK, branchTotal, classPerkDef, classSkillDef, hasPerk, RESPEC_SPROUTS_PER_LEVEL, type Branch } from '../content/progression';
 import { QUESTS, type QuestOffer } from '../content/quests';
 import { SPELLS, type SpellId } from '../content/spells';
 import { CAVE_AREAS, SURFACE_AREAS, type AreaDef } from '../content/world/areas';
@@ -396,25 +396,34 @@ export class GameMenu {
 
   private skills(body: HTMLElement, p: Readonly<Progress>): void {
     const pts = p.points;
-    body.append(el('p', 'note points', pts > 0 ? `${pts} skill ${pts === 1 ? 'point' : 'points'} to spend` : 'No skill points to spend. Level up to earn 2.'));
+    const cls = classOf(p.class);
+    const passive = CLASS_PASSIVES[cls.id];
+    body.append(
+      el('p', 'note points', pts > 0 ? `${pts} skill ${pts === 1 ? 'point' : 'points'} to spend` : 'No skill points to spend. Level up to earn 2.'),
+      el('p', 'note passive', `${cls.name} · ${passive.name}: ${passive.text}`),
+    );
     const tree = el('div', 'skill-tree');
-    (['magic', 'combat'] as Branch[]).forEach((br, x) => {
+    BRANCH_IDS.forEach((br: Branch, x: number) => {
       const col = el('div', `branch ${br}`);
       const total = branchTotal(p.skills, br);
       col.append(el('h3', '', `${BRANCHES[br].name} · ${total}`));
       BRANCHES[br].skills.forEach((id, y) => {
         const r = p.skills[id];
         const max = r >= SKILL_MAX_RANK;
+        const def = classSkillDef(p.class, id);
         const pips = Array.from({ length: SKILL_MAX_RANK }, (_, i) => `<i class="${i < r ? 'on' : ''}"></i>`).join('');
-        const html = `<span class="name">${SKILLS[id].name}</span><span class="rank">${r} / ${SKILL_MAX_RANK}</span><span class="pips">${pips}</span><span class="blurb">${max ? 'Highest rank' : `Next rank: ${skillGain(id)}`}</span>`;
+        const nextLine = max ? 'Highest rank' : def.signature ? `${def.text}` : `Next rank: ${skillGain(id)}`;
+        const html = `<span class="name">${def.name}</span><span class="rank">${r} / ${SKILL_MAX_RANK}</span><span class="pips">${pips}</span><span class="blurb">${nextLine}</span>`;
         const b = cell(button(html, () => this.src.send({ kind: 'spendSkill', skill: id }), `btn skill${max ? ' max' : ''}${pts <= 0 ? ' poor' : ''}`), x, y);
         b.dataset.skill = id;
         col.append(b);
       });
       for (const k of PERK_IDS.filter((k) => PERKS[k].branch === br)) {
         const got = hasPerk(p.skills, k);
+        const tier = PERKS[k].at as 10 | 20;
+        const cp = classPerkDef(p.class, br, tier);
         const d = el('div', `perk${got ? ' got' : ''}`);
-        d.innerHTML = `<span class="name">${PERKS[k].name}</span><span class="at">${got ? 'Unlocked' : `${BRANCHES[br].name} ${PERKS[k].at}`}</span><span class="blurb">${PERKS[k].text}</span>`;
+        d.innerHTML = `<span class="name">${cp.name}</span><span class="at">${got ? 'Unlocked' : `${BRANCHES[br].name} ${tier}`}</span><span class="blurb">${cp.text}</span>`;
         col.append(d);
       }
       tree.append(col);
