@@ -18,6 +18,8 @@ import type { Entity, InteractKind, Progress, WorldState } from '../entity';
 import type { SimEvent } from '../events';
 import type { Vec3 } from '../math';
 import { affixXp } from './affixes';
+import { setGod } from './god';
+import { fastTravel, godWarp, openPhone } from './travel';
 import { equipSpell, gearLocked, grantSkillPoints, learnIntoLoadout, respecSkills, spendSkill } from './loadout';
 import { clearRelic, equipRelic, equipTotem, grantKeepsake, holdTotem, onShrineRest, grantFlagKeepsakes } from './relics';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
@@ -321,7 +323,8 @@ const FRONT = (80 * Math.PI) / 180;
 
 /** The nearest NPC, shrine or unopened chest within reach and roughly in front of the player. */
 export function interactTarget(player: Entity, entities: readonly Entity[]): { e: Entity; id: string; kind: 'npc' | 'mount' | InteractKind; name: string } | null {
-  if (player.riding && player.riding.state !== 'riding') return null;
+  // Getting on or off, or flying: nothing to talk to, and no getting down in mid-air.
+  if (player.riding && (player.riding.state !== 'riding' || player.riding.flight)) return null;
   let best: { e: Entity; id: string; kind: 'npc' | 'mount' | InteractKind; name: string } | null = null;
   let bestD = Infinity;
   for (const e of entities) {
@@ -510,9 +513,19 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
         if (dead) ctx.events.push({ type: 'refused', entity: e.id, action: 'rest', reason: "You can't rest now." });
         else if (p.atShrine) rest(ctx, e, p.atShrine);
         break;
+      case 'godMode':
+        setGod(ctx.events, e, a.on);
+        break;
+      case 'fastTravel':
+        fastTravel(ctx, e, a.shrine);
+        break;
+      case 'godWarp':
+        godWarp(ctx, e, a.x, a.z);
+        break;
       case 'closeMenu':
         p.shop = null;
         p.atShrine = null;
+        delete p.phone;
         if (p.dialogue) {
           ctx.events.push({ type: 'dialogueEnd', entity: e.id, npc: p.dialogue.npc });
           p.dialogue = null;
@@ -532,7 +545,7 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
         break;
     }
   }
-  const busy = !!(p.dialogue || p.shop || p.atShrine);
+  const busy = !!(p.dialogue || p.shop || p.atShrine || p.phone);
   if (dead || busy) return busy;
 
   if (pressed & BTN.interact) {
@@ -548,9 +561,11 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
       ctx.events.push({ type: 'interact', entity: e.id, object: t.id, kind: 'shrine' });
     }
   }
-  holdTotem(ctx, e, (held & BTN.interact) !== 0, !!(p.dialogue || p.shop || p.atShrine) || !!interactTarget(e, ctx.entities));
-  if ((pressed & BTN.potion) && !e.combat?.action) drinkTonic(ctx, e);
-  return !!(p.dialogue || p.shop || p.atShrine);
+  // The Brick Phone in hand: Light attack opens it instead of swinging (the tick goes idle below).
+  if ((pressed & BTN.light) && !p.dialogue && !p.shop && !p.atShrine) openPhone(ctx, e);
+  holdTotem(ctx, e, (held & BTN.interact) !== 0, !!(p.dialogue || p.shop || p.atShrine || p.phone) || !!interactTarget(e, ctx.entities));
+  if ((pressed & BTN.potion) && !e.combat?.action && !p.phone) drinkTonic(ctx, e);
+  return !!(p.dialogue || p.shop || p.atShrine || p.phone);
 }
 
 function drinkTonic(ctx: RpgCtx, e: Entity): void {

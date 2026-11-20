@@ -1,14 +1,17 @@
-import { ITEMS, type ItemDef } from '../content/items';
+import { ITEMS, TRAVEL_DEVICE, type ItemDef } from '../content/items';
+import { isRootdeep } from '../content/packs/rootdeep';
 import { NPCS } from '../content/npcs';
 import { staffCostMult } from '../content/packs/c2';
 import { BRANCHES, PERKS, PERK_IDS, SKILLS, SKILL_MAX_RANK, branchTotal, hasPerk, RESPEC_SPROUTS_PER_LEVEL, type Branch } from '../content/progression';
 import { QUESTS, type QuestOffer } from '../content/quests';
 import { SPELLS, type SpellId } from '../content/spells';
+import { CAVE_AREAS, SURFACE_AREAS, type AreaDef } from '../content/world/areas';
+import { WORLD_CONTENT } from '../content/world/worldContent';
 import type { UiAction } from '../sim/commands';
 import type { Entity, Progress } from '../sim/entity';
 import type { ReadonlySimView } from '../sim/view';
 import { spellIcon } from './Hud';
-import { mapSignature, renderMap } from './mapTab';
+import { mapSignature, renderMap, shrineLabel } from './mapTab';
 import type { MenuNav, Screen } from './MenuNav';
 import { loadRelicCopy, pressCard, relicKey, relicPad, relicsModel, renderRelics } from './relicsTab';
 import { KIND_NAMES, SWAP_RULE, costText, gearCompare, inventoryGroups, itemStats, levelProgress, nextLead, questLog, readyText, skillGain, staffTraitText, swapCooldown } from './rpgText';
@@ -42,6 +45,10 @@ export interface GameMenuSource {
   prompt(keys: readonly string[], pad: readonly string[]): string;
   /** A spell slot's cast glyph (1, or LT + X). */
   slotGlyph(slot: number): string;
+  /** God mode (testing) can be turned on here: dev and QA builds, or `?god=1`. */
+  godAllowed(): boolean;
+  /** Turn god mode on or off (also for the sessions after this one). */
+  setGod(on: boolean): void;
   resume(): void;
   quitToTitle(): void;
   /** Open today's settings screen (sliders, toggles, Controls) over the menu. */
@@ -72,6 +79,8 @@ function cell<T extends HTMLElement>(e: T, x: number, y: number): T {
 }
 
 const POWER_COLS = 4;
+/** Fast-travel buttons per row (the CSS grid matches). */
+const TRAVEL_COLS = 3;
 
 /**
  * The one tabbed menu (expansion plan §5): Powers (the spell selector), Skills (the Magic and Combat
@@ -105,7 +114,7 @@ export class GameMenu {
       onBack: () => this.back(),
       onTab: (dir) => this.switchTab(dir),
       focusKey: () => this.tab,
-      grid: () => this.tab === 'powers' || this.tab === 'skills' || this.tab === 'relics',
+      grid: () => this.tab === 'powers' || this.tab === 'skills' || this.tab === 'relics' || this.tab === 'map',
       onExtra: (input) => this.relicExtra(input),
     };
   }
@@ -180,9 +189,9 @@ export class GameMenu {
       case 'quests':
         return `${p.tracked}|${JSON.stringify(p.quests)}|${this.src.questLead()?.quest}|${this.src.questOffers().map((o) => o.quest).join(',')}`;
       case 'map':
-        return e ? mapSignature(this.src.view(), e, p, this.src.questLead()) : 'none';
+        return e ? `${mapSignature(this.src.view(), e, p, this.src.questLead())}|${p.equipment.staff === TRAVEL_DEVICE}|${!!p.god}|${p.discoveredShrines.join(',')}|${p.lastShrine}` : 'none';
       default:
-        return 'settings';
+        return `settings|${this.src.godAllowed()}|${!!p.god}`;
     }
   }
 
@@ -224,10 +233,19 @@ export class GameMenu {
         return this.relics(body, p!);
       case 'quests':
         return this.quests(body, p!);
-      case 'map':
-        return renderMap(body, this.src.view(), this.src.player()!, p!, () => this.nav.retab(() => {
+      case 'map': {
+        renderMap(body, this.src.view(), this.src.player()!, p!, () => this.nav.retab(() => {
           this.tab = 'quests';
         }), this.src.questLead());
+        // The legend is one column above the travel grid: number its rows first, so the pad walks both.
+        const legend = [...body.querySelectorAll<HTMLElement>('[data-nav]')];
+        legend.forEach((r, i) => cell(r, 0, i));
+        const travel = el('div', 'travel');
+        this.travel(travel, p!);
+        for (const b of travel.querySelectorAll<HTMLElement>('[data-gy]')) b.dataset.gy = String(Number(b.dataset.gy) + legend.length);
+        body.append(travel);
+        return;
+      }
       case 'settings':
         return this.settings(body);
     }
@@ -524,6 +542,59 @@ export class GameMenu {
       button('Settings', () => this.src.openSettings()),
       button('Quit to title', () => this.src.quitToTitle()),
     );
-    body.append(list, el('p', 'hint', 'The game saves itself at shrines, on quest steps and level-ups.'));
+    body.append(list, el('p', 'hint', 'The game saves itself at shrines, on quest steps and level-ups. Press N twice to send feedback.'));
+    if (this.src.godAllowed()) this.god(body);
+  }
+
+  /** God mode (testing): the switch. Its travel list is on the Map tab. */
+  private god(body: HTMLElement): void {
+    const on = !!this.progress()?.god;
+    body.append(el('h3', 'god-title', 'God mode (testing)'));
+    const list = el('div', 'list');
+    list.append(button(on ? 'God mode: <b>On</b>' : 'God mode: <b>Off</b>', () => this.src.setGod(!on)));
+    body.append(list, el('p', 'hint', on
+      ? "You can't die. Fast travel on the Map tab goes to any shrine or area. Nothing is saved until you quit to the title."
+      : "Can't die; level 99, 99 skill points, 99,999 Sprouts, every item (99 of each that stacks), spell and relic. Nothing is saved while it is on."));
+  }
+
+  /**
+   * God mode's travel, under the map: every shrine and every named area. Everyone else travels by
+   * the Brick Phone (RpgMenus' phone screen). The sim checks it all again (systems/travel.ts).
+   */
+  private travel(body: HTMLElement, p: Readonly<Progress>): void {
+    const god = !!p.god;
+    body.append(el('h3', 'travel-title', 'Fast travel'));
+    if (!god) {
+      const held = p.equipment.staff === TRAVEL_DEVICE;
+      const owned = held || !!p.inventory[TRAVEL_DEVICE];
+      body.append(el('p', 'hint', held
+        ? 'Press Light attack with the Brick Phone in hand to call a shrine you have used.'
+        : owned
+          ? 'Wield the Brick Phone (Gear) and press Light attack to call a shrine you have used.'
+          : 'Trader Pepe sells a Brick Phone: wield it to call any shrine you have used, and go there.'));
+      return;
+    }
+    let y = 0;
+    const group = (title: string, places: readonly { name: string; act: UiAction; here?: boolean }[]) => {
+      if (!places.length) return;
+      body.append(el('p', 'travel-group', title));
+      const g = el('div', 'travel-grid');
+      places.forEach((t, i) => {
+        const b = cell(button(t.here ? `${t.name} <span class="hint">(last rest)</span>` : t.name, () => {
+          this.src.send(t.act);
+          this.src.resume();
+        }), i % TRAVEL_COLS, y + Math.floor(i / TRAVEL_COLS));
+        g.append(b);
+      });
+      y += Math.ceil(places.length / TRAVEL_COLS);
+      body.append(g);
+    };
+    const shrines = WORLD_CONTENT.shrines;
+    const shrineRow = (s: (typeof shrines)[number]) => ({ name: shrineLabel(s.id), act: { kind: 'fastTravel', shrine: s.id } as UiAction, here: p.lastShrine === s.id });
+    group('Shrines: Sproutvale', shrines.filter((s) => !isRootdeep(s.pos[0])).map(shrineRow));
+    group('Shrines: the Rootdeep', shrines.filter((s) => isRootdeep(s.pos[0])).map(shrineRow));
+    const area = (a: AreaDef) => ({ name: a.name, act: { kind: 'godWarp', x: a.x, z: a.z } as UiAction });
+    group('Areas: Sproutvale (god mode)', SURFACE_AREAS.map(area));
+    group('Areas: the Rootdeep (god mode)', CAVE_AREAS.map(area));
   }
 }

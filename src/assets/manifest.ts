@@ -1,3 +1,5 @@
+import { MOUNT } from '../content/mounts';
+
 /**
  * Every model the game loads, by key. Paths are relative to public/assets. The loader falls back
  * to a primitive when a file is missing, so a key can exist before its art does.
@@ -62,6 +64,8 @@ export const MODELS = {
   staff_fighters_might: { path: 'models/staffs/staff_fighters_might.glb' },
   /** Rootcleaver. No boot LOD: it downloads the first time it is equipped, after the world is playable. */
   staff_rootcleaver: { path: 'models/staffs/staff_rootcleaver.glb' },
+  /** The Brick Phone, the fast-travel device (art/tools/build_brick_phone.py). Tiny; loaded the first time it is equipped. */
+  staff_brick_phone: { path: 'models/staffs/staff_brick_phone.glb' },
   /** C2: loaded the first time one is equipped, never in the critical download. Each is its own only LOD. */
   staff_shooter: { path: 'models/staffs/staff_shooter.glb' },
   staff_fighter: { path: 'models/staffs/staff_fighter.glb' },
@@ -131,7 +135,7 @@ export const MODELS = {
   prop_root_wall: { path: 'models/props/grove_root_wall.glb' },
   prop_crops: { path: 'models/props/grove_crops.glb' },
   /** The rideable Pepe Bull (art/tools/build_bull.py), at the height art/tools/ride_anim.py poses the rider for. */
-  pepe_bull: { path: 'models/mounts/pepe_bull.glb', rigged: true, clips: ['idle', 'follow_walk', 'follow_run', 'gallop'], fitHeight: 1.7, rotationY: 0, inPlace: true },
+  pepe_bull: { path: 'models/mounts/pepe_bull.glb', rigged: true, clips: ['idle', 'follow_walk', 'follow_run', 'gallop'], fitHeight: MOUNT.standHeight, rotationY: 0, inPlace: true },
 } satisfies Record<string, ModelEntry>;
 
 export type ModelKey = keyof typeof MODELS;

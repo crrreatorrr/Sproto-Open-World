@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { AssetLoader } from '../assets/AssetLoader';
 import { MODELS, STAFF_BOOT_LOD, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
+import { zoneAt } from '../audio/zones';
 import { CameraRig } from '../camera/CameraRig';
 import { ITEMS } from '../content/items';
 import { keepsake, keepsakeIcon } from '../content/relics';
@@ -14,12 +15,16 @@ import { staffCostMult } from '../content/packs/c2';
 import { QUESTS, type QuestOffer } from '../content/quests';
 import { SANDBOX } from '../content/sandbox';
 import { SPELLS, WOVEN, type SpellId } from '../content/spells';
+import { DT } from '../content/tuning';
 import { worldLevel } from '../content/world/level';
 import { WORLD_CONTENT } from '../content/world/worldContent';
 import { frameDataLines, targetLines } from '../debug/frameData';
 import { Overlay } from '../debug/Overlay';
 import { QA_LOG_ENABLED, qaLog } from '../debug/qaLog';
+import type { FeedbackHost, FeedbackSnapshot } from '../hub/feedback';
+import type { HubLink } from '../hub/link';
 import { GAMEPAD, KEYS, PAD } from '../input/bindings';
+import { freshDigitChord, godChordPressed } from '../input/godChord';
 import { CommandBuilder } from '../input/CommandBuilder';
 import { applyControlPrefs, loadControlPrefs, saveControlPrefs } from '../input/controlPrefs';
 import { promptLabel } from '../input/glyphs';
@@ -31,7 +36,7 @@ import { PortraitStudio } from '../render/PortraitStudio';
 import { Renderer } from '../render/Renderer';
 import { PlayerView } from '../render/views/PlayerView';
 import { WorldViews, enemyDef } from '../render/views/WorldViews';
-import { loadSave, writeSave } from '../save/SaveStore';
+import { holdForHubVisit, loadSave, saveSlot, writeSave } from '../save/slot';
 import type { SaveFile } from '../save/schema';
 import { BTN, type UiAction } from '../sim/commands';
 import type { Entity, EntityId } from '../sim/entity';
@@ -61,6 +66,13 @@ import { WorldSession } from './WorldSession';
 
 export type AppState = 'title' | 'loading' | 'playing' | 'paused' | 'error';
 
+/** What the hub feedback window froze, so closing it puts back exactly that (src/hub/feedback.ts). */
+interface FeedbackHold {
+  state: AppState;
+  /** Play had the mouse when the screenshot was taken (the SDK releases it right after). */
+  locked: boolean;
+}
+
 const LOCAL_PLAYER = 0;
 /** How long a lost WebGL context may take to come back before we offer a reload (plan §2.9). */
 const CONTEXT_RESTORE_TIMEOUT_MS = 10_000;
@@ -82,6 +94,12 @@ const WAVE_SANDBOX = PARAMS.get('sandbox') === '1';
  */
 export type GameMode = 'world' | 'yard' | 'waves';
 const MODE: GameMode = WAVE_SANDBOX ? 'waves' : PARAMS.get('yard') === '1' ? 'yard' : 'world';
+/**
+ * God mode (testing: can't die, every item, travel anywhere). The menu offers it in dev and QA
+ * builds; `?god=1` offers it in any build and turns it on at the start of play.
+ */
+const GOD_URL = PARAMS.get('god') === '1';
+const GOD_ALLOWED = import.meta.env.DEV || import.meta.env.VITE_QA === '1' || GOD_URL;
 /** Blast shakes the camera less the further it is from you (m at which it stops). */
 const BLAST_SHAKE_RANGE = 16;
 /** Autosave every 5 minutes of play when out of combat (plan §2.8), on top of the event saves. */
@@ -146,6 +164,14 @@ export class App {
   /** QA teleport waiting for the target cell's heights, to set the player down on the ground. */
   private pendingDrop: { x: number; z: number } | null = null;
   private frameCount = 0;
+  /** The hub feedback window (N twice, keyboard only) has started loading, off the boot path. */
+  private feedbackLoad: Promise<boolean> | null = null;
+  /** This page's hub visit, settling (src/hub/link.ts). */
+  private hubLoad: Promise<HubLink | null> | null = null;
+  /** Set while the feedback window holds the game: nothing ticks and the pad is ignored. */
+  private feedbackHold: FeedbackHold | null = null;
+  /** The feedback window's breadcrumbs: every sim event after its tick. */
+  private simEventHook: ((e: SimEvent, me: EntityId | null) => void) | null = null;
   /** The RPG HUD layer and menus (plan §5; world mode). */
   readonly rpgHud: RpgHud;
   /** The boss bar, its intro card and the end card (M5). */
@@ -168,6 +194,14 @@ export class App {
   private sinceSave = 0;
   /** Saves written this session (QA). */
   private saves = 0;
+  /** God mode goes on at the start of each session (the URL asked, or it was on last session). */
+  private godWanted = GOD_URL;
+  /** Two quick 9s toggle testing God Mode through the same command as the Settings switch. */
+  private readonly godChord = freshDigitChord();
+  /** God mode was on at some point this session: nothing is saved until the next one, so the real save is kept. */
+  private godUsed = false;
+  /** God mode goes on with the first tick the player isn't held behind the veil (held ticks drop input). */
+  private godPending = false;
   /** This frame's Start press closed the tabbed menu: it doesn't also pause. */
   private startUsed = false;
   /** Which way the left stick was pushed on the error panel: one push moves the focus once. */
@@ -215,6 +249,7 @@ export class App {
       continueGame: () => void this.play(this.bootSave),
       resume: () => this.resume(),
       quitToTitle: () => this.quitToTitle(),
+      returnToHub: () => void this.returnToHub(),
       settingsChanged: (s) => {
         this.settings = s;
         this.applySettings(s);
@@ -250,6 +285,8 @@ export class App {
       gearLocked: () => this.sim?.view().gearLocked(LOCAL_PLAYER) ?? false,
       prompt: (keys, padButtons) => promptLabel(this.input.pad.device, this.input.pad.style, keys, padButtons),
       slotGlyph: (i) => spellSlotGlyph(i, this.input.pad.device, this.input.pad.style),
+      godAllowed: () => GOD_ALLOWED && this.mode === 'world',
+      setGod: (on) => this.setGodMode(on),
       resume: () => this.closeGameMenu(),
       quitToTitle: () => this.quitToTitle(),
       openSettings: () => this.nav.push(this.menus.settings),
@@ -285,7 +322,10 @@ export class App {
   }
 
   start(): void {
+    // A portal visit (or a hub session cached in this tab): the title waits for the account's save.
+    holdForHubVisit();
     this.toTitle();
+    void this.connectHub();
     // Warm the player model while the title is up, so Play is quick.
     void this.assets.template('player');
     // The world only needs the small starter staff here; enemies load when you get near them.
@@ -295,6 +335,8 @@ export class App {
     // The world streams in behind the title (around the player start), so Play is quick.
     this.stream?.load().catch((err: unknown) => console.warn('[world] the region manifest could not load yet', err));
     requestAnimationFrame((t) => this.frame(t));
+    // N twice opens the hub feedback window: it and its screenshot code load once the title is up.
+    window.setTimeout(() => void this.loadFeedback(), import.meta.env.DEV ? 0 : 1000);
   }
 
   private applySettings(s: Settings): void {
@@ -330,6 +372,11 @@ export class App {
       if (this.overlay.open && this.state === 'playing') {
         if (e.code === 'BracketRight') this.cycleClip(1);
         if (e.code === 'BracketLeft') this.cycleClip(-1);
+      }
+      // 99 toggles testing God Mode. Ignored in a text field, while rebinding, and while feedback is open.
+      if ((this.state === 'playing' || this.state === 'paused') && this.sim && !this.feedbackHold &&
+        godChordPressed(this.godChord, e, performance.now(), !!this.nav.top?.capturing?.())) {
+        this.setGodMode(!this.sim.playerEntity(LOCAL_PLAYER)?.progress?.god);
       }
     });
     // WebGL context loss: pause, veil, and offer a reload if it doesn't come back.
@@ -382,6 +429,15 @@ export class App {
   }
 
   /**
+   * Testing God Mode, the same path as Settings → God mode and `?god=1`: the sim grants everything
+   * and keeps the player alive. `99` toggles it in every build; the menu switch stays dev, QA, or `?god=1`.
+   */
+  private setGodMode(on: boolean): void {
+    this.godWanted = on;
+    this.sendUi({ kind: 'godMode', on });
+  }
+
+  /**
    * Write the autosave (plan §2.8): the sim's state as a SaveFile, stamped with the app's clock.
    * A full or blocked storage is said on screen, never fatal.
    */
@@ -390,6 +446,7 @@ export class App {
     const region = this.stream?.region;
     if (!sim || !region) return;
     this.sinceSave = 0;
+    if (this.godUsed) return;
     let ok = false;
     try {
       ok = writeSave(sim.toSave({ savedAt: new Date().toISOString(), build: __BUILD_ID__, region: region.manifest.id }));
@@ -480,6 +537,8 @@ export class App {
       this.commands.clearUi();
       this.saveWanted = false;
       this.sinceSave = 0;
+      this.godUsed = false;
+      this.godPending = this.godWanted && GOD_ALLOWED && !!this.stream;
       this.rpgHud.clearFeed();
       this.state = 'playing';
       if (this.groundWait) this.showGroundVeil(entity.tf.pos.x, entity.tf.pos.z);
@@ -496,7 +555,8 @@ export class App {
   }
 
   pause(): void {
-    if (this.state !== 'playing') return;
+    // The feedback window releases the mouse and may take the focus: the game is already held.
+    if (this.state !== 'playing' || this.feedbackHold) return;
     this.state = 'paused';
     this.commands.clear();
     this.input.clearHeld();
@@ -610,6 +670,10 @@ export class App {
     const frameStart = performance.now();
     const pad = this.input.pad;
     pad.update();
+    if (this.feedbackHold) {
+      this.feedbackFrame();
+      return;
+    }
 
     // Tracked all the time: a stick already held when the panel opens isn't a push.
     const stick = Math.abs(pad.move.x) > Math.abs(pad.move.y) ? pad.move.x : pad.move.y;
@@ -702,6 +766,10 @@ export class App {
     } else this.commands.frame({ locked, mouseDx: m.x, dt });
     // Streaming runs before the ticks, so colliders queued now are built at the top of this frame's ticks.
     const held = this.streamFrame(simView);
+    if (this.godPending && !held) {
+      this.godPending = false;
+      this.sendUi({ kind: 'godMode', on: true });
+    }
     const ticks = this.loop.advance(dt);
     const t0 = performance.now();
     for (let i = 0; i < ticks; i++) {
@@ -734,6 +802,8 @@ export class App {
     this.fx.update(dt);
     this.polish.frame(simView, p, dt);
     this.target.copy(view.root.position);
+    this.rig.riding = p.riding !== undefined && p.riding.state !== 'dismounting';
+    this.rig.flight = p.riding?.flight ? { yaw: p.tf.yaw, pitch: p.riding.flight.pitch } : null;
     this.rig.update(dt, this.target, simView, p.loco?.sprinting ?? false, this.speakerPoint(simView, p) ?? this.lockPoint(simView, p));
     this.renderer.follow(this.target);
     // Screen-space UI projects through this frame's camera.
@@ -960,7 +1030,8 @@ export class App {
       prompt = { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.interact, PAD.interact), text: interactLabel(t.kind, t.name) };
     }
     const ride: HudRpgState['ride'] = !inMenu && p.riding?.state === 'riding'
-      ? { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.sprint, PAD.sprint), text: gallopLabel(p.riding.gallop) }
+      // Flying, the same button is the throttle.
+      ? { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.sprint, PAD.sprint), text: p.riding.flight ? (p.riding.gallop ? 'Cruise' : 'Boost') : gallopLabel(p.riding.gallop) }
       : null;
     this.rpgHud.update({ level: pr.level, xp: pr.xp, points: pr.points, sprouts: pr.sprouts, tonics: pr.tonics, tracker, compass: { camYaw: this.rig.yaw, marker }, prompt, ride }, dt);
   }
@@ -1015,6 +1086,7 @@ export class App {
       if (a?.kind === 'attack' && a.t === 0) qaLog.add({ kind: 'attackStart', tick: view.now, what: a.move });
     }
     for (const e of view.events) {
+      this.simEventHook?.(e, this.playerId);
       this.present(view, e);
       this.presentBoss(view, e);
       this.polish.event(view, e, this.playerId);
@@ -1145,6 +1217,12 @@ export class App {
           }
         }
         return;
+      case 'godMode':
+        if (e.entity !== me) return;
+        if (e.on) this.godUsed = true;
+        this.hud.toast(e.on ? "God mode: you can't die, and you have everything. Saving is off until you quit to the title." : "God mode off. Saving stays off until you quit to the title.");
+        return;
+      case 'travel':
       case 'portalTravel': {
         // The sim has already moved the body. Snap the camera the way a debug teleport does, or it
         // eases across the whole valley, and cover the jump with the veil until the new ground is up.
@@ -1637,6 +1715,169 @@ export class App {
     this.rig.snap(this.target, this.rig.yaw);
   }
 
+  // --- Hub visit (src/hub/link.ts): the account, its cloud save and the way back ----------------------
+
+  /** Settle this page's hub visit, then load the save it owns (src/save/slot.ts). Off the boot path. */
+  private connectHub(): Promise<HubLink | null> {
+    if (this.hubLoad) return this.hubLoad;
+    window.addEventListener('pagehide', () => saveSlot.flushOnExit());
+    window.addEventListener('pageshow', (e) => {
+      if (e.persisted) saveSlot.pageShown();
+    });
+    this.hubLoad = import('../hub/link')
+      .then(async (m) => {
+        const visit = m.pageHubVisit();
+        const show = () => this.showHub(visit.link);
+        visit.link.subscribe(show);
+        saveSlot.subscribe(show);
+        show();
+        const link = await visit.ready;
+        await saveSlot.followHub(link);
+        // The title now shows that owner's save (the account's, or this browser's).
+        if (this.state === 'title' && MODE === 'world') this.readSave();
+        show();
+        return link;
+      })
+      .catch((err: unknown) => {
+        console.warn('[hub] not connected', err);
+        // No hub after all: the browser's own save.
+        void saveSlot.followHub(null).then(() => {
+          if (this.state === 'title' && MODE === 'world') this.readSave();
+        });
+        return null;
+      });
+    return this.hubLoad;
+  }
+
+  private showHub(link: HubLink): void {
+    this.menus.setHub({ status: link.status, label: link.accountLabel, error: link.code ?? '', owner: saveSlot.owner(), sync: saveSlot.sync() });
+  }
+
+  /**
+   * Return to Hub (title and pause): save the game in play first, send an unsynced account save with
+   * `keepalive`, then leave for the plaza at this game's ring.
+   */
+  private async returnToHub(): Promise<void> {
+    if (this.sim && (this.state === 'playing' || this.state === 'paused')) this.writeSaveNow();
+    const link = await this.connectHub();
+    saveSlot.flushOnExit();
+    if (link) link.exitToHub();
+    else window.location.assign(`/hub/#from=sproto-open-world`); // the link module failed to load
+  }
+
+  // --- Hub feedback window (src/hub/feedback.ts) -----------------------------------------------------
+
+  /** Install the window; the SDK itself listens for N twice from then on. */
+  private loadFeedback(): Promise<boolean> {
+    this.feedbackLoad ??= Promise.all([
+      import('../hub/feedback'),
+      import('../hub/link').then((m) => m.connectHub()).catch((err: unknown) => {
+        console.warn('[hub] not connected', err);
+        return null;
+      }),
+    ])
+      .then(([m, sdk]) => m.installGameFeedback(this.feedbackHost(), sdk))
+      .catch((err: unknown) => {
+        console.warn('[feedback] not loaded', err);
+        return false;
+      });
+    return this.feedbackLoad;
+  }
+
+  private feedbackHost(): FeedbackHost {
+    return {
+      snapshot: () => this.feedbackSnapshot(),
+      hold: () => this.holdForFeedback(),
+      release: (token) => this.releaseFeedback(token),
+      renderNow: () => this.renderer.render(),
+      canvas: () => this.renderer.renderer.domElement,
+      onSimEvent: (fn) => {
+        this.simEventHook = fn;
+      },
+    };
+  }
+
+  /** Freeze whatever is up (play, a menu, the title) for the feedback window. */
+  private holdForFeedback(): FeedbackHold {
+    const hold: FeedbackHold = { state: this.state, locked: this.input.locked };
+    this.feedbackHold = hold;
+    this.commands.clear();
+    this.input.clearHeld();
+    return hold;
+  }
+
+  /** The window closed: back to exactly what `holdForFeedback` found. */
+  private releaseFeedback(token: unknown): void {
+    const hold = this.feedbackHold;
+    if (!hold || token !== hold) return;
+    this.feedbackHold = null;
+    // The window swallowed key-ups and mouse moves meant for it.
+    this.input.clearHeld();
+    this.input.consumeMouseDelta();
+    this.commands.clear();
+    this.loop.reset();
+    // Play had the mouse: take it back (closing the window was a click or a key, so the browser allows it).
+    if (this.state === 'playing' && hold.locked && !this.nav.open && this.input.pad.device === 'kbm') this.input.requestLock();
+  }
+
+  /** A frame while the feedback window holds the game: the scene stays put and the pad is ignored. */
+  private feedbackFrame(): void {
+    this.polish.mix('paused');
+    this.renderer.render();
+    this.input.endFrame();
+  }
+
+  /** What a feedback note says about this moment. Read only; called once, when the window opens. */
+  private feedbackSnapshot(): FeedbackSnapshot {
+    const r1 = (n: number) => Math.round(n * 10) / 10;
+    const sim = this.sim;
+    const p = sim?.playerEntity(LOCAL_PLAYER);
+    const pos = p?.tf.pos;
+    const prog = p?.progress;
+    const region = this.stream?.region?.manifest.id ?? null;
+    const place = this.mode === 'world' ? [region ?? 'sproutvale', pos ? zoneAt(pos.x, pos.z) : null, this.renderer.inCave ? 'cave' : null] : [this.mode];
+    const boss = sim?.entities.find((e) => e.boss?.state === 'intro' || e.boss?.state === 'fight');
+    return {
+      level: place.filter(Boolean).join(' · '),
+      mode: this.mode,
+      ...(pos ? { position: { x: r1(pos.x), y: r1(pos.y), z: r1(pos.z) } } : {}),
+      ...(sim ? { gameTime: r1(sim.now * DT) } : {}),
+      ...(p
+        ? {
+            player: {
+              hp: p.vitals ? Math.round(p.vitals.hp) : null,
+              hpMax: p.vitals?.hpMax ?? null,
+              mana: p.vitals ? Math.round(p.vitals.mana) : null,
+              stamina: p.vitals ? Math.round(p.vitals.stamina) : null,
+              action: p.combat?.action?.kind ?? null,
+              locked: p.combat?.lock != null,
+              riding: p.riding?.state ?? null,
+              level: prog?.level ?? null,
+              xp: prog?.xp ?? null,
+              sprouts: prog?.sprouts ?? null,
+              equipment: prog ? { ...prog.equipment } : null,
+              loadout: prog ? [...prog.loadout] : null,
+              tonics: prog ? prog.tonics.charges : null,
+              tracked: prog?.tracked ?? null,
+              lastShrine: prog?.lastShrine ?? null,
+            },
+          }
+        : {}),
+      extra: {
+        screen: this.state,
+        menu: this.nav.top?.el.id ?? null,
+        menuTab: this.nav.has(this.gameMenu.screen) ? this.gameMenu.tab : null,
+        quests: prog ? Object.entries(prog.quests).filter(([, q]) => q.status === 'active').map(([id, q]) => `${id}@${q.step}`) : [],
+        boss: boss ? { def: boss.brain?.def ?? null, hp: boss.vitals ? Math.round(boss.vitals.hp) : null, phase: boss.boss?.phase ?? null } : null,
+        wave: sim?.view().wave ?? null,
+        tick: sim?.now ?? 0,
+        hash: sim?.hash() ?? 0,
+        groundWait: this.groundWait,
+        device: this.input.pad.device === 'gamepad' ? `pad (${this.input.pad.style})` : 'keyboard + mouse',
+      },
+    };
+  }
+
   /** State for the QA API and the smoke test. */
   qaState(): Record<string, unknown> {
     const p = this.sim?.playerEntity(LOCAL_PLAYER);
@@ -1649,6 +1890,8 @@ export class App {
       hash: this.sim?.hash() ?? 0,
       device: this.input.pad.device,
       padConnected: this.input.pad.connected,
+      /** Whose save is in use (device, pending or account) and its cloud state. */
+      save: { owner: saveSlot.owner(), sync: saveSlot.sync() },
       player: p
         ? {
             id: p.id,
@@ -1697,6 +1940,7 @@ export class App {
       interact: this.sim?.view().interactTarget(LOCAL_PLAYER) ?? null,
       choices: this.sim?.view().dialogueChoices(LOCAL_PLAYER) ?? [],
       typing: this.rpgMenus.typing,
+      feedbackHeld: this.feedbackHold !== null,
       menuTab: this.nav.has(this.gameMenu.screen) ? this.gameMenu.tab : null,
       menuPick: this.gameMenu.pending,
       hudSlots: this.hud.slotSpells,

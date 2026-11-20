@@ -38,6 +38,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0f140c; }
 .logo { font-size: clamp(40px, 7vw, 84px); margin: 0; letter-spacing: 0.02em; color: var(--accent); text-shadow: 0 4px 0 #6b4f10, 0 10px 30px rgba(0, 0, 0, 0.5); }
 .tagline, .build, .hint, .note { color: var(--ink-dim); margin: 0; }
 .build { position: absolute; bottom: 14px; right: 18px; font-size: 12px; opacity: 0.7; }
+/* The hub account on the title (src/ui/menus.ts hubChipText): who is signed in, where the save lives. */
+.hub-chip { position: absolute; top: 14px; right: 18px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; background: var(--panel); border: 1px solid var(--panel-edge); color: var(--ink-dim); }
+.hub-chip.connected, .hub-chip.guest { color: var(--ink); border-color: var(--accent); }
+.hub-chip.error { color: var(--danger); border-color: var(--danger); }
+.hub-wait { font-weight: 700; }
 h2 { margin: 0 0 4px; font-size: 34px; }
 .list { display: flex; flex-direction: column; gap: 10px; min-width: 300px; }
 .list.row { flex-direction: row; justify-content: center; }
@@ -311,6 +316,11 @@ h2 { margin: 0 0 4px; font-size: 34px; }
 .tab-body .note.rule, .tab-body .note.pick, .tab-body .hint { font-size: 14px; }
 .tab-body .note.pick { color: var(--ink); font-weight: 700; }
 .tab-body .note.locked { color: var(--danger); font-weight: 700; }
+.tab-map .travel { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.tab-map .travel-group { font-size: 13px; font-weight: 700; color: var(--ink-dim); margin: 2px 0 0; }
+.tab-map .travel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tab-map .travel-grid .btn { min-width: 0; width: 100%; }
+.tab-map .travel-grid .btn:disabled { opacity: 0.45; }
 .slot-row, .power-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; width: 100%; }
 .btn.slot-card, .btn.power-card { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; font-size: 15px; padding: 9px 12px; min-height: 72px; }
 .btn.slot-card.focused, .btn.power-card.focused, .btn.skill.focused { transform: translateY(-2px); }

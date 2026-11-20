@@ -48,7 +48,7 @@ const REQUIRED_CLIPS = {
 };
 const PLAYER_CLIPS = ['idle', 'run', 'run_back', 'strafe_l', 'strafe_r', 'jump', 'roll', 'hit', 'stun', 'defeat', 'victory', 'cast', 'cast_big', 'attack_light_1', 'attack_light_2', 'attack_light_3', 'attack_heavy', 'block', 'mount', 'ride', 'dismount'];
 /** Files made by this repo's own pipelines (not copied from a sibling). */
-const OWN = new Set(['models/characters/player.glb', 'models/characters/player.melee.json', 'models/mounts/pepe_bull.glb', 'models/staffs/staff_rootcleaver.glb', 'IMPORTED.json']);
+const OWN = new Set(['models/characters/player.glb', 'models/characters/player.melee.json', 'models/mounts/pepe_bull.glb', 'models/staffs/staff_rootcleaver.glb', 'models/staffs/staff_brick_phone.glb', 'IMPORTED.json']);
 /**
  * Relic and totem icons. Design expert finals from the approved Higgsfield sheets
  * (relics hf_20261119_155949_8f60c417, totems hf_20261119_160337_090c3573). Not sibling imports,

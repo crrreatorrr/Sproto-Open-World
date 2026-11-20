@@ -12,7 +12,7 @@ import { AFFIXES, CAMP_GENERATION_FLAG } from '../content/packs/c4';
 import { ROOTDEEP_PORTALS, isRootdeep, portalUsable } from '../content/packs/rootdeep';
 import type { ObstaclePlacement, RegionContent } from '../content/world/sproutvaleContent';
 import { SAVE_SCHEMA, type SaveFile } from '../save/schema';
-import { idleInput, type InputCommand } from './commands';
+import { BTN, idleInput, type InputCommand } from './commands';
 import {
   ALL_SPELLS, availableChoices, interactTarget, newProgress, onKill, pickups, playerRpg, questOffers, questTick, recompute, triggers, type RpgCtx,
   refillTonics,
@@ -45,6 +45,8 @@ import { relicSlowTick } from './systems/relics';
 import { mountCalls, MOUNT_RUNNER } from './systems/mountCall';
 import { cancelMount, followRiders, ridingMotion } from './systems/riding';
 import { vitals } from './systems/vitals';
+import { godVitals } from './systems/god';
+import { wieldsPhone } from './systems/travel';
 import type { ReadonlySimView } from './view';
 
 /** The wave runner's state (`?sandbox=1`). */
@@ -442,10 +444,13 @@ export class SimWorld {
   toSave(meta: { savedAt: string; build: string; region: string }, player: PlayerId = 0): SaveFile {
     const p = this.playerEntity(player)?.progress;
     if (!p) throw new Error('toSave: no player');
-    const { dialogue: _d, shop: _s, atShrine: _a, ...rest } = structuredClone(p);
+    // God mode is for this session only: a save never carries it.
+    const { dialogue: _d, shop: _s, atShrine: _a, god: _g, phone: _ph, ...rest } = structuredClone(p);
     void _d;
     void _s;
     void _a;
+    void _g;
+    void _ph;
     return { schema: SAVE_SCHEMA, ...meta, player: rest, world: savedWorld(this.world) };
   }
 
@@ -763,9 +768,19 @@ export class SimWorld {
       const cmd = commands.get(e.owner);
       const busy = playerRpg(rpg, e, cmd?.pressed ?? 0, cmd?.ui ?? [], this.chests, cmd?.held ?? 0);
       if (busy) effective.set(e.owner, { ...idleInput(cmd?.camYaw ?? e.tf.yaw) });
+      // The Brick Phone never swings on Light attack: that button is the phone's (systems/travel.ts).
+      else if (cmd && wieldsPhone(e) && ((cmd.pressed | cmd.held) & BTN.light)) effective.set(e.owner, { ...cmd, pressed: cmd.pressed & ~BTN.light, held: cmd.held & ~BTN.light });
     }
     // Travel is applied here, not through RpgCtx: the destination's arrive point, then a settle onto its floor.
     for (const ev of this.events) {
+      if (ev.type === 'travel') {
+        // Fast travel or a god's warp: off the bull if riding, then the same drop onto the floor as a portal.
+        const who = this.byId.get(ev.entity);
+        if (!who || who.owner === undefined) continue;
+        this.teleportPlayer(who.owner, this.streamed ? { x: ev.x, y: SETTLE_FROM_Y, z: ev.z } : { x: ev.x, y: who.tf.pos.y, z: ev.z });
+        if (this.streamed) who.settle = true;
+        continue;
+      }
       if (ev.type !== 'portalTravel') continue;
       const who = this.byId.get(ev.entity);
       const dest = ROOTDEEP_PORTALS[ev.to];
@@ -796,6 +811,7 @@ export class SimWorld {
       if (entity.combat?.action?.kind !== 'dead') kill(ctx, entity, this.byId.get(source) ?? null);
     }
     vitals(this.entities, frozen, this.now);
+    godVitals(this.entities);
     // Kills feed XP and loot; then pickups, triggers and the quest runtime see this tick's events.
     for (const ev of [...this.events]) {
       if (ev.type !== 'death' || ev.killer === null) continue;
@@ -843,6 +859,7 @@ export class SimWorld {
       if (player.progress) {
         refillTonics(player.progress.tonics);
         player.progress.dialogue = player.progress.shop = player.progress.atShrine = null;
+        delete player.progress.phone;
       }
       if (this.wave) {
         // The wave runner restarts the current wave (plan §2.9).
