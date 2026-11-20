@@ -6,7 +6,7 @@
 import { C3_SPELLS, type C3SpellId } from './packs/c3';
 import type { StatusId } from './statuses';
 
-export type SpellId = 'bolt' | 'blast' | 'frostNova' | 'chainZap' | C3SpellId;
+export type SpellId = 'bolt' | 'blast' | 'frostNova' | 'chainZap' | 'gunfire' | C3SpellId;
 
 export interface SpellDef {
   id: SpellId;
@@ -19,8 +19,8 @@ export interface SpellDef {
   /** Ticks after release before it can be cast again. */
   cooldown: number;
   mv: number;
-  /** Upper-body clip, scrubbed so the release lands on the release tick. */
-  clip: 'cast' | 'cast_big';
+  /** Upper-body clip, scrubbed so the release lands on the release tick (`shoot`: the gun classes' trigger pull). */
+  clip: 'cast' | 'cast_big' | 'shoot';
   /** Ticks after release until the caster is free again. */
   recovery: number;
   status?: { id: StatusId; stacks: number };
@@ -69,6 +69,14 @@ export const SPELLS: Record<SpellId, SpellDef> = {
   chainZap: {
     id: 'chainZap', name: 'Chain Zap', slot: 4, cost: 35, release: 18, wovenRelease: 9, cooldown: 360, mv: 1.0, clip: 'cast', recovery: 10,
     chain: { range: 15, jumps: 3, jumpRange: 8, falloff: 0.7 }, status: { id: 'shock', stacks: 1 }, poise: 12,
+  },
+  /**
+   * The gun classes' trigger (content/classes.ts): no mana, and the equipped gun sets the damage, fire
+   * rate, spread and range (these numbers are the Toy MG's). Never the Wizard's.
+   */
+  gunfire: {
+    id: 'gunfire', name: 'Gunfire', slot: 1, cost: 0, release: 2, wovenRelease: 1, cooldown: 7, mv: 0.3, clip: 'shoot', recovery: 6,
+    projectile: { speed: 90, radius: 0.14, range: 40 }, poise: 3,
   },
   ...C3_SPELLS,
 };

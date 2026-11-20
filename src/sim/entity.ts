@@ -1,3 +1,4 @@
+import type { ClassId } from '../content/classes';
 import type { DamageKind, PlayerMoveId } from '../content/combat';
 import type { AffixId } from '../content/packs/c4';
 import type { SkillRanks } from '../content/progression';
@@ -183,6 +184,8 @@ export interface Combat {
 
 /** The player's RPG state (plan §5). Saved in the SaveFile. */
 export interface Progress {
+  /** Chosen when the save was made (content/classes.ts). Absent on a progress built before classes: a Wizard. */
+  class?: ClassId;
   level: number;
   /** Total XP earned. */
   xp: number;

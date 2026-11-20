@@ -59,6 +59,9 @@ async function confirmTitle() {
   await press('a');
   await frames(5);
   if ((await state()).screen === 'screen-title') await press('a');
+  await frames(5);
+  // A new save picks its class next: A takes the focused Wizard.
+  if ((await state()).screen === 'screen-classes') await press('a');
 }
 let failures = 0;
 function check(ok, what, detail = '') {

@@ -10,7 +10,7 @@ import { STAFF_TRAITS, staffTrait } from '../content/packs/c2';
 import { NPCS } from '../content/npcs';
 import { OBJECTS } from '../content/objects';
 import { LEVEL_CAP, SKILL_EFFECT, xpForLevel, xpToNext, type SkillId } from '../content/progression';
-import { SPELLS, SWAP_MIN_COOLDOWN, type SpellId } from '../content/spells';
+import { SPELL_BASE, SPELLS, SWAP_MIN_COOLDOWN, type SpellId } from '../content/spells';
 import { TICK_HZ } from '../content/tuning';
 import { keepsakeForQuest } from '../content/relics';
 import { QUESTS, type Objective, type QuestDef, type QuestOffer, type QuestState } from '../content/quests';
@@ -375,7 +375,7 @@ export function shopStock(merchant: string, flags: Readonly<Record<string, numbe
     .filter((l) => !!l.item);
 }
 
-export const KIND_NAMES: Record<ItemKind, string> = { staff: 'Staffs', robe: 'Robes', charm: 'Charms', consumable: 'Consumables', quest: 'Quest items' };
+export const KIND_NAMES: Record<ItemKind, string> = { staff: 'Weapons', robe: 'Robes', charm: 'Charms', consumable: 'Consumables', quest: 'Quest items' };
 const KIND_ORDER: readonly ItemKind[] = ['staff', 'robe', 'charm', 'consumable', 'quest'];
 
 /** Owned items by category (equipped gear counts as owned even if the inventory doesn't list it). */
@@ -404,6 +404,12 @@ export function staffTraitText(item: ItemDef): string | null {
 
 /** One line of an item's numbers for the inventory and the shop. */
 export function itemStats(item: ItemDef): string {
+  if (item.gun) {
+    const g = item.gun.shot;
+    const shot = Math.round(SPELL_BASE * item.staff!.spellPower * g.mv);
+    const rate = (60 / g.cooldown).toFixed(g.cooldown < 30 ? 0 : 1);
+    return `Shot ${g.pellets > 1 ? `${g.pellets}×` : ''}${shot}${g.explodeRadius ? ' (splash)' : ''} · ${rate}/s · Melee ${item.staff!.damage}`;
+  }
   if (item.staff) return `Damage ${item.staff.damage} · Spell power ×${item.staff.spellPower.toFixed(2)}`;
   if (item.robe) return `Defense ${item.robe.physical} physical · ${item.robe.arcane} arcane`;
   return '';
