@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Asset gates (plan §3.5, §7.3): triangle caps by folder tier (props 4k, landmarks 10k), the
- * player's clip list and its staff socket, that every file under public/assets is tracked
+ * player's clip list and its staff socket, the class bodies' clips and gun socket, the guns' muzzle, that every file under public/assets is tracked
  * (IMPORTED.json, the art pipeline, or a prop LOD1 generated from a tracked LOD0) and that every
  * world prop has its LOD1; the M4 models' clips and the chest's lid node.
  */
@@ -16,11 +16,21 @@ const ROOT = path.resolve('public/assets');
  * World props that are landmarks or set pieces (plan §3.5: landmarks ≤ 10k triangles, other props
  * ≤ 4k). Matched by file name under models/props/, LOD0 and LOD1.
  */
-const LANDMARKS = ['grove_water_tower', 'grove_tower', 'grove_beanstalk', 'grove_silo', 'skyline_crane', 'frost_beacon', 'frost_gate', 'underworks_hoist'];
+/** Environment kits built by this repo (tools/build-env-props.mjs): their files are owned, and their landmarks take the landmark cap. */
+const ENV_PROPS_FILE = path.resolve('art/source/env/ENV_PROPS.json');
+const ENV_PROPS = fs.existsSync(ENV_PROPS_FILE) ? JSON.parse(fs.readFileSync(ENV_PROPS_FILE, 'utf8')).props : {};
+const ENV_LANDMARKS = Object.entries(ENV_PROPS).filter(([, p]) => p.landmark).map(([name]) => name);
+const ownedEnvProp = (rel) => {
+  const m = /^models\/props\/(.+?)(-lod1)?\.glb$/.exec(rel);
+  return Boolean(m && ENV_PROPS[m[1]]);
+};
+const LANDMARKS = [...ENV_LANDMARKS, 'grove_water_tower', 'grove_tower', 'grove_beanstalk', 'grove_silo', 'skyline_crane', 'frost_beacon', 'frost_gate', 'underworks_hoist'];
 /** Triangle caps (plan §3.5, revision 2): 9k standard; 22k elites, bosses, NPCs and the player. */
 const CAPS = [
   [new RegExp(`^models/props/(${LANDMARKS.join('|')})(-lod1)?\\.glb$`), 10000],
-  [/^models\/characters\/player\.glb$/, 22000],
+  [/^models\/characters\/(player|soldier|pepe_player)\.glb$/, 22000],
+  // Class guns (art/tools/classes/build-guns.mjs), held in the hand like a prop.
+  [/^models\/guns\//, 4000],
   [/^models\/(bosses|elites|npcs|mounts)\//, 22000],
   [/^models\/enemies\//, 9000],
   [/^models\/staffs\/.*-lod1\.glb$/, 4000],
@@ -39,8 +49,12 @@ const REQUIRED_CLIPS = {
   ...Object.fromEntries(['pepe_general', 'pepe', 'pepe_tux', 'broccoli', 'agent'].map((id) => [`models/npcs/${id}.glb`, ['idle']])),
 };
 const PLAYER_CLIPS = ['idle', 'run', 'run_back', 'strafe_l', 'strafe_r', 'jump', 'roll', 'hit', 'stun', 'defeat', 'victory', 'cast', 'cast_big', 'attack_light_1', 'attack_light_2', 'attack_light_3', 'attack_heavy', 'block', 'mount', 'ride', 'dismount'];
+/** Class bodies (art/tools/classes): the wizard's clips plus the upper-body gun layers. */
+const CLASS_BODIES = ['models/characters/soldier.glb', 'models/characters/pepe_player.glb'];
+const CLASS_CLIPS = [...PLAYER_CLIPS, 'aim', 'shoot'];
+const GUNS = ['mg', 'shotgun', 'sniper', 'bazooka', 'raygun', 'bigbullets', 'duckgun'].map((id) => `models/guns/gun_${id}.glb`);
 /** Files made by this repo's own pipelines (not copied from a sibling). */
-const OWN = new Set(['models/characters/player.glb', 'models/characters/player.melee.json', 'models/mounts/pepe_bull.glb', 'models/staffs/staff_rootcleaver.glb', 'models/staffs/staff_brick_phone.glb', 'IMPORTED.json']);
+const OWN = new Set(['models/characters/player.glb', 'models/characters/player.melee.json', 'models/mounts/pepe_bull.glb', 'models/staffs/staff_rootcleaver.glb', 'models/staffs/staff_brick_phone.glb', 'IMPORTED.json', ...CLASS_BODIES, ...GUNS]);
 /**
  * Relic and totem icons. Design expert finals from the approved Higgsfield sheets
  * (relics hf_20261119_155949_8f60c417, totems hf_20261119_160337_090c3573). Not sibling imports,
@@ -67,7 +81,7 @@ function walk(dir, base = '') {
 }
 
 for (const rel of walk(ROOT)) {
-  if (!OWN.has(rel) && !imported[rel] && !ownedLod1(rel) && !ownedKeepsakeIcon(rel)) fail(`${rel} is not tracked in IMPORTED.json`);
+  if (!OWN.has(rel) && !imported[rel] && !ownedLod1(rel) && !ownedKeepsakeIcon(rel) && !ownedEnvProp(rel)) fail(`${rel} is not tracked in IMPORTED.json`);
   if (/^models\/props\/[^/]+\.glb$/.test(rel) && !rel.endsWith('-lod1.glb') && !fs.existsSync(path.join(ROOT, rel.replace(/\.glb$/, '-lod1.glb')))) {
     fail(`${rel} has no generated LOD1 (run npm run import:assets)`);
   }
@@ -97,6 +111,17 @@ for (const rel of walk(ROOT)) {
     if (!socket) fail('player.glb has no socket_staff');
     else if (Math.abs(socket.getTranslation()[1]) > 50) fail('player.glb socket_staff is misplaced (run art/tools/build-player-glb.mjs)');
   }
+  if (CLASS_BODIES.includes(rel)) {
+    const names = new Set(doc.getRoot().listAnimations().map((a) => a.getName()));
+    const missing = CLASS_CLIPS.filter((c) => !names.has(c));
+    if (missing.length) fail(`${rel} is missing clips: ${missing.join(', ')}`);
+    const socket = doc.getRoot().listNodes().find((n) => n.getName() === 'socket_weapon');
+    const hand = doc.getRoot().listNodes().find((n) => n.listChildren().includes(socket));
+    if (!socket) fail(`${rel} has no socket_weapon (run art/tools/classes/build-class-glbs.mjs)`);
+    else if (hand?.getName() !== 'mixamorig:RightHand') fail(`${rel} socket_weapon is under ${hand?.getName()}, expected mixamorig:RightHand`);
+    else if (Math.hypot(...socket.getTranslation()) > 0.2) fail(`${rel} socket_weapon is ${Math.hypot(...socket.getTranslation()).toFixed(2)} m from the hand`);
+  }
+  if (GUNS.includes(rel) && !doc.getRoot().listNodes().some((n) => n.getName() === 'muzzle')) fail(`${rel} has no muzzle node (run art/tools/classes/build-guns.mjs)`);
 }
 if (failures) process.exit(1);
 console.log('check-assets: all assets within caps and tracked');

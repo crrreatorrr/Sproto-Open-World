@@ -17,7 +17,8 @@ import { BodyGlow } from './BodyGlow';
 import { makeBossView } from './BossViews';
 import { makeBurrowmotherView } from './BurrowmotherView';
 import { DrakeFlyover, makeDrakeView } from './DrakeViews';
-import { BlastOrbView, BoltView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
+import { BlastOrbView, BoltView,
+  BulletView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
 import { portalShown } from '../portalShown';
 import { ChestView, NpcView, PickupView, PortalView, ShrineView, objectView } from './RpgViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
@@ -471,6 +472,8 @@ export class WorldViews {
     if (e.kind === 'projectile' || pr) {
       // Spell projectiles by their spell (the sim names the models 'bolt' and 'blastOrb'); enemy
       // shots by their kind: homing or arcane ones are hexes, the rest coins.
+      // A gun's shots (and a Soldier's shooting spells) are bullets, slugs and rockets.
+      if (e.view.model === 'bullet' || e.view.model === 'slug' || e.view.model === 'rocket') return new BulletView(e.view.model);
       if (pr?.spell === 'blast' || e.view.model === 'blastOrb') return new BlastOrbView(this.fx, pr?.radius);
       if (pr?.spell || e.view.model === 'bolt') return new BoltView();
       if (pr?.homing || e.view.model === 'hex' || pr?.kind === 'arcane') return new HexView(this.fx);

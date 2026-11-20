@@ -1,3 +1,4 @@
+import { canWield } from '../content/classes';
 import { ITEMS, TRAVEL_DEVICE, type ItemDef } from '../content/items';
 import { isRootdeep } from '../content/packs/rootdeep';
 import { NPCS } from '../content/npcs';
@@ -460,11 +461,13 @@ export class GameMenu {
     for (const g of inventoryGroups(p)) {
       gear.append(el('h3', '', KIND_NAMES[g.kind]));
       for (const it of g.items) {
-        const equippable = g.kind === 'staff' || g.kind === 'robe' || g.kind === 'charm';
+        // A weapon only the other classes can hold is shown, but can't be equipped.
+        const wieldable = g.kind !== 'staff' || canWield(p.class, it.item);
+        const equippable = wieldable && (g.kind === 'staff' || g.kind === 'robe' || g.kind === 'charm');
         const st = itemStats(it.item);
         const deltas = equippable && !it.equipped ? gearCompare(it.item, worn(it.item)) : [];
         const dl = deltas.length ? `<span class="deltas">${deltas.map((d) => `<b class="${d.delta > 0 ? 'up' : d.delta < 0 ? 'down' : 'same'}">${d.label} ${d.text}</b>`).join('')}</span>` : '';
-        const action = it.equipped ? (g.kind === 'charm' ? 'Equipped · remove' : 'Equipped') : equippable ? (locked ? 'Locked' : 'Equip') : '';
+        const action = it.equipped ? (g.kind === 'charm' ? 'Equipped · remove' : 'Equipped') : equippable ? (locked ? 'Locked' : 'Equip') : !wieldable ? (it.item.gun ? 'Guns only' : 'Staffs only') : '';
         const trait = staffTraitText(it.item);
         const html = `<span class="name">${it.item.name}${it.count > 1 ? ` ×${it.count}` : ''}</span><span class="price">${action}</span><span class="blurb">${it.item.blurb}${st ? ` · ${st}` : ''}</span>${trait ? `<span class="trait">${trait}</span>` : ''}${dl}`;
         const canPress = equippable && (!it.equipped || g.kind === 'charm');

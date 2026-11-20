@@ -12,7 +12,7 @@ const fixture = (name: string): Record<string, unknown> => JSON.parse(fs.readFil
 
 describe('save migrations (M3 acceptance 2)', () => {
   it(`the current schema is ${SAVE_SCHEMA} and has a fixture`, () => {
-    expect(SAVE_SCHEMA).toBe(4);
+    expect(SAVE_SCHEMA).toBe(5);
     expect(fixture(`save-v${SAVE_SCHEMA}.json`).schema).toBe(SAVE_SCHEMA);
   });
 
@@ -118,14 +118,40 @@ describe('save migrations (M3 acceptance 2)', () => {
   });
 
   it('the current schema passes unchanged', () => {
+    const v5 = fixture('save-v5.json');
+    expect(migrate(structuredClone(v5))).toEqual(v5);
+  });
+
+  it('v4 → v5: an old save is a Wizard\'s (no class field) and keeps everything', () => {
     const v4 = fixture('save-v4.json');
-    expect(migrate(structuredClone(v4))).toEqual(v4);
+    const s = migrate(structuredClone(v4));
+    expect(s.schema).toBe(5);
+    expect(s.player.class).toBeUndefined();
+    expect({ ...s, schema: 4 }).toEqual(v4);
+  });
+
+  it('v5: a gun class keeps its gun; a staff in its weapon slot falls back to the class\'s starting gun', () => {
+    const v5 = fixture('save-v5.json');
+    const p = v5.player as Record<string, unknown>;
+    const s = migrate({ ...structuredClone(v5), player: { ...p, equipment: { ...(p.equipment as object), staff: 'staff_sproto' }, inventory: { ...(p.inventory as object), staff_sproto: 1 } } });
+    expect(s.player.class).toBe('soldier');
+    expect(s.player.equipment.staff).toBe('gun_mg');
+    // And a Wizard holding a gun gets the Sprout Staff back.
+    const v4 = fixture('save-v4.json');
+    const q = v4.player as Record<string, unknown>;
+    const w = migrate({ ...structuredClone(v4), player: { ...q, equipment: { ...(q.equipment as object), staff: 'gun_mg' }, inventory: { ...(q.inventory as object), gun_mg: 1 } } });
+    expect(w.player.equipment.staff).toBe('staff_sproto');
+  });
+
+  it('an unknown class is a damaged save', () => {
+    const v5 = fixture('save-v5.json');
+    expect(() => migrate({ ...v5, player: { ...(v5.player as object), class: 'pirate' } })).toThrow(SaveError);
   });
 
   it('v3 → v4: an old save grows empty relic sockets and keeps everything else', () => {
     const v3 = fixture('save-v3.json');
     const s = migrate(structuredClone(v3));
-    expect(s.schema).toBe(4);
+    expect(s.schema).toBe(SAVE_SCHEMA);
     // The fixture finished Wake Up, Sproto, whose shrine step gives Elder's Hearth.
     expect(s.player.relics).toEqual({ sockets: [null, null, null], totem: null, owned: ['totem_elders_hearth'], seedSpent: false, introduced: false });
     const p3 = v3.player as Record<string, unknown>;

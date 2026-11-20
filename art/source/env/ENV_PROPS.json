@@ -1,0 +1,325 @@
+{
+  "_doc": "Written by tools/build-env-props.mjs. Environment-kit props this repo builds itself (art/tools/env); scripts/check-assets.mjs reads it.",
+  "props": {
+    "mtn_boulder": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_boulder_flat": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_cliff_a": {
+      "kit": "mountains",
+      "landmark": true
+    },
+    "mtn_cliff_b": {
+      "kit": "mountains",
+      "landmark": true
+    },
+    "mtn_fence": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_peak_a": {
+      "kit": "mountains",
+      "landmark": true
+    },
+    "mtn_peak_b": {
+      "kit": "mountains",
+      "landmark": true
+    },
+    "mtn_pine": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_pine_small": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_rock_large": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_rope_bridge": {
+      "kit": "mountains",
+      "landmark": true
+    },
+    "mtn_snow_drift": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_steps": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_watchtower_ruin": {
+      "kit": "mountains",
+      "landmark": true
+    },
+    "mtn_wildflowers": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "river_birch": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_birch_pair": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_boat": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_boulder": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_boulder_large": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_bridge": {
+      "kit": "river",
+      "landmark": true
+    },
+    "river_cattails": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_dock": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_foam_ring": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_lilypads": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_mill": {
+      "kit": "river",
+      "landmark": true
+    },
+    "river_mill_wheel": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_pine": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_shoal": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_willow": {
+      "kit": "river",
+      "landmark": false
+    },
+    "town_bridge": {
+      "kit": "town",
+      "landmark": true
+    },
+    "town_canal_wall": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_clock_tower": {
+      "kit": "town",
+      "landmark": true
+    },
+    "town_cobble_patch": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_fence": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_house_blue": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_house_corner": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_house_narrow": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_house_red": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_keep": {
+      "kit": "town",
+      "landmark": true
+    },
+    "town_lamp": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_market_stall": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_planter": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_props_cluster": {
+      "kit": "town",
+      "landmark": false
+    },
+    "town_stairs": {
+      "kit": "town",
+      "landmark": false
+    },
+    "wf_basalt_cliff": {
+      "kit": "waterfalls",
+      "landmark": true
+    },
+    "wf_basalt_cliff_low": {
+      "kit": "waterfalls",
+      "landmark": true
+    },
+    "wf_basalt_columns": {
+      "kit": "waterfalls",
+      "landmark": false
+    },
+    "wf_cascade_steps": {
+      "kit": "waterfalls",
+      "landmark": true
+    },
+    "wf_crystals": {
+      "kit": "waterfalls",
+      "landmark": false
+    },
+    "wf_crystals_small": {
+      "kit": "waterfalls",
+      "landmark": false
+    },
+    "wf_fall_mid": {
+      "kit": "waterfalls",
+      "landmark": false
+    },
+    "wf_fall_tall": {
+      "kit": "waterfalls",
+      "landmark": true
+    },
+    "wf_fern": {
+      "kit": "waterfalls",
+      "landmark": false
+    },
+    "wf_mist": {
+      "kit": "waterfalls",
+      "landmark": false
+    },
+    "wf_pine": {
+      "kit": "waterfalls",
+      "landmark": false
+    },
+    "wf_rainbow": {
+      "kit": "waterfalls",
+      "landmark": false
+    },
+    "wf_rim_slabs": {
+      "kit": "waterfalls",
+      "landmark": false
+    },
+    "wf_rope_bridge": {
+      "kit": "waterfalls",
+      "landmark": true
+    },
+    "wf_stone_steps": {
+      "kit": "waterfalls",
+      "landmark": false
+    },
+    "wf_vines": {
+      "kit": "waterfalls",
+      "landmark": false
+    },
+    "zen_azalea": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_bamboo": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_bamboo_fence": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_bridge": {
+      "kit": "zen",
+      "landmark": true
+    },
+    "zen_gravel_lines": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_gravel_ripples": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_koi": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_lantern": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_maple_orange": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_maple_red": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_pagoda": {
+      "kit": "zen",
+      "landmark": true
+    },
+    "zen_rock_low": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_rock_moss": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_shrub": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_stepping_stones": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_temple": {
+      "kit": "zen",
+      "landmark": true
+    },
+    "zen_temple_steps": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_terrace_wall": {
+      "kit": "zen",
+      "landmark": false
+    },
+    "zen_torii": {
+      "kit": "zen",
+      "landmark": true
+    }
+  }
+}

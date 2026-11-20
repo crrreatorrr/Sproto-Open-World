@@ -87,3 +87,90 @@ Pose tables use the character's frame: `r` = right, `f` = forward, `u` = up, in 
 centre of the feet. `grip` is where the right fist holds the shaft and `staff` is the direction
 from the butt to the head. `attack_light_2` starts from `attack_light_1`'s follow-through pose and
 `attack_light_3` from `attack_light_2`'s, so the combo chains without a pop.
+
+## Class bodies and guns
+
+Two more playable bodies next to the wizard, each holding a toy gun from Sproto Shooter. Everything
+is rebuilt by the tools in `tools/classes/` from the decoded sources in `source/classes/`.
+
+| Game file | Source | Triangles | Size |
+|---|---|---|---|
+| `characters/soldier.glb` | metaverse-hub `avatar/soldier.glb` → `source/classes/soldier_hub_decoded.glb` | 10,363 | 467 KiB |
+| `characters/pepe_player.glb` | metaverse-hub `avatar/pepe.glb` → `source/classes/pepe_hub_decoded.glb` | 9,998 | 433 KiB |
+| `guns/gun_<id>.glb` (7) | sproto-shooter `models/guns/toy_<id>.glb` | 2.4k–4k | 65–89 KiB |
+
+Budgets (`build-class-glbs.mjs` and `build-guns.mjs` fail past them): a body ≤ 470 KiB and 22k
+triangles, a gun ≤ 90 KiB and 4k triangles.
+
+### Rebuild
+
+```bash
+node art/tools/classes/retarget.mjs          # → source/classes/<body>_raw.glb (uncompressed)
+node art/tools/classes/build-class-glbs.mjs  # → public/assets/models/characters/{soldier,pepe_player}.glb
+node art/tools/classes/build-guns.mjs        # reads ../sproto-shooter/public/assets/models/guns/
+node art/tools/classes/preview.mjs           # contact sheets → source/classes/preview/
+npm run check:assets
+```
+
+The hub sources were decoded once with `node art/tools/decode-glb.mjs <hub glb> <decoded glb>`
+(Blender cannot read meshopt). `tools/classes/inspect-glb.mjs <file> [--nodes]` prints a GLB's
+node tree, textures and clips.
+
+### Bodies
+
+- **Height.** Both stand exactly as tall as the wizard: 1.818 m, the skinned mesh of `player.glb`
+  in its rest pose at scale 1, feet at y = 0, facing +Z. The scale is baked into the file (node
+  translations, inverse bind matrices, positions), so the scene root stays at scale 1.
+- **Clips.** The wizard's 21 clips with its names, key times and exact lengths (`idle`, `stun`,
+  `victory` and `defeat` keep every other key, 12 fps), plus two upper-body layers from Sproto
+  Shooter's Pepe: `aim` (its held `ready` pose, a 0.5 s loop) and `shoot` (0.333 s, eased onto the
+  `ready` pose for its first and last two frames, so it starts and ends where `aim` is). The layers
+  drive only the spine, neck, head, shoulders, arms and hands: play them over any locomotion clip.
+- **Retarget** (`retarget.mjs`, three.js maths on the glTF, so a pose means what the game shows):
+  each body joint is first turned, parent-first, so its bone points where the wizard's (or the
+  shooter Pepe's) does in its rest pose; every frame then applies the source joint's world-space
+  rotation from rest. Hip travel is scaled by hip height; the hips' height keeps the lowest point of
+  the mesh where the wizard's is, never below the floor, and matches the thighs' height while the
+  wizard sits on the bull (`mount`, `ride`, `dismount`). Fingers hold a gun grip in every clip: the
+  shooter's grip plus `CURL` degrees, baked into the fingers' default rotation.
+- **Compression** (`build-class-glbs.mjs`): the Tripo meshes are simplified (their UV atlases have
+  so many seams that the soldier stops at 10.4k triangles), the soldier keeps a 512 px base colour
+  and drops its normal map, Pepe keeps 1024 px. Most of a rigged GLB is clip JSON, so the clips are
+  not resampled (all channels of a clip share one time accessor) and channels that only hold a
+  joint's default are dropped, except in `aim` and `shoot`.
+
+### `socket_weapon` (both bodies)
+
+An empty node, child of `mixamorig:RightHand`. Origin: the centre of the closed right fist, where
+the shooter's `weapon_grip` sits (carried over to the soldier in hand-relative terms). +Z: along
+the barrel; +Y: up from the top of the gun. In `aim` at 0 s over the default hips and legs, +Z is
+the character's forward (world +Z) and +Y is world up. Over a clip whose hips turn the gun turns
+with them: the wizard's `idle` stands 23° open, so a gun aimed over `idle` points that much to the
+side. A gun built to the contract below parents under the socket with an identity transform. The
+contract is also in the node's extras.
+
+### Guns (`build-guns.mjs`)
+
+`gun_<id>` for `mg`, `shotgun`, `sniper`, `bazooka`, `raygun`, `bigbullets`, `duckgun`. Root node
+`gun_<id>` (identity) with two children: the mesh and `muzzle`.
+
+- Origin at the right hand's grip: Sproto Shooter's `HAND_FRAC[id].grip` (fractions of the box
+  from its centre, +z = back). Barrel along +Z (the shooter's `GUN_MODELS[id].yaw` plus half a
+  turn), top +Y.
+- Length (+Z extent) is the shooter's third-person length for its 1.8 m characters:
+  `GUN_MODEL_LEN[id] * 0.82`, the machine gun 0.96 m.
+- `muzzle`: an empty at the barrel tip, at `muzzleY` up the box on its front face. Shots and the
+  muzzle flash start there and travel along the gun's +Z.
+- Simplified to ≤ 4k triangles (seam-aware first, then permissive collapses weighted by UVs), WebP
+  base colour 512 px stepping down until the file fits 90 KiB (the ray gun ends at 320 px and 2.4k
+  triangles), metal-roughness and normal 256 px.
+
+### Preview sheets
+
+`source/classes/preview/` (from `preview.mjs`, which runs `tools/classes/render_sheet.py` in Blender
+and `tools/classes/socket-frames.mjs`): `soldier_<n>.png` and `pepe_player_<n>.png` show idle, run,
+the light and heavy attacks, block, cast, roll, ride, jump, defeat, `shoot` and `aim` (over `idle`
+and on their own) from the side, three-quarter and front with `gun_mg` placed from
+`socket_weapon`'s three.js world matrix; `<body>_grip.png` are close-ups of the gun hand;
+`wizard_<n>.png` are the same poses on the wizard; `guns.png` shows the seven guns with the grip
+origin (blue, usually hidden in the grip) and `muzzle` (red).

@@ -728,6 +728,51 @@ export class BoltView implements EntityView {
   }
 }
 
+/** What a gun shoots (content/classes.ts): a tracer, a heavy slug, or a rocket with a flame behind it. */
+export type BulletLook = 'bullet' | 'slug' | 'rocket';
+const BULLET_LOOKS: Record<BulletLook, { streak: number; core: number; glow: number; width: number; length: number; coreSize: number; glowSize: number }> = {
+  bullet: { streak: 0xffd25a, core: 0xfff6d8, glow: 0xffc040, width: 0.45, length: 1.4, coreSize: 0.06, glowSize: 0.45 },
+  slug: { streak: 0xff8a2a, core: 0xfff0c8, glow: 0xff7a1a, width: 0.8, length: 1.6, coreSize: 0.11, glowSize: 0.8 },
+  rocket: { streak: 0xff6a1a, core: 0x6c7078, glow: 0xff9a3a, width: 1.1, length: 0.9, coreSize: 0.2, glowSize: 1.1 },
+};
+
+/** A gun's shot: like the Bolt's streak, but thin, hot and fast; a rocket shows its body. */
+export class BulletView implements EntityView {
+  readonly root = new THREE.Group();
+  readonly height = 0.2;
+  private readonly streak: THREE.Mesh;
+  private readonly mats: THREE.Material[];
+  private age = 0;
+
+  constructor(private readonly look: BulletLook) {
+    const g = spellGeometry();
+    const l = BULLET_LOOKS[look];
+    const streakMat = additive(l.streak, 0.95);
+    // A rocket's body is solid; the other cores are hot points of light.
+    const coreMat = look === 'rocket' ? new THREE.MeshStandardMaterial({ color: l.core, roughness: 0.5, metalness: 0.4 }) : additive(l.core);
+    this.streak = new THREE.Mesh(g.streak, streakMat);
+    this.streak.scale.set(l.width, l.width, l.length);
+    const core = new THREE.Mesh(g.core, coreMat);
+    core.scale.set(l.coreSize, l.coreSize, look === 'rocket' ? l.coreSize * 2.4 : l.coreSize);
+    const halo = glowSprite(l.glow, l.glowSize);
+    this.root.add(this.streak, core, halo);
+    this.mats = [streakMat, coreMat, halo.material];
+  }
+
+  update(e: Readonly<Entity>, alpha: number, dt: number): void {
+    placeEntity(this.root, e, alpha);
+    faceVelocity(this.root, e);
+    this.age += dt;
+    const l = BULLET_LOOKS[this.look];
+    this.streak.scale.z = l.length * Math.min(1, 0.2 + this.age * 14);
+  }
+
+  dispose(): void {
+    for (const m of this.mats) m.dispose();
+    this.root.removeFromParent();
+  }
+}
+
 /** Blast (plan §4.4): a slow, big glowing orb, fire around a white core, trailing embers. */
 export class BlastOrbView implements EntityView {
   readonly root = new THREE.Group();

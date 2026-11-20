@@ -2,13 +2,15 @@ import * as THREE from 'three';
 import type { AssetLoader } from '../assets/AssetLoader';
 import { TEXTURES } from '../assets/manifest';
 import { cellOf } from '../content/world/format';
+import { regionAt } from '../content/world/regions';
 import type { Renderer } from '../render/Renderer';
 import { CellStreamer, type CellSink, type CellView } from '../world/CellStreamer';
 import { GrassField } from '../world/GrassField';
-import { loadWorld, propPath, type Region } from '../world/RegionManifest';
+import { loadWorld, propPath, type Region, type WorldManifest } from '../world/RegionManifest';
 import { VEIL_TIMEOUT_MS, withRetry } from '../world/rings';
 import { TerrainBuilder } from '../world/TerrainBuilder';
 import { UploadBudget } from '../world/UploadBudget';
+import { WaterLayer, waterClock } from '../world/Water';
 
 export type GroundState = 'ready' | 'loading' | 'timeout';
 
@@ -26,6 +28,9 @@ export class WorldSession {
   readonly uploads = new UploadBudget();
   private builder: TerrainBuilder | null = null;
   private grass: GrassField | null = null;
+  private water: WaterLayer | null = null;
+  /** Overworld horizons still to load once play starts. */
+  private farHorizons: string[] = [];
   private loading: Promise<Region> | null = null;
   /** When the veil went up for missing ground (performance.now ms), or null. */
   private veilSince: number | null = null;
@@ -38,7 +43,7 @@ export class WorldSession {
     if (this.grass) this.grass.enabled = on;
   }
 
-  /** Load Sproutvale and the Rootdeep as one world (3 retries) and set up streaming. Safe to call again after a failure. */
+  /** Load every region as one world (3 retries) and set up streaming. Safe to call again after a failure. */
   load(): Promise<Region> {
     this.loading ??= withRetry(() => loadWorld(), sleep).then(
       (region) => {
@@ -92,14 +97,41 @@ export class WorldSession {
     this.grass = field;
     streamer.root.add(field.root);
     void this.renderer.compile(field.root);
-    // The horizon is resident for the whole session.
-    this.assets.gltf(m.horizon, 'now').then(
+    // Rivers, pools and falls: a few meshes for the whole world, resident like the horizon.
+    if (m.water?.length) {
+      // Past the fog's far edge the water is fully fogged: those tiles aren't drawn.
+      const water = new WaterLayer(m.water, m.fog.far);
+      this.water = water;
+      streamer.root.add(water.root);
+      void this.renderer.compile(water.root);
+    }
+    // The horizons are resident for the whole session: one per overworld region. Only the start
+    // region's loads behind the title (scripts/check-budgets.mjs and the loading e2e count it); the
+    // rest wait for Play (loadFarHorizons), since the fog hides most of a neighbour's far ground.
+    const horizons = (m as Partial<WorldManifest>).horizons ?? [m.horizon];
+    const [sx, , sz] = m.playerStart.pos;
+    const startHorizon = `world/${regionAt(sx, sz).id}/`;
+    this.farHorizons = horizons.filter((path) => !path.startsWith(startHorizon));
+    for (const path of horizons) if (path.startsWith(startHorizon)) this.loadHorizon(path, 'now');
+  }
+
+  /** The other regions' horizons, once play has started (at low priority, behind the cells). */
+  loadFarHorizons(): void {
+    const paths = this.farHorizons;
+    this.farHorizons = [];
+    for (const path of paths) this.loadHorizon(path, 'later');
+  }
+
+  private loadHorizon(path: string, priority: 'now' | 'later'): void {
+    const streamer = this.streamer;
+    if (!streamer) return;
+    this.assets.gltf(path, priority).then(
       (g) => {
         if (this.streamer !== streamer) return;
         streamer.horizon.attach(g.scene);
         void this.renderer.compile(streamer.horizon.root);
       },
-      (err: unknown) => console.warn(`[world] horizon ${m.horizon} failed to load; distant terrain stays empty`, err),
+      (err: unknown) => console.warn(`[world] horizon ${path} failed to load; distant terrain there stays empty`, err),
     );
   }
 
@@ -112,7 +144,9 @@ export class WorldSession {
   frame(focus: { x: number; z: number; vx: number; vz: number }, view: CellView | null, tick: number): void {
     if (!this.streamer) return;
     this.uploads.run();
+    waterClock.value = performance.now() / 1000;
     this.streamer.update(focus, view, tick);
+    this.water?.update(focus.x, focus.z);
     this.grass?.update(focus.x, focus.z, performance.now() / 1000, this.streamer);
   }
 
@@ -205,6 +239,8 @@ export class WorldSession {
 
   dispose(): void {
     this.grass?.dispose();
+    this.water?.dispose();
+    this.water = null;
     this.grass = null;
     this.streamer?.dispose();
     this.streamer = null;

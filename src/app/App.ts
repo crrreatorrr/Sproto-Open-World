@@ -4,6 +4,7 @@ import { MODELS, STAFF_BOOT_LOD, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
 import { zoneAt } from '../audio/zones';
 import { CAM, CameraRig, type CameraOccluder } from '../camera/CameraRig';
+import { classOf, firesAsBullets, type ClassId, type GunDef } from '../content/classes';
 import { ITEMS } from '../content/items';
 import { keepsake, keepsakeIcon } from '../content/relics';
 import { affixName } from '../content/packs/c4';
@@ -37,6 +38,7 @@ import { PortraitStudio } from '../render/PortraitStudio';
 import { Renderer } from '../render/Renderer';
 import { PlayerView } from '../render/views/PlayerView';
 import { WorldViews, enemyDef } from '../render/views/WorldViews';
+import { newerSave, readDiskSave, writeDiskSave } from '../save/DiskSave';
 import { holdForHubVisit, loadSave, saveSlot, writeSave } from '../save/slot';
 import type { SaveFile } from '../save/schema';
 import { BTN, type UiAction } from '../sim/commands';
@@ -103,6 +105,12 @@ const GOD_URL = PARAMS.get('god') === '1';
 const GOD_ALLOWED = import.meta.env.DEV || import.meta.env.VITE_QA === '1' || GOD_URL;
 /** Blast shakes the camera less the further it is from you (m at which it stops). */
 const BLAST_SHAKE_RANGE = 16;
+/**
+ * Local save mode (src/save/DiskSave.ts): on a dev server the save is also kept in one file on disk
+ * (`~/.sproto-open-world/save.json`), so every port and worktree shares the same progress.
+ * `?localsave=0` turns it off; automated browsers (the e2e runs) never touch the file.
+ */
+const LOCAL_SAVE = import.meta.env.DEV && PARAMS.get('localsave') !== '0' && !navigator.webdriver;
 /** Autosave every 5 minutes of play when out of combat (plan §2.8), on top of the event saves. */
 const AUTOSAVE_SEC = 300;
 
@@ -195,6 +203,13 @@ export class App {
   private sinceSave = 0;
   /** Saves written this session (QA). */
   private saves = 0;
+  /** Local save mode is on: off once the endpoint is missing or its file is from a newer build. */
+  private diskSave = LOCAL_SAVE;
+  /** The title's disk save check; Continue and New game wait for it. */
+  private diskReady: Promise<void> = Promise.resolve();
+  /** Disk writes, one after another so the last save is the one that lands. */
+  private diskWrites: Promise<void> = Promise.resolve();
+  private diskWriteWarned = false;
   /** God mode goes on at the start of each session (the URL asked, or it was on last session). */
   private godWanted = GOD_URL;
   /** Two quick 9s toggle testing God Mode through the same command as the Settings switch. */
@@ -246,8 +261,8 @@ export class App {
     this.applySettings(this.settings);
     this.nav = new MenuNav(this.input);
     this.menus = new Menus(ui, this.nav, this.input, {
-      play: () => void this.play(),
-      continueGame: () => void this.play(this.bootSave),
+      play: (cls) => void this.diskReady.then(() => this.play(null, cls)),
+      continueGame: () => void this.diskReady.then(() => this.play(this.bootSave)),
       resume: () => this.resume(),
       quitToTitle: () => this.quitToTitle(),
       returnToHub: () => void this.returnToHub(),
@@ -327,8 +342,9 @@ export class App {
     holdForHubVisit();
     this.toTitle();
     void this.connectHub();
-    // Warm the player model while the title is up, so Play is quick.
-    void this.assets.template('player');
+    // Warm the player model while the title is up, so Play is quick: the saved class's body for
+    // Continue, else the Wizard's (the picker's first choice; another class loads when it is picked).
+    void this.assets.template(classOf(this.bootSave?.player.class).model);
     // The world only needs the small starter staff here; enemies load when you get near them.
     if (MODE === 'world') void this.assets.template(STAFF_BOOT_LOD.staff_sproto ?? 'staff_sproto');
     else for (const k of ['staff_sproto', 'brute'] as const) void this.assets.template(k);
@@ -422,6 +438,47 @@ export class App {
         : '';
     if (r.error) console.warn('[save]', r.error);
     this.menus.setSave(!!r.save, notice);
+    // The disk file mirrors this browser's own slot only: a hub account's save never goes to it.
+    if (this.diskSave && saveSlot.owner() === 'device') this.diskReady = this.syncDiskSave(r.save, notice);
+  }
+
+  /**
+   * Local save mode at the title: the newer of the browser's save and the disk file wins. A newer
+   * disk file is copied into localStorage (the browser's save becomes its backup) and Continue loads
+   * it; a newer browser save is written to disk, which is how existing progress first gets there.
+   */
+  private async syncDiskSave(local: SaveFile | null, notice: string): Promise<void> {
+    const d = await readDiskSave();
+    if (!d.available) {
+      this.diskSave = false;
+      return;
+    }
+    if (this.state !== 'title' || saveSlot.owner() !== 'device') return;
+    if (d.newerBuild) {
+      this.diskSave = false;
+      console.warn('[save] the local save file is from a newer build; this build saves in the browser only');
+      this.menus.setSave(!!local, notice || 'Your local save file is from a newer build; this build will not overwrite it.', d.path);
+      return;
+    }
+    if (d.error) console.warn('[save] local save file:', d.error);
+    const pick = newerSave(local, d.save);
+    if (pick === 'disk' && d.save) {
+      writeSave(d.save);
+      this.bootSave = d.save;
+      notice = d.fromBackup ? 'Your local save file was damaged; loaded its backup.' : '';
+    } else if (pick === 'local' && local) this.queueDiskWrite(local);
+    this.menus.setSave(!!this.bootSave, notice, d.path);
+  }
+
+  /** Write the save file after any write already on its way; the first failure is said once. */
+  private queueDiskWrite(save: SaveFile): void {
+    this.diskWrites = this.diskWrites.then(async () => {
+      if (await writeDiskSave(save)) return;
+      if (this.diskWriteWarned) return;
+      this.diskWriteWarned = true;
+      console.warn('[save] could not write the local save file');
+      this.hud.toast("Couldn't write the local save file; saved in the browser only.");
+    });
   }
 
   /** Queue a menu intent for the next tick. */
@@ -449,19 +506,22 @@ export class App {
     this.sinceSave = 0;
     if (this.godUsed) return;
     let ok = false;
+    let save: SaveFile | null = null;
     try {
-      ok = writeSave(sim.toSave({ savedAt: new Date().toISOString(), build: __BUILD_ID__, region: region.manifest.id }));
+      save = sim.toSave({ savedAt: new Date().toISOString(), build: __BUILD_ID__, region: region.manifest.id });
+      ok = writeSave(save);
     } catch (err) {
       console.warn('[save] could not write', err);
     }
+    if (save && this.diskSave && saveSlot.owner() === 'device') this.queueDiskWrite(save);
     if (ok) {
       this.saves++;
       this.rpgHud.saved();
     } else this.hud.toast("Couldn't save: the browser's storage is full or blocked.");
   }
 
-  /** Start a session: a new game, or `save` restored on top of it (Continue). */
-  async play(save: SaveFile | null = null): Promise<void> {
+  /** Start a session: a new game of class `cls`, or `save` restored on top of it (Continue: the save keeps its class). */
+  async play(save: SaveFile | null = null, cls: ClassId = 'wizard'): Promise<void> {
     if (this.state === 'loading') return;
     this.state = 'loading';
     this.nav.reset(null);
@@ -484,7 +544,7 @@ export class App {
             run: () => {
               this.panels.hideError();
               this.state = 'title';
-              void this.play(save);
+              void this.play(save, cls);
             },
           },
           {
@@ -501,7 +561,7 @@ export class App {
     try {
       const region = this.stream?.region;
       const sim = new SimWorld(region ? worldLevel(region.manifest) : SANDBOX, 1);
-      const entity = sim.spawnPlayer(LOCAL_PLAYER);
+      const entity = sim.spawnPlayer(LOCAL_PLAYER, undefined, undefined, save?.player.class ?? cls);
       // The sandbox's dummies and Brute (bare test worlds stay empty), the wave runner, or
       // Sproutvale's villagers, shrines, chest and training yard (its camps arrive in M4). A save
       // goes on top of the fresh world, so opened chests and found shrines come back as they were.
@@ -513,7 +573,7 @@ export class App {
         this.stream.attach(sim);
         this.groundWait = true;
       }
-      const view = new PlayerView(this.assets);
+      const view = new PlayerView(this.assets, classOf(entity.progress?.class).model);
       const staff = this.staffModel(entity.progress?.equipment.staff);
       // The world boots with a staff's small model; the full one swaps in once things are calm.
       // Rootcleaver has no small model of its own. A save that has it out still becomes playable
@@ -542,7 +602,8 @@ export class App {
       this.godPending = this.godWanted && GOD_ALLOWED && !!this.stream;
       this.rpgHud.clearFeed();
       this.state = 'playing';
-      if (this.groundWait) this.showGroundVeil(entity.tf.pos.x);
+      this.stream?.loadFarHorizons();
+      if (this.groundWait) this.showGroundVeil(entity.tf.pos.x, entity.tf.pos.z);
       else this.panels.hideVeil();
       this.hud.visible = !this.groundWait;
       this.input.requestLock();
@@ -991,6 +1052,19 @@ export class App {
     void this.player.setStaff(full, 'later');
   }
 
+  /** A gun class's shot (Gunfire, or a Soldier's shooting spell) sounds like a gun. */
+  private castsBullets(view: ReadonlySimView, id: number, spell: SpellId): boolean {
+    const p = view.entities.find((x) => x.id === id)?.progress;
+    return !!p && firesAsBullets(p.class, spell) && !!SPELLS[spell].projectile;
+  }
+
+  /** Which gun it sounds like: the one in hand for Gunfire; a rocket or a slug for the Soldier's spells. */
+  private gunSound(view: ReadonlySimView, id: number, spell: SpellId): GunDef['type'] {
+    const p = view.entities.find((x) => x.id === id)?.progress;
+    if (spell === 'gunfire') return (p && ITEMS[p.equipment.staff]?.gun?.type) || 'mg';
+    return spell === 'blast' ? 'bazooka' : 'sniper';
+  }
+
   private staffModel(item: string | undefined): ModelKey {
     const key = item ? ITEMS[item]?.staff?.model : undefined;
     return key && key in MODELS ? (key as ModelKey) : 'staff_sproto';
@@ -1045,10 +1119,10 @@ export class App {
 
   /**
    * Hold the player behind the loading veil. The line names the region they are entering
-   * (Sproutvale on the surface, the Rootdeep in the cave).
+   * (src/content/world/regions.ts).
    */
-  private showGroundVeil(x: number): void {
-    this.panels.showVeil(loadingVeilText(x));
+  private showGroundVeil(x: number, z?: number): void {
+    this.panels.showVeil(loadingVeilText(x, z ?? this.sim?.playerEntity(LOCAL_PLAYER)?.tf.pos.z ?? 0));
   }
 
   /**
@@ -1074,7 +1148,7 @@ export class App {
     if (!this.groundWait) {
       this.groundWait = true;
       this.hud.visible = false;
-      this.showGroundVeil(p.tf.pos.x);
+      this.showGroundVeil(p.tf.pos.x, p.tf.pos.z);
     }
     if (ground === 'timeout') this.groundTimeout();
     return true;
@@ -1238,7 +1312,7 @@ export class App {
         if (this.stream) {
           this.groundWait = true;
           this.hud.visible = false;
-          this.showGroundVeil(who.tf.pos.x);
+          this.showGroundVeil(who.tf.pos.x, who.tf.pos.z);
         }
         return;
       }
@@ -1291,7 +1365,8 @@ export class App {
         return;
       case 'cast':
         qa('cast', e.spell);
-        if (e.spell === 'bolt') this.audio.play('boltCast', e.woven ? 1.15 : 1);
+        if (this.castsBullets(view, e.entity, e.spell)) this.audio.gunshot(this.gunSound(view, e.entity, e.spell), e.entity === me ? 1 : 0.6);
+        else if (e.spell === 'bolt') this.audio.play('boltCast', e.woven ? 1.15 : 1);
         else if (e.spell === 'blast') this.audio.play('boltCast', 0.62, 1.2);
         else if (e.spell === 'staticSnare') this.audio.play('boltCast', 1.45, 0.9);
         if (e.entity === me) pad.rumble(RUMBLE.cast);
