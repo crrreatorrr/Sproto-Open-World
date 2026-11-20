@@ -265,11 +265,19 @@ export class PhysicsWorld {
     return this.world.intersectionWithShape(at, { x: 0, y: 0, z: 0, w: 1 }, shape, undefined, groups(0xffff, GROUP.WORLD | GROUP.CHARACTER)) === null;
   }
 
-  /** Make a character's capsule this wide, in place (a rider takes on the width of their mount). */
+  /**
+   * Make a character's capsule this wide, in place (a rider takes on the width of their mount). Its
+   * bottom stays at the feet: wider than the body is tall, it grows to a ball that tall, standing on them.
+   */
   setCharacterRadius(id: EntityId, body: Body, radius: number): void {
     const c = this.characters.get(id);
     if (!c || c.radius === radius) return;
-    c.collider.setShape(new RAPIER.Capsule(Math.max(0.01, body.height / 2 - radius), radius));
+    const halfTall = Math.max(body.height / 2, radius + 0.01);
+    const at = c.collider.translation();
+    const feetY = at.y - c.centerOffset;
+    c.collider.setShape(new RAPIER.Capsule(halfTall - radius, radius));
+    c.centerOffset = halfTall + KCC.offset;
+    c.collider.setTranslation({ x: at.x, y: feetY + c.centerOffset, z: at.z });
     c.radius = radius;
   }
 
@@ -381,6 +389,17 @@ export class PhysicsWorld {
     const vel = { x: dir.x / len, y: dir.y / len, z: dir.z / len };
     const hit = this.world.castShape(origin, { x: 0, y: 0, z: 0, w: 1 }, vel, new RAPIER.Ball(radius), 0, len, true, undefined, groups(0xffff, mask));
     return hit ? { distance: hit.time_of_impact } : null;
+  }
+
+  /** `sphereCast`, also giving the hit surface's normal (it faces back toward the sphere). */
+  sphereCastNormal(origin: Readonly<Vec3>, dir: Readonly<Vec3>, radius: number, mask: number = GROUP.WORLD): { distance: number; normal: Vec3 } | null {
+    const len = Math.hypot(dir.x, dir.y, dir.z);
+    if (len < 1e-9) return null;
+    const vel = { x: dir.x / len, y: dir.y / len, z: dir.z / len };
+    const hit = this.world.castShape(origin, { x: 0, y: 0, z: 0, w: 1 }, vel, new RAPIER.Ball(radius), 0, len, true, undefined, groups(0xffff, mask));
+    if (!hit) return null;
+    const n = hit.normal1;
+    return { distance: hit.time_of_impact, normal: { x: n.x, y: n.y, z: n.z } };
   }
 
   dispose(): void {

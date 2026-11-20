@@ -86,9 +86,18 @@ production build has no such endpoint, so it saves in the browser only.
 | Open the menu on Gear | I | Menu, then LB / RB |
 | Switch menu tabs | Q / E | LB / RB |
 | Menus: move, choose, back | Arrows or WASD, Enter, Esc, or the mouse | D-pad or left stick, A, B |
+| Send feedback (the game pauses; options, a note, a screenshot): 1–7 pick, Tab moves, Enter sends, Esc closes | N twice | — (keyboard only) |
 
-Everything is remappable in Settings → Controls, and the prompts switch to your pad's glyphs when
-you use it.
+Everything is remappable in Settings → Controls (N stays the feedback key), and the prompts switch to
+your pad's glyphs when you use it.
+
+**Feedback** works as in Sproto Duel and Sproto Shooter: the hub SDK's window (`vendor/hub-sdk`,
+adapter `src/hub/feedback.ts`) freezes the game, takes a screenshot with the menus and HUD on it,
+and sends the note with where you are, your state and the last few milestones (deaths, quest steps,
+boss phases). Notes send only from a signed-in hub visit (`#t=<ticket>`). The hub does not list
+`sproto-open-world` yet, so for now the window says feedback needs a hub visit; once metaverse-hub
+registers the game and the SDK is re-vendored, `src/hub/link.ts` redeems the ticket with no other
+change. Dev and QA builds take `?feedbackMock`, which keeps sent notes on `window.__feedbackSent`.
 
 **The yard (`?yard=1`):** a passive dummy and a swinging dummy (practise parrying) just ahead to the left, a
 coin-shooting dummy behind you to the right (parry the coin to send it back), and the Brute further
@@ -107,6 +116,7 @@ clips.
 | `src/content` | Tuning and level data; `generated/` comes from `npm run gen:moves` |
 | `src/app` | The game shell: loop, states, wiring |
 | `src/input`, `src/camera`, `src/render`, `src/ui`, `src/audio` | Presentation and devices |
+| `src/hub`, `vendor/hub-sdk` | The hub feedback window's adapter and the vendored `@metaverse/hub-sdk` |
 | `art/` | Blender sources and the player's melee clip pipeline (`art/README.md`) |
 | `world-src/`, `public/world/` | World sources (terrain stamps, placements) and the baked cells (`npm run bake:world -- sproutvale`) |
 | `src/world`, `src/workers` | The client-side streamer, terrain meshes, prop instancing and the horizon |
