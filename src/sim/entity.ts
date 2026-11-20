@@ -213,6 +213,8 @@ export interface Progress {
   atShrine: string | null;
   /** Relic sockets, the totem, and what has been won. Absent on a progress built before that save. */
   relics?: RelicProgress;
+  /** God mode (testing, systems/god.ts): can't die. This session only, never saved. */
+  god?: boolean;
 }
 
 /** Session clocks for relics. Not saved: a load starts them over. */

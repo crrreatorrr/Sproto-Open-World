@@ -18,7 +18,10 @@ single player first with co-op planned. Three.js, Rapier, TypeScript and Vite. T
 - Assets come from the sibling repos through `tools/import-sibling-assets.mjs` and are committed.
   Nothing reads a sibling repo at run time.
 - Gamepad support is first-class (owner): every menu works with a pad only, and the smoke test
-  proves it.
+  proves it. The one exception, by the owner's call, is the hub feedback window: keyboard only
+  (N twice; no menu button, the pad does nothing while it is open).
+- `vendor/hub-sdk` comes from `metaverse-hub`. Follow `vendor/hub-sdk/VENDOR.md` to update it, and
+  never edit its files by hand. The game imports only the lean `/feedback` and `/core` entries.
 
 ## Checks
 
