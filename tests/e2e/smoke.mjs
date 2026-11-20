@@ -443,6 +443,26 @@ try {
     check(bar === 4, 'the HUD shows the four-slot spell bar', `${bar} slots`);
   }
 
+  // Return to Hub (src/hub/link.ts), pad only: with no hub session the title's last button still
+  // leaves for the plaza, at this game's ring (`#from=sproto-open-world`).
+  console.log('  -- return to hub');
+  await page.close();
+  page = await openPage();
+  await page.goto(`${url}?yard=1`);
+  await page.waitForFunction(() => window.__qa?.ready && window.__qa.state().screen === 'screen-title', null, { timeout: 30000 });
+  s = await state();
+  check(s.save?.owner === 'device', 'standalone play keeps the browser save', JSON.stringify(s.save));
+  check(await page.evaluate(() => document.querySelector('.hub-chip')?.dataset.hub === 'offline'), 'the title shows the hub chip, not signed in');
+  await press('down');
+  await press('down');
+  await press('down');
+  s = await state();
+  check(s.focused === 'Return to Hub', 'the D-pad reaches Return to Hub', JSON.stringify(s.focused));
+  const left = page.waitForURL(/\/hub\/#from=sproto-open-world$/, { timeout: 10000 }).then(() => true, () => false);
+  // The page navigates away during the press.
+  await press('a').catch(() => {});
+  check(await left, 'A on Return to Hub opens /hub/#from=sproto-open-world', page.url());
+
   check(errors.length === 0, 'no console errors', errors.join('\n'));
 } catch (err) {
   failures++;

@@ -62,7 +62,7 @@ export interface MerchantDef {
 }
 
 export const MERCHANTS: Record<string, MerchantDef> = {
-  merchant_village: { id: 'merchant_village', stock: { staff_nobu: 1, charm_quick_step: 1, charm_second_wind: 1, tonic_upgrade: 1, waystone: 1 } },
+  merchant_village: { id: 'merchant_village', stock: { staff_nobu: 1, charm_quick_step: 1, charm_second_wind: 1, tonic_upgrade: 1, staff_brick_phone: 1 } },
 };
 
 Object.assign(MERCHANTS.merchant_village.stock, C4_STOCK);

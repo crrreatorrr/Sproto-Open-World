@@ -1,12 +1,13 @@
-import { WAYSTONE } from '../../content/items';
+import { TRAVEL_DEVICE } from '../../content/items';
 import type { Entity } from '../entity';
 import type { SimEvent } from '../events';
 import { inCombat } from './loadout';
 
 /**
- * Fast travel (from the Map tab). With the Waystone you can go to any shrine you have used
- * (touched or rested at), out of combat. God mode (systems/god.ts) goes to any shrine at any time,
- * and to any named area. The sim moves the body (SimWorld, on the `travel` event). Pure.
+ * Fast travel. Wield the Brick Phone and Light attack opens it (`progress.phone`): it calls any
+ * shrine you have used (touched or rested at), out of combat. God mode (systems/god.ts) goes to any
+ * shrine at any time, phone or not, and to any named area from the Map tab. The sim moves the body
+ * (SimWorld, on the `travel` event). Pure.
  */
 export interface TravelCtx {
   now: number;
@@ -27,7 +28,7 @@ export function travelRefusal(e: Readonly<Entity>, shrine: string, now: number):
   if (!p) return 'You cannot travel.';
   if (e.combat?.action?.kind === 'dead') return "You can't travel now.";
   if (p.god) return null;
-  if (!p.inventory[WAYSTONE]) return 'You need a Waystone to fast travel.';
+  if (p.equipment.staff !== TRAVEL_DEVICE) return 'Wield the Brick Phone to fast travel.';
   if (!p.discoveredShrines.includes(shrine)) return "You haven't used that shrine yet.";
   if (inCombat(e, now)) return "You can't travel in combat.";
   return null;
@@ -40,6 +41,7 @@ export function fastTravel(ctx: TravelCtx, e: Entity, shrine: string): void {
   if (why) return refuse(ctx, e, why);
   const p = e.progress!;
   p.atShrine = null;
+  delete p.phone;
   const { x, z } = stone.tf.pos;
   ctx.events.push({ type: 'travel', entity: e.id, x: x + SHRINE_ARRIVE_OFFSET, z: z + SHRINE_ARRIVE_OFFSET, shrine });
 }
@@ -49,4 +51,19 @@ export function godWarp(ctx: TravelCtx, e: Entity, x: number, z: number): void {
   if (!e.progress?.god) return refuse(ctx, e, 'Only in god mode.', 'godWarp');
   if (!Number.isFinite(x) || !Number.isFinite(z)) return;
   ctx.events.push({ type: 'travel', entity: e.id, x, z });
+}
+
+/** The Brick Phone is in this player's hand: Light attack opens it and never swings (SimWorld strips it). */
+export const wieldsPhone = (e: Readonly<Entity>): boolean => e.progress?.equipment.staff === TRAVEL_DEVICE;
+
+/**
+ * Light attack with the phone in hand: the phone opens (a menu, so the tick goes idle). Mid-roll or
+ * mid-swing too: whatever you were doing plays out on its own under the menu, as at a shrine.
+ */
+export function openPhone(ctx: TravelCtx, e: Entity): boolean {
+  const p = e.progress;
+  if (!p || !wieldsPhone(e) || e.combat?.action?.kind === 'dead') return false;
+  p.phone = true;
+  ctx.events.push({ type: 'phoneOpen', entity: e.id });
+  return true;
 }

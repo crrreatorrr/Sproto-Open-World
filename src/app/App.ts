@@ -22,6 +22,7 @@ import { frameDataLines, targetLines } from '../debug/frameData';
 import { Overlay } from '../debug/Overlay';
 import { QA_LOG_ENABLED, qaLog } from '../debug/qaLog';
 import type { FeedbackHost, FeedbackSnapshot } from '../hub/feedback';
+import type { HubLink } from '../hub/link';
 import { GAMEPAD, KEYS, PAD } from '../input/bindings';
 import { freshDigitChord, godChordPressed } from '../input/godChord';
 import { CommandBuilder } from '../input/CommandBuilder';
@@ -36,7 +37,7 @@ import { Renderer } from '../render/Renderer';
 import { PlayerView } from '../render/views/PlayerView';
 import { WorldViews, enemyDef } from '../render/views/WorldViews';
 import { newerSave, readDiskSave, writeDiskSave } from '../save/DiskSave';
-import { loadSave, writeSave } from '../save/SaveStore';
+import { holdForHubVisit, loadSave, saveSlot, writeSave } from '../save/slot';
 import type { SaveFile } from '../save/schema';
 import { BTN, type UiAction } from '../sim/commands';
 import type { Entity, EntityId } from '../sim/entity';
@@ -172,6 +173,8 @@ export class App {
   private frameCount = 0;
   /** The hub feedback window (N twice, keyboard only) has started loading, off the boot path. */
   private feedbackLoad: Promise<boolean> | null = null;
+  /** This page's hub visit, settling (src/hub/link.ts). */
+  private hubLoad: Promise<HubLink | null> | null = null;
   /** Set while the feedback window holds the game: nothing ticks and the pad is ignored. */
   private feedbackHold: FeedbackHold | null = null;
   /** The feedback window's breadcrumbs: every sim event after its tick. */
@@ -260,6 +263,7 @@ export class App {
       continueGame: () => void this.diskReady.then(() => this.play(this.bootSave)),
       resume: () => this.resume(),
       quitToTitle: () => this.quitToTitle(),
+      returnToHub: () => void this.returnToHub(),
       settingsChanged: (s) => {
         this.settings = s;
         this.applySettings(s);
@@ -332,7 +336,10 @@ export class App {
   }
 
   start(): void {
+    // A portal visit (or a hub session cached in this tab): the title waits for the account's save.
+    holdForHubVisit();
     this.toTitle();
+    void this.connectHub();
     // Warm the player model while the title is up, so Play is quick.
     void this.assets.template('player');
     // The world only needs the small starter staff here; enemies load when you get near them.
@@ -428,7 +435,8 @@ export class App {
         : '';
     if (r.error) console.warn('[save]', r.error);
     this.menus.setSave(!!r.save, notice);
-    if (this.diskSave) this.diskReady = this.syncDiskSave(r.save, notice);
+    // The disk file mirrors this browser's own slot only: a hub account's save never goes to it.
+    if (this.diskSave && saveSlot.owner() === 'device') this.diskReady = this.syncDiskSave(r.save, notice);
   }
 
   /**
@@ -442,7 +450,7 @@ export class App {
       this.diskSave = false;
       return;
     }
-    if (this.state !== 'title') return;
+    if (this.state !== 'title' || saveSlot.owner() !== 'device') return;
     if (d.newerBuild) {
       this.diskSave = false;
       console.warn('[save] the local save file is from a newer build; this build saves in the browser only');
@@ -502,7 +510,7 @@ export class App {
     } catch (err) {
       console.warn('[save] could not write', err);
     }
-    if (save && this.diskSave) this.queueDiskWrite(save);
+    if (save && this.diskSave && saveSlot.owner() === 'device') this.queueDiskWrite(save);
     if (ok) {
       this.saves++;
       this.rpgHud.saved();
@@ -1765,6 +1773,56 @@ export class App {
     this.rig.snap(this.target, this.rig.yaw);
   }
 
+  // --- Hub visit (src/hub/link.ts): the account, its cloud save and the way back ----------------------
+
+  /** Settle this page's hub visit, then load the save it owns (src/save/slot.ts). Off the boot path. */
+  private connectHub(): Promise<HubLink | null> {
+    if (this.hubLoad) return this.hubLoad;
+    window.addEventListener('pagehide', () => saveSlot.flushOnExit());
+    window.addEventListener('pageshow', (e) => {
+      if (e.persisted) saveSlot.pageShown();
+    });
+    this.hubLoad = import('../hub/link')
+      .then(async (m) => {
+        const visit = m.pageHubVisit();
+        const show = () => this.showHub(visit.link);
+        visit.link.subscribe(show);
+        saveSlot.subscribe(show);
+        show();
+        const link = await visit.ready;
+        await saveSlot.followHub(link);
+        // The title now shows that owner's save (the account's, or this browser's).
+        if (this.state === 'title' && MODE === 'world') this.readSave();
+        show();
+        return link;
+      })
+      .catch((err: unknown) => {
+        console.warn('[hub] not connected', err);
+        // No hub after all: the browser's own save.
+        void saveSlot.followHub(null).then(() => {
+          if (this.state === 'title' && MODE === 'world') this.readSave();
+        });
+        return null;
+      });
+    return this.hubLoad;
+  }
+
+  private showHub(link: HubLink): void {
+    this.menus.setHub({ status: link.status, label: link.accountLabel, error: link.code ?? '', owner: saveSlot.owner(), sync: saveSlot.sync() });
+  }
+
+  /**
+   * Return to Hub (title and pause): save the game in play first, send an unsynced account save with
+   * `keepalive`, then leave for the plaza at this game's ring.
+   */
+  private async returnToHub(): Promise<void> {
+    if (this.sim && (this.state === 'playing' || this.state === 'paused')) this.writeSaveNow();
+    const link = await this.connectHub();
+    saveSlot.flushOnExit();
+    if (link) link.exitToHub();
+    else window.location.assign(`/hub/#from=sproto-open-world`); // the link module failed to load
+  }
+
   // --- Hub feedback window (src/hub/feedback.ts) -----------------------------------------------------
 
   /** Install the window; the SDK itself listens for N twice from then on. */
@@ -1890,6 +1948,8 @@ export class App {
       hash: this.sim?.hash() ?? 0,
       device: this.input.pad.device,
       padConnected: this.input.pad.connected,
+      /** Whose save is in use (device, pending or account) and its cloud state. */
+      save: { owner: saveSlot.owner(), sync: saveSlot.sync() },
       player: p
         ? {
             id: p.id,

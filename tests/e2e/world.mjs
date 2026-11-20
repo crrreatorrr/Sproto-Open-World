@@ -303,7 +303,7 @@ async function rpgLoop() {
   s = await until((q) => q.screen === 'screen-shop');
   check(s.screen === 'screen-shop' && s.rpg.shop === 'merchant_village', '"Show me your wares." opens the shop', `${s.screen} ${s.rpg.shop}`);
   const stock = await page.evaluate(() => [...document.querySelectorAll('#screen-shop [data-item]')].map((e) => e.dataset.item));
-  check(stock.includes('staff_nobu') && stock.includes('waystone') && stock.length === 5, 'the shop lists the merchant\'s stock', stock.join(','));
+  check(stock.includes('staff_nobu') && stock.includes('staff_brick_phone') && stock.length === 5, 'the shop lists the merchant\'s stock', stock.join(','));
   await shot('w12-shop');
   await press('a');
   s = await until((q) => !!q.toast);
@@ -454,6 +454,44 @@ async function rpgLoop() {
   await press('start');
   s = await until((q) => q.state === 'playing');
   check(s.state === 'playing', 'Start closes the menu again', s.state);
+
+  // The Brick Phone, by pad: RB (Light attack) with it in hand opens it; A calls a shrine you have used.
+  // QA setup: the phone bought and wielded, then a walk's worth away from the shrine.
+  await page.evaluate(() => {
+    const a = window.__qa.app;
+    a.sim.playerEntity(0).progress.inventory.staff_brick_phone = 1;
+    a.commands.queueUi({ kind: 'equip', item: 'staff_brick_phone' });
+  });
+  s = await until((q) => q.rpg.equipment.staff === 'staff_brick_phone');
+  check(s.rpg.equipment.staff === 'staff_brick_phone', 'the Brick Phone is in hand', s.rpg.equipment.staff);
+  await teleport(300, 110);
+  await press('rb');
+  s = await until((q) => q.screen === 'screen-phone');
+  const rows = await page.evaluate(() => [...document.querySelectorAll('#screen-phone .phone-row')].map((r) => `${r.dataset.shrine}:${r.tagName === 'BUTTON' ? 'call' : 'locked'}`));
+  check(s.screen === 'screen-phone' && s.rpg.phone === true && /^Shrine of First Light/.test(s.focused ?? ''), 'RB with the phone opens it on the shrine you have used', `${s.screen} ${JSON.stringify(s.focused)}`);
+  check(rows.includes('shrine_first_light:call') && rows.includes('shrine_watchtower:locked') && rows.length === 5, 'the phone lists used shrines to call and the rest locked', rows.join(','));
+  await shot('w14e-phone');
+  await press('down');
+  s = await state();
+  check(s.focused === 'Hang up', 'D-pad down skips the locked shrines to Hang up', JSON.stringify(s.focused));
+  await press('b');
+  s = await until((q) => q.screen === null);
+  check(s.screen === null && !s.rpg.phone && s.player.pos.x > 290, 'B hangs up, and nothing swung', `${s.screen} ${s.rpg.phone} ${s.player.pos.x.toFixed(1)}`);
+  await press('rb');
+  s = await until((q) => q.screen === 'screen-phone');
+  check(/^Shrine of First Light/.test(s.focused ?? ''), 'RB opens it again, on the shrine', JSON.stringify(s.focused));
+  await press('a');
+  s = await until((q) => q.screen === null && !q.groundWait, 600);
+  const home = await page.evaluate(() => window.__qa.app.sim.locate('shrine_first_light'));
+  check(Math.hypot(s.player.pos.x - home.x, s.player.pos.z - home.z) < 3, 'A calls the shrine: you arrive beside it', `${s.player.pos.x.toFixed(1)}, ${s.player.pos.z.toFixed(1)} vs ${home.x.toFixed(1)}, ${home.z.toFixed(1)}`);
+  // Back to the staff, so the rest of the loop is unchanged.
+  await page.evaluate(() => {
+    const a = window.__qa.app;
+    a.commands.queueUi({ kind: 'equip', item: 'staff_sproto' });
+  });
+  s = await until((q) => q.rpg.equipment.staff === 'staff_sproto');
+  check(s.rpg.equipment.staff === 'staff_sproto', 'the staff goes back in hand', s.rpg.equipment.staff);
+  await page.evaluate(() => { delete window.__qa.app.sim.playerEntity(0).progress.inventory.staff_brick_phone; });
 
   // Save → reload → Continue.
   const want = await state();
