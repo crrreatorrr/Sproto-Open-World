@@ -95,6 +95,10 @@ export type SimEvent =
   | { type: 'interact'; entity: EntityId; object: string; kind: 'shrine' | 'chest' | 'npc' | 'object' | 'portal' }
   /** Travel through a hidden entrance. `portal` is the mouth used; `to` is the mouth arrived at. */
   | { type: 'portalTravel'; entity: EntityId; portal: string; to: string }
+  /** God mode went on or off (testing). */
+  | { type: 'godMode'; entity: EntityId; on: boolean }
+  /** Fast travel (to a shrine) or a god's warp (to x, z): the sim has moved the body and drops it onto the floor there. */
+  | { type: 'travel'; entity: EntityId; x: number; z: number; shrine?: string }
   | { type: 'trigger'; entity: EntityId; trigger: string }
   | { type: 'talk'; entity: EntityId; npc: string; node: string }
   | { type: 'dialogueEnd'; entity: EntityId; npc: string }
