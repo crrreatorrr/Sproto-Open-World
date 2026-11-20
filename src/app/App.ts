@@ -280,6 +280,11 @@ export class App {
       resume: () => this.resume(),
       quitToTitle: () => this.quitToTitle(),
       returnToHub: () => void this.returnToHub(),
+      openPvp: () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('pvp', '1');
+        window.location.assign(url.toString());
+      },
       settingsChanged: (s) => {
         this.settings = s;
         this.applySettings(s);

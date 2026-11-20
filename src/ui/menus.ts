@@ -19,6 +19,8 @@ export interface MenuActions {
   quitToTitle(): void;
   /** Leave for the hub plaza (its ring for this game), signed in or not. */
   returnToHub(): void;
+  /** Enter the Free 1v1 PvP Arena (Sim v3, no Second Wind). */
+  openPvp?(): void;
   settingsChanged(s: Settings): void;
   controlsChanged(p: ControlPrefs): void;
 }
@@ -145,6 +147,7 @@ export class Menus {
       else if (canContinue) list.append(button('Continue', () => this.actions.continueGame()), button('New game', () => this.nav.push(this.classes)));
       else list.append(button('Play', () => this.nav.push(this.classes)));
       list.append(button('Settings', () => this.nav.push(this.settings)), button('Return to Hub', () => this.actions.returnToHub()));
+      if (this.actions.openPvp) list.append(button('Free 1v1 Arena', () => this.actions.openPvp?.()));
       s.append(list, el('p', 'build', diskPath ? `build ${__BUILD_ID__} · local save: ${diskPath}` : `build ${__BUILD_ID__}`));
     };
     return { el: s, render, onBack: () => {} };
