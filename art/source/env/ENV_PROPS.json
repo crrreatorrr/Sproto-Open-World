@@ -1,6 +1,66 @@
 {
   "_doc": "Written by tools/build-env-props.mjs. Environment-kit props this repo builds itself (art/tools/env); scripts/check-assets.mjs reads it.",
   "props": {
+    "mtn_boulder": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_boulder_flat": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_cliff_a": {
+      "kit": "mountains",
+      "landmark": true
+    },
+    "mtn_cliff_b": {
+      "kit": "mountains",
+      "landmark": true
+    },
+    "mtn_fence": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_peak_a": {
+      "kit": "mountains",
+      "landmark": true
+    },
+    "mtn_peak_b": {
+      "kit": "mountains",
+      "landmark": true
+    },
+    "mtn_pine": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_pine_small": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_rock_large": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_rope_bridge": {
+      "kit": "mountains",
+      "landmark": true
+    },
+    "mtn_snow_drift": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_steps": {
+      "kit": "mountains",
+      "landmark": false
+    },
+    "mtn_watchtower_ruin": {
+      "kit": "mountains",
+      "landmark": true
+    },
+    "mtn_wildflowers": {
+      "kit": "mountains",
+      "landmark": false
+    },
     "river_birch": {
       "kit": "river",
       "landmark": false
