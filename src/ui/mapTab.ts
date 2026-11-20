@@ -43,7 +43,31 @@ const CAVE_REGIONS: readonly { name: string; x: number; z: number }[] = [
 ];
 
 /** Named places on the new regions' maps (world x, z). */
-const OVERWORLD_LABELS: Partial<Record<RegionId, readonly { name: string; x: number; z: number }[]>> = {};
+export const OVERWORLD_LABELS: Partial<Record<RegionId, readonly { name: string; x: number; z: number }[]>> = {
+  town: [
+    { name: 'Bell Plaza', x: 760, z: 232 },
+    { name: 'Bell Canal', x: 816, z: 330 },
+    { name: 'Bellmere Harbour', x: 1110, z: 96 },
+  ],
+  zen: [
+    { name: 'Maple Gate', x: 252, z: 925 },
+    { name: 'Maple Temple', x: 246, z: 1010 },
+    { name: 'Koi Ponds', x: 212, z: 958 },
+    { name: 'East Court', x: 419, z: 1170 },
+  ],
+  river: [
+    { name: 'Willowrun Mill', x: 1100, z: 950 },
+    { name: 'Mill Pond', x: 952, z: 992 },
+    { name: 'Hollow Brook', x: 720, z: 1280 },
+  ],
+  waterfalls: [
+    { name: 'The Veilfalls', x: 1150, z: 1730 },
+    { name: 'The Gorge', x: 1030, z: 1790 },
+    { name: 'Veil Tarn', x: 1254, z: 1900 },
+    { name: 'Lower Veil', x: 1420, z: 1606 },
+    { name: 'Veil Spring', x: 1160, z: 2330 },
+  ],
+};
 
 /** The picture a world point belongs on: its region's map, baked by tools/bake-map.mjs. */
 export function mapBounds(x: number, z = 0): { region: RegionId; name: string; minX: number; minZ: number; size: number; sizeZ: number; image: string } {
