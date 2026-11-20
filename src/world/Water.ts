@@ -222,3 +222,25 @@ export function patchFlowingWater(m: THREE.Material): void {
   m.customProgramCacheKey = () => 'flowing-water-v1';
   m.needsUpdate = true;
 }
+
+/**
+ * A kit's `fx_glow` material (crystals, lanterns, the Veilfalls rainbow). Blender lights these
+ * with their own vertex colours, but glTF can only export one emissive colour, so they arrive as
+ * flat white ×2 and wash every band out to white. Tint the emission by the vertex colour so each
+ * part glows in its own colour. Idempotent.
+ */
+export function patchVertexColorGlow(m: THREE.Material): void {
+  if (m.userData.vertexColorGlow) return;
+  m.userData.vertexColorGlow = true;
+  m.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <color_fragment>',
+      `#include <color_fragment>
+  #if defined( USE_COLOR ) || defined( USE_COLOR_ALPHA )
+  totalEmissiveRadiance *= vColor.rgb;
+  #endif`,
+    );
+  };
+  m.customProgramCacheKey = () => 'vertex-color-glow-v1';
+  m.needsUpdate = true;
+}

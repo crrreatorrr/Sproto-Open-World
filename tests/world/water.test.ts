@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import type { WaterBody } from '../../src/content/world/format';
-import { WaterLayer, patchFlowingWater } from '../../src/world/Water';
+import { WaterLayer, patchFlowingWater, patchVertexColorGlow } from '../../src/world/Water';
 
 /**
  * The world's water (src/world/Water.ts): rivers become ribbons cut into ~64 m pieces that follow
@@ -64,5 +64,16 @@ describe('WaterLayer', () => {
     patchFlowingWater(m);
     expect(m.onBeforeCompile).toBe(hook);
     expect(m.transparent).toBe(true);
+  });
+
+  it('tints a kit glow material by its vertex colours, once', () => {
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xffffff });
+    patchVertexColorGlow(m);
+    const hook = m.onBeforeCompile;
+    patchVertexColorGlow(m);
+    expect(m.onBeforeCompile).toBe(hook);
+    const shader = { fragmentShader: 'void main() {\n#include <color_fragment>\n}', vertexShader: '', uniforms: {} };
+    hook.call(m, shader as unknown as THREE.WebGLProgramParametersWithUniforms, undefined as unknown as THREE.WebGLRenderer);
+    expect(shader.fragmentShader).toContain('totalEmissiveRadiance *= vColor.rgb');
   });
 });
