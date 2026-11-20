@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import type { WaterBody } from '../../src/content/world/format';
-import { WaterLayer, patchFlowingWater, patchVertexColorGlow } from '../../src/world/Water';
+import { WaterLayer, patchFlowingWater, patchVertexColorGlow, waterPieces } from '../../src/world/Water';
 
 /**
  * The world's water (src/world/Water.ts): rivers become ribbons cut into ~64 m pieces that follow
  * the surface height, a steep drop turns pale (a falling sheet), pools are discs at their level.
+ * The layer merges the pieces into one mesh per 256 m tile and hides tiles past its range.
  */
 const river: WaterBody = {
   id: 'r',
@@ -18,8 +19,7 @@ const river: WaterBody = {
 const pool: WaterBody = { id: 'p', kind: 'pool', center: [50, 50], radius: 12, y: 3 };
 
 describe('WaterLayer', () => {
-  const layer = new WaterLayer([river, pool]);
-  const meshes = layer.root.children as THREE.Mesh[];
+  const meshes = waterPieces([river, pool]).map((p) => Object.assign(new THREE.Mesh(p.geometry), { name: p.name }));
 
   it('cuts a river into pieces and draws a pool as one disc', () => {
     const pieces = meshes.filter((m) => m.name.startsWith('r_'));
@@ -55,6 +55,32 @@ describe('WaterLayer', () => {
     const disc = meshes.find((m) => m.name === 'p')!;
     disc.geometry.computeBoundingBox();
     expect(disc.geometry.boundingBox!.max.y - disc.geometry.boundingBox!.min.y).toBeLessThan(0.001);
+  });
+
+  it('draws the pieces as one mesh per 256 m tile', () => {
+    // The river crosses x 0..244 (one tile) with the pool; a second pool sits two tiles east.
+    const far: WaterBody = { id: 'q', kind: 'pool', center: [600, 50], radius: 10, y: 3 };
+    const layer = new WaterLayer([river, pool, far]);
+    const tiles = layer.root.children as THREE.Mesh[];
+    expect(tiles.map((m) => m.name).sort()).toEqual(['water_0_0', 'water_2_0']);
+    const merged = tiles.find((m) => m.name === 'water_0_0')!;
+    const pieces = waterPieces([river, pool]);
+    expect(merged.geometry.getAttribute('position').count).toBe(pieces.reduce((n, p) => n + p.geometry.getAttribute('position').count, 0));
+    expect(merged.geometry.getAttribute('waterFlow')).toBeTruthy();
+    layer.dispose();
+  });
+
+  it('hides tiles past its range and shows them again on the way back', () => {
+    const far: WaterBody = { id: 'q', kind: 'pool', center: [1500, 50], radius: 10, y: 3 };
+    const layer = new WaterLayer([pool, far], 400);
+    const tile = (name: string) => (layer.root.children as THREE.Mesh[]).find((m) => m.name === name)!;
+    layer.update(50, 50);
+    expect(tile('water_0_0').visible).toBe(true);
+    expect(tile('water_5_0').visible).toBe(false);
+    layer.update(1200, 50);
+    expect(tile('water_0_0').visible).toBe(false);
+    expect(tile('water_5_0').visible).toBe(true);
+    layer.dispose();
   });
 
   it('patches a kit water material once and keeps it transparent', () => {

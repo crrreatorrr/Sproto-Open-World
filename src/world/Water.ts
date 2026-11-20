@@ -1,12 +1,14 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { WaterBody } from '../content/world/format';
 
 /**
  * The world's water, drawn from the manifest's `water` list (tools/bake-world.ts carves the beds).
  * Visual only: the player wades on the terrain under it.
  *
- * Rivers are ribbons along their sampled line, cut into ~64 m pieces so each can be culled; pools
- * are discs. The look follows the concept art: faceted turquoise, lighter toward the banks, white
+ * Rivers are ribbons along their sampled line, cut into ~64 m pieces; pools are discs. The pieces
+ * are merged into one mesh per 256 m tile (one draw each), and a tile past the fog's far edge is
+ * hidden, so the whole world's water costs a handful of draws wherever you stand. The look follows the concept art: faceted turquoise, lighter toward the banks, white
  * foam at the edges and wherever the surface falls steeply (the ribbon turns into a falling
  * sheet there). The vertex shader rolls slow waves along the flow, and flat shading turns the
  * moving vertices into shifting facets.
@@ -27,6 +29,8 @@ const ACROSS = [-1, -0.82, -0.45, 0, 0.45, 0.82, 1];
 const ROW = 2.5;
 /** Metres of river per mesh (one draw each, culled on its own). */
 const PIECE = 64;
+/** Metres per side of a water tile (one mesh, one draw). */
+const TILE = 256;
 /** Surface sits a hair above the river's surface height so the banks' 0.4 m rise covers its edge. */
 const LIFT = 0.02;
 
@@ -161,31 +165,61 @@ function poolGeometry(center: [number, number], radius: number, y: number): THRE
   return g;
 }
 
-/** Every water body in the world as meshes under one root. */
+/** One named piece of water: a pool's disc, or ~64 m of a river's ribbon. */
+export interface WaterPiece {
+  name: string;
+  geometry: THREE.BufferGeometry;
+}
+
+/** Every water body cut into pieces (`<id>` for a pool, `<id>_<row>` for a river piece). */
+export function waterPieces(bodies: readonly WaterBody[]): WaterPiece[] {
+  const out: WaterPiece[] = [];
+  for (const b of bodies) {
+    if (b.kind === 'pool') {
+      out.push({ name: b.id, geometry: poolGeometry(b.center, b.radius, b.y) });
+      continue;
+    }
+    const rows = resample(b.points);
+    const perPiece = Math.max(2, Math.round(PIECE / ROW));
+    for (let i = 0; i < rows.length - 1; i += perPiece) out.push({ name: `${b.id}_${i}`, geometry: riverPiece(rows.slice(i, Math.min(rows.length, i + perPiece + 1)), b.halfWidth, b.flow) });
+  }
+  return out;
+}
+
+/** Every water body in the world under one root: one mesh per tile, hidden past `range` metres. */
 export class WaterLayer {
   readonly root = new THREE.Group();
   readonly material = waterMaterial();
+  private readonly tiles: { mesh: THREE.Mesh; x: number; z: number; r: number }[] = [];
 
-  constructor(bodies: readonly WaterBody[]) {
+  constructor(bodies: readonly WaterBody[], private readonly range = Infinity) {
     this.root.name = 'water';
-    for (const b of bodies) {
-      if (b.kind === 'pool') {
-        this.add(poolGeometry(b.center, b.radius, b.y), b.id);
-        continue;
-      }
-      const rows = resample(b.points);
-      const perPiece = Math.max(2, Math.round(PIECE / ROW));
-      for (let i = 0; i < rows.length - 1; i += perPiece) this.add(riverPiece(rows.slice(i, Math.min(rows.length, i + perPiece + 1)), b.halfWidth, b.flow), `${b.id}_${i}`);
+    const byTile = new Map<string, THREE.BufferGeometry[]>();
+    for (const { geometry } of waterPieces(bodies)) {
+      const c = geometry.boundingSphere!.center;
+      const key = `${Math.floor(c.x / TILE)},${Math.floor(c.z / TILE)}`;
+      const list = byTile.get(key);
+      if (list) list.push(geometry);
+      else byTile.set(key, [geometry]);
+    }
+    for (const [key, list] of byTile) {
+      const g = list.length === 1 ? list[0] : mergeGeometries(list);
+      if (list.length > 1) for (const piece of list) piece.dispose();
+      g.computeBoundingSphere();
+      const mesh = new THREE.Mesh(g, this.material);
+      mesh.name = `water_${key.replace(',', '_')}`;
+      mesh.renderOrder = 2;
+      mesh.receiveShadow = false;
+      mesh.castShadow = false;
+      this.root.add(mesh);
+      const s = g.boundingSphere!;
+      this.tiles.push({ mesh, x: s.center.x, z: s.center.z, r: s.radius });
     }
   }
 
-  private add(g: THREE.BufferGeometry, name: string): void {
-    const mesh = new THREE.Mesh(g, this.material);
-    mesh.name = name;
-    mesh.renderOrder = 2;
-    mesh.receiveShadow = false;
-    mesh.castShadow = false;
-    this.root.add(mesh);
+  /** Show only the tiles that reach within `range` of the focus (the rest are lost in the fog). */
+  update(x: number, z: number): void {
+    for (const t of this.tiles) t.mesh.visible = Math.hypot(t.x - x, t.z - z) - t.r <= this.range;
   }
 
   dispose(): void {

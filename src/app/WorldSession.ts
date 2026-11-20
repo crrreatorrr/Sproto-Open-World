@@ -97,7 +97,8 @@ export class WorldSession {
     void this.renderer.compile(field.root);
     // Rivers, pools and falls: a few meshes for the whole world, resident like the horizon.
     if (m.water?.length) {
-      const water = new WaterLayer(m.water);
+      // Past the fog's far edge the water is fully fogged: those tiles aren't drawn.
+      const water = new WaterLayer(m.water, m.fog.far);
       this.water = water;
       streamer.root.add(water.root);
       void this.renderer.compile(water.root);
@@ -131,6 +132,7 @@ export class WorldSession {
     this.uploads.run();
     waterClock.value = performance.now() / 1000;
     this.streamer.update(focus, view, tick);
+    this.water?.update(focus.x, focus.z);
     this.grass?.update(focus.x, focus.z, performance.now() / 1000, this.streamer);
   }
 
