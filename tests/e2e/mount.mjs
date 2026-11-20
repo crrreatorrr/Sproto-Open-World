@@ -2,7 +2,9 @@
  * The Pepe Bull on the real world, pad only (a teleport is the only cheat): ride up with Y, run, swing
  * with RB, cast with LT + X, and get down with Y.
  *
- *   node tests/e2e/mount.mjs [--shots dir]
+ *   node tests/e2e/mount.mjs [--shots dir] [--class wizard|soldier|pepe]
+ *
+ * `--class` rides as another class (the picker's order): a gun class shoots Gunfire from LT + X.
  */
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
@@ -11,6 +13,11 @@ import { createServer } from 'vite';
 const args = process.argv.slice(2);
 const shots = args.includes('--shots') ? args[args.indexOf('--shots') + 1] : null;
 if (shots) mkdirSync(shots, { recursive: true });
+const CLASS = args.includes('--class') ? args[args.indexOf('--class') + 1] : 'wizard';
+const CLASS_ORDER = ['wizard', 'soldier', 'pepe'];
+if (!CLASS_ORDER.includes(CLASS)) throw new Error(`--class must be one of ${CLASS_ORDER.join(', ')}`);
+/** What slot 1 casts for the class. */
+const SLOT1 = CLASS === 'wizard' ? 'bolt' : 'gunfire';
 
 const server = await createServer({ server: { port: 5195, strictPort: false, hmr: false }, logLevel: 'error' });
 await server.listen();
@@ -95,10 +102,13 @@ try {
   await page.waitForFunction(() => window.__qa?.ready && window.__qa.state().screen === 'screen-title', null, { timeout: 180000 });
   await press('down');
   await press('a');
-  // The class picker comes next on a new save: A takes the focused Wizard.
+  // The class picker comes next on a new save: down to the class asked for, then A.
   await page.waitForFunction(() => window.__qa.state().screen === 'screen-classes', null, { timeout: 30000 });
+  for (let i = 0; i < CLASS_ORDER.indexOf(CLASS); i++) await press('down');
   await press('a');
   await page.waitForFunction(() => window.__qa.state().state === 'playing' && !window.__qa.state().groundWait, null, { timeout: 180000 });
+  const picked = await page.evaluate(() => window.__qa.app.sim.playerEntity(0).progress.class ?? 'wizard');
+  check(picked === CLASS, `the picker made a ${CLASS}`, picked);
   await frames(30);
   await watchRiding();
 
@@ -175,7 +185,7 @@ try {
   await waitLog('attackStart', null, 'a swing');
   await page.evaluate(() => window.__pad.set('rb', false));
   s = await state();
-  check(s.player.riding === 'riding', 'RB swings the staff from the saddle');
+  check(s.player.riding === 'riding', `RB swings the ${CLASS === 'wizard' ? 'staff' : 'gun'} from the saddle`);
   await shot('b5-melee');
   s = await until((q) => q.player.action === null, 'the swing ending');
   check(Math.hypot(s.player.pos.x - z0.x, s.player.pos.z - z0.z) > 1, 'the bull kept moving through the swing');
@@ -184,10 +194,10 @@ try {
   await page.evaluate(() => window.__pad.set('lt', true));
   await frames(3);
   await page.evaluate(() => window.__pad.set('x', true));
-  await waitLog('cast', 'bolt', 'a cast');
+  await waitLog('cast', SLOT1, 'a cast');
   await page.evaluate(() => { window.__pad.set('x', false); window.__pad.set('lt', false); });
   s = await state();
-  check(s.player.riding === 'riding', 'LT + X casts from the saddle');
+  check(s.player.riding === 'riding', `LT + X ${CLASS === 'wizard' ? 'casts' : 'shoots'} from the saddle`);
   await shot('b6-cast');
   await until((q) => q.player.action === null, 'the cast ending');
 
