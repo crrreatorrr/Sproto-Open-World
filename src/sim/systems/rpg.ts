@@ -540,6 +540,37 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
       case 'equip':
         equip(ctx, e, a.item);
         break;
+      case 'selectWeaponSlot': {
+        const slot = Math.max(0, Math.min(3, Math.floor(a.slot)));
+        const bar = p.weapons ?? [p.equipment.staff, null, null, null];
+        p.weapons = bar;
+        p.activeWeaponSlot = slot;
+        const chosen = bar[slot];
+        if (chosen && ITEMS[chosen]?.kind === 'staff' && (p.inventory[chosen] ?? 0) > 0) {
+          p.equipment.staff = chosen;
+          recompute(e);
+        }
+        break;
+      }
+      case 'equipWeaponSlot': {
+        if (gearLocked(e, ctx.now)) {
+          ctx.events.push({ type: 'refused', entity: e.id, action: 'equip', reason: "You can't change gear in combat." });
+          break;
+        }
+        const slot = Math.max(0, Math.min(3, Math.floor(a.slot)));
+        const bar = p.weapons ? [...p.weapons] : [p.equipment.staff, null, null, null];
+        if (a.weaponId === null) {
+          bar[slot] = null;
+        } else if (ITEMS[a.weaponId]?.kind === 'staff' && (p.inventory[a.weaponId] ?? 0) > 0) {
+          bar[slot] = a.weaponId;
+        }
+        p.weapons = bar;
+        if (slot === (p.activeWeaponSlot ?? 0) && bar[slot]) {
+          p.equipment.staff = bar[slot]!;
+          recompute(e);
+        }
+        break;
+      }
       case 'equipSpell':
         equipSpell(ctx, e, a.slot, a.spell);
         break;
@@ -628,6 +659,7 @@ export function rest(ctx: RpgCtx, e: Entity, shrine: string): void {
   v.mana = v.manaMax;
   v.stamina = v.staminaMax;
   refillTonics(p.tonics);
+  p.ammo = defaultAmmo();
   p.lastShrine = shrine;
   if (!p.discoveredShrines.includes(shrine)) p.discoveredShrines.push(shrine);
   delete e.statuses;

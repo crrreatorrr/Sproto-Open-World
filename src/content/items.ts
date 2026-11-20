@@ -107,7 +107,7 @@ export const TONIC = {
 } as const;
 
 /** Inventory cap (plan §5). */
-export const INVENTORY_CAP = 40;
+export const INVENTORY_CAP = 60;
 
 /** A heart pickup heals this fraction of max HP. */
 export const HEART_HEAL = 0.15;

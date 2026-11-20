@@ -84,7 +84,28 @@ export const CAM = {
   riderTop: 2.45 + 1.27 * (MOUNT.scale - 1),
   bullTop: 1.75 * MOUNT.scale,
   bullHalfLength: 1.4 * MOUNT.scale,
+  /** Over-the-shoulder hip-fire camera (distance, right shoulder offset, FOV). */
+  otsDistance: 3.4,
+  otsShoulder: 0.55,
+  otsFov: 62,
+  /** Tight over-the-shoulder ADS camera. */
+  adsDistance: 1.9,
+  adsShoulder: 0.65,
+  adsFov: 46,
+  /** Sniper scope levels: scope1 uses zoomFov ?? 28; scope2 narrows by 1/3. */
+  scope1Fov: 28,
+  scope2Factor: 1 / 3,
+  /** First-person eye-level camera (standing and sliding heights, FOV, pitch limits). */
+  fpsFov: 68,
+  fpsHeight: 1.6,
+  fpsSlideHeight: 0.72,
+  fpsMinPitch: -1.4,
+  fpsMaxPitch: 1.4,
+  /** Exponential damping sharpness (1/s) when blending between camera modes. */
+  modeSharpness: 12,
 } as const;
+
+export type CameraMode = 'orbit' | 'ots' | 'ads' | 'scope1' | 'scope2' | 'fps';
 
 /**
  * A body the centre ray must pass over: the player, or the bull under them. An upright box: its
@@ -118,9 +139,9 @@ const dampAngle = (a: number, b: number, sharpness: number, dt: number) => {
 };
 
 /**
- * Third-person camera, ported from sproto-duel `src/camera/CameraRig.ts`: raw mouse rotation (no
- * smoothing), a smoothed follow, sphere-cast collision against the world through the sim's
- * read-only view (Rapier stays inside the sim), and trauma² shake.
+ * Third-person / OTS / ADS / scope / first-person camera: raw mouse rotation (no smoothing),
+ * smoothed follow, sphere-cast collision against the world through the sim's read-only view
+ * (Rapier stays inside the sim), and trauma² shake.
  */
 export class CameraRig {
   yaw = 0;
@@ -136,6 +157,8 @@ export class CameraRig {
   distanceScale = 1;
   /** In the saddle (App sets it): lifts the pivot and pulls the camera back, eased. */
   riding = false;
+  /** Sliding in FPS / scope mode (App sets it): drops eye height to `CAM.fpsSlideHeight`. */
+  sliding = false;
   private rideNow = 0;
   /** Flying the bull (App sets it): its heading and nose pitch, for the chase camera. */
   flight: { yaw: number; pitch: number } | null = null;
@@ -145,10 +168,17 @@ export class CameraRig {
   solid: CameraSolid | null = null;
   /** The bodies the centre of the screen must see past (App sets them every frame). */
   occluders: readonly CameraOccluder[] = [];
+  private _mode: CameraMode = 'orbit';
+  private thirdPersonMode: CameraMode = 'orbit';
+  private zoomFov: number | undefined = undefined;
   private scaleNow = 1;
   private lift = 0;
+  private heightNow: number = CAM.height;
+  private desiredShoulder: number = CAM.shoulder;
   private shoulder: number = CAM.shoulder;
+  private desiredDistance: number = CAM.distance;
   private rise = 0;
+  private fovNow: number = CAM.fov;
   private fovBoost = 0;
   private time = 0;
   /** Seconds left of a brief push-in (Scrapjaw's parried bite). */
@@ -166,6 +196,75 @@ export class CameraRig {
   private hasPivot = false;
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
+
+  get mode(): CameraMode {
+    return this._mode;
+  }
+
+  /** True when the camera sits at eye level (first-person or sniper scope). */
+  get isFirstPerson(): boolean {
+    return this._mode === 'fps' || this._mode === 'scope1' || this._mode === 'scope2';
+  }
+
+  /** Switch camera mode with optional per-weapon ADS/scope FOV override. */
+  setCameraMode(mode: CameraMode, zoomFov?: number): void {
+    this._mode = mode;
+    this.zoomFov = zoomFov;
+    if (mode === 'orbit' || mode === 'ots' || mode === 'ads') {
+      this.thirdPersonMode = mode;
+    }
+    this.clampPitch();
+  }
+
+  /** Toggle between eye-level first-person and the last third-person mode. */
+  toggleFirstPerson(): CameraMode {
+    if (this._mode === 'fps') {
+      this.setCameraMode(this.thirdPersonMode);
+    } else {
+      this.setCameraMode('fps');
+    }
+    return this._mode;
+  }
+
+  private targetDistance(): number {
+    switch (this._mode) {
+      case 'orbit': return CAM.distance;
+      case 'ots': return CAM.otsDistance;
+      case 'ads': return CAM.adsDistance;
+      case 'scope1':
+      case 'scope2':
+      case 'fps':
+        return 0;
+    }
+  }
+
+  private targetShoulder(): number {
+    switch (this._mode) {
+      case 'orbit': return CAM.shoulder;
+      case 'ots': return CAM.otsShoulder;
+      case 'ads': return CAM.adsShoulder;
+      case 'scope1':
+      case 'scope2':
+      case 'fps':
+        return 0;
+    }
+  }
+
+  private targetHeight(): number {
+    if (this.isFirstPerson) return this.sliding ? CAM.fpsSlideHeight : CAM.fpsHeight;
+    return CAM.height;
+  }
+
+  private targetFov(): number {
+    switch (this._mode) {
+      case 'orbit': return CAM.fov;
+      case 'ots': return CAM.otsFov;
+      case 'ads': return this.zoomFov ?? CAM.adsFov;
+      case 'scope1': return this.zoomFov ?? CAM.scope1Fov;
+      case 'scope2': return (this.zoomFov ?? CAM.scope1Fov) * CAM.scope2Factor;
+      case 'fps': return CAM.fpsFov;
+    }
+  }
 
   rotateMouse(dx: number, dy: number): void {
     const s = MOUSE.sensitivity * this.mouseScale;
@@ -190,16 +289,26 @@ export class CameraRig {
     this.clampPitch();
   }
 
+  /** Current damped right-shoulder offset (m). */
+  get shoulderOffset(): number {
+    return this.shoulder;
+  }
+
   private clampPitch(): void {
-    this.pitch = Math.min(CAM.maxPitch, Math.max(CAM.minPitch, this.pitch));
+    const lo = this.isFirstPerson ? CAM.fpsMinPitch : CAM.minPitch;
+    const hi = this.isFirstPerson ? CAM.fpsMaxPitch : CAM.maxPitch;
+    this.pitch = Math.min(hi, Math.max(lo, this.pitch));
   }
 
   /** Place the camera behind a target instantly (spawn, respawn). */
   snap(target: THREE.Vector3, yaw: number): void {
     this.yaw = yaw;
     this.pitch = -0.12;
-    this.pivot.set(target.x, target.y + CAM.height, target.z);
-    this.distance = CAM.distance;
+    this.heightNow = this.targetHeight();
+    this.desiredShoulder = this.shoulder = this.targetShoulder();
+    this.desiredDistance = this.distance = this.targetDistance();
+    this.fovNow = this.targetFov();
+    this.pivot.set(target.x, target.y + this.heightNow, target.z);
     this.hasPivot = true;
   }
 
@@ -308,12 +417,14 @@ export class CameraRig {
   update(dt: number, target: THREE.Vector3, view: ReadonlySimView, sprinting: boolean, lockOn: THREE.Vector3 | null = null): void {
     this.time += dt;
     this.trauma = Math.max(0, this.trauma - CAM.shakeDecay * dt);
+    const fp = this.isFirstPerson;
     // Locked onto a giant standing on the same ground: rise, so its head stays in the picture.
     const big = this.solid && this.solid.height >= CAM.solidFrom ? this.solid : null;
-    const body = lockOn ? big : null;
+    const body = lockOn && !fp ? big : null;
     const tall = body && Math.abs(body.y - target.y) < body.height ? (body.height - CAM.lockTallFrom) * CAM.lockTallLift : 0;
     this.lift = damp(this.lift, Math.min(CAM.lockTallMax, Math.max(0, tall)), 5, dt);
     this.rideNow = damp(this.rideNow, this.riding ? 1 : 0, CAM.rideSharpness, dt);
+    this.heightNow = damp(this.heightNow, this.targetHeight(), CAM.modeSharpness, dt);
     this.sinceLook += dt;
     if (this.flight && !lockOn && this.sinceLook > CAM.flyChaseAfter) {
       const k = 1 - Math.exp(-CAM.flyChaseSharpness * dt);
@@ -321,8 +432,8 @@ export class CameraRig {
       this.pitch += (this.flight.pitch * CAM.flyChasePitch + CAM.flyChaseAbove - this.pitch) * k;
       this.clampPitch();
     }
-    this.tmp.set(target.x, target.y + CAM.height + this.lift + this.rideNow * CAM.rideLift, target.z);
-    if (lockOn) {
+    this.tmp.set(target.x, target.y + this.heightNow + (fp ? 0 : this.lift) + this.rideNow * CAM.rideLift, target.z);
+    if (lockOn && !fp) {
       const dx = lockOn.x - target.x, dz = lockOn.z - target.z;
       const flat = Math.max(1e-3, Math.hypot(dx, dz));
       // The pivot leans toward the target, but never into its body.
@@ -353,32 +464,44 @@ export class CameraRig {
     const cp = Math.cos(this.pitch);
     this.forward.set(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp);
     this.right.set(-Math.cos(this.yaw), 0, Math.sin(this.yaw));
-    // Rise far enough that the centre of the screen sees past the player and the bull.
-    const clear = this.clearHeight();
-    if (clear > this.pivot.y) this.pivot.y = clear;
+    // Rise far enough that the centre of the screen sees past the player and the bull (3P modes only).
+    if (!fp) {
+      const clear = this.clearHeight();
+      if (clear > this.pivot.y) this.pivot.y = clear;
+    }
 
     // Shoulder offset, then pull back along -forward; both legs are sphere casts so the near plane
     // never slices into a wall the camera only just misses.
     const r = CAM.collisionRadius;
-    this.desired.copy(this.right).multiplyScalar(CAM.shoulder);
-    const sideHit = view.sphereCast(this.pivot, this.desired, r);
-    const allowedShoulder = sideHit ? Math.max(0, sideHit.distance - 0.02) : CAM.shoulder;
+    this.desiredShoulder = damp(this.desiredShoulder, this.targetShoulder(), CAM.modeSharpness, dt);
+    let allowedShoulder = this.desiredShoulder;
+    if (Math.abs(this.desiredShoulder) > 1e-4) {
+      this.desired.copy(this.right).multiplyScalar(this.desiredShoulder);
+      const sideHit = view.sphereCast(this.pivot, this.desired, r);
+      if (sideHit) allowedShoulder = Math.max(0, sideHit.distance - 0.02);
+    }
     this.shoulder = allowedShoulder < this.shoulder ? allowedShoulder : damp(this.shoulder, allowedShoulder, 8, dt);
     const shoulder = this.tmp.copy(this.pivot).addScaledVector(this.right, this.shoulder);
 
     this.scaleNow = damp(this.scaleNow, this.distanceScale * (1 + this.rideNow * (CAM.rideDistance - 1)), 3, dt);
     if (this.pushInT > 0) this.pushInT = Math.max(0, this.pushInT - dt);
-    const reach = CAM.distance * this.scaleNow * (this.pushInT > 0 ? 0.78 : 1);
-    this.desired.copy(this.forward).multiplyScalar(-reach);
-    const backHit = view.sphereCast(shoulder, this.desired, r);
-    const maxDist = this.clearOfSolid(shoulder, backHit ? Math.max(0, backHit.distance - 0.02) : reach);
+    const baseDist = this.targetDistance();
+    const reach = baseDist > 0 ? baseDist * this.scaleNow * (this.pushInT > 0 ? 0.78 : 1) : 0;
+    this.desiredDistance = damp(this.desiredDistance, reach, CAM.modeSharpness, dt);
+    let maxDist = this.desiredDistance;
+    if (this.desiredDistance > 1e-4) {
+      this.desired.copy(this.forward).multiplyScalar(-this.desiredDistance);
+      const backHit = view.sphereCast(shoulder, this.desired, r);
+      maxDist = this.clearOfSolid(shoulder, backHit ? Math.max(0, backHit.distance - 0.02) : this.desiredDistance);
+    }
     // Pull in instantly when blocked, ease back out.
     this.distance = maxDist < this.distance ? maxDist : damp(this.distance, maxDist, 6, dt);
 
     const cam = this.camera;
     cam.position.copy(shoulder).addScaledVector(this.forward, -this.distance);
-    // Pulled in close: rise over the shoulder as far as the space above allows.
-    const close = Math.max(0, 1 - this.distance / Math.min(CAM.distance, 2.2));
+    // Pulled in close: rise over the shoulder as far as the space above allows (3P modes only).
+    const closeRef = Math.min(baseDist, 2.2);
+    const close = !fp && closeRef > 0.1 ? Math.max(0, 1 - this.distance / closeRef) : 0;
     let rise = CAM.closeRise * close * close * (3 - 2 * close);
     if (rise > 0.01) {
       const upHit = view.sphereCast(cam.position, { x: 0, y: rise, z: 0 }, r);
@@ -403,9 +526,11 @@ export class CameraRig {
     cam.lookAt(this.tmp);
     cam.rotateZ((Math.sin(t * 0.9 + 2.2) + Math.sin(t * 1.9) * 0.5) * shake * CAM.maxShakeRoll);
 
-    this.fovBoost = damp(this.fovBoost, sprinting ? CAM.sprintFovBoost : 0, 8, dt);
+    const zoomed = this._mode === 'ads' || this._mode === 'scope1' || this._mode === 'scope2';
+    this.fovNow = damp(this.fovNow, this.targetFov(), CAM.modeSharpness, dt);
+    this.fovBoost = damp(this.fovBoost, sprinting && !zoomed ? CAM.sprintFovBoost : 0, 8, dt);
     this.fovKick = damp(this.fovKick, 0, CAM.fovKickSharpness, dt);
-    const fov = CAM.fov + this.fovBoost - this.fovKick;
+    const fov = this.fovNow + this.fovBoost - this.fovKick;
     if (Math.abs(cam.fov - fov) > 0.01) {
       cam.fov = fov;
       cam.updateProjectionMatrix();

@@ -53,6 +53,47 @@ export const PAD = {
   pause: ['start'],
 };
 
+/**
+ * Gunplay, 4-slot weapon bar and movement-tech bindings (rebindable arrays mutated in place like
+ * `KEYS`/`PAD`). Kept in a dedicated table so existing RPG `controlPrefs`, `callMount` (`KeyV`),
+ * and E2E scripts stay intact without key conflicts.
+ */
+export const GUN_KEYS = {
+  reload: ['KeyR'],
+  swapWeapon: ['Tab'],
+  grapple: ['KeyG'],
+  /** Toggle 3P / 1P camera view (`KeyV` stays on `callMount`). */
+  toggleView: ['KeyB'],
+  slide: ['ControlLeft'],
+  dash: ['AltLeft'],
+  slot1: ['Digit1'],
+  slot2: ['Digit2'],
+  slot3: ['Digit3'],
+  slot4: ['Digit4'],
+};
+
+/**
+ * Gamepad gunplay bindings. Preserves every existing E2E pad binding:
+ * - `y` stays on `interact` (camps, find-quest, mount, rootdeep E2E)
+ * - `up` stays on `potion`, `down` stays on `callMount`
+ * - `lt` + face buttons stay on spells 1–4
+ *
+ * Mapping:
+ * - `x` (button 2, when `lt` is not held): Reload
+ * - `right` (D-pad Right, button 15): Swap weapon slot (next)
+ * - `left` (D-pad Left, button 14): Toggle 1P / 3P camera view
+ * - `lb` + `rb` chord (when `grapple` is empty): Grapple hook
+ * - `slide` / `dash`: empty by default (handled contextually via `b` / Dodge in sim; rebindable)
+ */
+export const GUN_PAD = {
+  reload: ['x'] as string[],
+  swapWeapon: ['right'] as string[],
+  grapple: [] as string[],
+  toggleView: ['left'] as string[],
+  slide: [] as string[],
+  dash: [] as string[],
+};
+
 export const GAMEPAD = {
   /**
    * Radial deadzones (stick magnitude 0..1), rescaled so motion starts smoothly from 0. 0.2 / 0.15
@@ -74,6 +115,9 @@ export const GAMEPAD = {
     intensity: 0.8,
     land: { strong: 0.25, weak: 0.1, ms: 70 },
     uiConfirm: { strong: 0, weak: 0.18, ms: 35 },
+    fire: { strong: 0.18, weak: 0.28, ms: 45 },
+    reload: { strong: 0.08, weak: 0.14, ms: 40 },
+    grapple: { strong: 0.22, weak: 0.2, ms: 65 },
   },
 };
 

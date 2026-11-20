@@ -25,6 +25,12 @@ export const BTN = {
   spell3: 1 << 11,
   spell4: 1 << 12,
   callMount: 1 << 13,
+  reload: 1 << 14,
+  swapWeapon: 1 << 15,
+  grapple: 1 << 16,
+  toggleView: 1 << 17,
+  slide: 1 << 18,
+  dash: 1 << 19,
 } as const;
 export type ButtonName = keyof typeof BTN;
 
@@ -61,7 +67,15 @@ export type UiAction =
   | { kind: 'fastTravel'; shrine: string }
   /** Testing: a god goes straight to world (x, z), dropped onto the floor there. Refused for anyone else. */
   | { kind: 'godWarp'; x: number; z: number }
-  | { kind: 'track'; quest: string };
+  | { kind: 'track'; quest: string }
+  /** Switch the active slot on the 4-slot weapon bar (0..3). */
+  | { kind: 'selectWeaponSlot'; slot: number }
+  /** Assign a weapon (static ItemId or procedural gun uid, or null to clear) into bar slot 0..3. */
+  | { kind: 'equipWeaponSlot'; slot: number; weaponId: string | null }
+  /** Pair a second sidearm (uid, or null to clear) for Dual Wield. */
+  | { kind: 'equipOffhand'; weaponId: string | null }
+  /** Drop a procedural gun from the player's inventory by uid. */
+  | { kind: 'dropGun'; uid: string };
 
 export interface InputCommand {
   kind: 'input';
@@ -71,6 +85,8 @@ export interface InputCommand {
   pressed: number;
   /** Switch the hard lock to the next target left (-1) or right (+1) of the current one. */
   lockSwitch: number;
+  /** Direct 4-slot weapon bar pick (0..3) from number keys 1–4 when not casting spells. */
+  weaponSlot?: number;
   /** Where the crosshair points. Without one (bots, tests), attacks use the stick and facing. */
   aim?: AimRay;
   /** Menu intents for this tick (usually none). */
