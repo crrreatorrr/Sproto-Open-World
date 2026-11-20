@@ -52,7 +52,36 @@ export const CAM = {
   solidFrom: 3,
   /** The camera and the pivot keep this far off a big body's capsule (m). */
   solidMargin: 0.45,
+  /**
+   * The centre of the screen is where attacks and spells aim, so it must never land on the player
+   * or the bull they ride: the camera rises until the centre ray passes this far over them (m).
+   */
+  clearMargin: 0.35,
+  /**
+   * How the models are drawn, measured in the game (m): the player's crown on foot (the staff on their
+   * back included) and in the saddle, above their feet origin; the Pepe Bull's back and horns above
+   * the ground, and half its length nose to tail (longer than its collider, `MOUNT.bodyHalfLength`).
+   */
+  footTop: 1.95,
+  riderTop: 2.45,
+  bullTop: 1.75,
+  bullHalfLength: 1.4,
+  /** In the saddle the camera sits this much further back, so the whole bull fits in the picture. */
+  rideDistanceScale: 1.3,
 } as const;
+
+/**
+ * A body the centre ray must pass over: the player, or the bull under them. An upright box: its
+ * centre on the ground plane, its heading, half its width and length, and the height of its top (m).
+ */
+export interface CameraOccluder {
+  x: number;
+  z: number;
+  yaw: number;
+  halfWidth: number;
+  halfLength: number;
+  top: number;
+}
 
 /** A big body the camera must not end up inside: the locked target, or the boss of the fight. */
 export interface CameraSolid {
@@ -91,6 +120,8 @@ export class CameraRig {
   distanceScale = 1;
   /** The body to keep out of (App sets it every frame). */
   solid: CameraSolid | null = null;
+  /** The bodies the centre of the screen must see past (App sets them every frame). */
+  occluders: readonly CameraOccluder[] = [];
   private scaleNow = 1;
   private lift = 0;
   private shoulder: number = CAM.shoulder;
@@ -190,6 +221,41 @@ export class CameraRig {
     return enter < dist && inHeight(Math.min(dist, leave)) ? Math.max(0, enter - 0.05) : dist;
   }
 
+  /**
+   * The lowest pivot height at which the centre ray (through the pivot, along `forward`) passes
+   * `clearMargin` over every occluder. Over a body's footprint the ray is lowest at its near edge when
+   * looking up and at its far edge when looking down; behind the camera nothing counts.
+   */
+  private clearHeight(): number {
+    const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
+    const slope = Math.tan(this.pitch);
+    const behind = -this.distance * Math.cos(this.pitch);
+    let need = -Infinity;
+    for (const o of this.occluders) {
+      // The flat ray s ↦ pivot + s·f in the box's own axes: along its length (l) and its width (w).
+      const lx = Math.sin(o.yaw), lz = Math.cos(o.yaw);
+      const ox = this.pivot.x + this.right.x * this.shoulder - o.x;
+      const oz = this.pivot.z + this.right.z * this.shoulder - o.z;
+      let s0 = behind, s1 = Infinity;
+      for (const [at, step, half] of [
+        [ox * lx + oz * lz, fx * lx + fz * lz, o.halfLength],
+        [ox * lz - oz * lx, fx * lz - fz * lx, o.halfWidth],
+      ] as const) {
+        if (Math.abs(step) < 1e-6) {
+          if (Math.abs(at) > half) s1 = -Infinity;
+          continue;
+        }
+        const a = (-half - at) / step, b = (half - at) / step;
+        s0 = Math.max(s0, Math.min(a, b));
+        s1 = Math.min(s1, Math.max(a, b));
+      }
+      if (s1 < s0) continue;
+      const worst = slope > 0 ? s0 : s1;
+      need = Math.max(need, o.top + CAM.clearMargin - worst * slope);
+    }
+    return need;
+  }
+
   addTrauma(amount: number): void {
     this.trauma = Math.min(1, this.trauma + amount);
   }
@@ -254,6 +320,9 @@ export class CameraRig {
     const cp = Math.cos(this.pitch);
     this.forward.set(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp);
     this.right.set(-Math.cos(this.yaw), 0, Math.sin(this.yaw));
+    // Rise far enough that the centre of the screen sees past the player and the bull.
+    const clear = this.clearHeight();
+    if (clear > this.pivot.y) this.pivot.y = clear;
 
     // Shoulder offset, then pull back along -forward; both legs are sphere casts so the near plane
     // never slices into a wall the camera only just misses.
