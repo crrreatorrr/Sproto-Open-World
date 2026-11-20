@@ -421,7 +421,7 @@ export const shrineName = (id: string) =>
   ({
     shrine_first_light: 'Shrine of First Light', shrine_watchtower: 'Watchtower Shrine', shrine_quarry_gate: 'Quarry Gate Shrine',
     shrine_rootdeep_lantern: 'Lantern Hall Shrine', shrine_rootdeep_crossing: 'Crossing Shrine',
-  })[id] ?? 'Shrine';
+  })[id] ?? DUNGEON_PORTAL_BY_PORTAL_ID[id]?.fastTravel.label ?? 'Shrine';
 
 /** The available choices on a node (conditions checked), with their index into node.choices. */
 export function availableChoices(node: DialogueNode, p: Progress, world: WorldState): { index: number; text: string }[] {
@@ -500,6 +500,7 @@ function usePortal(ctx: RpgCtx, e: Entity, portal: Entity): void {
   const dp = DUNGEON_PORTAL_BY_PORTAL_ID[ia.id];
   if (dp) {
     ctx.world.flags[dp.fastTravel.discoverFlag] = 1;
+    if (e.progress && !e.progress.discoveredShrines.includes(dp.id)) e.progress.discoveredShrines.push(dp.id);
     ctx.events.push({ type: 'interact', entity: e.id, object: ia.id, kind: 'portal' });
     ctx.events.push({ type: 'portalTravel', entity: e.id, portal: dp.id, to: `dungeon:${dp.dungeonId}` });
     return;

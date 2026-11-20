@@ -478,7 +478,10 @@ export function modelSize(key: keyof typeof MODELS, def: EnemyDef): number {
 }
 
 /** The standard enemies' model keys (manifest.ts): M1b's three and M4's veterans and Big Coin. */
-export type HumanoidModel = 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'robot_shooter' | 'robot_laser';
+export type HumanoidModel =
+  | 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet'
+  | 'big_coin' | 'robot_shooter' | 'robot_laser'
+  | 'midget_stage3' | 'obama_stage3' | 'sahil_stage3' | 'tinubu_stage3';
 
 /** Their idle resting glow: the Hex Wisp is a caster spirit, so it glows purple (plan §4.9). */
 const WISP_EMISSIVE = 0x3a1060;

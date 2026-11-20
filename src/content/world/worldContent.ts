@@ -2,7 +2,7 @@
  * Everything the streamed world spawns: Sproutvale and the Rootdeep together.
  * `SPROUTVALE_CONTENT` itself stays the valley, because its tests count that region alone.
  */
-import { DUNGEON_PORTALS } from '../packs/overworldMix';
+import { DUNGEON_PORTALS, OVERWORLD_MIX_CAMPS } from '../packs/overworldMix';
 import { ROOTDEEP_CONTENT } from '../packs/rootdeep';
 import { SPROUTVALE_CONTENT, type Placement, type RegionContent } from './sproutvaleContent';
 
@@ -24,7 +24,7 @@ export const WORLD_CONTENT: RegionContent = {
   objects: join(SPROUTVALE_CONTENT.objects, ROOTDEEP_CONTENT.objects),
   obstacles: join(SPROUTVALE_CONTENT.obstacles, ROOTDEEP_CONTENT.obstacles),
   enemies: join(SPROUTVALE_CONTENT.enemies, ROOTDEEP_CONTENT.enemies),
-  camps: join(SPROUTVALE_CONTENT.camps, ROOTDEEP_CONTENT.camps),
+  camps: [...join(SPROUTVALE_CONTENT.camps, ROOTDEEP_CONTENT.camps), ...OVERWORLD_MIX_CAMPS],
   triggers: join(SPROUTVALE_CONTENT.triggers, ROOTDEEP_CONTENT.triggers),
   portals: [...join(SPROUTVALE_CONTENT.portals, ROOTDEEP_CONTENT.portals), ...DUNGEON_PORTAL_PLACEMENTS],
 };

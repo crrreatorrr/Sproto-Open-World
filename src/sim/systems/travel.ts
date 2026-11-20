@@ -35,7 +35,9 @@ export function travelRefusal(e: Readonly<Entity>, shrine: string, now: number):
 }
 
 export function fastTravel(ctx: TravelCtx, e: Entity, shrine: string): void {
-  const stone = ctx.entities.find((x) => x.interactable?.kind === 'shrine' && x.interactable.id === shrine);
+  const stone = ctx.entities.find(
+    (x) => (x.interactable?.kind === 'shrine' || x.interactable?.kind === 'portal') && x.interactable.id === shrine,
+  );
   if (!stone) return refuse(ctx, e, 'There is no such shrine.');
   const why = travelRefusal(e, shrine, ctx.now);
   if (why) return refuse(ctx, e, why);

@@ -10,6 +10,7 @@ import { registerRootdeepEnemies } from './packs/rootdeep';
 import { BURROWMOTHER } from './packs/c5';
 import { DRAKE, type DrakeDef } from './packs/c6';
 import { SCRAPJAW } from './packs/m5';
+import { SHOOTER_ENEMIES } from './shooterEnemies';
 import type { StatusId } from './statuses';
 
 export type Affinity = 'weak' | 'normal' | 'resist';
@@ -403,7 +404,7 @@ ENEMIES.gatekeeper = {
   ],
 };
 
-Object.assign(ENEMIES, C4_ENEMIES);
+Object.assign(ENEMIES, C4_ENEMIES, SHOOTER_ENEMIES);
 // M5: the boss of the Old Quarry.
 ENEMIES.scrapjaw = SCRAPJAW;
 // C5: the boss of the Deep Seam.
