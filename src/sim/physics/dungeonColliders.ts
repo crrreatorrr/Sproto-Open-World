@@ -6,9 +6,8 @@
  */
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { DungeonDef, DungeonId, DungeonRampPrimitive } from '../../content/dungeons/types';
-import { GROUP } from './PhysicsWorld';
-
-const WORLD_GROUPS = ((GROUP.WORLD & 0xffff) << 16) | 0xffff;
+// Matches GROUP.WORLD (1 << 0) in PhysicsWorld.ts without top-level circular init.
+const WORLD_GROUPS = ((1 & 0xffff) << 16) | 0xffff;
 
 function quatYawDeg(yawDeg = 0): { x: number; y: number; z: number; w: number } {
   const half = ((yawDeg * Math.PI) / 180) * 0.5;
