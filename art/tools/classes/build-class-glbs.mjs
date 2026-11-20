@@ -30,6 +30,7 @@ await MeshoptSimplifier.ready;
 const BODIES = {
   soldier: { raw: 'art/source/classes/soldier_raw.glb', out: 'public/assets/models/characters/soldier.glb', tris: 9000, quality: 70, textures: { baseColorTexture: 512, normalTexture: 0, metallicRoughnessTexture: 256 } },
   pepe_player: { raw: 'art/source/classes/pepe_player_raw.glb', out: 'public/assets/models/characters/pepe_player.glb', tris: 10000, textures: { baseColorTexture: 1024, normalTexture: 256, metallicRoughnessTexture: 256 } },
+  pepe_warrior: { raw: 'art/source/classes/pepe_warrior_raw.glb', out: 'public/assets/models/characters/pepe_warrior.glb', tris: 10000, textures: { baseColorTexture: 512, normalTexture: 256, metallicRoughnessTexture: 256 } },
 };
 const MAX_KIB = 470;
 const MAX_TRIS = 22000;

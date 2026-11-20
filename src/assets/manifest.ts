@@ -41,6 +41,11 @@ export const DUEL_ENEMY_CLIPS = [
   'idle', 'run', 'cast', 'cast_big', 'hit', 'stun', 'defeat', 'roll', 'jump', 'strafe_l', 'strafe_r', 'run_back',
 ] as const;
 
+/** midget_stage3 carries the core combat clips without jump/strafe/run_back. */
+export const MIDGET_STAGE3_CLIPS = [
+  'idle', 'run', 'cast', 'cast_big', 'hit', 'stun', 'defeat', 'roll', 'victory',
+] as const;
+
 /** The Gatekeeper (sproto-shooter's `monster` boss): smash is its only attack clip. */
 export const GATEKEEPER_CLIPS = ['idle', 'walk', 'run', 'smash'] as const;
 
@@ -66,7 +71,10 @@ export const MODELS = {
    * art/tools/classes: the Wizard's height, a `socket_weapon` in the right hand, and GUNNER_CLIPS.
    */
   player_soldier: { path: 'models/characters/soldier.glb', rigged: true, clips: GUNNER_CLIPS },
+  player_pepe_warrior: { path: 'models/characters/pepe_warrior.glb', rigged: true, clips: GUNNER_CLIPS },
   player_pepe: { path: 'models/characters/pepe_player.glb', rigged: true, clips: GUNNER_CLIPS },
+  /** U0: Grapple hook gear (sproto-shooter; lazy-loaded once Grapple is unlocked). */
+  grappler: { path: 'models/gear/grappler.glb', clips: ['Grappler jaws'] },
   /** Sproto Shooter's guns (art/tools/classes/build-guns.mjs): grip at the origin, barrel +Z, a `muzzle` node. */
   gun_mg: { path: 'models/guns/gun_mg.glb' },
   gun_shotgun: { path: 'models/guns/gun_shotgun.glb' },
@@ -108,6 +116,14 @@ export const MODELS = {
   grunt_vet: { path: 'models/enemies/grunt_vet.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.3 },
   slinger_vet: { path: 'models/enemies/slinger_vet.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.85 },
   big_coin: { path: 'models/enemies/slinger_vet.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.3 },
+  /** U0: remaining Shooter enemy/boss stages (lazy-loaded; not in the critical download). */
+  midget_stage3: { path: 'models/enemies/midget_stage3.glb', rigged: true, clips: MIDGET_STAGE3_CLIPS, fitHeight: 1.3 },
+  obama_stage3: { path: 'models/enemies/obama_stage3.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.85 },
+  sahil_stage2: { path: 'models/enemies/sahil_stage2.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.9 },
+  sahil_stage3: { path: 'models/enemies/sahil_stage3.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.9 },
+  tinubu_stage1: { path: 'models/enemies/tinubu_stage1.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
+  tinubu_stage2: { path: 'models/enemies/tinubu_stage2.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
+  tinubu_stage3: { path: 'models/enemies/tinubu_stage3.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.2 },
   gatekeeper: { path: 'models/elites/gatekeeper.glb', rigged: true, clips: GATEKEEPER_CLIPS, fitHeight: 3.2, rotationY: 0, inPlace: true },
   /** C4's robot elites: outside the critical download, they face +Z and their clips are in place. */
   robot_shooter: { path: 'models/elites/robot_shooter.glb', rigged: true, clips: ROBOT_SHOOTER_CLIPS, fitHeight: 2.0, rotationY: 0, inPlace: true },
@@ -151,6 +167,14 @@ export const MODELS = {
   pickup_gem: { path: 'models/pickups/gem.glb' },
   pickup_heart: { path: 'models/pickups/heart.glb' },
   pickup_potion: { path: 'models/pickups/potion.glb' },
+  /** U0: Shooter ammo pickup and projectiles (lazy-loaded; not in the village critical download). */
+  pickup_ammo_box: { path: 'models/pickups/ammo_box.glb' },
+  proj_duck: { path: 'models/projectiles/duck.glb' },
+  proj_rubber_bullet: { path: 'models/projectiles/rubber_bullet.glb' },
+  proj_missile: { path: 'models/projectiles/missile.glb' },
+  proj_bomb: { path: 'models/projectiles/bomb.glb' },
+  proj_tyre: { path: 'models/projectiles/tyre.glb' },
+  proj_drill_head: { path: 'models/projectiles/drill_head.glb' },
   /** World props the C3 powers grow, tinted by their views: Bramble Wall's roots, Healing Bloom's flowers. */
   prop_root_wall: { path: 'models/props/grove_root_wall.glb' },
   prop_crops: { path: 'models/props/grove_crops.glb' },

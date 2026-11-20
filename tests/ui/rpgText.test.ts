@@ -16,13 +16,14 @@ function progress(over: Partial<Progress> = {}): Progress {
 }
 
 describe('XP bar', () => {
-  it('fills through the current level and caps at 15', () => {
+  it('fills through the current level and caps at 30', () => {
     expect(levelProgress(1, 0)).toMatchObject({ frac: 0, into: 0, need: 60 });
     expect(levelProgress(1, 30).frac).toBeCloseTo(0.5);
     const l3 = xpForLevel(3);
     expect(levelProgress(3, l3 + xpToNext(3) / 4).frac).toBeCloseTo(0.25, 2);
     expect(levelProgress(10, 99999)).toMatchObject({ capped: false });
-    expect(levelProgress(15, 99999)).toMatchObject({ frac: 1, capped: true });
+    expect(levelProgress(15, 99999)).toMatchObject({ capped: false });
+    expect(levelProgress(30, 999999)).toMatchObject({ frac: 1, capped: true });
   });
 });
 

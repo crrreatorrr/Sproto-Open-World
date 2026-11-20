@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { CLASSES, GUN_ITEMS, STARTER_GUNS, type ClassId } from '../../src/content/classes';
+import { CLASS_IDS, CLASS_PASSIVES, CLASSES, GUN_ITEMS, STARTER_GUNS, type ClassId } from '../../src/content/classes';
 import { ITEMS } from '../../src/content/items';
+import { BRANCH_IDS, LEVEL_CAP, SKILL_IDS, classPerkDef, classSkillDef } from '../../src/content/progression';
 import { SANDBOX } from '../../src/content/sandbox';
 import { SPELL_BASE } from '../../src/content/spells';
 import type { UiAction } from '../../src/sim/commands';
@@ -11,7 +12,7 @@ import { giveItem, newProgress, type RpgCtx } from '../../src/sim/systems/rpg';
 import { BTN, hold, press, step } from './combatHelpers';
 import { ui } from './m3Helpers';
 
-/** The class system (content/classes.ts): Wizard, Soldier and Pepe, chosen when a save is made. */
+/** The class system (content/classes.ts): Wizard, Soldier, Pepe Warrior and Pepe. */
 
 async function world(cls: ClassId) {
   await initPhysics();
@@ -29,6 +30,8 @@ describe('a new save of each class', () => {
     const p = newProgress(['bolt']);
     expect(p).not.toHaveProperty('class');
     expect(p.equipment.staff).toBe('staff_sproto');
+    expect(p.weapons).toEqual(['staff_sproto', null, null, null]);
+    expect(p.activeWeaponSlot).toBe(0);
     expect(p.spells).toEqual(['bolt']);
     expect(p.loadout).toEqual(['bolt', null, null, null]);
     expect(Object.keys(p.inventory).some((id) => ITEMS[id]?.gun)).toBe(false);
@@ -38,9 +41,21 @@ describe('a new save of each class', () => {
     const p = newProgress(['bolt'], 'soldier');
     expect(p.class).toBe('soldier');
     expect(p.equipment.staff).toBe('gun_mg');
+    expect(p.weapons).toEqual(['gun_mg', null, null, null]);
     for (const g of STARTER_GUNS) expect(p.inventory[g], g).toBe(1);
     expect(p.spells).toEqual(['gunfire']);
     expect(p.loadout).toEqual(['gunfire', null, null, null]);
+  });
+
+  it('Pepe Warrior starts with the Sprout Staff, class field pepe_warrior, and v6 defaults', () => {
+    const p = newProgress(['bolt'], 'pepe_warrior');
+    expect(p.class).toBe('pepe_warrior');
+    expect(p.equipment.staff).toBe('staff_sproto');
+    expect(p.weapons).toEqual(['staff_sproto', null, null, null]);
+    expect(p.activeWeaponSlot).toBe(0);
+    expect(p.guns).toEqual([]);
+    expect(p.spells).toEqual(['bolt']);
+    expect(p.loadout).toEqual(['bolt', null, null, null]);
   });
 
   it('Pepe holds a gun and knows both Gunfire and the Arcane Bolt', () => {
@@ -52,7 +67,7 @@ describe('a new save of each class', () => {
   });
 
   it('each class has its own body', async () => {
-    for (const cls of ['wizard', 'soldier', 'pepe'] as const) {
+    for (const cls of CLASS_IDS) {
       const { w, p } = await world(cls);
       expect(p.view.model).toBe(CLASSES[cls].model);
       w.dispose();
@@ -97,6 +112,7 @@ describe('Gunfire', () => {
     const { w, p } = await world('pepe');
     step(w, ui([equip('gun_shotgun')]));
     expect(p.progress!.equipment.staff).toBe('gun_shotgun');
+    expect(p.progress!.weapons![0]).toBe('gun_shotgun');
     step(w, press(BTN.spell1));
     for (let i = 0; i < 4; i++) step(w);
     const pellets = shots(w);
@@ -115,7 +131,7 @@ describe('Gunfire', () => {
   });
 
   it('the Soldier\'s shooting spells come out of the gun; Pepe\'s are still magic', async () => {
-    for (const [cls, model] of [['soldier', 'rocket'], ['pepe', 'blastOrb'], ['wizard', 'blastOrb']] as const) {
+    for (const [cls, model] of [['soldier', 'rocket'], ['pepe', 'blastOrb'], ['pepe_warrior', 'blastOrb'], ['wizard', 'blastOrb']] as const) {
       const { w, p } = await world(cls);
       step(w, ui([{ kind: 'equipSpell', slot: 2, spell: 'blast' }]));
       p.vitals!.mana = p.vitals!.manaMax = 200;
@@ -129,25 +145,36 @@ describe('Gunfire', () => {
 });
 
 describe('weapons by class', () => {
-  it('a Wizard can\'t equip a gun, and a gun class can\'t equip a staff', async () => {
+  it('any class can wield both staves and guns, keeping the active weapon bar slot synced', async () => {
     const wiz = await world('wizard');
     wiz.p.progress!.inventory.gun_mg = 1;
     const a = step(wiz.w, ui([equip('gun_mg')]));
-    expect(a.filter((e) => e.type === 'refused').map((e) => (e as { reason: string }).reason)).toEqual(["A wizard doesn't use guns."]);
-    expect(wiz.p.progress!.equipment.staff).toBe('staff_sproto');
+    expect(a.filter((e) => e.type === 'refused')).toEqual([]);
+    expect(wiz.p.progress!.equipment.staff).toBe('gun_mg');
+    expect(wiz.p.progress!.weapons![0]).toBe('gun_mg');
     wiz.w.dispose();
+
     const sol = await world('soldier');
     sol.p.progress!.inventory.staff_nobu = 1;
     const b = step(sol.w, ui([equip('staff_nobu')]));
-    expect(b.some((e) => e.type === 'refused')).toBe(true);
-    expect(sol.p.progress!.equipment.staff).toBe('gun_mg');
+    expect(b.filter((e) => e.type === 'refused')).toEqual([]);
+    expect(sol.p.progress!.equipment.staff).toBe('staff_nobu');
+    expect(sol.p.progress!.weapons![0]).toBe('staff_nobu');
     step(sol.w, ui([equip('gun_sniper')]));
     expect(sol.p.progress!.equipment.staff).toBe('gun_sniper');
+    expect(sol.p.progress!.weapons![0]).toBe('gun_sniper');
     sol.w.dispose();
+
+    const war = await world('pepe_warrior');
+    war.p.progress!.inventory.gun_shotgun = 1;
+    step(war.w, ui([equip('gun_shotgun')]));
+    expect(war.p.progress!.equipment.staff).toBe('gun_shotgun');
+    expect(war.p.progress!.weapons![0]).toBe('gun_shotgun');
+    war.w.dispose();
   });
 
   it('every class can hold the Brick Phone', async () => {
-    for (const cls of ['wizard', 'soldier', 'pepe'] as const) {
+    for (const cls of CLASS_IDS) {
       const { w, p } = await world(cls);
       p.progress!.inventory.staff_brick_phone = 1;
       step(w, ui([equip('staff_brick_phone')]));
@@ -171,16 +198,47 @@ describe('weapons by class', () => {
   });
 
   it('a save keeps the class and the body', async () => {
-    const { w } = await world('pepe');
-    const save = w.toSave({ savedAt: 'now', build: 'test', region: 'sandbox' });
-    expect(save.player.class).toBe('pepe');
-    w.dispose();
-    await initPhysics();
-    const w2 = new SimWorld(SANDBOX, 1);
-    const p2 = w2.spawnPlayer(0, { x: 0, y: 0, z: 0 }, 0);
-    w2.applySave(save);
-    expect(p2.progress!.class).toBe('pepe');
-    expect(p2.view.model).toBe('player_pepe');
-    w2.dispose();
+    for (const cls of ['pepe', 'pepe_warrior'] as const) {
+      const { w } = await world(cls);
+      const save = w.toSave({ savedAt: 'now', build: 'test', region: 'sandbox' });
+      expect(save.player.class).toBe(cls);
+      w.dispose();
+      await initPhysics();
+      const w2 = new SimWorld(SANDBOX, 1);
+      const p2 = w2.spawnPlayer(0, { x: 0, y: 0, z: 0 }, 0);
+      w2.applySave(save);
+      expect(p2.progress!.class).toBe(cls);
+      expect(p2.view.model).toBe(CLASSES[cls].model);
+      w2.dispose();
+    }
+  });
+});
+
+describe('4-class progression metadata (Lv 30 + Gunslinger)', () => {
+  it('raises LEVEL_CAP to 30 and exposes all 9 skills across 3 branches', () => {
+    expect(LEVEL_CAP).toBe(30);
+    expect(BRANCH_IDS).toEqual(['magic', 'combat', 'gunslinger']);
+    expect(SKILL_IDS).toHaveLength(9);
+  });
+
+  it('every class has an innate passive, 1 signature skill, and 6 class-tailored perks', () => {
+    const perkNames = new Set<string>();
+    for (const cls of CLASS_IDS) {
+      expect(CLASS_PASSIVES[cls].name.length).toBeGreaterThan(0);
+      const sigs = SKILL_IDS.map((s) => classSkillDef(cls, s)).filter((d) => d.signature);
+      expect(sigs, cls).toHaveLength(1);
+      for (const br of BRANCH_IDS) {
+        for (const tier of [10, 20] as const) {
+          const perk = classPerkDef(cls, br, tier);
+          expect(perk.classId).toBe(cls);
+          expect(perk.branch).toBe(br);
+          expect(perk.at).toBe(tier);
+          expect(perk.name.length).toBeGreaterThan(0);
+          expect(perk.text.length).toBeGreaterThan(0);
+          perkNames.add(`${cls}:${perk.name}`);
+        }
+      }
+    }
+    expect(perkNames.size).toBe(24);
   });
 });

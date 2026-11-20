@@ -15,7 +15,7 @@ import { QUESTS, type Condition, type Effect, type Objective, type QuestOffer } 
 import { SPELLS, defaultLoadout, type SpellId } from '../../content/spells';
 import { BTN, type UiAction } from '../commands';
 import { angleTo, flatDist } from '../combat/geometry';
-import type { Entity, InteractKind, Progress, WorldState } from '../entity';
+import { defaultAbilities, defaultAmmo, type Entity, type InteractKind, type Progress, type WorldState } from '../entity';
 import type { SimEvent } from '../events';
 import type { Vec3 } from '../math';
 import { affixXp } from './affixes';
@@ -56,6 +56,12 @@ export function newProgress(spells: SpellId[], cls: ClassId = 'wizard'): Progres
   const p: Progress = {
     level: 1, xp: 0, skills: noSkills(), points: 0, sprouts: 0,
     equipment: { staff: def.startWeapon, robe: STARTING_GEAR.robe, charm: STARTING_GEAR.charm },
+    weapons: [def.startWeapon, null, null, null],
+    activeWeaponSlot: 0,
+    guns: [],
+    ammo: defaultAmmo(),
+    abilities: defaultAbilities(),
+    dungeonProgress: {},
     inventory,
     spells: known, loadout: classLoadout(known), tonics: { charges: TONIC.charges, max: TONIC.charges },
     quests: {}, tracked: null, lastShrine: null, discoveredShrines: [], dialogue: null, shop: null, atShrine: null,
@@ -652,6 +658,13 @@ function equip(ctx: RpgCtx, e: Entity, item: string): void {
   // Toggling a charm off: equipping the one already worn removes it.
   if (slot === 'charm' && p.equipment.charm === item) p.equipment.charm = null;
   else p.equipment[slot] = item as never;
+  if (slot === 'staff') {
+    const active = p.activeWeaponSlot ?? 0;
+    const bar = p.weapons ?? [item, null, null, null];
+    bar[active] = item;
+    p.weapons = bar;
+    p.activeWeaponSlot = active;
+  }
   recompute(e);
   ctx.events.push({ type: 'equip', entity: e.id, item, slot });
 }

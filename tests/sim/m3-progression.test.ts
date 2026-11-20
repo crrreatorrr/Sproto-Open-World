@@ -51,17 +51,17 @@ describe('levelling up', () => {
     w.dispose();
   });
 
-  it(`caps at level ${LEVEL_CAP} (17,139 XP): XP keeps counting, no more points (28 in all)`, async () => {
+  it(`caps at level ${LEVEL_CAP}: XP keeps counting, no more points (58 in all)`, async () => {
     const { w, p, prog } = await village();
-    expect(LEVEL_CAP).toBe(15);
+    expect(LEVEL_CAP).toBe(30);
     expect(xpForLevel(10)).toBe(6075);
     expect(xpForLevel(15)).toBe(17139);
-    grantXp(rpgCtx(w), p, xpForLevel(15) - 1);
-    expect(prog().level).toBe(14);
+    grantXp(rpgCtx(w), p, xpForLevel(LEVEL_CAP) - 1);
+    expect(prog().level).toBe(LEVEL_CAP - 1);
     grantXp(rpgCtx(w), p, 1_000_000);
     expect(prog().level).toBe(LEVEL_CAP);
-    expect(prog().points).toBe(28);
-    expect(prog().xp).toBe(1_000_000 + xpForLevel(15) - 1);
+    expect(prog().points).toBe(58);
+    expect(prog().xp).toBe(1_000_000 + xpForLevel(LEVEL_CAP) - 1);
     expect(p.vitals!.hpMax).toBe(PLAYER_STATS.hp + 12 * (LEVEL_CAP - 1));
     w.dispose();
   });

@@ -9,21 +9,28 @@
 import type { ItemDef } from './items';
 import type { SpellId } from './spells';
 
-export type ClassId = 'wizard' | 'soldier' | 'pepe';
-export const CLASS_IDS: readonly ClassId[] = ['wizard', 'soldier', 'pepe'];
+export type ClassId = 'wizard' | 'soldier' | 'pepe_warrior' | 'pepe';
+export const CLASS_IDS: readonly ClassId[] = ['wizard', 'soldier', 'pepe_warrior', 'pepe'];
 
 export interface ClassDef {
   id: ClassId;
   name: string;
   /** One line on the class picker. */
   blurb: string;
-  /** What the class can hold in the weapon slot. */
+  /** Primary weapon archetype for starting gear / drop swaps (all classes can wield any weapon). */
   weapon: 'staff' | 'gun';
   /** The view's model key for the body. */
-  model: 'player' | 'player_soldier' | 'player_pepe';
+  model: 'player' | 'player_soldier' | 'player_pepe_warrior' | 'player_pepe';
   /** The weapon a new save holds, and everything else it starts with in the bags. */
   startWeapon: string;
   startItems: readonly string[];
+}
+
+export interface ClassPassiveDef {
+  id: string;
+  name: string;
+  primaryBranch: 'magic' | 'combat' | 'gunslinger';
+  text: string;
 }
 
 /** The guns every gun class starts with: Sproto Shooter's regular arsenal. */
@@ -38,9 +45,41 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'soldier', name: 'Soldier Sproto', weapon: 'gun', model: 'player_soldier', startWeapon: 'gun_mg', startItems: STARTER_GUNS,
     blurb: 'One gun at a time and bullets that never run out. Still knows the old powers.',
   },
+  pepe_warrior: {
+    id: 'pepe_warrior', name: 'Pepe Warrior', weapon: 'staff', model: 'player_pepe_warrior', startWeapon: 'staff_sproto', startItems: [],
+    blurb: 'Vanguard brawler with heavy poise. Wields any weapon.',
+  },
   pepe: {
     id: 'pepe', name: 'Pepe', weapon: 'gun', model: 'player_pepe', startWeapon: 'gun_mg', startItems: STARTER_GUNS,
     blurb: 'Shoots a gun and casts every spell. Why choose?',
+  },
+};
+
+/** Innate Level 1 class passives (unification plan §4.1). Pure data. */
+export const CLASS_PASSIVES: Record<ClassId, ClassPassiveDef> = {
+  wizard: {
+    id: 'arcane_conduit',
+    name: 'Arcane Conduit',
+    primaryBranch: 'magic',
+    text: 'Spells cost 10% less mana; gunshots restore a small amount of mana on hit.',
+  },
+  soldier: {
+    id: 'combat_ready',
+    name: 'Combat Ready',
+    primaryBranch: 'gunslinger',
+    text: '+15% weapon swap and reload speed; shooting spells fire as high-velocity ballistic rounds.',
+  },
+  pepe_warrior: {
+    id: 'vanguard_poise',
+    name: 'Vanguard Poise',
+    primaryBranch: 'combat',
+    text: '+15% melee and poise damage, +15% max HP, and reduced stagger taken while swinging or blocking.',
+  },
+  pepe: {
+    id: 'chaos_freestyle',
+    name: 'Chaos Freestyle',
+    primaryBranch: 'combat',
+    text: '+10% crit chance and +10% move speed for 3 s when chaining different weapon types (Melee → Gun → Spell).',
   },
 };
 
@@ -117,11 +156,9 @@ export const STAFF_TO_GUN: Readonly<Record<string, string>> = {
   staff_rootcleaver: 'gun_duckgun',
 };
 
-/** True for an item the class can hold in its weapon slot. */
-export function canWield(cls: ClassId | undefined, item: ItemDef | undefined): boolean {
-  if (!item || item.kind !== 'staff') return false;
-  if (item.anyClass) return true;
-  return classOf(cls).weapon === 'gun' ? !!item.gun : !item.gun;
+/** True for an item the class can hold in its weapon slot (any class can wield any staff or gun). */
+export function canWield(_cls: ClassId | undefined, item: ItemDef | undefined): boolean {
+  return !!item && item.kind === 'staff';
 }
 
 /** The spell a class learns in place of `spell`: the Soldier's gun takes the Arcane Bolt's place. */

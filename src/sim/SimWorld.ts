@@ -31,7 +31,7 @@ import { wallBarrier } from './combat/powers/bramble';
 import { stepPowers } from './combat/powers/index';
 import { stepProjectiles } from './combat/projectiles';
 import { tickStatuses } from './combat/statuses';
-import type { Combat, Entity, EntityId, Hazard, PlayerId, Team, WorldState } from './entity';
+import { defaultAbilities, defaultAmmo, type Combat, type Entity, type EntityId, type Hazard, type PlayerId, type Team, type WorldState } from './entity';
 import type { SimEvent } from './events';
 import { hashValue } from './hash';
 import type { Vec3 } from './math';
@@ -461,6 +461,16 @@ export class SimWorld {
     const e = this.playerEntity(player);
     if (!e) throw new Error('applySave: no player');
     e.progress = { ...structuredClone(save.player), dialogue: null, shop: null, atShrine: null };
+    const p = e.progress;
+    p.weapons ??= [p.equipment.staff, null, null, null];
+    p.activeWeaponSlot ??= 0;
+    p.guns ??= [];
+    p.ammo ??= defaultAmmo();
+    p.abilities ??= defaultAbilities();
+    p.dungeonProgress ??= {};
+    const activeWeapon = p.weapons[p.activeWeaponSlot];
+    if (activeWeapon && !p.guns.some((g) => g.uid === activeWeapon)) p.equipment.staff = activeWeapon;
+    else if (!activeWeapon) p.weapons[p.activeWeaponSlot] = p.equipment.staff;
     e.view = { ...e.view, model: classOf(e.progress.class).model };
     // A save made before session ticks were kept out still has them: drop them, the clock restarts.
     this.world = savedWorld(save.world);

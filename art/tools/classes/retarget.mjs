@@ -35,6 +35,7 @@ export const BODY_HEIGHT = 1.818;
 const BODIES = {
   soldier: { src: 'art/source/classes/soldier_hub_decoded.glb', out: 'art/source/classes/soldier_raw.glb' },
   pepe_player: { src: 'art/source/classes/pepe_hub_decoded.glb', out: 'art/source/classes/pepe_player_raw.glb' },
+  pepe_warrior: { src: 'art/source/classes/pepe_general_decoded.glb', out: 'art/source/classes/pepe_warrior_raw.glb' },
 };
 export const WIZARD_CLIPS = ['idle', 'run', 'run_back', 'strafe_l', 'strafe_r', 'jump', 'roll', 'hit', 'stun', 'defeat', 'victory', 'cast', 'cast_big', 'attack_light_1', 'attack_light_2', 'attack_light_3', 'attack_heavy', 'block', 'mount', 'ride', 'dismount'];
 const SEATED = new Set(['mount', 'ride', 'dismount']);
@@ -394,6 +395,34 @@ async function build(id) {
   });
   hand.addChild(socket);
   report.socket = { t: lt.toArray().map((v) => +v.toFixed(4)), r: lr.toArray().map((v) => +v.toFixed(4)), aimWorld: gripWorld.toArray().map((v) => +v.toFixed(4)) };
+
+  // socket_weapon_l: mirrored to mixamorig:LeftHand for offhand / dual wield.
+  const tfL = handFrame(readyPose.world, T.rig, 'Left');
+  const atL = tfL.h.clone().addScaledVector(tfL.f, c[0] * tfL.len).addScaledVector(tfL.s, c[1] * tfL.len).addScaledVector(tfL.n, -c[2] * tfL.len);
+  const handL = T.rig.byName.get(M('LeftHand'));
+  const gripInHandL = atL.clone().applyMatrix4(readyPose.world.get(handL).clone().invert());
+  const handWorldL = worldOf(T.rig, poseAt(clipOf(doc, 'aim'), 0)).get(handL);
+  const gripWorldL = gripInHandL.clone().applyMatrix4(handWorldL);
+  const localL = handWorldL.clone().invert().multiply(new Matrix4().compose(gripWorldL, new Quaternion(), new Vector3(1, 1, 1)));
+  const ltL = new Vector3(), lrL = new Quaternion(), lsL = new Vector3();
+  localL.decompose(ltL, lrL, lsL);
+  const socketL = doc.createNode('socket_weapon_l').setTranslation(ltL.toArray()).setRotation(lrL.toArray()).setScale(lsL.toArray());
+  socketL.setExtras({
+    contract: 'offhand gun root here: origin = centre of the closed left fist, +Z along the barrel, +Y up from the top of the gun, metres. In the aim pose (aim at 0 s over the default hips and legs) +Z is character forward (world +Z) and +Y is world up.',
+    aimPoseWorld: { position: gripWorldL.toArray().map((v) => +v.toFixed(4)) },
+  });
+  handL.addChild(socketL);
+  report.socketL = { t: ltL.toArray().map((v) => +v.toFixed(4)), r: lrL.toArray().map((v) => +v.toFixed(4)), aimWorld: gripWorldL.toArray().map((v) => +v.toFixed(4)) };
+
+  // socket_staff: same right-fist origin as socket_weapon, oriented so +Y (shaft) and +Z (front)
+  // match the wizard's socket_staff across every retargeted wizard clip (R_local = A_hand^-1).
+  const staffRot = wizAl.A.get(hand).clone().invert().normalize();
+  const socketStaff = doc.createNode('socket_staff').setTranslation(lt.toArray()).setRotation(staffRot.toArray()).setScale([1, 1, 1]);
+  socketStaff.setExtras({
+    contract: 'staff/melee root here: origin = centre of the closed right fist, +Y butt->head, +Z front, metres.',
+  });
+  hand.addChild(socketStaff);
+  report.socketStaff = { t: lt.toArray().map((v) => +v.toFixed(4)), r: staffRot.toArray().map((v) => +v.toFixed(4)) };
 
   await io.write(out, doc);
   console.log(JSON.stringify(report));

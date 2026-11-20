@@ -1,0 +1,106 @@
+{
+  "schema": 6,
+  "savedAt": "2026-11-20T12:00:00.000Z",
+  "build": "unification-u0",
+  "region": "sproutvale",
+  "player": {
+    "level": 3,
+    "xp": 240,
+    "skills": {
+      "spellPower": 1,
+      "protection": 0,
+      "focus": 0,
+      "attack": 1,
+      "defense": 0,
+      "stamina": 0,
+      "marksmanship": 1,
+      "handling": 0,
+      "logistics": 0
+    },
+    "points": 1,
+    "sprouts": 45,
+    "equipment": {
+      "staff": "staff_sproto",
+      "robe": "robe_apprentice",
+      "charm": "charm_second_wind"
+    },
+    "weapons": [
+      "staff_sproto",
+      "gun_mg",
+      null,
+      null
+    ],
+    "activeWeaponSlot": 0,
+    "guns": [],
+    "ammo": {
+      "light": 120,
+      "shells": 24,
+      "sniper": 16,
+      "rockets": 6
+    },
+    "abilities": {
+      "slide": false,
+      "dash": false,
+      "doubleJump": false,
+      "grapple": false
+    },
+    "dungeonProgress": {},
+    "inventory": {
+      "robe_apprentice": 1,
+      "charm_second_wind": 1,
+      "staff_sproto": 1,
+      "gun_mg": 1
+    },
+    "spells": [
+      "bolt",
+      "blast",
+      "frostNova"
+    ],
+    "loadout": [
+      "bolt",
+      "blast",
+      "frostNova",
+      null
+    ],
+    "tonics": {
+      "charges": 2,
+      "max": 4
+    },
+    "quests": {
+      "q_wake_up": {
+        "status": "complete",
+        "step": 5,
+        "progress": []
+      }
+    },
+    "tracked": null,
+    "lastShrine": "shrine_first_light",
+    "discoveredShrines": [
+      "shrine_first_light",
+      "shrine_watchtower"
+    ],
+    "relics": {
+      "sockets": [
+        null,
+        null,
+        null
+      ],
+      "totem": null,
+      "owned": [
+        "totem_elders_hearth"
+      ],
+      "seedSpent": false,
+      "introduced": false
+    },
+    "class": "pepe_warrior"
+  },
+  "world": {
+    "flags": {
+      "bought:merchant_village:charm_second_wind": 1
+    },
+    "openedChests": [
+      "chest_training"
+    ],
+    "killedUniques": []
+  }
+}

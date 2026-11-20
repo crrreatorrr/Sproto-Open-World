@@ -182,19 +182,75 @@ export interface Combat {
   comboUntil?: number;
 }
 
-/** The player's RPG state (plan §5). Saved in the SaveFile. */
+export const WEAPON_SLOTS = 4;
+
+/** Compact procedural gun instance stored in Save v6 (`Progress.guns`). */
+export interface GunInstance {
+  uid: string;
+  seed: number;
+  level: number;
+  type: string;
+  quality: string;
+  manufacturer: string;
+  element: string | null;
+  parts: Record<string, string>;
+  wacky: string | null;
+  ammoInMag: number;
+}
+
+/** Shared ammo reserves across gun archetypes (Save v6). */
+export interface AmmoReserves {
+  light: number;
+  shells: number;
+  sniper: number;
+  rockets: number;
+}
+
+/** Progressively unlocked movement tech (Save v6). */
+export interface MovementAbilities {
+  slide: boolean;
+  dash: boolean;
+  doubleJump: boolean;
+  grapple: boolean;
+}
+
+/** Per-dungeon completion and best clear time in 60 Hz ticks (Save v6). */
+export interface DungeonProgressEntry {
+  cleared: boolean;
+  bestTimeTicks?: number;
+}
+
+export const defaultAmmo = (): AmmoReserves => ({ light: 120, shells: 24, sniper: 16, rockets: 6 });
+
+export const defaultAbilities = (): MovementAbilities => ({
+  slide: false, dash: false, doubleJump: false, grapple: false,
+});
+
+/** The player's RPG state (plan §5, unification plan §4.2). Saved in the SaveFile. */
 export interface Progress {
   /** Chosen when the save was made (content/classes.ts). Absent on a progress built before classes: a Wizard. */
   class?: ClassId;
   level: number;
   /** Total XP earned. */
   xp: number;
-  /** Skill ranks (expansion plan §7): Magic (Spell Power, Protection, Focus) and Combat (Attack, Defense, Stamina). */
+  /** Skill ranks (expansion plan §7, unification plan §4.1): Magic, Combat and Gunslinger. */
   skills: SkillRanks;
   /** Skill points to spend (anywhere, on the Skills tab). */
   points: number;
   sprouts: number;
   equipment: { staff: string; robe: string; charm: string | null };
+  /** 4-slot quick-swap weapon bar (v6): item id, GunInstance uid, or null. Synced with `equipment.staff`. */
+  weapons?: (string | null)[];
+  /** Active slot index on the 4-slot weapon bar (0..3). */
+  activeWeaponSlot?: number;
+  /** Procedural gun stash (v6). */
+  guns?: GunInstance[];
+  /** Ammo reserves (v6). */
+  ammo?: AmmoReserves;
+  /** Unlocked movement tech (v6). */
+  abilities?: MovementAbilities;
+  /** Campaign dungeon clear progress (v6). */
+  dungeonProgress?: Record<string, DungeonProgressEntry>;
   /** Item id → count. */
   inventory: Record<string, number>;
   /** Known spells. */
