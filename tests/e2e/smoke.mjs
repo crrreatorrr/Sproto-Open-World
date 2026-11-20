@@ -199,9 +199,14 @@ try {
   // it over play and holds the game, 2 picks an option, Enter sends; again, Esc closes it. The pad
   // does nothing while it is open.
   const waitPanel = (open) => page.waitForFunction((o) => !!document.querySelector('[data-hub-feedback]')?.shadowRoot?.querySelector('.panel') === o, open, { timeout: 15000 }).then(() => true, () => false);
+  // N twice must land within the SDK's 400 ms double-tap. page.keyboard waits for the page to handle
+  // each event, and a software-GPU frame here takes ~200 ms, so two presses could arrive ~420 ms apart
+  // and miss. The same trusted key events are queued together over CDP instead: the browser delivers
+  // them back to back, as fast hands would.
+  const cdp = await page.context().newCDPSession(page);
   const nTwice = async () => {
-    await page.keyboard.press('KeyN');
-    await page.keyboard.press('KeyN');
+    const key = { key: 'n', code: 'KeyN', windowsVirtualKeyCode: 78, nativeVirtualKeyCode: 78 };
+    await Promise.all(['keyDown', 'keyUp', 'keyDown', 'keyUp'].map((type) => cdp.send('Input.dispatchKeyEvent', { type, ...key })));
   };
   check((await page.evaluate(() => window.__qa.app.feedbackLoad)) === true, 'the feedback window is installed');
   await nTwice();
