@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { AssetLoader } from '../assets/AssetLoader';
 import { TEXTURES } from '../assets/manifest';
 import { cellOf } from '../content/world/format';
+import { regionAt } from '../content/world/regions';
 import type { Renderer } from '../render/Renderer';
 import { CellStreamer, type CellSink, type CellView } from '../world/CellStreamer';
 import { GrassField } from '../world/GrassField';
@@ -101,10 +102,14 @@ export class WorldSession {
       streamer.root.add(water.root);
       void this.renderer.compile(water.root);
     }
-    // The horizons are resident for the whole session: one per overworld region.
+    // The horizons are resident for the whole session: one per overworld region. Only the start
+    // region's is on the way to Play (scripts/check-budgets.mjs counts it); the rest follow behind
+    // the cells, since the fog hides most of a neighbour's far ground for the first seconds anyway.
     const horizons = (m as Partial<WorldManifest>).horizons ?? [m.horizon];
+    const [sx, , sz] = m.playerStart.pos;
+    const startHorizon = `world/${regionAt(sx, sz).id}/`;
     for (const path of horizons) {
-      this.assets.gltf(path, 'now').then(
+      this.assets.gltf(path, path.startsWith(startHorizon) ? 'now' : 'later').then(
         (g) => {
           if (this.streamer !== streamer) return;
           streamer.horizon.attach(g.scene);
