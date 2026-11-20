@@ -12,6 +12,12 @@ async function boot(): Promise<void> {
   // A new data epoch deletes the old saves and settings once, before anything reads them.
   if (enterDataEpoch()) console.info('[save] new data epoch: local data cleared');
   try {
+    if (new URLSearchParams(window.location.search).get('pvp') === '1') {
+      const { startPvpArena } = await import('./app/PvpArenaMode');
+      startPvpArena(host);
+      splash?.remove();
+      return;
+    }
     const { App, startPhysics } = await import('./app/App');
     const physics = startPhysics();
     const app = new App(host, physics);
