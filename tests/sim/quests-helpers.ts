@@ -204,7 +204,10 @@ const matches = (e: Entity, tag: string) => {
 
 /** Kill one living enemy matching `tag`, resting at a shrine to bring the camps back if none is left. */
 export function hunt(w: SimWorld, tag: string, leaveLoot = false): SimEvent[] {
-  const find = () => w.entities.find((e) => e.brain && alive(e) && matches(e, tag) && !e.brain.summoned && !e.brain.held);
+  const inLoadedRegion = (x: number, z: number) => (x >= 0 && x < 512 && z >= 0 && z < 512) || x >= 4096;
+  const find = () => w.entities.find(
+    (e) => e.brain && alive(e) && matches(e, tag) && !e.brain.summoned && !e.brain.held && inLoadedRegion(e.brain.home.x, e.brain.home.z),
+  );
   let target = find();
   const out: SimEvent[] = [];
   if (!target) {

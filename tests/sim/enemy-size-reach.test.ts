@@ -27,9 +27,14 @@ const AUTHORED: Record<string, { height: number; radius: number }> = {
   scrapjaw: { height: 5.4, radius: 1.8 },
   burrowmother: { height: 5, radius: 2 },
   skyfire_drake: { height: 5, radius: 2.4 },
+  big_bitcoin_obama: { height: 2.3, radius: 0.58 },
+  laser_bot: { height: 2.1, radius: 0.5 },
+  shooter_bot: { height: 2.0, radius: 0.45 },
+  mega_tinubu: { height: 3.3, radius: 1.15 },
+  hex_sahil: { height: 2.5, radius: 0.72 },
 };
 const STRONG = Object.keys(AUTHORED);
-const BOSSES = ['scrapjaw', 'burrowmother', 'skyfire_drake'];
+const BOSSES = ['scrapjaw', 'burrowmother', 'skyfire_drake', 'mega_tinubu', 'hex_sahil'];
 const GROUND_FIGHTERS = STRONG.filter((id) => id !== 'skyfire_drake');
 /** An empty yard: nothing in the way of a capsule this size. */
 const YARD = { ...SANDBOX, enemies: [], shapes: [], ground: { size: 400, color: 0 } };
