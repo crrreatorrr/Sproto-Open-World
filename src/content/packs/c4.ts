@@ -345,10 +345,10 @@ export const C4_QUESTS: Record<string, QuestDef> = {
     kind: 'side',
     prereq: [{ level: 6 }],
     steps: [
-      { id: 'track1', text: 'Follow the giant tracks west from the Ranger.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_1' }] },
-      { id: 'track2', text: 'Follow the tracks deeper into the Thornwood.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_2' }] },
-      { id: 'track3', text: 'The tracks turn past the Brute patrol.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_3' }] },
-      { id: 'track4', text: 'The prints are fresh here.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_4' }] },
+      { id: 'track1', text: 'Follow the giant tracks west from the Ranger.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_1', label: 'Giant tracks' }] },
+      { id: 'track2', text: 'Follow the tracks deeper into the Thornwood.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_2', label: 'Giant tracks' }] },
+      { id: 'track3', text: 'The tracks turn past the Brute patrol.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_3', label: 'Giant tracks' }] },
+      { id: 'track4', text: 'The prints are fresh here.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_4', label: 'Giant tracks' }] },
       {
         id: 'giant', text: 'Bring down the Hollow Giant.', objectives: [{ kind: 'kill', tag: 'hollow_giant', count: 1 }], marker: 'giant_track_4',
         bonus: { flag: 'bonus.q_hollow_giant.dodge', objective: { kind: 'feat', feat: 'perfectDodge', count: 3, against: 'hollow_giant', perFight: true } },
