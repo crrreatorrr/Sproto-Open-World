@@ -215,6 +215,8 @@ export interface Progress {
   relics?: RelicProgress;
   /** God mode (testing, systems/god.ts): can't die. This session only, never saved. */
   god?: boolean;
+  /** The Brick Phone is open (its shrine list), like `atShrine`: a menu the sim opened. Never saved. */
+  phone?: boolean;
 }
 
 /** Session clocks for relics. Not saved: a load starts them over. */

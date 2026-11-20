@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { QUESTS, type QuestOffer } from '../../src/content/quests';
 import { worldLevel } from '../../src/content/world/level';
-import { SPROUTVALE_CONTENT } from '../../src/content/world/sproutvaleContent';
+import { WORLD_CONTENT } from '../../src/content/world/worldContent';
 import { initPhysics } from '../../src/sim/physics/PhysicsWorld';
 import { SimWorld } from '../../src/sim/SimWorld';
 import { startQuest } from '../../src/sim/systems/rpg';
@@ -17,7 +17,8 @@ async function placed(): Promise<SimWorld> {
   await initPhysics();
   const w = new SimWorld(worldLevel({ id: 'sproutvale', playerStart: { pos: [256, 30, 58], yaw: 0 } }), 1);
   w.spawnPlayer(0);
-  w.populateWorld(SPROUTVALE_CONTENT);
+  // Cave steps point at levers, the vault and the hidden door, which live on the joined world.
+  w.populateWorld(WORLD_CONTENT);
   return w;
 }
 

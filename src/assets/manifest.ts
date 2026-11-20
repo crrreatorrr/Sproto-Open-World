@@ -64,6 +64,8 @@ export const MODELS = {
   staff_fighters_might: { path: 'models/staffs/staff_fighters_might.glb' },
   /** Rootcleaver. No boot LOD: it downloads the first time it is equipped, after the world is playable. */
   staff_rootcleaver: { path: 'models/staffs/staff_rootcleaver.glb' },
+  /** The Brick Phone, the fast-travel device (art/tools/build_brick_phone.py). Tiny; loaded the first time it is equipped. */
+  staff_brick_phone: { path: 'models/staffs/staff_brick_phone.glb' },
   /** C2: loaded the first time one is equipped, never in the critical download. Each is its own only LOD. */
   staff_shooter: { path: 'models/staffs/staff_shooter.glb' },
   staff_fighter: { path: 'models/staffs/staff_fighter.glb' },
