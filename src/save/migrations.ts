@@ -1,3 +1,4 @@
+import { canWield, classOf, isClassId } from '../content/classes';
 import { ITEMS, STARTING_GEAR } from '../content/items';
 import { emptyRelics } from '../content/relics';
 import { LEVEL_CAP, SKILL_IDS, SKILL_MAX_RANK, pointsForLevel } from '../content/progression';
@@ -16,6 +17,8 @@ import { SAVE_SCHEMA, type SaveFile } from './schema';
  *       `player.attrs`; `points` are skill points (2 per level-up).
  *   v4: `player.relics` (3 relic sockets, 1 totem, the keepsakes won). Old saves start empty, and
  *       reconcile hands over the keepsakes their finished quests and steps already gave.
+ *   v5: `player.class` (content/classes.ts), chosen when a save is made. Every older save is a Wizard's,
+ *       and a Wizard's save may leave the field out.
  */
 type Raw = Record<string, unknown> & { schema?: unknown };
 
@@ -54,6 +57,8 @@ const STEPS: Record<number, (s: Raw) => Raw> = {
     player.relics = emptyRelics();
     return { ...s, schema: 4, player };
   },
+  // Nothing to add: a save without a class is a Wizard's.
+  4: (s) => ({ ...s, schema: 5 }),
 };
 
 export class SaveError extends Error {}
@@ -87,7 +92,7 @@ function validate(s: Raw): SaveFile {
     validSkills(p.skills) && validSpells(p.spells) && validLoadout(p.loadout, p.spells) && isTable(p.equipment) &&
     isTable(p.inventory) && Object.values(p.inventory).every(isCount) && isTable(p.quests) &&
     isTable(p.tonics) && isCount(p.tonics.charges) && isCount(p.tonics.max) && Array.isArray(p.discoveredShrines) &&
-    validRelicProgress(p.relics) &&
+    validRelicProgress(p.relics) && (p.class === undefined || isClassId(p.class)) &&
     isTable(w.flags) && Array.isArray(w.openedChests) && Array.isArray(w.killedUniques);
   if (!ok) throw new SaveError('missing fields');
   return s as unknown as SaveFile;
@@ -109,8 +114,15 @@ function reconcile(s: SaveFile): SaveFile {
     inventory[starter] = Math.max(1, inventory[starter] ?? 0);
     return starter;
   };
+  // The weapon slot holds what the class can wield: a staff for the Wizard, a gun for the others.
+  const weapon = (id: string): string => {
+    const starter = classOf(p.class).startWeapon;
+    if (owned(id, 'staff') && canWield(p.class, ITEMS[id])) return id;
+    inventory[starter] = Math.max(1, inventory[starter] ?? 0);
+    return starter;
+  };
   const equipment = {
-    staff: worn(p.equipment.staff, 'staff', STARTING_GEAR.staff),
+    staff: weapon(p.equipment.staff),
     robe: worn(p.equipment.robe, 'robe', STARTING_GEAR.robe),
     charm: owned(p.equipment.charm, 'charm') ? p.equipment.charm : null,
   };

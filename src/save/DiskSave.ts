@@ -1,3 +1,4 @@
+import { DATA_EPOCH_SCHEMA } from './dataEpoch';
 import { SaveError, migrate } from './migrations';
 import type { SaveFile } from './schema';
 
@@ -47,6 +48,10 @@ export async function readDiskSave(fetchFn: FetchLike = fetch): Promise<DiskRead
   } catch {
     return none({ path, fromBackup, error: 'not valid JSON' });
   }
+  // A file from before the data epoch is what the epoch wiped: as good as no file (the next save
+  // replaces it).
+  const schema = (parsed as { schema?: unknown } | null)?.schema;
+  if (typeof schema === 'number' && schema < DATA_EPOCH_SCHEMA) return none({ path, fromBackup });
   try {
     return none({ path, fromBackup, save: migrate(parsed) });
   } catch (e) {

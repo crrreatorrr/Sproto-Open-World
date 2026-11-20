@@ -17,7 +17,8 @@ import { ui } from './m3Helpers';
 
 /** The twelve powers from every loadout slot (expansion plan §1.2), the staff traits (§2.1), and how they end. */
 
-const ALL = Object.keys(SPELLS) as SpellId[];
+// Every spell a Wizard can cast (Gunfire is the gun classes'; tests/sim/classes.test.ts covers it).
+const ALL = (Object.keys(SPELLS) as SpellId[]).filter((id) => id !== 'gunfire');
 const SLOT_BTN = [BTN.spell1, BTN.spell2, BTN.spell3, BTN.spell4] as const;
 const eq = (slot: number, spell: SpellId | null): UiAction => ({ kind: 'equipSpell', slot, spell });
 

@@ -4,6 +4,7 @@ import { MODELS, STAFF_BOOT_LOD, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
 import { zoneAt } from '../audio/zones';
 import { CameraRig } from '../camera/CameraRig';
+import { classOf, firesAsBullets, type ClassId, type GunDef } from '../content/classes';
 import { ITEMS } from '../content/items';
 import { keepsake, keepsakeIcon } from '../content/relics';
 import { affixName } from '../content/packs/c4';
@@ -259,7 +260,7 @@ export class App {
     this.applySettings(this.settings);
     this.nav = new MenuNav(this.input);
     this.menus = new Menus(ui, this.nav, this.input, {
-      play: () => void this.diskReady.then(() => this.play()),
+      play: (cls) => void this.diskReady.then(() => this.play(null, cls)),
       continueGame: () => void this.diskReady.then(() => this.play(this.bootSave)),
       resume: () => this.resume(),
       quitToTitle: () => this.quitToTitle(),
@@ -340,8 +341,9 @@ export class App {
     holdForHubVisit();
     this.toTitle();
     void this.connectHub();
-    // Warm the player model while the title is up, so Play is quick.
-    void this.assets.template('player');
+    // Warm the player model while the title is up, so Play is quick: the saved class's body for
+    // Continue, else the Wizard's (the picker's first choice; another class loads when it is picked).
+    void this.assets.template(classOf(this.bootSave?.player.class).model);
     // The world only needs the small starter staff here; enemies load when you get near them.
     if (MODE === 'world') void this.assets.template(STAFF_BOOT_LOD.staff_sproto ?? 'staff_sproto');
     else for (const k of ['staff_sproto', 'brute'] as const) void this.assets.template(k);
@@ -517,8 +519,8 @@ export class App {
     } else this.hud.toast("Couldn't save: the browser's storage is full or blocked.");
   }
 
-  /** Start a session: a new game, or `save` restored on top of it (Continue). */
-  async play(save: SaveFile | null = null): Promise<void> {
+  /** Start a session: a new game of class `cls`, or `save` restored on top of it (Continue: the save keeps its class). */
+  async play(save: SaveFile | null = null, cls: ClassId = 'wizard'): Promise<void> {
     if (this.state === 'loading') return;
     this.state = 'loading';
     this.nav.reset(null);
@@ -541,7 +543,7 @@ export class App {
             run: () => {
               this.panels.hideError();
               this.state = 'title';
-              void this.play(save);
+              void this.play(save, cls);
             },
           },
           {
@@ -558,7 +560,7 @@ export class App {
     try {
       const region = this.stream?.region;
       const sim = new SimWorld(region ? worldLevel(region.manifest) : SANDBOX, 1);
-      const entity = sim.spawnPlayer(LOCAL_PLAYER);
+      const entity = sim.spawnPlayer(LOCAL_PLAYER, undefined, undefined, save?.player.class ?? cls);
       // The sandbox's dummies and Brute (bare test worlds stay empty), the wave runner, or
       // Sproutvale's villagers, shrines, chest and training yard (its camps arrive in M4). A save
       // goes on top of the fresh world, so opened chests and found shrines come back as they were.
@@ -570,7 +572,7 @@ export class App {
         this.stream.attach(sim);
         this.groundWait = true;
       }
-      const view = new PlayerView(this.assets);
+      const view = new PlayerView(this.assets, classOf(entity.progress?.class).model);
       const staff = this.staffModel(entity.progress?.equipment.staff);
       // The world boots with a staff's small model; the full one swaps in once things are calm.
       // Rootcleaver has no small model of its own. A save that has it out still becomes playable
@@ -1047,6 +1049,19 @@ export class App {
     void this.player.setStaff(full, 'later');
   }
 
+  /** A gun class's shot (Gunfire, or a Soldier's shooting spell) sounds like a gun. */
+  private castsBullets(view: ReadonlySimView, id: number, spell: SpellId): boolean {
+    const p = view.entities.find((x) => x.id === id)?.progress;
+    return !!p && firesAsBullets(p.class, spell) && !!SPELLS[spell].projectile;
+  }
+
+  /** Which gun it sounds like: the one in hand for Gunfire; a rocket or a slug for the Soldier's spells. */
+  private gunSound(view: ReadonlySimView, id: number, spell: SpellId): GunDef['type'] {
+    const p = view.entities.find((x) => x.id === id)?.progress;
+    if (spell === 'gunfire') return (p && ITEMS[p.equipment.staff]?.gun?.type) || 'mg';
+    return spell === 'blast' ? 'bazooka' : 'sniper';
+  }
+
   private staffModel(item: string | undefined): ModelKey {
     const key = item ? ITEMS[item]?.staff?.model : undefined;
     return key && key in MODELS ? (key as ModelKey) : 'staff_sproto';
@@ -1347,7 +1362,8 @@ export class App {
         return;
       case 'cast':
         qa('cast', e.spell);
-        if (e.spell === 'bolt') this.audio.play('boltCast', e.woven ? 1.15 : 1);
+        if (this.castsBullets(view, e.entity, e.spell)) this.audio.gunshot(this.gunSound(view, e.entity, e.spell), e.entity === me ? 1 : 0.6);
+        else if (e.spell === 'bolt') this.audio.play('boltCast', e.woven ? 1.15 : 1);
         else if (e.spell === 'blast') this.audio.play('boltCast', 0.62, 1.2);
         else if (e.spell === 'staticSnare') this.audio.play('boltCast', 1.45, 0.9);
         if (e.entity === me) pad.rumble(RUMBLE.cast);

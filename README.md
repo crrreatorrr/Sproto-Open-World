@@ -12,6 +12,18 @@ its bridge, the orchard, Thornwood and the quarry ravine. The village has the fi
 - **The Shrine of First Light** heals you, refills your Sprout Tonics, becomes your respawn point,
   makes power swaps free, and is the place to reset your skills.
 
+**A new game starts with a class** (Play or New game, then pick one; the save keeps it):
+- **Wizard Sproto:** the staff and every spell, paid for in mana.
+- **Soldier Sproto:** Sproto Shooter's soldier with one of its guns. Gunfire takes the Arcane Bolt's
+  place: it costs no mana and never runs out, and holding the button keeps firing. The other powers
+  stay, and Blast and Static Snare come out of the gun as a rocket and a slug.
+- **Pepe:** a gun and every spell as magic, Gunfire and the Arcane Bolt both.
+
+The gun classes start with the Toy MG, Shotgun, Sniper and Bazooka and pick one on the Gear tab, like
+a staff. The Raygun, Big Bullets and the Duck Gun come where a Wizard would find Moonward, Fighter's
+Might and the Rootcleaver. A gun swings like a staff in melee. This build also clears every browser's
+old save and settings once, on its first load, so everyone starts with the class picker.
+
 You earn XP and levels (cap 15), wear a staff, a robe and a charm, collect loot, and the game saves
 itself (Continue on the title). **The menu** (Esc or Start) has one tab each for:
 - **Powers:** equip four of the spells you know. A power you swap in starts on cooldown (at least
@@ -86,7 +98,7 @@ production build has no such endpoint, so it saves in the browser only.
 | Dodge roll (with no direction held, a backstep) | C | B |
 | Block (the first moment of a block parries) | Q | LB |
 | Lock on / switch target | Middle mouse or T / flick the mouse | Right stick click / flick the right stick |
-| Cast the spell in slot 1–4 (in Sproutvale you start with Bolt) | 1 2 3 4 (or E R Z X) | Hold LT + X / Y / B / A |
+| Cast the spell in slot 1–4 (in Sproutvale you start with Bolt; a gun class starts with Gunfire, held to keep firing) | 1 2 3 4 (or E R Z X) | Hold LT + X / Y / B / A |
 | Interact: talk, open, rest | F | Y |
 | Ride or get off the Pepe Bull (east of the start) | F | Y |
 | Gallop on the Pepe Bull: press once and it keeps going, at no stamina cost, until you press again or stop (holding works too) | Left Shift | Left stick click |

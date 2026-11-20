@@ -2,6 +2,7 @@
  * Items (plan §5): staffs, robes, charms, consumables and quest items, with fixed stats per item
  * (no procedural affixes). Pure data.
  */
+import { GUN_ITEMS, type GunDef } from './classes';
 import { C2_ITEMS } from './packs/c2';
 import { C4_ITEMS } from './packs/c4';
 import { C5_ITEMS } from './packs/c5';
@@ -37,6 +38,10 @@ export interface ItemDef {
   blurb: string;
   /** Staff: melee damage and spell power (plan §4.6 table); model key for the view. */
   staff?: { damage: number; spellPower: number; model: string };
+  /** A gun (content/classes.ts): it is held in the staff slot by the gun classes, and Gunfire shoots it. */
+  gun?: GunDef;
+  /** A weapon-slot tool every class can hold (the Brick Phone), not a staff or a gun. */
+  anyClass?: boolean;
   /** Robe: defense and a body tint. */
   robe?: { physical: number; arcane: number; tint: number };
   charm?: CharmEffects;
@@ -78,7 +83,7 @@ export const ITEMS: Record<string, ItemDef> = {
   quarry_key: { id: 'quarry_key', name: 'Quarry Key', kind: 'quest', rarity: 'epic', blurb: 'Opens the Quarry Gate.' },
   sprout_seed: { id: 'sprout_seed', name: 'Sprout Seed', kind: 'quest', rarity: 'common', blurb: 'For the Elder.', stacks: true },
   // The fast-travel device. Wielded in the staff slot: Light attack opens it, to call a shrine you have used and go there.
-  staff_brick_phone: { id: 'staff_brick_phone', name: 'Brick Phone', kind: 'staff', rarity: 'epic', blurb: 'Light attack: call a shrine you have used, and go.', staff: { damage: 6, spellPower: 0.5, model: 'staff_brick_phone' }, price: 150 },
+  staff_brick_phone: { id: 'staff_brick_phone', name: 'Brick Phone', kind: 'staff', rarity: 'epic', blurb: 'Light attack: call a shrine you have used, and go.', staff: { damage: 6, spellPower: 0.5, model: 'staff_brick_phone' }, price: 150, anyClass: true },
   ...C2_ITEMS,
 };
 
@@ -86,6 +91,7 @@ Object.assign(ITEMS, C4_ITEMS);
 Object.assign(ITEMS, C5_ITEMS);
 Object.assign(ITEMS, C6_ITEMS);
 Object.assign(ITEMS, ROOTDEEP_ITEMS);
+Object.assign(ITEMS, GUN_ITEMS);
 
 /** The fast-travel device: wield it, and Light attack opens its shrine list (sim/systems/travel.ts). */
 export const TRAVEL_DEVICE = 'staff_brick_phone';

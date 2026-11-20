@@ -5,6 +5,7 @@ import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DISK_SAVE_URL, newerSave, readDiskSave, writeDiskSave } from '../../src/save/DiskSave';
+import { DATA_EPOCH_SCHEMA } from '../../src/save/dataEpoch';
 import { SAVE_SCHEMA, type SaveFile } from '../../src/save/schema';
 import { createLocalSaveHandler } from '../../tools/localSavePlugin';
 
@@ -87,6 +88,17 @@ describe('local save file (dev server)', () => {
     const r = await readDiskSave(local);
     expect(r.save).toBeNull();
     expect(r.newerBuild).toBe(true);
+  });
+
+  it('a file from before the data epoch is ignored, so the wipe sticks (the next save replaces it)', async () => {
+    const old = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', `save-v${DATA_EPOCH_SCHEMA - 1}.json`), 'utf8'));
+    fs.writeFileSync(path.join(dir, 'save.json'), JSON.stringify(old));
+    const r = await readDiskSave(local);
+    expect(r.available).toBe(true);
+    expect(r.save).toBeNull();
+    expect(r.error).toBeNull();
+    expect(await writeDiskSave(fixture(), local)).toBe(true);
+    expect((await readDiskSave(local)).save?.schema).toBe(SAVE_SCHEMA);
   });
 
   it('a server without the endpoint (an HTML fallback, or none at all) is unavailable', async () => {

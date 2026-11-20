@@ -1,4 +1,5 @@
 import { PLAYER_STATS } from '../content/combat';
+import { classOf, type ClassId } from '../content/classes';
 import { ENEMIES, type EnemyMoveDef } from '../content/enemies';
 import { affixedMove } from '../content/enemyScale';
 import type { LevelDef } from '../content/sandbox';
@@ -208,7 +209,8 @@ export class SimWorld {
     return id === undefined ? undefined : this.byId.get(id);
   }
 
-  spawnPlayer(player: PlayerId, pos: Vec3 = this.spawnPoint(), yaw = this.level.spawn.yaw): Entity {
+  /** Spawn a player of a class (content/classes.ts). A save loaded after this keeps its own class. */
+  spawnPlayer(player: PlayerId, pos: Vec3 = this.spawnPoint(), yaw = this.level.spawn.yaw, cls: ClassId = 'wizard'): Entity {
     const e: Entity = {
       id: this.nextId++,
       kind: 'player',
@@ -219,8 +221,8 @@ export class SimWorld {
       vitals: { hp: PLAYER_STATS.hp, hpMax: PLAYER_STATS.hp, stamina: PLAYER_STATS.stamina, staminaMax: PLAYER_STATS.stamina, mana: PLAYER_STATS.mana, manaMax: PLAYER_STATS.mana, staminaDelay: 0 },
       combat: newCombat('player', 1, 1, PLAYER_STATS.defense, PLAYER_STATS.level),
       // The yard and the wave runner know every spell; a streamed world starts with Bolt.
-      progress: newProgress(this.streamed ? ['bolt'] : ALL_SPELLS),
-      view: { model: 'player' },
+      progress: newProgress(this.streamed ? ['bolt'] : ALL_SPELLS, cls),
+      view: { model: classOf(cls).model },
     };
     recompute(e);
     this.add(e);
@@ -459,6 +461,7 @@ export class SimWorld {
     const e = this.playerEntity(player);
     if (!e) throw new Error('applySave: no player');
     e.progress = { ...structuredClone(save.player), dialogue: null, shop: null, atShrine: null };
+    e.view = { ...e.view, model: classOf(e.progress.class).model };
     // A save made before session ticks were kept out still has them: drop them, the clock restarts.
     this.world = savedWorld(save.world);
     this.rollCampAffixes();
