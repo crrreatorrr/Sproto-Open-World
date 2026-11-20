@@ -541,6 +541,7 @@ export class App {
       this.godPending = this.godWanted && GOD_ALLOWED && !!this.stream;
       this.rpgHud.clearFeed();
       this.state = 'playing';
+      this.stream?.loadFarHorizons();
       if (this.groundWait) this.showGroundVeil(entity.tf.pos.x, entity.tf.pos.z);
       else this.panels.hideVeil();
       this.hud.visible = !this.groundWait;

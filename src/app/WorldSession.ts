@@ -29,6 +29,8 @@ export class WorldSession {
   private builder: TerrainBuilder | null = null;
   private grass: GrassField | null = null;
   private water: WaterLayer | null = null;
+  /** Overworld horizons still to load once play starts. */
+  private farHorizons: string[] = [];
   private loading: Promise<Region> | null = null;
   /** When the veil went up for missing ground (performance.now ms), or null. */
   private veilSince: number | null = null;
@@ -104,21 +106,33 @@ export class WorldSession {
       void this.renderer.compile(water.root);
     }
     // The horizons are resident for the whole session: one per overworld region. Only the start
-    // region's is on the way to Play (scripts/check-budgets.mjs counts it); the rest follow behind
-    // the cells, since the fog hides most of a neighbour's far ground for the first seconds anyway.
+    // region's loads behind the title (scripts/check-budgets.mjs and the loading e2e count it); the
+    // rest wait for Play (loadFarHorizons), since the fog hides most of a neighbour's far ground.
     const horizons = (m as Partial<WorldManifest>).horizons ?? [m.horizon];
     const [sx, , sz] = m.playerStart.pos;
     const startHorizon = `world/${regionAt(sx, sz).id}/`;
-    for (const path of horizons) {
-      this.assets.gltf(path, path.startsWith(startHorizon) ? 'now' : 'later').then(
-        (g) => {
-          if (this.streamer !== streamer) return;
-          streamer.horizon.attach(g.scene);
-          void this.renderer.compile(streamer.horizon.root);
-        },
-        (err: unknown) => console.warn(`[world] horizon ${path} failed to load; distant terrain there stays empty`, err),
-      );
-    }
+    this.farHorizons = horizons.filter((path) => !path.startsWith(startHorizon));
+    for (const path of horizons) if (path.startsWith(startHorizon)) this.loadHorizon(path, 'now');
+  }
+
+  /** The other regions' horizons, once play has started (at low priority, behind the cells). */
+  loadFarHorizons(): void {
+    const paths = this.farHorizons;
+    this.farHorizons = [];
+    for (const path of paths) this.loadHorizon(path, 'later');
+  }
+
+  private loadHorizon(path: string, priority: 'now' | 'later'): void {
+    const streamer = this.streamer;
+    if (!streamer) return;
+    this.assets.gltf(path, priority).then(
+      (g) => {
+        if (this.streamer !== streamer) return;
+        streamer.horizon.attach(g.scene);
+        void this.renderer.compile(streamer.horizon.root);
+      },
+      (err: unknown) => console.warn(`[world] horizon ${path} failed to load; distant terrain there stays empty`, err),
+    );
   }
 
   /** The manifest's player start. */
