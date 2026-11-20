@@ -31,6 +31,7 @@ import { PortraitStudio } from '../render/PortraitStudio';
 import { Renderer } from '../render/Renderer';
 import { PlayerView } from '../render/views/PlayerView';
 import { WorldViews, enemyDef } from '../render/views/WorldViews';
+import { newerSave, readDiskSave, writeDiskSave } from '../save/DiskSave';
 import { loadSave, writeSave } from '../save/SaveStore';
 import type { SaveFile } from '../save/schema';
 import { BTN, type UiAction } from '../sim/commands';
@@ -84,6 +85,12 @@ export type GameMode = 'world' | 'yard' | 'waves';
 const MODE: GameMode = WAVE_SANDBOX ? 'waves' : PARAMS.get('yard') === '1' ? 'yard' : 'world';
 /** Blast shakes the camera less the further it is from you (m at which it stops). */
 const BLAST_SHAKE_RANGE = 16;
+/**
+ * Local save mode (src/save/DiskSave.ts): on a dev server the save is also kept in one file on disk
+ * (`~/.sproto-open-world/save.json`), so every port and worktree shares the same progress.
+ * `?localsave=0` turns it off; automated browsers (the e2e runs) never touch the file.
+ */
+const LOCAL_SAVE = import.meta.env.DEV && PARAMS.get('localsave') !== '0' && !navigator.webdriver;
 /** Autosave every 5 minutes of play when out of combat (plan §2.8), on top of the event saves. */
 const AUTOSAVE_SEC = 300;
 
@@ -168,6 +175,13 @@ export class App {
   private sinceSave = 0;
   /** Saves written this session (QA). */
   private saves = 0;
+  /** Local save mode is on: off once the endpoint is missing or its file is from a newer build. */
+  private diskSave = LOCAL_SAVE;
+  /** The title's disk save check; Continue and New game wait for it. */
+  private diskReady: Promise<void> = Promise.resolve();
+  /** Disk writes, one after another so the last save is the one that lands. */
+  private diskWrites: Promise<void> = Promise.resolve();
+  private diskWriteWarned = false;
   /** This frame's Start press closed the tabbed menu: it doesn't also pause. */
   private startUsed = false;
   /** Which way the left stick was pushed on the error panel: one push moves the focus once. */
@@ -211,8 +225,8 @@ export class App {
     this.applySettings(this.settings);
     this.nav = new MenuNav(this.input);
     this.menus = new Menus(ui, this.nav, this.input, {
-      play: () => void this.play(),
-      continueGame: () => void this.play(this.bootSave),
+      play: () => void this.diskReady.then(() => this.play()),
+      continueGame: () => void this.diskReady.then(() => this.play(this.bootSave)),
       resume: () => this.resume(),
       quitToTitle: () => this.quitToTitle(),
       settingsChanged: (s) => {
@@ -374,6 +388,46 @@ export class App {
         : '';
     if (r.error) console.warn('[save]', r.error);
     this.menus.setSave(!!r.save, notice);
+    if (this.diskSave) this.diskReady = this.syncDiskSave(r.save, notice);
+  }
+
+  /**
+   * Local save mode at the title: the newer of the browser's save and the disk file wins. A newer
+   * disk file is copied into localStorage (the browser's save becomes its backup) and Continue loads
+   * it; a newer browser save is written to disk, which is how existing progress first gets there.
+   */
+  private async syncDiskSave(local: SaveFile | null, notice: string): Promise<void> {
+    const d = await readDiskSave();
+    if (!d.available) {
+      this.diskSave = false;
+      return;
+    }
+    if (this.state !== 'title') return;
+    if (d.newerBuild) {
+      this.diskSave = false;
+      console.warn('[save] the local save file is from a newer build; this build saves in the browser only');
+      this.menus.setSave(!!local, notice || 'Your local save file is from a newer build; this build will not overwrite it.', d.path);
+      return;
+    }
+    if (d.error) console.warn('[save] local save file:', d.error);
+    const pick = newerSave(local, d.save);
+    if (pick === 'disk' && d.save) {
+      writeSave(d.save);
+      this.bootSave = d.save;
+      notice = d.fromBackup ? 'Your local save file was damaged; loaded its backup.' : '';
+    } else if (pick === 'local' && local) this.queueDiskWrite(local);
+    this.menus.setSave(!!this.bootSave, notice, d.path);
+  }
+
+  /** Write the save file after any write already on its way; the first failure is said once. */
+  private queueDiskWrite(save: SaveFile): void {
+    this.diskWrites = this.diskWrites.then(async () => {
+      if (await writeDiskSave(save)) return;
+      if (this.diskWriteWarned) return;
+      this.diskWriteWarned = true;
+      console.warn('[save] could not write the local save file');
+      this.hud.toast("Couldn't write the local save file; saved in the browser only.");
+    });
   }
 
   /** Queue a menu intent for the next tick. */
@@ -391,11 +445,14 @@ export class App {
     if (!sim || !region) return;
     this.sinceSave = 0;
     let ok = false;
+    let save: SaveFile | null = null;
     try {
-      ok = writeSave(sim.toSave({ savedAt: new Date().toISOString(), build: __BUILD_ID__, region: region.manifest.id }));
+      save = sim.toSave({ savedAt: new Date().toISOString(), build: __BUILD_ID__, region: region.manifest.id });
+      ok = writeSave(save);
     } catch (err) {
       console.warn('[save] could not write', err);
     }
+    if (save && this.diskSave) this.queueDiskWrite(save);
     if (ok) {
       this.saves++;
       this.rpgHud.saved();
