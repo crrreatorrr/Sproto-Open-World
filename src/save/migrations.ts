@@ -4,12 +4,13 @@ import { emptyRelics } from '../content/relics';
 import { LEVEL_CAP, SKILL_IDS, SKILL_MAX_RANK, pointsForLevel } from '../content/progression';
 import { QUESTS } from '../content/quests';
 import { LOADOUT_SLOTS, SPELLS } from '../content/spells';
+import { WEAPON_SLOTS, defaultAbilities, defaultAmmo } from '../sim/entity';
 import { reconcileRelics, validRelicProgress } from '../sim/systems/relics';
 import { SAVE_SCHEMA, type SaveFile } from './schema';
 
 /**
- * Save migrations (plan §2.8): one step per schema version, v → v + 1. Each has a fixture save and a
- * test (tests/save). Pure.
+ * Save migrations (plan §2.8, unification plan §4.2): one step per schema version, v → v + 1.
+ * Each has a fixture save and a test (tests/save). Pure.
  *
  *   v1 (M3 draft): `player.potions: number` and no `tonics`; no `tracked`; no `discoveredShrines`.
  *   v2: `player.tonics: { charges, max }`, `tracked`, `discoveredShrines`.
@@ -19,6 +20,9 @@ import { SAVE_SCHEMA, type SaveFile } from './schema';
  *       reconcile hands over the keepsakes their finished quests and steps already gave.
  *   v5: `player.class` (content/classes.ts), chosen when a save is made. Every older save is a Wizard's,
  *       and a Wizard's save may leave the field out.
+ *   v6 (U0): Gunslinger skills (`marksmanship`, `handling`, `logistics`), 4-slot `weapons` bar +
+ *       `activeWeaponSlot`, `guns[]` stash, `ammo`, `abilities`, `dungeonProgress`, and `pepe_warrior`
+ *       class alongside `wizard | soldier | pepe`.
  */
 type Raw = Record<string, unknown> & { schema?: unknown };
 
@@ -59,6 +63,23 @@ const STEPS: Record<number, (s: Raw) => Raw> = {
   },
   // Nothing to add: a save without a class is a Wizard's.
   4: (s) => ({ ...s, schema: 5 }),
+  5: (s) => {
+    const player = { ...(s.player as Record<string, unknown>) };
+    const skills = isTable(player.skills) ? { ...player.skills } : {};
+    skills.marksmanship ??= 0;
+    skills.handling ??= 0;
+    skills.logistics ??= 0;
+    player.skills = skills;
+    const eq = isTable(player.equipment) ? player.equipment : {};
+    const staff = typeof eq.staff === 'string' ? eq.staff : null;
+    player.weapons ??= [staff, null, null, null];
+    player.activeWeaponSlot ??= 0;
+    player.guns ??= [];
+    player.ammo ??= defaultAmmo();
+    player.abilities ??= defaultAbilities();
+    player.dungeonProgress ??= {};
+    return { ...s, schema: 6, player };
+  },
 };
 
 export class SaveError extends Error {}
@@ -90,6 +111,8 @@ function validate(s: Raw): SaveFile {
     !!p && !!w && isCount(p.level) && p.level >= 1 && p.level <= LEVEL_CAP && isAmount(p.xp) && isAmount(p.sprouts) &&
     isCount(p.points) &&
     validSkills(p.skills) && validSpells(p.spells) && validLoadout(p.loadout, p.spells) && isTable(p.equipment) &&
+    validWeapons(p.weapons) && validActiveWeaponSlot(p.activeWeaponSlot) && validGuns(p.guns) &&
+    validAmmo(p.ammo) && validAbilities(p.abilities) && validDungeonProgress(p.dungeonProgress) &&
     isTable(p.inventory) && Object.values(p.inventory).every(isCount) && isTable(p.quests) &&
     isTable(p.tonics) && isCount(p.tonics.charges) && isCount(p.tonics.max) && Array.isArray(p.discoveredShrines) &&
     validRelicProgress(p.relics) && (p.class === undefined || isClassId(p.class)) &&
@@ -114,7 +137,7 @@ function reconcile(s: SaveFile): SaveFile {
     inventory[starter] = Math.max(1, inventory[starter] ?? 0);
     return starter;
   };
-  // The weapon slot holds what the class can wield: a staff for the Wizard, a gun for the others.
+  // Any class can wield any owned staff or gun; unowned or unknown weapons fall back to the class starter.
   const weapon = (id: string): string => {
     const starter = classOf(p.class).startWeapon;
     if (owned(id, 'staff') && canWield(p.class, ITEMS[id])) return id;
@@ -126,6 +149,16 @@ function reconcile(s: SaveFile): SaveFile {
     robe: worn(p.equipment.robe, 'robe', STARTING_GEAR.robe),
     charm: owned(p.equipment.charm, 'charm') ? p.equipment.charm : null,
   };
+  const guns = p.guns ?? [];
+  const gunUids = new Set(guns.map((g) => g.uid));
+  const activeWeaponSlot = p.activeWeaponSlot ?? 0;
+  const weapons = (p.weapons ?? [equipment.staff, null, null, null]).map((slot) => {
+    if (slot === null) return null;
+    if (gunUids.has(slot)) return slot;
+    return owned(slot, 'staff') && canWield(p.class, ITEMS[slot]) ? slot : null;
+  });
+  if (weapons[activeWeaponSlot] === null) weapons[activeWeaponSlot] = equipment.staff;
+  else if (!gunUids.has(weapons[activeWeaponSlot]!)) equipment.staff = weapons[activeWeaponSlot]!;
   const quests: SaveFile['player']['quests'] = {};
   for (const [id, q] of Object.entries(p.quests)) {
     if (!isTable(q) || !Object.hasOwn(QUESTS, id)) continue;
@@ -140,7 +173,7 @@ function reconcile(s: SaveFile): SaveFile {
   // which never fire again for finished work: a save from before v4 (or before a keepsake was added to
   // a step, or with a bonus flag set before the relics read it) is handed what it already won.
   const relics = reconcileRelics(p.relics ?? emptyRelics(), quests, s.world.flags);
-  return { ...s, player: { ...p, inventory, equipment, quests, tracked, relics } };
+  return { ...s, player: { ...p, inventory, equipment, weapons, activeWeaponSlot, guns, quests, tracked, relics } };
 }
 
 /** Every skill present, an integer rank 0–10. */
@@ -155,4 +188,55 @@ function validLoadout(v: unknown, spells: unknown): boolean {
   if (!Array.isArray(v) || v.length !== LOADOUT_SLOTS || !Array.isArray(spells)) return false;
   const used = v.filter((x) => x !== null);
   return used.every((x) => typeof x === 'string' && spells.includes(x)) && new Set(used).size === used.length;
+}
+
+/** Four weapon bar slots, each null or a string id/uid. */
+function validWeapons(v: unknown): boolean {
+  return Array.isArray(v) && v.length === WEAPON_SLOTS && v.every((x) => x === null || typeof x === 'string');
+}
+
+/** Active weapon bar index: integer 0..3. */
+function validActiveWeaponSlot(v: unknown): boolean {
+  return isCount(v) && v < WEAPON_SLOTS;
+}
+
+/** Procedural gun stash entries. */
+function validGuns(v: unknown): boolean {
+  if (!Array.isArray(v)) return false;
+  return v.every((g) =>
+    isTable(g) &&
+    typeof g.uid === 'string' &&
+    typeof g.seed === 'number' && Number.isFinite(g.seed) &&
+    isCount(g.level) &&
+    typeof g.type === 'string' &&
+    typeof g.quality === 'string' &&
+    typeof g.manufacturer === 'string' &&
+    (g.element === null || typeof g.element === 'string') &&
+    isTable(g.parts) && Object.values(g.parts).every((x) => typeof x === 'string') &&
+    (g.wacky === null || typeof g.wacky === 'string') &&
+    isCount(g.ammoInMag),
+  );
+}
+
+/** Ammo reserves table. */
+function validAmmo(v: unknown): boolean {
+  return isTable(v) && isCount(v.light) && isCount(v.shells) && isCount(v.sniper) && isCount(v.rockets);
+}
+
+/** Movement ability unlock flags. */
+function validAbilities(v: unknown): boolean {
+  return isTable(v) &&
+    typeof v.slide === 'boolean' &&
+    typeof v.dash === 'boolean' &&
+    typeof v.doubleJump === 'boolean' &&
+    typeof v.grapple === 'boolean';
+}
+
+/** Dungeon clear state map. */
+function validDungeonProgress(v: unknown): boolean {
+  return isTable(v) && Object.values(v).every((d) =>
+    isTable(d) &&
+    typeof d.cleared === 'boolean' &&
+    (d.bestTimeTicks === undefined || isCount(d.bestTimeTicks)),
+  );
 }

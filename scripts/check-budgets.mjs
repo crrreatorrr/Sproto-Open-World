@@ -32,6 +32,7 @@ const rapier = files.filter((f) => f.startsWith('rapier') && f.endsWith('.js')).
 const CLASS_BOOT = {
   wizard: ['assets/models/characters/player.glb', 'assets/models/staffs/staff_sproto-lod1.glb'],
   soldier: ['assets/models/characters/soldier.glb', 'assets/models/guns/gun_mg.glb'],
+  pepe_warrior: ['assets/models/characters/pepe_warrior.glb', 'assets/models/staffs/staff_sproto-lod1.glb'],
   pepe: ['assets/models/characters/pepe_player.glb', 'assets/models/guns/gun_mg.glb'],
 };
 const critical = ['assets/textures/grove/floor.jpg', 'assets/textures/grove/stone.jpg'];

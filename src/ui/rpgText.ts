@@ -308,6 +308,12 @@ export function skillGain(skill: SkillId): string {
       return `+${SKILL_EFFECT.defense} defense, +${SKILL_EFFECT.defenseHp} health`;
     case 'stamina':
       return `+${SKILL_EFFECT.staminaMax} stamina`;
+    case 'marksmanship':
+      return `+${pct(SKILL_EFFECT.marksmanship)} gun damage and crit chance`;
+    case 'handling':
+      return `+${pct(SKILL_EFFECT.handling)} reload and fire rate`;
+    case 'logistics':
+      return `+${pct(SKILL_EFFECT.logistics)} max ammo capacity`;
   }
 }
 

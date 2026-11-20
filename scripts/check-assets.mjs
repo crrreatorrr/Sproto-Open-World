@@ -28,9 +28,9 @@ const LANDMARKS = [...ENV_LANDMARKS, 'grove_water_tower', 'grove_tower', 'grove_
 /** Triangle caps (plan §3.5, revision 2): 9k standard; 22k elites, bosses, NPCs and the player. */
 const CAPS = [
   [new RegExp(`^models/props/(${LANDMARKS.join('|')})(-lod1)?\\.glb$`), 10000],
-  [/^models\/characters\/(player|soldier|pepe_player)\.glb$/, 22000],
-  // Class guns (art/tools/classes/build-guns.mjs), held in the hand like a prop.
-  [/^models\/guns\//, 4000],
+  [/^models\/characters\/(player|soldier|pepe_player|pepe_warrior)\.glb$/, 22000],
+  // Class guns (art/tools/classes/build-guns.mjs), gear and projectiles, held or flown like props.
+  [/^models\/(guns|gear|projectiles)\//, 4000],
   [/^models\/(bosses|elites|npcs|mounts)\//, 22000],
   [/^models\/enemies\//, 9000],
   [/^models\/staffs\/.*-lod1\.glb$/, 4000],
@@ -50,7 +50,7 @@ const REQUIRED_CLIPS = {
 };
 const PLAYER_CLIPS = ['idle', 'run', 'run_back', 'strafe_l', 'strafe_r', 'jump', 'roll', 'hit', 'stun', 'defeat', 'victory', 'cast', 'cast_big', 'attack_light_1', 'attack_light_2', 'attack_light_3', 'attack_heavy', 'block', 'mount', 'ride', 'dismount'];
 /** Class bodies (art/tools/classes): the wizard's clips plus the upper-body gun layers. */
-const CLASS_BODIES = ['models/characters/soldier.glb', 'models/characters/pepe_player.glb'];
+const CLASS_BODIES = ['models/characters/soldier.glb', 'models/characters/pepe_player.glb', 'models/characters/pepe_warrior.glb'];
 const CLASS_CLIPS = [...PLAYER_CLIPS, 'aim', 'shoot'];
 const GUNS = ['mg', 'shotgun', 'sniper', 'bazooka', 'raygun', 'bigbullets', 'duckgun'].map((id) => `models/guns/gun_${id}.glb`);
 /** Files made by this repo's own pipelines (not copied from a sibling). */

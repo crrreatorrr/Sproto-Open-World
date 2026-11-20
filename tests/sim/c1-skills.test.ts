@@ -158,7 +158,7 @@ describe('milestone perks at branch totals 10 and 20', () => {
     const e3 = step(w, ui([...spend('protection', 9), ...spend('focus', 1)]));
     expect(evs(e3, 'perk')).toMatchObject([{ perk: 'magic20' }]);
     expect(hasPerk(p.progress!.skills, 'combat10')).toBe(false);
-    expect(Object.values(PERKS).map((x) => x.at)).toEqual([10, 20, 10, 20]);
+    expect(Object.values(PERKS).map((x) => x.at)).toEqual([10, 20, 10, 20, 10, 20]);
     w.dispose();
   });
 
@@ -299,6 +299,6 @@ describe('respecSkills: only at a shrine, for 100 × level Sprouts', () => {
   });
 
   it('every skill id is covered by the tree', () => {
-    expect([...SKILL_IDS].sort()).toEqual(['attack', 'defense', 'focus', 'protection', 'spellPower', 'stamina']);
+    expect([...SKILL_IDS].sort()).toEqual(['attack', 'defense', 'focus', 'handling', 'logistics', 'marksmanship', 'protection', 'spellPower', 'stamina']);
   });
 });

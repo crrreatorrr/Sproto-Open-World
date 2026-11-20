@@ -136,7 +136,19 @@ const FILES = [
   // M4: shrines, chests and pickups (the cartoon kit: vertex colours, no textures).
   [SHOOTER, 'public/assets/models/props/campaign_shrine.glb.gz', 'models/interactables/shrine.glb.gz', { meshopt: true }],
   [SHOOTER, 'public/assets/models/props/chest.glb.gz', 'models/interactables/chest.glb.gz', { meshopt: true, lid: CHEST_LID }],
-  ...['gem', 'heart', 'potion'].map((id) => [SHOOTER, `public/assets/models/pickups/${id}.glb.gz`, `models/pickups/${id}.glb.gz`, { meshopt: true }]),
+  ...['gem', 'heart', 'potion', 'ammo_box'].map((id) => [SHOOTER, `public/assets/models/pickups/${id}.glb.gz`, `models/pickups/${id}.glb.gz`, { meshopt: true }]),
+  // U0: Shooter unification assets (lazy-loaded; not in the village critical download).
+  [SHOOTER, 'public/assets/models/gear/grappler.glb', 'models/gear/grappler.glb'],
+  [SHOOTER, 'public/assets/ui/characters/pepe-general.webp', 'icons/classes/pepe_warrior.webp'],
+  ...['midget_stage3', 'obama_stage3', 'sahil_stage2', 'sahil_stage3', 'tinubu_stage1', 'tinubu_stage2', 'tinubu_stage3'].map(
+    (id) => [SHOOTER, `public/assets/models/characters/${id}.glb`, `models/enemies/${id}.glb`],
+  ),
+  // U0: Shooter projectiles (U1/U2). High-poly/large-texture ones are simplified and resized to fit prop budgets.
+  ...['duck', 'bomb'].map((id) => [SHOOTER, `public/assets/models/projectiles/${id}.glb.gz`, `models/projectiles/${id}.glb.gz`, { meshopt: true }]),
+  [SHOOTER, 'public/assets/models/projectiles/tyre.glb', 'models/projectiles/tyre.glb', { meshopt: true }],
+  [SHOOTER, 'public/assets/models/projectiles/drill_head.glb', 'models/projectiles/drill_head.glb', { tex: 256 }],
+  [SHOOTER, 'public/assets/models/projectiles/missile.glb.gz', 'models/projectiles/missile.glb.gz', { tex: 256, simplify: 0.5 }],
+  [SHOOTER, 'public/assets/models/projectiles/rubber_bullet.glb.gz', 'models/projectiles/rubber_bullet.glb.gz', { tex: 256, simplify: 0.25 }],
   ...Object.entries(DUEL_PROPS).map(([id, fit]) => [DUEL, `public/assets/models/obstacles/${id}.glb`, `models/props/${id}.glb`, { fit }]),
   // Sounds used from M0/M1: menus, movement, hits, guards, swings, lock-on and telegraphs.
   ...WORLD_PROPS.map((id) => [SHOOTER, `public/assets/models/props/${id}.glb.gz`, `models/props/${id}.glb.gz`]),

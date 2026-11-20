@@ -372,27 +372,6 @@
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "891465a88f85bb202fd5335679e77567aca08e932298b6c6cfd8f1c7ad51dccb"
     },
-    "models/bosses/burrowmother.glb": {
-      "repo": "sproto-shooter-bosses",
-      "path": "dist/assets/models/characters/mole_monster.glb",
-      "commit": "18a3420397146dafa6fdb675f81770d902148862",
-      "sourceSha256": "545ad6ea2e066edf2761647b68330175bfd0d0c970f2f0d3c940ff9e0d79d5da",
-      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
-    },
-    "models/bosses/drake_far.glb": {
-      "repo": "sproto-shooter-bosses",
-      "path": "dist/assets/models/characters/dragon.glb",
-      "commit": "18a3420397146dafa6fdb675f81770d902148862",
-      "sourceSha256": "11703697ef4fe8064a0c8b4afb292ada8cf690c6d325a3d29cbaac42bedd5b64",
-      "derived": "clips fly + resample + static channels dropped + far LOD: flat colours + position weld + simplify(0.1, error 0.3) + meshopt"
-    },
-    "models/bosses/drake.glb": {
-      "repo": "sproto-shooter-bosses",
-      "path": "dist/assets/models/characters/dragon.glb",
-      "commit": "18a3420397146dafa6fdb675f81770d902148862",
-      "sourceSha256": "11703697ef4fe8064a0c8b4afb292ada8cf690c6d325a3d29cbaac42bedd5b64",
-      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
-    },
     "audio/ultReady.m4a": {
       "repo": "sproto-duel",
       "path": "public/assets/audio/placeholder/ultReady.wav",
@@ -416,6 +395,33 @@
       "path": "public/assets/audio/placeholder/victory.wav",
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "7f9e57ee69031d20e43305322d4ce3ccab53d6e03be32e107f59b5d8773fb22a"
+    },
+    "icons/classes/pepe_warrior.webp": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/ui/characters/pepe-general.webp",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "098ef67e18866ad9c6016cf7cdba221bb0ccbd4a9a4579da5202b6f369da4413"
+    },
+    "models/bosses/burrowmother.glb": {
+      "repo": "sproto-shooter-bosses",
+      "path": "dist/assets/models/characters/mole_monster.glb",
+      "commit": "18a3420397146dafa6fdb675f81770d902148862",
+      "sourceSha256": "545ad6ea2e066edf2761647b68330175bfd0d0c970f2f0d3c940ff9e0d79d5da",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "models/bosses/drake_far.glb": {
+      "repo": "sproto-shooter-bosses",
+      "path": "dist/assets/models/characters/dragon.glb",
+      "commit": "18a3420397146dafa6fdb675f81770d902148862",
+      "sourceSha256": "11703697ef4fe8064a0c8b4afb292ada8cf690c6d325a3d29cbaac42bedd5b64",
+      "derived": "clips fly + resample + static channels dropped + far LOD: flat colours + position weld + simplify(0.1, error 0.3) + meshopt"
+    },
+    "models/bosses/drake.glb": {
+      "repo": "sproto-shooter-bosses",
+      "path": "dist/assets/models/characters/dragon.glb",
+      "commit": "18a3420397146dafa6fdb675f81770d902148862",
+      "sourceSha256": "11703697ef4fe8064a0c8b4afb292ada8cf690c6d325a3d29cbaac42bedd5b64",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
     },
     "models/bosses/scrapjaw.glb": {
       "repo": "sproto-shooter-bosses",
@@ -464,6 +470,30 @@
       "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
       "sourceSha256": "d56523a040d6f8f97435d87de154214b4629bb3f1e6317172498042386201fc2"
     },
+    "models/enemies/midget_stage3.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/midget_stage3.glb",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "2451bc311d8211aa91c788f536a08898884cb0181aeefa59067f91e13c3e9f67"
+    },
+    "models/enemies/obama_stage3.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/obama_stage3.glb",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "5db28de226e2ead05b98cc376516a5640570522501c7d3bf517b39e3ae3428c4"
+    },
+    "models/enemies/sahil_stage2.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/sahil_stage2.glb",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "476096a1f3457f29e1c2b21c42737765a320eb9c670c976ec136e0abdcc863e0"
+    },
+    "models/enemies/sahil_stage3.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/sahil_stage3.glb",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "8400f2498e8987ce29ca0bbfa6b62739d4d36596ee21873875746840d3e18f2e"
+    },
     "models/enemies/slinger_vet.glb": {
       "repo": "sproto-shooter",
       "path": "public/assets/models/characters/obama_stage2.glb",
@@ -476,12 +506,36 @@
       "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
       "sourceSha256": "6818a33e46c7fbeca815dea44151f894dad0650e7df208866f1cbf5fc304b7db"
     },
+    "models/enemies/tinubu_stage1.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/tinubu_stage1.glb",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "2546bc2d092b32f6cc500055e92c397449bf52258697c0e334f383436f9d1fbe"
+    },
+    "models/enemies/tinubu_stage2.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/tinubu_stage2.glb",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "b22959919c70115f4a01855e305cea7e30541a7ec2ecda8c2fe1be20428d6378"
+    },
+    "models/enemies/tinubu_stage3.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/characters/tinubu_stage3.glb",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "457837b873781d8231d8c444cbaea7bd277671e003105d9f79d47a588101b7e1"
+    },
     "models/enemies/wisp.glb": {
       "repo": "sproto-duel",
       "path": "public/assets/models/rigged/sahil_stage1.glb",
       "commit": "555062752f61e76af56000c8da46ed9865a9ee7d",
       "sourceSha256": "4db33e1e34aa721c4ab1b62f972dada406afefc6de5d5709958d23fbd508ac84",
       "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "models/gear/grappler.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/gear/grappler.glb",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "8add18d81ace1c118f9955162ed044e6f39b7329d9b34298955ea9774c0391f4"
     },
     "models/interactables/chest.glb": {
       "repo": "sproto-shooter",
@@ -532,6 +586,13 @@
       "sourceSha256": "b0ee387b858cb9193cf0b5d2d16c7bad42347c57b4521c7fd89083a622635f9d",
       "derived": "drop Cube + clips idle + resample + static channels dropped + simplify(0.4) + webp ≤256 px + meshopt"
     },
+    "models/pickups/ammo_box.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/pickups/ammo_box.glb.gz",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "94113511d018858efe0635f622a1204f0622e1291d12edb2b92591b040776931",
+      "derived": "resample + static channels dropped + meshopt"
+    },
     "models/pickups/gem.glb": {
       "repo": "sproto-shooter",
       "path": "public/assets/models/pickups/gem.glb.gz",
@@ -551,6 +612,48 @@
       "path": "public/assets/models/pickups/potion.glb.gz",
       "commit": "44d12b632e6922a8bea343048a1ff11fcd5fcf6e",
       "sourceSha256": "199192693faa57dca82fbda6f09ab5e5eeaaae1fcaa5fa28119378510c058bdd",
+      "derived": "resample + static channels dropped + meshopt"
+    },
+    "models/projectiles/bomb.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/projectiles/bomb.glb.gz",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "122b75f443a8ddb3e38b18594bc60f6d3b9925cc5b554b1a13d1d37aa1a12ade",
+      "derived": "resample + static channels dropped + meshopt"
+    },
+    "models/projectiles/drill_head.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/projectiles/drill_head.glb",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "29e5c0b1a9c1dd3b82d0ab6e4aa5f9f2426a50817cee3ff66c5677a37348fb62",
+      "derived": "resample + static channels dropped + webp ≤256 px + meshopt"
+    },
+    "models/projectiles/duck.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/projectiles/duck.glb.gz",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "2dd846d435d1d45ba06f9755d46bc23ac48e8dc7cbebc811bc08df277ae7b951",
+      "derived": "resample + static channels dropped + meshopt"
+    },
+    "models/projectiles/missile.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/projectiles/missile.glb.gz",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "a2abd11a4c882546eddad4bbf4cc6098e49593c9c20b7e054bb6b102526dfcf2",
+      "derived": "resample + static channels dropped + simplify(0.5) + webp ≤256 px + meshopt"
+    },
+    "models/projectiles/rubber_bullet.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/projectiles/rubber_bullet.glb.gz",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "1feb57b2be0ed418fc939cb5597b585a350af1ba027977a3ae413e72b13bebde",
+      "derived": "resample + static channels dropped + simplify(0.25) + webp ≤256 px + meshopt"
+    },
+    "models/projectiles/tyre.glb": {
+      "repo": "sproto-shooter",
+      "path": "public/assets/models/projectiles/tyre.glb",
+      "commit": "916d5357bbf8c242a6a32199d4d56aad4ad074a3",
+      "sourceSha256": "16cc094707a1c5919573f8f35fbe8a5d2af01e79b4bfc689b6266493ab080480",
       "derived": "resample + static channels dropped + meshopt"
     },
     "models/props/bench-lod1.glb": {

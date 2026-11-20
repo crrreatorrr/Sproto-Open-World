@@ -12,7 +12,7 @@ const fixture = (name: string): Record<string, unknown> => JSON.parse(fs.readFil
 
 describe('save migrations (M3 acceptance 2)', () => {
   it(`the current schema is ${SAVE_SCHEMA} and has a fixture`, () => {
-    expect(SAVE_SCHEMA).toBe(5);
+    expect(SAVE_SCHEMA).toBe(6);
     expect(fixture(`save-v${SAVE_SCHEMA}.json`).schema).toBe(SAVE_SCHEMA);
   });
 
@@ -40,7 +40,11 @@ describe('save migrations (M3 acceptance 2)', () => {
   it('v1 → v3: the attributes become skills and the points are topped up to 2 per level-up', () => {
     const s = migrate(fixture('save-v1.json'));
     // Level 3, Might 1 and Vitality 1: Attack 1, Defense 1, and 2 × 2 − 2 = 2 points to spend.
-    expect(s.player.skills).toEqual({ spellPower: 0, protection: 0, focus: 0, attack: 1, defense: 1, stamina: 0 });
+    expect(s.player.skills).toEqual({
+      spellPower: 0, protection: 0, focus: 0,
+      attack: 1, defense: 1, stamina: 0,
+      marksmanship: 0, handling: 0, logistics: 0,
+    });
     expect(s.player.points).toBe(2);
     expect(s.player.loadout).toEqual(['bolt', null, null, null]);
     expect(s.player).not.toHaveProperty('attrs');
@@ -51,7 +55,11 @@ describe('save migrations (M3 acceptance 2)', () => {
     const s = migrate(structuredClone(v2));
     expect(s.schema).toBe(SAVE_SCHEMA);
     expect(s.player.loadout).toEqual(['bolt', 'blast', null, null]);
-    expect(s.player.skills).toEqual({ spellPower: 1, protection: 0, focus: 0, attack: 0, defense: 0, stamina: 0 });
+    expect(s.player.skills).toEqual({
+      spellPower: 1, protection: 0, focus: 0,
+      attack: 0, defense: 0, stamina: 0,
+      marksmanship: 0, handling: 0, logistics: 0,
+    });
     expect(s.player.points).toBe(1);
     expect(s.player).not.toHaveProperty('attrs');
     const p2 = v2.player as Record<string, unknown>;
@@ -118,29 +126,58 @@ describe('save migrations (M3 acceptance 2)', () => {
   });
 
   it('the current schema passes unchanged', () => {
-    const v5 = fixture('save-v5.json');
-    expect(migrate(structuredClone(v5))).toEqual(v5);
+    const v6 = fixture('save-v6.json');
+    expect(migrate(structuredClone(v6))).toEqual(v6);
   });
 
-  it('v4 → v5: an old save is a Wizard\'s (no class field) and keeps everything', () => {
+  it('v4 → v6: an old save is a Wizard\'s (no class field) and grows v6 defaults', () => {
     const v4 = fixture('save-v4.json');
     const s = migrate(structuredClone(v4));
-    expect(s.schema).toBe(5);
+    expect(s.schema).toBe(6);
     expect(s.player.class).toBeUndefined();
-    expect({ ...s, schema: 4 }).toEqual(v4);
+    expect(s.player.skills).toMatchObject({ marksmanship: 0, handling: 0, logistics: 0 });
+    expect(s.player.weapons).toEqual([s.player.equipment.staff, null, null, null]);
+    expect(s.player.activeWeaponSlot).toBe(0);
+    expect(s.player.guns).toEqual([]);
+    expect(s.player.ammo).toEqual({ light: 120, shells: 24, sniper: 16, rockets: 6 });
+    expect(s.player.abilities).toEqual({ slide: false, dash: false, doubleJump: false, grapple: false });
+    expect(s.player.dungeonProgress).toEqual({});
   });
 
-  it('v5: a gun class keeps its gun; a staff in its weapon slot falls back to the class\'s starting gun', () => {
+  it('v5 → v6: preserves class, adds Gunslinger skills & weapon bar, and allows any owned weapon on any class', () => {
     const v5 = fixture('save-v5.json');
+    const migrated = migrate(structuredClone(v5));
+    expect(migrated.schema).toBe(6);
+    expect(migrated.player.class).toBe('soldier');
+    expect(migrated.player.skills).toEqual({
+      spellPower: 2, protection: 0, focus: 1,
+      attack: 0, defense: 0, stamina: 0,
+      marksmanship: 0, handling: 0, logistics: 0,
+    });
+    expect(migrated.player.weapons).toEqual(['gun_mg', null, null, null]);
+    expect(migrated.player.activeWeaponSlot).toBe(0);
+    expect(migrated.player.guns).toEqual([]);
+    expect(migrated.player.ammo).toEqual({ light: 120, shells: 24, sniper: 16, rockets: 6 });
+    expect(migrated.player.abilities).toEqual({ slide: false, dash: false, doubleJump: false, grapple: false });
+    expect(migrated.player.dungeonProgress).toEqual({});
+
+    // Lifted weapon lock: a Soldier holding an owned staff keeps it, and a Wizard holding an owned gun keeps it.
     const p = v5.player as Record<string, unknown>;
-    const s = migrate({ ...structuredClone(v5), player: { ...p, equipment: { ...(p.equipment as object), staff: 'staff_sproto' }, inventory: { ...(p.inventory as object), staff_sproto: 1 } } });
-    expect(s.player.class).toBe('soldier');
-    expect(s.player.equipment.staff).toBe('gun_mg');
-    // And a Wizard holding a gun gets the Sprout Staff back.
+    const solWithStaff = migrate({ ...structuredClone(v5), player: { ...p, equipment: { ...(p.equipment as object), staff: 'staff_sproto' }, inventory: { ...(p.inventory as object), staff_sproto: 1 } } });
+    expect(solWithStaff.player.class).toBe('soldier');
+    expect(solWithStaff.player.equipment.staff).toBe('staff_sproto');
+    expect(solWithStaff.player.weapons).toEqual(['staff_sproto', null, null, null]);
+
     const v4 = fixture('save-v4.json');
     const q = v4.player as Record<string, unknown>;
-    const w = migrate({ ...structuredClone(v4), player: { ...q, equipment: { ...(q.equipment as object), staff: 'gun_mg' }, inventory: { ...(q.inventory as object), gun_mg: 1 } } });
-    expect(w.player.equipment.staff).toBe('staff_sproto');
+    const wizWithGun = migrate({ ...structuredClone(v4), player: { ...q, equipment: { ...(q.equipment as object), staff: 'gun_mg' }, inventory: { ...(q.inventory as object), gun_mg: 1 } } });
+    expect(wizWithGun.player.equipment.staff).toBe('gun_mg');
+    expect(wizWithGun.player.weapons).toEqual(['gun_mg', null, null, null]);
+
+    // An unowned weapon still falls back to the class starter and stays synced with weapons[0].
+    const missing = migrate({ ...structuredClone(v5), player: { ...p, equipment: { ...(p.equipment as object), staff: 'staff_nobu' } } });
+    expect(missing.player.equipment.staff).toBe('gun_mg');
+    expect(missing.player.weapons).toEqual(['gun_mg', null, null, null]);
   });
 
   it('an unknown class is a damaged save', () => {
@@ -155,9 +192,10 @@ describe('save migrations (M3 acceptance 2)', () => {
     // The fixture finished Wake Up, Sproto, whose shrine step gives Elder's Hearth.
     expect(s.player.relics).toEqual({ sockets: [null, null, null], totem: null, owned: ['totem_elders_hearth'], seedSpent: false, introduced: false });
     const p3 = v3.player as Record<string, unknown>;
-    for (const k of ['level', 'xp', 'sprouts', 'equipment', 'inventory', 'spells', 'loadout', 'skills', 'points', 'tonics', 'quests', 'tracked', 'lastShrine', 'discoveredShrines'] as const) {
+    for (const k of ['level', 'xp', 'sprouts', 'equipment', 'inventory', 'spells', 'loadout', 'points', 'tonics', 'quests', 'tracked', 'lastShrine', 'discoveredShrines'] as const) {
       expect(s.player[k], k).toEqual(p3[k]);
     }
+    expect(s.player.skills).toEqual({ ...(p3.skills as object), marksmanship: 0, handling: 0, logistics: 0 });
     expect(s.world).toEqual(v3.world);
   });
 
