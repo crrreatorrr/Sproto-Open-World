@@ -3,7 +3,7 @@ import { AssetLoader } from '../assets/AssetLoader';
 import { MODELS, STAFF_BOOT_LOD, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
 import { zoneAt } from '../audio/zones';
-import { CameraRig } from '../camera/CameraRig';
+import { CAM, CameraRig, type CameraOccluder } from '../camera/CameraRig';
 import { classOf, firesAsBullets, type ClassId, type GunDef } from '../content/classes';
 import { ITEMS } from '../content/items';
 import { keepsake, keepsakeIcon } from '../content/relics';
@@ -16,7 +16,8 @@ import { staffCostMult } from '../content/packs/c2';
 import { QUESTS, type QuestOffer } from '../content/quests';
 import { SANDBOX } from '../content/sandbox';
 import { SPELLS, WOVEN, type SpellId } from '../content/spells';
-import { DT } from '../content/tuning';
+import { MOUNT } from '../content/mounts';
+import { DT, PLAYER_BODY } from '../content/tuning';
 import { worldLevel } from '../content/world/level';
 import { WORLD_CONTENT } from '../content/world/worldContent';
 import { frameDataLines, targetLines } from '../debug/frameData';
@@ -865,6 +866,7 @@ export class App {
     this.target.copy(view.root.position);
     this.rig.riding = p.riding !== undefined && p.riding.state !== 'dismounting';
     this.rig.flight = p.riding?.flight ? { yaw: p.tf.yaw, pitch: p.riding.flight.pitch } : null;
+    this.rig.occluders = this.cameraOccluders(simView, p);
     this.rig.update(dt, this.target, simView, p.loco?.sprinting ?? false, this.speakerPoint(simView, p) ?? this.lockPoint(simView, p));
     this.renderer.follow(this.target);
     // Screen-space UI projects through this frame's camera.
@@ -1645,6 +1647,21 @@ export class App {
     el.classList.remove('go');
     void el.offsetWidth;
     el.classList.add('go');
+  }
+
+  /** What the centre of the screen must see past: the player as drawn, and the bull under them. */
+  private cameraOccluders(view: ReadonlySimView, p: Readonly<Entity>): CameraOccluder[] {
+    const at = this.target;
+    const r = PLAYER_BODY.radius;
+    const seated = p.riding?.state === 'riding';
+    const out: CameraOccluder[] = [{ x: at.x, z: at.z, yaw: 0, halfWidth: r, halfLength: r, top: at.y + (seated ? CAM.riderTop : CAM.footTop) }];
+    const bull = p.riding ? view.get(p.riding.mount) : undefined;
+    if (bull) {
+      // Seated, the bull stands where the rider is drawn; the sim's own position is a tick ahead of that.
+      const { x, y, z } = seated ? { x: at.x, y: bull.tf.pos.y, z: at.z } : bull.tf.pos;
+      out.push({ x, z, yaw: bull.tf.yaw, halfWidth: MOUNT.bodyHalfWidth, halfLength: CAM.bullHalfLength, top: y - MOUNT.seatLift + CAM.bullTop });
+    }
+    return out;
   }
 
   /** The player's lock target's chest (interpolated with its view), or null when not locked. */
