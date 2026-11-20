@@ -18,6 +18,7 @@ import {
   refillTonics,
 } from './systems/rpg';
 import { questPolish } from './systems/encounters';
+import { LENS_PREVIEW_FLAG } from '../content/packs/encounterTune';
 import { DT, MOVE, PLAYER_BODY } from '../content/tuning';
 import { enemyBrains, muzzle } from './ai/brain';
 import type { CommandMap } from './commands';
@@ -40,6 +41,7 @@ import { stepHazards } from './combat/hazards';
 import { bossArena, bossEngaged, newBossState, type BossHost } from './systems/boss';
 import { locomotion } from './systems/locomotion';
 import { gearLocked, markTargeted } from './systems/loadout';
+import { relicSlowTick } from './systems/relics';
 import { mountCalls, MOUNT_RUNNER } from './systems/mountCall';
 import { cancelMount, followRiders, ridingMotion } from './systems/riding';
 import { vitals } from './systems/vitals';
@@ -91,6 +93,16 @@ interface QueuedCell {
   bodyMade: boolean;
   /** Next prop shape to add. */
   next: number;
+}
+
+/** World flags that hold a tick of this session (the clock restarts at 0 on load), never saved. */
+const SESSION_FLAGS: readonly string[] = [LENS_PREVIEW_FLAG];
+
+/** A copy of the world state for a save, or from one, without the session-only flags. */
+function savedWorld(world: WorldState): WorldState {
+  const copy = structuredClone(world);
+  for (const k of SESSION_FLAGS) delete copy.flags[k];
+  return copy;
 }
 
 /**
@@ -434,7 +446,7 @@ export class SimWorld {
     void _d;
     void _s;
     void _a;
-    return { schema: SAVE_SCHEMA, ...meta, player: rest, world: structuredClone(this.world) };
+    return { schema: SAVE_SCHEMA, ...meta, player: rest, world: savedWorld(this.world) };
   }
 
   /** Load a save into the spawned player and the world (call after spawnPlayer / populateWorld). */
@@ -442,7 +454,8 @@ export class SimWorld {
     const e = this.playerEntity(player);
     if (!e) throw new Error('applySave: no player');
     e.progress = { ...structuredClone(save.player), dialogue: null, shop: null, atShrine: null };
-    this.world = structuredClone(save.world);
+    // A save made before session ticks were kept out still has them: drop them, the clock restarts.
+    this.world = savedWorld(save.world);
     this.rollCampAffixes();
     for (const x of this.entities) {
       if (x.interactable?.kind === 'chest') x.interactable.used = this.world.openedChests.includes(x.interactable.id);
@@ -502,9 +515,8 @@ export class SimWorld {
       tf: { pos: from, prevPos: { ...from }, yaw: owner.tf.yaw, prevYaw: owner.tf.yaw, vel: { x: (d.x / len) * sp, y: (d.y / len) * sp, z: (d.z / len) * sp } },
       projectile: {
         owner: owner.id, team: owner.combat!.team, kind: move.kind, damage: move.damage, poise: move.poise, radius: move.projectile.radius,
-        life: Math.ceil(move.projectile.range / (sp * DT)), reflected: false,
+        life: Math.ceil(move.projectile.range / (sp * DT)), reflected: false, sourceMove: move.id,
         homing: move.projectile.homing, target: move.projectile.homing ? target.id : undefined,
-        move: move.id,
         ...(move.projectile.reflectBonus ? { reflectBonus: { ...move.projectile.reflectBonus, shooter: owner.id } } : {}),
         ...(move.projectile.status ? { status: { ...move.projectile.status } } : {}),
       },
@@ -735,6 +747,8 @@ export class SimWorld {
         frozen.add(e.id);
       }
     }
+    // Hopeglass: solo play skips every other tick; co-op adds a short freeze instead of slowing time.
+    if (relicSlowTick(this.entities, this.now)) for (const e of this.entities) frozen.add(e.id);
     // RPG intents and interact / potion presses first. A player in a menu or talking sends no
     // gameplay input this tick.
     this.syncPortals();
@@ -747,7 +761,7 @@ export class SimWorld {
       // Hit-stop freezes combat, not menus: intents and interact/potion presses still apply.
       if (!e.progress || e.owner === undefined) continue;
       const cmd = commands.get(e.owner);
-      const busy = playerRpg(rpg, e, cmd?.pressed ?? 0, cmd?.ui ?? [], this.chests);
+      const busy = playerRpg(rpg, e, cmd?.pressed ?? 0, cmd?.ui ?? [], this.chests, cmd?.held ?? 0);
       if (busy) effective.set(e.owner, { ...idleInput(cmd?.camYaw ?? e.tf.yaw) });
     }
     // Travel is applied here, not through RpgCtx: the destination's arrive point, then a settle onto its floor.
@@ -781,7 +795,7 @@ export class SimWorld {
     for (const { entity, source } of tickStatuses(ctx)) {
       if (entity.combat?.action?.kind !== 'dead') kill(ctx, entity, this.byId.get(source) ?? null);
     }
-    vitals(this.entities, frozen);
+    vitals(this.entities, frozen, this.now);
     // Kills feed XP and loot; then pickups, triggers and the quest runtime see this tick's events.
     for (const ev of [...this.events]) {
       if (ev.type !== 'death' || ev.killer === null) continue;
@@ -941,6 +955,7 @@ export class SimWorld {
       e.brain.dodges = 0;
       delete e.brain.wasStaggered;
       e.brain.fleeTo = null;
+      delete e.brain.fleeUntil;
       if (e.brain.carryHome) e.brain.carry = e.brain.carryHome;
     }
     delete e.statuses;

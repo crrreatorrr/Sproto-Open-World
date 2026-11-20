@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <g transform="translate(1.0000 1.2368) scale(0.125417)">
+    <g transform="translate(-8.122683,182.130297) scale(0.100000,-0.100000)" fill="currentColor" stroke="none">
+    <path d="M785 1805 c-621 -117 -909 -834 -541 -1349 113 -158 308 -288 501
+-333 107 -24 330 -24 430 0 90 23 252 103 338 168 135 102 257 286 303 459 26
+94 26 329 0 425 -117 444 -566 718 -1031 630z"/>
+    </g>
+  </g>
+</svg>

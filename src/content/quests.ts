@@ -22,10 +22,10 @@ export type Objective =
   /**
    * Do a combat feat `count` times: land a heavy, perfect-dodge an attack, parry one (M4 drills),
    * or fell something with a reflected shot (`reflectKill`). `against` limits it to that enemy.
-   * `source` is the enemy move the shot came from. `fatal` counts only the shot that kills.
+   * `sourceMove` is the enemy move the shot came from. `fatal` counts only the shot that kills.
    * `perFight` resets the count when that fight ends short of `count`.
    */
-  | { kind: 'feat'; feat: 'heavyHit' | 'perfectDodge' | 'parry' | 'reflectKill'; count: number; against?: string; source?: string; fatal?: boolean; perFight?: boolean };
+  | { kind: 'feat'; feat: 'heavyHit' | 'perfectDodge' | 'parry' | 'reflectKill'; count: number; against?: string; sourceMove?: string; fatal?: boolean; perFight?: boolean };
 
 export type Effect =
   | { give: string; count?: number }
@@ -117,7 +117,7 @@ export const QUESTS: Record<string, QuestDef> = {
         id: 'seed', text: 'Bring the Sprout Seed to Elder Pepe.', marker: 'elder_pepe',
         objectives: [{ kind: 'collect', item: 'sprout_seed', count: 1, consume: true }, { kind: 'talk', npc: 'elder_pepe', node: 'seed_return' }],
       },
-      { id: 'shrine', text: 'Rest at the Shrine of First Light.', objectives: [{ kind: 'interact', object: 'shrine_first_light' }], marker: 'shrine_first_light' },
+      { id: 'shrine', text: 'Rest at the Shrine of First Light.', objectives: [{ kind: 'interact', object: 'shrine_first_light' }], marker: 'shrine_first_light', onComplete: [{ give: 'totem_elders_hearth' }] },
     ],
     rewards: [{ xp: 60 }, { currency: 20 }],
   },
@@ -131,7 +131,7 @@ export const QUESTS: Record<string, QuestDef> = {
     prereq: [{ quest: 'q_wake_up', status: 'complete' }],
     steps: [
       { id: 'orchard', text: 'Go west to the Orchard Fields.', objectives: [{ kind: 'reach', trigger: 'orchard_fields' }], marker: 'orchard_fields' },
-      { id: 'grunts', text: 'Drive off the Grunts in the Orchard.', objectives: [{ kind: 'kill', tag: 'grunt', count: 8 }], marker: 'orchard_fields' },
+      { id: 'grunts', text: 'Drive off the Grunts in the Orchard.', objectives: [{ kind: 'kill', tag: 'grunt', count: 8 }], marker: 'orchard_fields', onComplete: [{ give: 'totem_field_warden' }] },
       { id: 'farmer', text: 'Tell Farmer Broccoli the fields are clear.', objectives: [{ kind: 'talk', npc: 'farmer_broccoli', node: 'pest_done' }], marker: 'farmer_broccoli' },
     ],
     rewards: [{ learnSpell: 'blast' }, { xp: 180 }, { currency: 40 }],
@@ -147,7 +147,7 @@ export const QUESTS: Record<string, QuestDef> = {
       { id: 'hill', text: 'Climb Watchtower Hill.', objectives: [{ kind: 'reach', trigger: 'watchtower_hill' }], marker: 'watchtower_hill' },
       {
         id: 'slingers', text: 'Defeat the Coin Slingers on the hill.', objectives: [{ kind: 'kill', tag: 'slinger', count: 5 }], marker: 'watchtower_hill',
-        bonus: { flag: 'bonus.q_watchtower.reflect', objective: { kind: 'feat', feat: 'reflectKill', count: 3, against: 'slinger', source: 'coinBurst' } },
+        bonus: { flag: 'bonus.q_watchtower.reflect', objective: { kind: 'feat', feat: 'reflectKill', count: 3, against: 'slinger', sourceMove: 'coinBurst' } },
       },
       { id: 'beacon', text: 'Light the beacon.', objectives: [{ kind: 'interact', object: 'watchtower_beacon' }], marker: 'watchtower_beacon' },
       { id: 'rest', text: 'Rest at the Watchtower Shrine.', objectives: [{ kind: 'interact', object: 'shrine_watchtower' }], marker: 'shrine_watchtower' },
@@ -166,11 +166,11 @@ export const QUESTS: Record<string, QuestDef> = {
         id: 'gatekeeper', text: 'Defeat the Gatekeeper.', objectives: [{ kind: 'kill', tag: 'gatekeeper', count: 1 }], marker: 'thornwood_clearing',
         // The key and the robe are given, not dropped: a drop could fade before you pick it up, and
         // the Gatekeeper never comes back.
-        onComplete: [{ give: 'quarry_key' }, { give: 'robe_quarryproof' }],
+        onComplete: [{ give: 'quarry_key' }, { give: 'robe_quarryproof' }, { give: 'relic_gatekeepers_grip' }],
       },
       { id: 'key', text: 'Take the Quarry Key.', objectives: [{ kind: 'collect', item: 'quarry_key', count: 1 }], marker: 'thornwood_clearing' },
     ],
-    rewards: [{ xp: 450 }, { setFlag: 'gate.quarry.key' }],
+    rewards: [{ xp: 450 }, { setFlag: 'gate.quarry.key' }, { give: 'relic_drowned_coins' }],
   },
 
   // ---- M4: side quests (plan §6.3) ----
@@ -193,6 +193,7 @@ export const QUESTS: Record<string, QuestDef> = {
     steps: [
       { id: 'mill', text: 'Go to the Old Mill across the river.', objectives: [{ kind: 'reach', trigger: 'mill' }], marker: 'mill' },
       { id: 'coin', text: 'Defeat Big Coin.', objectives: [{ kind: 'kill', tag: 'big_coin', count: 1 }], marker: 'mill' },
+      // Pulling it shakes Tinubu's Broken Seal out of the wheel: the `hook.tinubu_seal` flag grants it (sim/systems/relics.ts).
       { id: 'lever', text: 'Pull the mill lever.', objectives: [{ kind: 'interact', object: 'mill_lever' }], marker: 'mill_lever' },
     ],
     rewards: [{ learnSpell: 'chainZap' }, { xp: 200 }, { currency: 50 }],
@@ -208,7 +209,7 @@ export const QUESTS: Record<string, QuestDef> = {
         clue: 'shimmer',
         objectives: [{ kind: 'interact', object: 'relic_mill' }, { kind: 'interact', object: 'relic_rootarch' }, { kind: 'interact', object: 'relic_beanstalk' }],
       },
-      { id: 'return', text: 'Tell Collector Pepe what you found.', objectives: [{ kind: 'talk', npc: 'collector_pepe', node: 'relics_done' }], marker: 'collector_pepe' },
+      { id: 'return', text: 'Tell Collector Pepe what you found.', objectives: [{ kind: 'talk', npc: 'collector_pepe', node: 'relics_done' }], marker: 'collector_pepe', onComplete: [{ give: 'totem_seekers_lantern' }] },
     ],
     rewards: [{ give: 'staff_moonward' }, { give: 'charm_scholars_knot' }, { xp: 300 }],
   },
@@ -220,31 +221,29 @@ Object.assign(QUESTS, C6_QUESTS);
 registerScrapjawQuest(QUESTS);
 
 /**
- * Quest-log clue lines (text only). The silhouette beside a quest is workstream B.
- * Handover lines in the dialogue name the same items; B grants them. Three lines that
- * remember a bonus relic stay gated on hasItem until that item exists:
- * relic_drowned_coins (elder_pepe.after_tower_myth), relic_sprotos_stride (ranger_moss.after_myth),
- * relic_elder_iron_rivet (watch_captain.a3_rivet).
+ * Quest-log clue lines. Each one is the relic or totem card's clue, so the log and the card agree.
+ * The three bonus closings (elder_pepe.after_tower_myth, ranger_moss.after_myth, watch_captain.a3_rivet)
+ * ask hasItem; a keepsake in relics.owned counts.
  */
 export const QUEST_CLUES: Record<string, string> = {
-  q_wake_up: 'The first fire still waits where you rest.',
-  q_pest_control: "Something in the fields draws every Grunt's eye.",
+  q_wake_up: 'The first fire you rest beside keeps a seat.',
+  q_pest_control: "Something in the orchard holds the small ones' gaze.",
   q_watchtower: 'A watchman once kept something under the bell.',
   q_thornwood: 'The hand that held the wood shut left something behind.',
-  q_mill: 'Something grim still sits caught in the mill wheel.',
-  q_relics: 'The valley hid one more thing in plain sight.',
-  q_rivet_volley: 'A stone by the road knows how to turn a shot.',
-  q_lens_flare: 'The ridge kept a way of seeing the blow early.',
-  q_iron_gallery: 'Old iron in the salvage still answers when struck.',
-  q_hollow_giant: 'The old stories left a way to be elsewhere when the blow falls.',
-  q_weavers_thorns: 'Where the surge runs close to the ground, the hedge keeps something.',
-  q_elders_garden: 'The garden keeps a piece of itself for the road.',
-  q_tremors: 'The ground will speak a little early, for a careful ear.',
+  q_mill: "The mill wheel once held a tyrant's mark.",
+  q_relics: 'The valley hid a light for what sits in plain sight.',
+  q_rivet_volley: 'A stone in the salvage yard turns a shot around.',
+  q_lens_flare: 'The ridge glass still looks a moment ahead.',
+  q_iron_gallery: 'Struck iron from the old camps answers back.',
+  q_hollow_giant: 'The giant prints remember a lighter step.',
+  q_weavers_thorns: "The weaver's hedge keeps a living cuff.",
+  q_elders_garden: 'The garden stones remember a seed for the road.',
+  q_tremors: 'The quarry crew left a stake that hears the ground.',
   q_deep_seam: 'The deep earth breathes for those who listen.',
-  q_scrapjaw: 'The beast carried a green the old folk still name.',
-  q_smoke_hills: 'Something for hayfires, and for worse, waits in the smoke.',
-  q_bait: 'Something in the open field calls what flies.',
-  q_skyfire: 'What falls from that sky meets the ground gently.',
+  q_scrapjaw: 'Something green slept in the beast under the quarry.',
+  q_smoke_hills: 'Smoke on the hills left a pail that puts fire out.',
+  q_bait: 'An ugly little post still brings flyers down to look.',
+  q_skyfire: 'What fell out of the sky still softens a landing.',
 };
 
 for (const [id, clue] of Object.entries(QUEST_CLUES)) if (QUESTS[id]) QUESTS[id].clue = clue;

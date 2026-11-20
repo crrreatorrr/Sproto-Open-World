@@ -98,7 +98,8 @@ function orbit(ctx: CombatCtx, e: Entity, def: EnemyDef, s: DrakeFlight, target:
   const x = s.cx + Math.sin(s.angle) * fly.orbitRadius;
   const z = s.cz + Math.cos(s.angle) * fly.orbitRadius;
   const [lo, hi] = fly.altitude;
-  const y = s.ground + lerp(lo, hi, 0.5 + 0.5 * Math.sin(ctx.now * ALTITUDE_RATE));
+  const pulled = (e.brain?.lowUntil ?? 0) > ctx.now;
+  const y = s.ground + (pulled ? lo * 0.45 : lerp(lo, hi, 0.5 + 0.5 * Math.sin(ctx.now * ALTITUDE_RATE)));
   const p = e.tf.pos;
   const off = Math.hypot(x - p.x, y - p.y, z - p.z);
   flyToward(e, physics, x, y, z, speed * clamp(off / CATCH_UP_DIST, 1, CATCH_UP_MAX));

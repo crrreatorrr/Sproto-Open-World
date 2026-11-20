@@ -3,19 +3,22 @@ import { SKILL_EFFECT } from '../../content/progression';
 import { DT } from '../../content/tuning';
 import { poiseRegenRate } from '../combat/statuses';
 import type { Entity } from '../entity';
+import { lengthenBuffer, sprintDrain, tickTotems } from './relics';
 
 /**
  * Stamina and mana regeneration, sprint drain, poise refill (plan §4.5). Entities frozen in
  * hit-stop don't regenerate that tick.
  */
-export function vitals(entities: readonly Entity[], frozen: ReadonlySet<number>): void {
+export function vitals(entities: readonly Entity[], frozen: ReadonlySet<number>, now = 0): void {
+  tickTotems(entities, now);
   for (const e of entities) {
     const v = e.vitals;
     const c = e.combat;
     if (!v || frozen.has(e.id) || c?.action?.kind === 'dead') continue;
     // On the bull, the bull does the running.
+    if (e.progress) lengthenBuffer(e, now);
     if (e.loco?.sprinting && !e.riding) {
-      v.stamina = Math.max(0, v.stamina - PLAYER_STATS.sprintCost * DT);
+      v.stamina = Math.max(0, v.stamina - (e.progress ? sprintDrain(e) : PLAYER_STATS.sprintCost) * DT);
       v.staminaDelay = PLAYER_STATS.staminaDelay;
     } else if (v.staminaDelay > 0) v.staminaDelay--;
     else if (c?.action?.kind !== 'block') v.stamina = Math.min(v.staminaMax, v.stamina + PLAYER_STATS.staminaRegen * DT);

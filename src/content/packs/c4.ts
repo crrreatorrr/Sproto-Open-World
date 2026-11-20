@@ -289,7 +289,7 @@ export const C4_QUESTS: Record<string, QuestDef> = {
       { id: 'brief', text: 'Hear out the Watch Captain.', objectives: [{ kind: 'talk', npc: 'watch_captain', node: 'a1_brief' }], marker: 'watch_captain' },
       { id: 'yard', text: 'Reach the salvage yard at the east end of the Orchard.', objectives: [{ kind: 'reach', trigger: 'salvage_yard_gate' }], marker: 'salvage_yard_gate' },
       { id: 'gunners', text: 'Destroy the Rivet Gunners.', objectives: [{ kind: 'kill', tag: 'rivet_gunner', count: 3 }], marker: 'salvage_yard_gate' },
-      { id: 'return', text: 'Report to the Watch Captain.', objectives: [{ kind: 'talk', npc: 'watch_captain', node: 'a1_done' }], marker: 'watch_captain' },
+      { id: 'return', text: 'Report to the Watch Captain.', objectives: [{ kind: 'talk', npc: 'watch_captain', node: 'a1_done' }], marker: 'watch_captain', onComplete: [{ give: 'totem_turnstone' }] },
     ],
     rewards: [{ learnSpell: spell('mirrorWard') }, { xp: 260 }, { currency: 50 }],
   },
@@ -303,7 +303,7 @@ export const C4_QUESTS: Record<string, QuestDef> = {
     steps: [
       { id: 'loft', text: 'Climb the ridge behind the Old Mill.', objectives: [{ kind: 'reach', trigger: 'mill_loft' }], marker: 'mill_loft' },
       { id: 'warden', text: 'Destroy the Lens Warden.', objectives: [{ kind: 'kill', tag: 'lens_warden', count: 1 }], marker: 'mill_loft' },
-      { id: 'lens', text: "Study the Warden's lens.", objectives: [{ kind: 'interact', object: 'mill_lens' }], marker: 'mill_lens' },
+      { id: 'lens', text: "Study the Warden's lens.", objectives: [{ kind: 'interact', object: 'mill_lens' }], marker: 'mill_lens', onComplete: [{ give: 'relic_oracles_eye' }] },
     ],
     rewards: [{ learnSpell: spell('staticSnare') }, { xp: 320 }, { currency: 60 }],
   },
@@ -317,7 +317,7 @@ export const C4_QUESTS: Record<string, QuestDef> = {
     steps: [
       {
         id: 'gunners', text: 'Destroy 8 Rivet Gunners at the salvage camps.', objectives: [{ kind: 'kill', tag: 'rivet_gunner', count: 8 }], marker: 'salvage_yard_gate',
-        bonus: { flag: 'bonus.q_iron_gallery.reflect', objective: { kind: 'feat', feat: 'reflectKill', count: 2, against: 'rivet_gunner', source: 'charged_shot', fatal: true } },
+        bonus: { flag: 'bonus.q_iron_gallery.reflect', objective: { kind: 'feat', feat: 'reflectKill', count: 2, against: 'rivet_gunner', sourceMove: 'charged_shot', fatal: true } },
       },
       { id: 'rivets', text: 'Collect 5 Rivets from the wrecks.', objectives: [{ kind: 'collect', item: 'rivet', count: 5, consume: true }], marker: 'salvage_yard_gate' },
       { id: 'return', text: 'Bring the Rivets to the Watch Captain.', objectives: [{ kind: 'talk', npc: 'watch_captain', node: 'a3_done' }], marker: 'watch_captain' },
@@ -366,7 +366,7 @@ export const C4_QUESTS: Record<string, QuestDef> = {
     steps: [
       { id: 'brief', text: 'Hear out Tansy the Weaver.', objectives: [{ kind: 'talk', npc: 'weaver_tansy', node: 'a7_brief' }], marker: 'weaver_tansy' },
       { id: 'seeds', text: 'Collect 4 Thorn Seeds from Hex Wisps in the Thornwood.', objectives: [{ kind: 'collect', item: 'thorn_seed', count: 4, consume: true }], marker: 'wisp_wood' },
-      { id: 'return', text: 'Bring the seeds to Tansy.', objectives: [{ kind: 'talk', npc: 'weaver_tansy', node: 'a7_done' }], marker: 'weaver_tansy' },
+      { id: 'return', text: 'Bring the seeds to Tansy.', objectives: [{ kind: 'talk', npc: 'weaver_tansy', node: 'a7_done' }], marker: 'weaver_tansy', onComplete: [{ give: 'relic_surgebriar' }] },
     ],
     rewards: [{ learnSpell: spell('brambleWall') }, { xp: 1100 }, { currency: 90 }],
   },

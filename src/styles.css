@@ -189,8 +189,14 @@ h2 { margin: 0 0 4px; font-size: 34px; }
   12%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
 }
-.toast {
-  display: none; position: absolute; left: 50%; top: 72px; transform: translateX(-50%); max-width: min(560px, 92vw); padding: 9px 16px;
+.toast img.relic-art { display: inline-block; width: 32px; height: 32px; vertical-align: middle; margin-right: 8px; object-fit: contain; }
+.tracker .quest-mark {
+  float: right; width: 24px; height: 24px; background: currentColor;
+  -webkit-mask-size: contain; mask-size: contain;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+}
+.toast { display: none; position: absolute; left: 50%; top: 72px; transform: translateX(-50%); max-width: min(560px, 92vw); padding: 9px 16px;
   border-radius: 10px; background: var(--panel); border: 1px solid var(--panel-edge); font-size: 15px; text-align: center;
 }
 .toast.active { display: block; animation: toast-in 5s ease-out forwards; }

@@ -43,7 +43,7 @@ export function newFight(e: Readonly<Entity>): FightState {
     burst: null, burstT: 0, burstX: 0, burstZ: 0, burstSpeed: 0,
     lungeCd: 0, evadeCd: 0, punishCd: 0, eager: 0,
     hits: 0, hitAge: 0, poise: e.combat!.poise,
-    holdAt: 0, hold: 0, feintAt: -1, feinted: false,
+    feintAt: -1, feinted: false,
     vx: 0, vz: 0, lastX: e.tf.pos.x, lastZ: e.tf.pos.z, stuck: 0, detour: 0, detourDir: 1, cornered: 0,
     sight: true, blind: 0,
   };

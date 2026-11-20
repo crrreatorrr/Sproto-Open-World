@@ -84,6 +84,19 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
       continue;
     }
 
+    // Field Warden: ordinary enemies walk to the straw figure instead of the player.
+    const lure = b.lure;
+    if (lure && ctx.now >= lure.until) delete b.lure;
+    else if (lure && a?.kind !== 'attack') {
+      const dx = lure.x - e.tf.pos.x, dz = lure.z - e.tf.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 0.4) {
+        e.tf.yaw = turnToward(e.tf.yaw, Math.atan2(dx, dz), def.turnRate * DT);
+        ctx.motion.set(e.id, { vx: (dx / d) * def.moveSpeed, vz: (dz / d) * def.moveSpeed, inputScale: 0 });
+      } else still();
+      continue;
+    }
+
     // The Hex Wisp blinks away after enough melee hits in a row.
     if (def.blink && b.meleeHitsTaken >= def.blink.hits) {
       b.meleeHitsTaken = 0;
@@ -168,24 +181,28 @@ function hasToken(ctx: CombatCtx, e: Entity, def: EnemyDef, move: EnemyMoveDef, 
 /** The tick a delayed swing waits on: late in the wind-up, while it can still turn to follow the player. */
 const holdTick = (move: EnemyMoveDef) => Math.max(1, Math.floor(move.windup * Math.min(move.trackUntil, 0.6)) - 1);
 
-/** `hold`: extra ticks the wind-up waits at its peak. The telegraph counts them. */
+/**
+ * `hold`: extra ticks the wind-up waits at its peak (a fighter's delayed swing); otherwise the move's
+ * own `holdTicks`. The hold lives on the action, so a boss's or the Drake's held wind-up waits too.
+ * The telegraph counts it.
+ */
 function startAttack(ctx: CombatCtx, e: Entity, move: EnemyMoveDef, target: Entity | null, hold = 0): void {
   const c = e.combat!;
   const f = e.brain!.fight;
   if (f) {
-    f.hold = hold > 0 ? hold : (move.holdTicks ?? 0);
-    f.holdAt = holdTick(move);
     f.feintAt = -1;
     f.vx = f.vz = 0;
   }
   const aim = move.area && target ? { ...target.tf.pos } : undefined;
   const wait = hold > 0 ? hold : (move.holdTicks ?? 0);
-  c.action = { kind: 'attack', move: move.id, t: 0, clipT: 0, charge: 0, charging: false, charged: false, hit: [], lunge: 0, lungeDir: { x: 0, z: 0 }, fired: 0, aim };
+  c.action = {
+    kind: 'attack', move: move.id, t: 0, clipT: 0, charge: 0, charging: false, charged: false, hit: [], lunge: 0, lungeDir: { x: 0, z: 0 }, fired: 0, aim,
+    ...(wait > 0 ? { hold: wait, holdAt: holdTick(move) } : {}),
+  };
   e.brain!.cooldowns[move.id] = move.cooldown;
   const recent = e.brain!.recent;
   recent.push(move.id);
   if (recent.length > 2) recent.shift();
-  if (e.brain!.fight) e.brain!.fight.hold = wait;
   ctx.events.push({
     type: 'telegraph', entity: e.id, move: move.id, ticks: move.windup + wait, unblockable: !!move.unblockable, decal: move.decal,
     at: aim, radius: move.area?.radius,
@@ -201,7 +218,7 @@ function runAttack(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity | nu
   const ticks = clockTicks(e); // chill slows the whole attack
   const f = e.brain!.fight;
   if (ticks) {
-    if (f && f.hold > 0 && a.t === f.holdAt) f.hold--;
+    if (a.hold && a.t === a.holdAt) a.hold--;
     else a.t++;
   }
   const motion = { vx: 0, vz: 0, inputScale: 0 };
@@ -321,11 +338,15 @@ function fighterThink(ctx: CombatCtx, e: Entity, def: EnemyDef, target: Entity |
     e.tf.yaw = turnToward(e.tf.yaw, Math.atan2(dx, dz), def.turnRate * DT);
     ctx.motion.set(e.id, { vx: (dx / d) * speed, vz: (dz / d) * speed, inputScale: 0 });
   };
-  // A pumpkin knocked off its head: it runs to the next Grunt, then fights again.
+  // A pumpkin knocked off its head: it runs to a nearby Grunt of its camp, then fights again. Never
+  // past its leash and never for long: the leash below still brings it home.
   if (b.fleeTo) {
     const to = ctx.get(b.fleeTo);
-    if (!to || to.combat?.action?.kind === 'dead' || flatDist(e.tf.pos, to.tf.pos) < 1.8) b.fleeTo = null;
-    else {
+    const over = ctx.now >= (b.fleeUntil ?? 0) || fromHome > def.leashRange;
+    if (over || !to || to.combat?.action?.kind === 'dead' || flatDist(e.tf.pos, to.tf.pos) < 1.8) {
+      b.fleeTo = null;
+      delete b.fleeUntil;
+    } else {
       go(to.tf.pos.x, to.tf.pos.z, def.moveSpeed * 1.4);
       return;
     }

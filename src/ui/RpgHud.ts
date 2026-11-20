@@ -1,3 +1,4 @@
+import { keepsakeIcon } from '../content/relics';
 import { CARDINALS, compassOffset, levelProgress, type QuestLine } from './rpgText';
 
 /** The compass bar shows this far either side of straight ahead (radians). */
@@ -186,8 +187,10 @@ export class RpgHud {
   }
 
   private trackerState(q: QuestLine | null): void {
+    const svg = q?.mark ? keepsakeIcon(q.mark.id)?.svg : undefined;
+    const mark = svg ? `<span class="quest-mark" title="Something waits on this quest." style="mask-image:url(${svg});-webkit-mask-image:url(${svg})"></span>` : '';
     const html = q
-      ? `<div class="title">${esc(q.title)}</div><div class="step">${esc(q.step)}</div>${q.lines.map((l) => `<div class="obj${l.done ? ' done' : ''}">${esc(l.text)}</div>`).join('')}`
+      ? `<div class="title">${mark}${esc(q.title)}</div><div class="step">${esc(q.step)}</div>${q.lines.map((l) => `<div class="obj${l.done ? ' done' : ''}">${esc(l.text)}</div>`).join('')}`
       : '';
     if (html === this.last.tracker) return;
     this.last.tracker = html;

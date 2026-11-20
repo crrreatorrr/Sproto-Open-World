@@ -2,6 +2,7 @@ import { PLAYER_STATS, STAFFS } from '../../content/combat';
 import { PLUNGE } from '../../content/packs/m7';
 import { SKILL_EFFECT } from '../../content/progression';
 import { DT, MOVE } from '../../content/tuning';
+import { plungeRecoveryOf } from '../systems/relics';
 import { staffOf } from '../systems/rpg';
 import type { Action, Entity } from '../entity';
 import { turnToward } from '../math';
@@ -49,7 +50,7 @@ export function advancePlunge(ctx: CombatCtx, p: Entity, physics: PhysicsWorld):
     return;
   }
   a.landT++;
-  if (a.landT >= PLUNGE.recovery) c.action = null;
+  if (a.landT >= plungeRecoveryOf(p)) c.action = null;
 }
 
 /** The recovery can be cut short from here on. */

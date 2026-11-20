@@ -21,8 +21,10 @@ import { BlastOrbView, BoltView, BruteView, CoinView, DummyView, FallbackView, H
 import { portalShown } from '../portalShown';
 import { ChestView, NpcView, PickupView, PortalView, ShrineView, objectView } from './RpgViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
+import { TOTEM_FADE_TICKS } from '../../content/relics';
+import { decalLead, lanternShimmer, oracleEquipped } from '../relicCues';
 import { QuestClues } from '../fx/questClues';
-import { CHEST_SHIMMER_M } from '../../content/packs/encounterTune';
+import { CHEST_SHIMMER_M, LENS_PREVIEW_FLAG } from '../../content/packs/encounterTune';
 import { QUESTS } from '../../content/quests';
 import { castsShadow, wantsView } from './viewCull';
 
@@ -203,6 +205,7 @@ export class WorldViews {
       // Skinned meshes aren't frustum culled: a bull left far behind shouldn't cost a draw.
       if (e.mount && me) v.root.visible = Math.hypot(e.tf.pos.x - me.tf.pos.x, e.tf.pos.z - me.tf.pos.z) <= MOUNT_DRAW_RANGE;
       v.update(e, alpha, dt);
+      if (e.interactable?.kind === 'chest' && v instanceof ChestView && view.entities.some((p) => p.kind === 'player' && lanternShimmer(p, view.now, e.tf.pos))) v.lanternTwinkle();
       if (e.brain) this.enemyShadow(e, v, me);
       if (e.statuses) this.statusParticles(e, v, dt);
       if (e.combat) this.status.track(e, v.root, v.height, e.body?.radius ?? 0.4, dt);
@@ -219,6 +222,7 @@ export class WorldViews {
       for (const [k, sv] of this.shrines) if (sv === v) this.shrines.delete(k);
     }
     this.updateDecals(view, dt);
+    this.syncTotems(view);
     if (!this.clues.root.parent) this.root.add(this.clues.root);
     this.clues.sync(view, me);
     this.spells.update(dt);
@@ -237,7 +241,7 @@ export class WorldViews {
         this.views.get(e.entity)?.telegraph?.(move, e.unblockable, e.ticks);
         const shape: DecalShape | null = e.decal ?? move?.decal ?? (e.unblockable ? 'jagged' : null);
         // A dive paints its own lane on the ground (DrakeView).
-        const preview = !e.unblockable && (view.world.flags['lens.previewUntil'] ?? 0) > view.now;
+        const preview = !e.unblockable && (view.world.flags[LENS_PREVIEW_FLAG] ?? 0) > view.now;
         const shown = shape ?? (preview ? 'circle' : null);
         if (shown && move && !move.dive) {
           const decal = new TelegraphDecal(shown, preview ? 0xf0c548 : DECAL_COLOR[shown]);
@@ -376,6 +380,41 @@ export class WorldViews {
    * will land. They fill with the sim's tick counter, so hit-stop pauses them too, and go when the
    * active frames end or the attack is interrupted.
    */
+  /** Primitive stand-ins until models/totems/<id>.glb exists. Drawn only while a totem is planted. */
+  private readonly totemGroups = new Map<number, THREE.Group>();
+
+  private syncTotems(view: ReadonlySimView): void {
+    if (!this.totemGroups.size && !view.entities.some((e) => e.placedTotem)) return;
+    const live = new Set<number>();
+    for (const e of view.entities) {
+      const t = e.placedTotem;
+      if (!t) continue;
+      live.add(e.id);
+      let g = this.totemGroups.get(e.id);
+      if (!g || g.name !== t.id) {
+        g?.removeFromParent();
+        g = new THREE.Group();
+        const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 1, 5), new THREE.MeshStandardMaterial({ color: 0x8a7358, transparent: true }));
+        mesh.position.y = 0.5;
+        g.add(mesh);
+        g.name = t.id;
+        this.totemGroups.set(e.id, g);
+        this.root.add(g);
+      }
+      g.position.set(t.x, t.y, t.z);
+      const left = t.life - t.age;
+      const fade = left < TOTEM_FADE_TICKS ? Math.max(0, left / TOTEM_FADE_TICKS) : 1;
+      const mat = (g.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      mat.opacity = fade;
+    }
+    if (!live.size && !this.totemGroups.size) return;
+    for (const [id, g] of this.totemGroups) {
+      if (live.has(id)) continue;
+      g.removeFromParent();
+      this.totemGroups.delete(id);
+    }
+  }
+
   private updateDecals(view: ReadonlySimView, dt: number): void {
     for (let i = this.decals.length - 1; i >= 0; i--) {
       const d = this.decals[i];
@@ -387,9 +426,11 @@ export class WorldViews {
         this.decals.splice(i, 1);
         continue;
       }
-      const progress = a.t / Math.max(1, d.move.windup);
+      const lead = decalLead(view.entities, e.tf.pos);
+      const gold = oracleEquipped(view.entities) && d.move.decal !== 'jagged' && !d.move.unblockable;
+      const progress = Math.min(1, (a.t + lead) / Math.max(1, d.move.windup));
       if (d.at) {
-        d.decal.update(d.at.x, d.at.y, d.at.z, 0, d.radius, progress, dt);
+        d.decal.update(d.at.x, d.at.y, d.at.z, 0, d.radius, progress, dt, gold);
         continue;
       }
       const v = this.views.get(d.entity);
@@ -403,12 +444,12 @@ export class WorldViews {
           const f = far + d.move.hitbox.forward;
           const spot = { x: p.x + Math.sin(yaw) * f, y: p.y, z: p.z + Math.cos(yaw) * f, yaw };
           if (a.t >= d.move.windup) d.landing = spot;
-          d.decal.update(spot.x, spot.y, spot.z, yaw, d.radius, progress, dt);
-        } else d.decal.update(d.landing.x, d.landing.y, d.landing.z, d.landing.yaw, d.radius, progress, dt);
+          d.decal.update(spot.x, spot.y, spot.z, yaw, d.radius, progress, dt, gold);
+        } else d.decal.update(d.landing.x, d.landing.y, d.landing.z, d.landing.yaw, d.radius, progress, dt, gold);
         continue;
       }
       const f = d.move.hitbox.forward;
-      d.decal.update(p.x + Math.sin(yaw) * f, p.y, p.z + Math.cos(yaw) * f, yaw, d.radius, progress, dt);
+      d.decal.update(p.x + Math.sin(yaw) * f, p.y, p.z + Math.cos(yaw) * f, yaw, d.radius, progress, dt, gold);
     }
   }
 

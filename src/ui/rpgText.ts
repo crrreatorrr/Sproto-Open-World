@@ -11,6 +11,7 @@ import { NPCS } from '../content/npcs';
 import { LEVEL_CAP, SKILL_EFFECT, xpForLevel, xpToNext, type SkillId } from '../content/progression';
 import { SPELLS, SWAP_MIN_COOLDOWN, type SpellId } from '../content/spells';
 import { TICK_HZ } from '../content/tuning';
+import { keepsakeForQuest } from '../content/relics';
 import { QUESTS, type Objective, type QuestDef, type QuestOffer, type QuestState } from '../content/quests';
 import type { Progress } from '../sim/entity';
 
@@ -85,6 +86,8 @@ export interface QuestLine {
   lines: ObjectiveLine[];
   /** The current step's compass target, if any. */
   marker: string | null;
+  /** A keepsake this quest awards. The clue stays with the Relics tab so the tracker stays small. */
+  mark: { id: string } | null;
 }
 
 /** Where a step with no single place leads next: its first unfinished objective that has a location. */
@@ -104,6 +107,7 @@ export function questLine(id: string, state: QuestState | undefined): QuestLine 
   if (!def || !state || state.status === 'locked' || state.status === 'available') return null;
   const done = state.status === 'complete' || state.step >= def.steps.length;
   const step = def.steps[Math.min(state.step, def.steps.length - 1)];
+  const prize = keepsakeForQuest(id);
   return {
     id,
     title: def.title,
@@ -112,6 +116,7 @@ export function questLine(id: string, state: QuestState | undefined): QuestLine 
     step: done ? 'Complete' : (step?.text ?? ''),
     lines: done || !step ? [] : objectiveLines(step.objectives, state.progress),
     marker: done || !step || step.clue ? null : (step.marker ?? nextTarget(step.objectives, state.progress)),
+    mark: prize && !done ? { id: prize.id } : null,
   };
 }
 
@@ -128,7 +133,7 @@ export function trackedQuest(p: Readonly<Progress>): QuestLine | null {
 /** The quest "Find a quest" is leading to, as the tracker shows it until the player takes it. */
 export function leadLine(lead: QuestOffer): QuestLine {
   const def = QUESTS[lead.quest];
-  return { id: lead.quest, title: def.title, kind: def.kind, status: 'active', step: `Talk to ${NPCS[lead.npc]?.name ?? humanize(lead.npc)} to take this quest.`, lines: [], marker: lead.npc };
+  return { id: lead.quest, title: def.title, kind: def.kind, status: 'active', step: `Talk to ${NPCS[lead.npc]?.name ?? humanize(lead.npc)} to take this quest.`, lines: [], marker: lead.npc, mark: null };
 }
 
 /** The nearest quest on offer; asked again, the next nearest after the one being followed. */

@@ -425,6 +425,13 @@ export class ChestView implements EntityView {
     this.clue = strength;
   }
 
+  /** Seeker's Lantern: a brighter twinkle on a chest inside its shimmer, even past a search's radius. */
+  lanternTwinkle(): void {
+    if (this.open >= 0.95) return;
+    this.glint.visible = true;
+    this.glint.material.opacity = Math.min(1, this.glint.material.opacity + 0.5);
+  }
+
   dispose(): void {
     this.slot.dispose();
     for (const m of this.mats) m.dispose();

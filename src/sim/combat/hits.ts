@@ -8,6 +8,7 @@ import { affixedMove } from '../../content/enemyScale';
 import { PERK_EFFECT, SKILL_EFFECT, hasPerk } from '../../content/progression';
 import { STATUS } from '../../content/statuses';
 import { affixAffinity, affixElite } from '../systems/affixes';
+import { blockStaminaMul, onRelicParry, rollFrames, tryBriar, tryGuardCounter } from '../systems/relics';
 import { charmOf, staffOf } from '../systems/rpg';
 import { rootedMult } from './powers/snare';
 import { applyStatus } from './statuses';
@@ -47,9 +48,10 @@ export interface HitInfo {
   area?: boolean;
   /** The player's staff swing: only these can be a break critical or a backstab. */
   melee?: boolean;
-  /** A shot the player sent back, and the enemy move that fired it. */
+  /** A shot the player parried back. */
   reflected?: boolean;
-  source?: string;
+  /** The enemy move that fired a projectile. */
+  sourceMove?: string;
 }
 
 export type HitOutcome = 'dodged' | 'parried' | 'blocked' | 'hit';
@@ -178,9 +180,10 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   // The Momentum staff's blink can't be touched, and neither can a boss underground or a wave still waiting.
   if (ta?.kind === 'blink' || target.boss?.under || target.brain?.held) return 'dodged';
 
-  // Roll and backstep i-frames; a hit early in them is a perfect dodge.
-  if (ta?.kind === 'dodge' && ta.t >= dodgeFrames(ta).iframeStart && ta.t <= dodgeFrames(ta).iframeEnd) {
-    if (ta.t <= dodgeFrames(ta).perfectEnd) {
+  // Roll and backstep i-frames; a hit early in them is a perfect dodge. Sproto's Stride lengthens a roll.
+  const frames = ta?.kind === 'dodge' ? rollFrames(target, ta) : null;
+  if (ta?.kind === 'dodge' && frames && ta.t >= frames.iframeStart && ta.t <= frames.iframeEnd) {
+    if (ta.t <= frames.perfectEnd) {
       tv.stamina = Math.min(tv.staminaMax, tv.stamina + dodgeFrames(ta).stamina);
       tv.mana = Math.min(tv.manaMax, tv.mana + MANA.perfectDodge);
       tc.critNext = true;
@@ -193,6 +196,7 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   // Block (150° frontal arc) and parry (its first ticks).
   const facing = angleTo(target.tf.pos, target.tf.yaw, info.from) <= ((BLOCK.arcDeg / 2) * Math.PI) / 180;
   if (ta?.kind === 'block' && facing && !info.unblockable) {
+    // The block's parryTicks already include Coins and the Grip (playerCombat.updateBlock).
     if (ta.t < ta.parryTicks) {
       tv.mana = Math.min(tv.manaMax, tv.mana + BLOCK.parryMana);
       addHitstop(target, BLOCK.parryHitstop);
@@ -206,18 +210,22 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
       // Combat 10: a parry restores 5% HP.
       if (hasPerk(target.progress?.skills, 'combat10')) tv.hp = Math.min(tv.hpMax, tv.hp + tv.hpMax * PERK_EFFECT.parryHeal);
       if (!info.projectile && target.progress && charmOf(target.progress)?.burnOnParry && attacker.combat) applyStatus(ctx, attacker, 'burn', 1, target.id);
+      if (target.progress) onRelicParry(ctx, target);
       return 'parried';
     }
     const { damage } = computeDamage(attacker, target, info);
     const chip = Math.max(1, Math.round(damage * BLOCK.chip));
     tv.hp -= chip;
-    tv.stamina -= info.poise / 2;
+    tv.stamina -= (info.poise / 2) * blockStaminaMul(target);
     tv.staminaDelay = PLAYER_STATS.staminaDelay;
     const guardBreak = tv.stamina <= 0;
     if (guardBreak) {
       tv.stamina = 0;
       tc.action = { kind: 'stagger', t: 0, dur: BLOCK.guardBreakTicks };
-    } else if (!info.projectile && !info.area) tc.guardCounterUntil = ctx.now + BLOCK_HITSTOP + BLOCK.guardCounterWindow;
+    } else if (!info.projectile && !info.area) {
+      tc.guardCounterUntil = ctx.now + BLOCK_HITSTOP + BLOCK.guardCounterWindow;
+      if (target.progress) tryGuardCounter(ctx, target, attacker, true);
+    }
     addHitstop(target, BLOCK_HITSTOP);
     if (!info.projectile) addHitstop(attacker, BLOCK_HITSTOP);
     ctx.events.push({ type: 'block', attacker: attacker.id, target: target.id, damage: chip, guardBreak, pos: chest });
@@ -233,7 +241,13 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
   if (ac && crit && ac.critNext && strike !== 'breakCrit') ac.critNext = false;
   if (strike === 'breakCrit' && ta?.kind === 'stagger') ta.critTaken = true;
   const weakSpot = weakSpotMult(target, info);
-  const { damage, affinity } = computeDamage(attacker, target, { ...info, crit }, weakSpot * strikeDamage(target, strike));
+  const rolled = computeDamage(attacker, target, { ...info, crit }, weakSpot * strikeDamage(target, strike));
+  let damage = rolled.damage;
+  const affinity = rolled.affinity;
+  // Surgebriar: an unguarded hit from anything but a boss can fall to block chip. Never an unblockable.
+  if (target.progress && tryBriar(ctx, target, !!info.unblockable, attacker.kind === 'boss' || !!attacker.boss)) {
+    damage = Math.max(1, Math.round(damage * BLOCK.chip));
+  }
   if (!info.projectile && info.kind === 'physical' && target.statuses?.chill) {
     delete target.statuses.chill;
     ctx.events.push({ type: 'statusEnd', entity: target.id, status: 'chill' });
@@ -258,7 +272,7 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
     ...(weakSpot > 1 ? { weakSpot: true } : {}),
     ...(strike ? { strike } : {}),
     ...(info.reflected ? { reflected: true } : {}),
-    ...(info.source ? { source: info.source } : {}),
+    ...(info.sourceMove ? { sourceMove: info.sourceMove } : {}),
   });
 
   if (tv.hp <= 0) {

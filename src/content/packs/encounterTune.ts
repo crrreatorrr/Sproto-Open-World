@@ -31,9 +31,17 @@ export const CHEST_SHIMMER_M = 15;
 
 /** Studying the Warden's lens previews wind-up highlights for this many ticks (5 s). */
 export const LENS_PREVIEW_TICKS = 300;
+/**
+ * The world flag holding the tick the lens preview ends. A tick of this session only (the sim's
+ * clock starts again at 0 on load), so it is never saved.
+ */
+export const LENS_PREVIEW_FLAG = 'lens.previewUntil';
 
 /** How many Orchard Grunts wear a pumpkin. */
 export const PUMPKIN_CARRIERS = 5;
+/** A carrier whose pumpkin is knocked off runs to the nearest Grunt of its own camp this close (m), for at most this long. */
+export const PUMPKIN_FLEE_M = 10;
+export const PUMPKIN_FLEE_TICKS = 180;
 
 /** Tremors: the quarry rumbles inside this radius (m) of this point while the quest is active. */
 export const TREMOR_AT: readonly [number, number] = [400, 430];

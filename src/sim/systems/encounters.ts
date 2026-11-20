@@ -4,7 +4,7 @@
  * other workstreams; this file raises the flags and cues they hook.
  */
 import { ENEMIES } from '../../content/enemies';
-import { SHRINE_HUM_M, TREMOR_AT, TREMOR_EVERY, TREMOR_RADIUS } from '../../content/packs/encounterTune';
+import { PUMPKIN_FLEE_M, PUMPKIN_FLEE_TICKS, SHRINE_HUM_M, TREMOR_AT, TREMOR_EVERY, TREMOR_RADIUS } from '../../content/packs/encounterTune';
 import { QUESTS, type Objective } from '../../content/quests';
 import { flatDist } from '../combat/geometry';
 import type { Entity, WorldState } from '../entity';
@@ -70,9 +70,29 @@ function knockPumpkins(ctx: PolishCtx): void {
     if (!foe?.brain || !item || dead(foe)) continue;
     foe.brain.carry = undefined;
     ctx.spawnPickup({ x: foe.tf.pos.x, y: foe.tf.pos.y + 0.4, z: foe.tf.pos.z }, { kind: 'item', item, amount: 1, life: PICKUP_LIFE });
-    const next = ctx.entities.find((e) => e !== foe && e.brain && !e.brain.held && !dead(e) && tagged(e, 'grunt'));
-    if (next) foe.brain.fleeTo = next.id;
+    const next = nearestCampGrunt(ctx.entities, foe);
+    if (next) {
+      foe.brain.fleeTo = next.id;
+      foe.brain.fleeUntil = ctx.now + PUMPKIN_FLEE_TICKS;
+    }
   }
+}
+
+/** The nearest living Grunt of `foe`'s own camp, inside PUMPKIN_FLEE_M. None: it stands and fights. */
+function nearestCampGrunt(entities: readonly Entity[], foe: Entity): Entity | null {
+  const camp = foe.brain?.camp;
+  if (!camp) return null;
+  let best: Entity | null = null;
+  let bestD = PUMPKIN_FLEE_M;
+  for (const e of entities) {
+    if (e === foe || e.brain?.camp !== camp || e.brain.held || dead(e) || !tagged(e, 'grunt')) continue;
+    const d = flatDist(e.tf.pos, foe.tf.pos);
+    if (d <= bestD) {
+      bestD = d;
+      best = e;
+    }
+  }
+  return best;
 }
 
 function bonusFeats(ctx: PolishCtx): void {

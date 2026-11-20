@@ -49,9 +49,11 @@ export class TelegraphDecal {
   private readonly fill: THREE.Mesh;
   private readonly rimMat: THREE.MeshBasicMaterial;
   private readonly fillMat: THREE.MeshBasicMaterial;
+  private readonly baseColor: number;
   private time = 0;
 
   constructor(readonly shape: DecalShape, color: number) {
+    this.baseColor = color;
     const mat = (opacity: number) =>
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: THREE.DoubleSide });
     this.rimMat = mat(0.9);
@@ -63,8 +65,11 @@ export class TelegraphDecal {
   }
 
   /** Place it (feet-level centre, radius) and set the wind-up progress 0..1. */
-  update(x: number, y: number, z: number, yaw: number, radius: number, progress: number, dt: number): void {
+  update(x: number, y: number, z: number, yaw: number, radius: number, progress: number, dt: number, gold = false): void {
     this.time += dt;
+    const tint = gold && this.shape === 'circle' ? 0xf0c548 : this.baseColor;
+    this.rimMat.color.setHex(tint);
+    this.fillMat.color.setHex(tint);
     this.root.position.set(x, y + 0.03, z);
     this.root.rotation.y = yaw;
     this.root.scale.setScalar(radius);

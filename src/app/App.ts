@@ -4,6 +4,7 @@ import { MODELS, STAFF_BOOT_LOD, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
 import { CameraRig } from '../camera/CameraRig';
 import { ITEMS } from '../content/items';
+import { keepsake, keepsakeIcon } from '../content/relics';
 import { affixName } from '../content/packs/c4';
 import { isRootdeep } from '../content/packs/rootdeep';
 import { SKYFIRE_END_CARD } from '../content/packs/c6';
@@ -1320,6 +1321,12 @@ export class App {
         this.saveWanted = true;
         return;
       case 'itemGained':
+        if (e.keepsake) {
+          const def = keepsake(e.item);
+          this.hud.toast(e.keepsake.text, { rarity: def?.rarity, iconUrl: keepsakeIcon(e.item)?.png });
+          if (def?.rarity === 'epic') this.audio.play('victory', 0.55);
+          return;
+        }
         hud.feed(`Got ${ITEMS[e.item]?.name ?? e.item}${e.count > 1 ? ` ×${e.count}` : ''}`, 'item');
         return;
       case 'currency':
@@ -1388,6 +1395,11 @@ export class App {
         else hud.feed(`Slot ${e.slot + 1}: ${e.spell ? SPELLS[e.spell as SpellId]?.name ?? e.spell : 'empty'}${e.cooldown > 0 ? ` (ready in ${Math.ceil(e.cooldown / 60)} s)` : ''}`, 'info');
         // Saved like a rest, so a reload keeps it.
         this.audio.play('uiClick', 1.1);
+        this.saveWanted = true;
+        return;
+      case 'relicEquipped':
+      case 'totemEquipped':
+        // Socket changes are saved like a spell slot, so a reload keeps them.
         this.saveWanted = true;
         return;
       case 'perk':

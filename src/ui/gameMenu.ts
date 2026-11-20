@@ -10,14 +10,16 @@ import type { ReadonlySimView } from '../sim/view';
 import { spellIcon } from './Hud';
 import { mapSignature, renderMap } from './mapTab';
 import type { MenuNav, Screen } from './MenuNav';
+import { loadRelicCopy, pressCard, relicKey, relicPad, relicsModel, renderRelics } from './relicsTab';
 import { KIND_NAMES, SWAP_RULE, costText, gearCompare, inventoryGroups, itemStats, levelProgress, nextLead, questLog, readyText, skillGain, staffTraitText, swapCooldown } from './rpgText';
 
-export type MenuTab = 'powers' | 'skills' | 'gear' | 'quests' | 'map' | 'settings';
+export type MenuTab = 'powers' | 'skills' | 'gear' | 'relics' | 'quests' | 'map' | 'settings';
 
 export const MENU_TABS: readonly { id: MenuTab; label: string }[] = [
   { id: 'powers', label: 'Powers' },
   { id: 'skills', label: 'Skills' },
   { id: 'gear', label: 'Gear' },
+  { id: 'relics', label: 'Relics' },
   { id: 'quests', label: 'Quests' },
   { id: 'map', label: 'Map' },
   { id: 'settings', label: 'Settings' },
@@ -73,9 +75,9 @@ const POWER_COLS = 4;
 
 /**
  * The one tabbed menu (expansion plan §5): Powers (the spell selector), Skills (the Magic and Combat
- * tree), Gear (staff, robe, charm with compare deltas; the character's numbers), Quests, Map and
- * Settings. LB / RB or Q / E switch tabs; Powers and Skills are 2-D grids. It replaces the Character
- * and Quest log screens. Like every menu it only queues UiActions: the sim decides.
+ * tree), Gear (weapon, robe, charm with compare deltas; the character's numbers), Relics, Quests,
+ * Map and Settings. LB / RB or Q / E switch tabs; Powers, Skills and Relics are 2-D grids. It
+ * replaces the Character and Quest log screens. Like every menu it only queues UiActions: the sim decides.
  */
 export class GameMenu {
   readonly screen: Screen;
@@ -84,6 +86,12 @@ export class GameMenu {
   /** The spell selector's half-made choice: a slot picked (then a power), or a power picked (then a slot). */
   private pick: { slot: number } | { spell: SpellId | null } | null = null;
   private sig = '';
+  /** Relics tab: the card in the detail pane, whether compare is open, and a replace waiting on a socket. */
+  private relicSelected: string | null = null;
+  private relicCompare = false;
+  private relicMessage: string | null = null;
+  private relicReplace = false;
+  private relicCopy: Promise<void> | null = null;
 
   constructor(host: HTMLElement, private readonly nav: MenuNav, private readonly src: GameMenuSource) {
     const root = el('div', 'menus game-menu-host');
@@ -97,7 +105,8 @@ export class GameMenu {
       onBack: () => this.back(),
       onTab: (dir) => this.switchTab(dir),
       focusKey: () => this.tab,
-      grid: () => this.tab === 'powers' || this.tab === 'skills',
+      grid: () => this.tab === 'powers' || this.tab === 'skills' || this.tab === 'relics',
+      onExtra: (input) => this.relicExtra(input),
     };
   }
 
@@ -119,6 +128,7 @@ export class GameMenu {
     const i = MENU_TABS.findIndex((t) => t.id === this.tab);
     this.tab = MENU_TABS[(i + dir + MENU_TABS.length) % MENU_TABS.length].id;
     this.pick = null;
+    this.relicReplace = false;
   }
 
   private back(): void {
@@ -165,6 +175,8 @@ export class GameMenu {
         const v = e.vitals;
         return `${JSON.stringify(p.equipment)}|${JSON.stringify(p.inventory)}|${p.level}|${p.xp}|${p.points}|${v?.hpMax}|${v?.staminaMax}|${v?.manaMax}|${this.src.gearLocked()}`;
       }
+      case 'relics':
+        return `${JSON.stringify(p.relics)}|${this.src.gearLocked()}|${this.relicSelected}|${this.relicCompare}|${this.relicMessage}|${this.relicReplace}|${Object.keys(p.quests).join(',')}`;
       case 'quests':
         return `${p.tracked}|${JSON.stringify(p.quests)}|${this.src.questLead()?.quest}|${this.src.questOffers().map((o) => o.quest).join(',')}`;
       case 'map':
@@ -188,6 +200,7 @@ export class GameMenu {
         this.nav.retab(() => {
           this.tab = t.id;
           this.pick = null;
+          this.relicReplace = false;
         });
       });
       bar.append(d);
@@ -207,6 +220,8 @@ export class GameMenu {
         return this.skills(body, p!);
       case 'gear':
         return this.gear(body, p!);
+      case 'relics':
+        return this.relics(body, p!);
       case 'quests':
         return this.quests(body, p!);
       case 'map':
@@ -216,6 +231,69 @@ export class GameMenu {
       case 'settings':
         return this.settings(body);
     }
+  }
+
+  // --- Relics -----------------------------------------------------------------------------------
+
+  private relicExtra(input: string): boolean {
+    if (this.tab !== 'relics') return false;
+    const act = relicKey(input) ?? relicPad(input);
+    if (act === 'compare') {
+      this.relicCompare = !this.relicCompare;
+      this.nav.refresh();
+      return true;
+    }
+    if (act === 'jump') {
+      const onSocket = this.nav.focused()?.dataset.socket !== undefined;
+      this.nav.focusWhere((e) => onSocket ? e.dataset.id !== undefined : e.dataset.socket === '0');
+      return true;
+    }
+    return false;
+  }
+
+  private relicActivate(id: string): void {
+    const p = this.progress();
+    if (!p) return;
+    this.relicSelected = id;
+    const result = pressCard(p, id, this.src.gearLocked(), null);
+    this.relicMessage = result.message;
+    this.relicReplace = result.replace;
+    if (result.action) this.src.send(result.action);
+    if (result.replace) this.nav.focusWhere((e) => e.dataset.socket !== undefined);
+    else this.nav.refresh();
+  }
+
+  private relicSocket(socket: number): void {
+    const p = this.progress();
+    const id = this.relicSelected;
+    if (!p || !id || !this.relicReplace) return;
+    const result = pressCard(p, id, this.src.gearLocked(), socket);
+    this.relicMessage = result.message;
+    this.relicReplace = false;
+    if (result.action) this.src.send(result.action);
+    this.nav.refresh();
+  }
+
+  private relics(body: HTMLElement, p: Readonly<Progress>): void {
+    if (!this.relicCopy) {
+      this.relicCopy = loadRelicCopy().then(() => {
+        if (this.tab === 'relics') this.nav.refresh();
+      }).catch(() => {
+        this.relicCopy = null;
+      });
+    }
+    const seen = (id: string) => id in p.quests;
+    const model = relicsModel(p, seen, this.src.gearLocked(), this.relicMessage);
+    renderRelics(
+      body, model, this.relicSelected, this.relicCompare ? this.relicSelected : null,
+      (id) => {
+        if (id === this.relicSelected) return;
+        this.relicSelected = id;
+        this.nav.refresh();
+      },
+      (id) => this.relicActivate(id),
+      (socket) => this.relicSocket(socket),
+    );
   }
 
   // --- Powers (the spell selector) --------------------------------------------------------------

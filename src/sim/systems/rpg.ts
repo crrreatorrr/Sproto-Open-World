@@ -2,11 +2,12 @@ import { PLAYER_STATS } from '../../content/combat';
 import { DIALOGUE, type DialogueNode } from '../../content/dialogue';
 import { ENEMIES } from '../../content/enemies';
 import { HEART_HEAL, INVENTORY_CAP, ITEMS, STARTING_GEAR, TONIC, type Slot } from '../../content/items';
+import { emptyRelics, isKeepsake } from '../../content/relics';
 import { DROPS, MERCHANTS } from '../../content/loot';
 import { MOUNT } from '../../content/mounts';
 import { NPCS } from '../../content/npcs';
 import { OBJECTS, usedFlag } from '../../content/objects';
-import { LENS_PREVIEW_TICKS, SEAL_HOOK } from '../../content/packs/encounterTune';
+import { LENS_PREVIEW_FLAG, LENS_PREVIEW_TICKS, SEAL_HOOK } from '../../content/packs/encounterTune';
 import { ROOTDEEP_PORTALS, portalOpenFlag } from '../../content/packs/rootdeep';
 import { GROWTH, LEVEL_CAP, SKILL_EFFECT, SKILL_POINTS_PER_LEVEL, noSkills, xpForLevel } from '../../content/progression';
 import { QUESTS, type Condition, type Effect, type Objective, type QuestOffer } from '../../content/quests';
@@ -18,6 +19,7 @@ import type { SimEvent } from '../events';
 import type { Vec3 } from '../math';
 import { affixXp } from './affixes';
 import { equipSpell, gearLocked, grantSkillPoints, learnIntoLoadout, respecSkills, spendSkill } from './loadout';
+import { clearRelic, equipRelic, equipTotem, grantKeepsake, holdTotem, onShrineRest, grantFlagKeepsakes } from './relics';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
 import { startDismount, startMount } from './riding';
 
@@ -46,6 +48,7 @@ export function newProgress(spells: SpellId[]): Progress {
     inventory: { [STARTING_GEAR.staff]: 1, [STARTING_GEAR.robe]: 1 },
     spells: [...spells], loadout: defaultLoadout(spells), tonics: { charges: TONIC.charges, max: TONIC.charges },
     quests: {}, tracked: null, lastShrine: null, discoveredShrines: [], dialogue: null, shop: null, atShrine: null,
+    relics: emptyRelics(),
   };
 }
 
@@ -115,6 +118,7 @@ export function grantXp(ctx: RpgCtx, e: Entity, amount: number): void {
 }
 
 export function giveItem(ctx: RpgCtx, e: Entity, item: string, count = 1): boolean {
+  if (isKeepsake(item)) return grantKeepsake(ctx, e, item);
   const p = e.progress!;
   const def = ITEMS[item];
   if (!def) return false;
@@ -148,7 +152,10 @@ export function checkCondition(c: Condition, p: Progress, world: WorldState): bo
   if ('flag' in c) return c.value === undefined ? (world.flags[c.flag] ?? 0) !== 0 : world.flags[c.flag] === c.value;
   if ('level' in c) return p.level >= c.level;
   if ('questDone' in c) return p.quests[c.questDone]?.status === 'complete';
-  return (p.inventory[c.hasItem] ?? 0) >= (c.count ?? 1);
+  // Keepsakes live on relics.owned, not in the bag. A bonus line that asks hasItem still sees one.
+  const bag = p.inventory[c.hasItem] ?? 0;
+  const kept = p.relics?.owned.includes(c.hasItem) ? 1 : 0;
+  return Math.max(bag, kept) >= (c.count ?? 1);
 }
 
 export const checkAll = (cs: readonly Condition[] | undefined, p: Progress, world: WorldState) => !cs || cs.every((c) => checkCondition(c, p, world));
@@ -262,6 +269,7 @@ export function questTick(ctx: RpgCtx, e: Entity): void {
       }
     }
   }
+  grantFlagKeepsakes(ctx, e, ctx.world.flags);
 }
 
 const foeIs = (entities: readonly Entity[], id: number, tag: string) => {
@@ -285,7 +293,7 @@ export function countFor(o: Objective, events: readonly SimEvent[], e: Entity, e
         if (o.feat === 'heavyHit' && ev.type === 'hit' && ev.attacker === e.id && ev.heavy) n++;
         else if (o.feat === 'perfectDodge' && ev.type === 'dodgePerfect' && ev.entity === e.id && (!o.against || foeIs(entities, ev.attacker, o.against))) n++;
         else if (o.feat === 'parry' && ev.type === 'parry' && ev.target === e.id) n++;
-        else if (o.feat === 'reflectKill' && ev.type === 'hit' && ev.reflected && ev.attacker === e.id && (!o.against || foeIs(entities, ev.target, o.against)) && (!o.source || ev.source === o.source)) {
+        else if (o.feat === 'reflectKill' && ev.type === 'hit' && ev.reflected && ev.attacker === e.id && (!o.against || foeIs(entities, ev.target, o.against)) && (!o.sourceMove || ev.sourceMove === o.sourceMove)) {
           const fatal = events.some((d) => d.type === 'death' && d.entity === ev.target && d.killer === e.id);
           if (!o.fatal || fatal) n++;
         }
@@ -463,7 +471,7 @@ function useObject(ctx: RpgCtx, e: Entity, obj: Entity): void {
     ctx.world.flags[SEAL_HOOK] = 1;
     ctx.events.push({ type: 'cue', cue: 'sealDrop', hook: 'tinubu_seal', pos: { ...obj.tf.pos } });
   } else if (ia.id === 'mill_lens') {
-    ctx.world.flags['lens.previewUntil'] = ctx.now + LENS_PREVIEW_TICKS;
+    ctx.world.flags[LENS_PREVIEW_FLAG] = ctx.now + LENS_PREVIEW_TICKS;
   } else if (ia.id === 'drake_bait_post') {
     ctx.events.push({ type: 'cue', cue: 'distantRoar', pos: { ...obj.tf.pos } });
   }
@@ -474,7 +482,7 @@ function useObject(ctx: RpgCtx, e: Entity, obj: Entity): void {
  * its contents. Returns true while the player is in a menu or talking (their gameplay input is
  * ignored this tick).
  */
-export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly UiAction[], chests: ReadonlyMap<string, { items: { item: string; count: number }[]; sprouts?: number }>): boolean {
+export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly UiAction[], chests: ReadonlyMap<string, { items: { item: string; count: number }[]; sprouts?: number }>, held = 0): boolean {
   const p = e.progress!;
   const dead = e.combat?.action?.kind === 'dead';
   for (const a of ui) {
@@ -513,6 +521,15 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
       case 'track':
         if (p.quests[a.quest]?.status === 'active') p.tracked = a.quest;
         break;
+      case 'equipRelic':
+        equipRelic(ctx, e, a.item, a.socket);
+        break;
+      case 'clearRelic':
+        clearRelic(ctx, e, a.socket);
+        break;
+      case 'equipTotem':
+        equipTotem(ctx, e, a.item);
+        break;
     }
   }
   const busy = !!(p.dialogue || p.shop || p.atShrine);
@@ -531,6 +548,7 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
       ctx.events.push({ type: 'interact', entity: e.id, object: t.id, kind: 'shrine' });
     }
   }
+  holdTotem(ctx, e, (held & BTN.interact) !== 0, !!(p.dialogue || p.shop || p.atShrine) || !!interactTarget(e, ctx.entities));
   if ((pressed & BTN.potion) && !e.combat?.action) drinkTonic(ctx, e);
   return !!(p.dialogue || p.shop || p.atShrine);
 }
@@ -557,6 +575,7 @@ export function rest(ctx: RpgCtx, e: Entity, shrine: string): void {
   p.lastShrine = shrine;
   if (!p.discoveredShrines.includes(shrine)) p.discoveredShrines.push(shrine);
   delete e.statuses;
+  onShrineRest(e, ctx.now);
   ctx.events.push({ type: 'shrineRest', entity: e.id, shrine });
   // Resting at a shrine also counts as interacting with it (the test quest's last step).
   ctx.events.push({ type: 'interact', entity: e.id, object: shrine, kind: 'shrine' });
