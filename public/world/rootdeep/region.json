@@ -11,8 +11,8 @@
   ],
   "cellSize": 64,
   "heightRange": {
-    "min": -8,
-    "max": 40
+    "min": -16,
+    "max": 240
   },
   "cells": [
     {

@@ -20,7 +20,7 @@ import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import fs from 'node:fs';
 import path from 'node:path';
 import { encodeCellBin, decodeCellBin, sampleHeight } from '../src/content/world/codec';
-import { CELL_RES, CELL_SIZE, type CellData, type CellEntry, type PropCollider, type PropKind, type RegionManifest } from '../src/content/world/format';
+import { CELL_RES, CELL_SIZE, type CellData, type CellEntry, type PropCollider, type PropKind, type RegionManifest, type WaterBody } from '../src/content/world/format';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const CELL_BYTES_MAX = 120 * 1000;
@@ -49,12 +49,39 @@ interface TerrainSrc {
   border: { cliffWidth: number; cliffHeight: number; softWidth: number; softHeight: number };
   /** When set, cells encode into this range instead of the measured one. Heights outside it are an error. */
   heightRange?: { min: number; max: number };
+  /** Water with an absolute surface: the bed is carved under it and the renderer draws the surface. */
+  rivers?: RiverSrc[];
+  pools?: PoolSrc[];
+  /** Fog band, when the region is not in the overworld (which sets its own). */
+  fog?: { near: number; far: number; farPlane: number };
   splat: {
     pathFade: number;
     rockSlope: [number, number];
     zones: ({ layer: 'dirt' | 'rock'; weight: number; patch?: number } & ({ shape: Shape; falloff?: number } | { spline: string; within: number; fade: number }))[];
   };
 }
+/** A river: points [x, z, surfaceY]. Bed surfaceY - depth (shallower toward the edge), banks rise to at least surfaceY + 0.4. */
+interface RiverSrc { id: string; points: [number, number, number][]; halfWidth: number; bankWidth: number; depth: number; flow?: number }
+/** A still pool with a flat surface. */
+interface PoolSrc { id: string; center: [number, number]; radius: number; bank: number; depth: number; surface: number }
+/** world-src/overworld.json: what the walkable regions share (see its _doc). */
+interface OverworldSrc {
+  regions: string[];
+  heightRange: { min: number; max: number };
+  fog: { near: number; far: number; farPlane: number };
+  seam: {
+    band: number;
+    noise: NoiseCfg;
+    grid: { origin: [number, number]; step: number; heights: number[][] };
+    closed: { edge: 'x' | 'z'; at: number; from: number; to: number }[];
+  };
+  rivers: RiverSrc[];
+  pools: PoolSrc[];
+  paths: { id: string; points: [number, number][]; halfWidth: number }[];
+}
+/** The overworld as one region sees it: the shared data and the cells of every other region. */
+interface Overworld { src: OverworldSrc; others: Set<string>; seed: number }
+
 interface KindSrc {
   model: string;
   collider: PropCollider;
@@ -212,9 +239,15 @@ interface Terrain {
   D: number;
   paths: Map<string, { pl: Polyline; halfWidth: number }>;
   splines: Map<string, Polyline>;
+  /** Distance (m) from a world point to the nearest region edge that is a wall (no open seam), or Infinity. */
+  wallDist: (x: number, z: number) => number;
+  water: WaterBody[];
 }
 
-function buildTerrain(src: TerrainSrc): Terrain {
+/** 1 at the ends of a closed seam span and inside it, fading to 0 over TAPER metres along the edge. */
+const SEAM_TAPER = 24;
+
+function buildTerrain(src: TerrainSrc, ow: Overworld | null = null): Terrain {
   const W = src.size[0] * CELL_SIZE, D = src.size[1] * CELL_SIZE;
   const ox = src.origin[0] * CELL_SIZE, oz = src.origin[1] * CELL_SIZE;
   const seed = src.seed;
@@ -222,6 +255,79 @@ function buildTerrain(src: TerrainSrc): Terrain {
   const carves = src.carve.map((c) => ({ c, pl: catmull(c.points) }));
   const splines = new Map<string, Polyline>(carves.map(({ c, pl }) => [c.id, pl]));
   const pathLines = src.paths.map((p) => ({ p, pl: catmull(p.points) }));
+  const localRivers = (src.rivers ?? []).map((r) => ({ r, pl: catmull(r.points) }));
+  const sharedRivers = (ow?.src.rivers ?? []).map((r) => ({ r, pl: catmull(r.points) }));
+  const localPools = src.pools ?? [];
+  const sharedPools = ow?.src.pools ?? [];
+  const sharedPaths = (ow?.src.paths ?? []).map((p) => ({ p, pl: catmull(p.points.map(([x, z]) => [x, z, 0])) }));
+  for (const { r, pl } of [...localRivers, ...sharedRivers]) splines.set(r.id, pl);
+
+  /** Carve one river into h and return the new height and its bank paint weight. */
+  const applyRiver = (r: RiverSrc, pl: Polyline, x: number, z: number, h: number): [number, number, number] => {
+    const reach = r.halfWidth + r.bankWidth;
+    const n = nearest(pl, x, z, reach);
+    if (n.d >= reach) return [h, 0, 0];
+    const surface = n.v;
+    if (n.d < r.halfWidth) {
+      const t = n.d / r.halfWidth;
+      return [Math.min(h, surface - r.depth * (1 - 0.5 * t * t)), 0, 1];
+    }
+    const t = smooth((n.d - r.halfWidth) / r.bankWidth);
+    return [lerp(surface - r.depth * 0.5, Math.max(h, surface + 0.4), t), 1 - t, 0];
+  };
+  const applyPool = (p: PoolSrc, x: number, z: number, h: number): [number, number, number] => {
+    const d = Math.sqrt((x - p.center[0]) * (x - p.center[0]) + (z - p.center[1]) * (z - p.center[1]));
+    if (d >= p.radius + p.bank) return [h, 0, 0];
+    if (d < p.radius) {
+      const t = d / p.radius;
+      return [Math.min(h, p.surface - p.depth * (1 - 0.7 * t * t)), 0, 1];
+    }
+    const t = smooth((d - p.radius) / p.bank);
+    return [lerp(p.surface - p.depth * 0.3, Math.max(h, p.surface + 0.4), t), 1 - t, 0];
+  };
+
+  // Seams: for each of the four edges, whether another overworld region lies across it here, and how closed it is.
+  const x0m = ox, z0m = oz, x1m = ox + W, z1m = oz + D;
+  const hasCell = (x: number, z: number) => ow !== null && ow.others.has(`${Math.floor(x / CELL_SIZE)},${Math.floor(z / CELL_SIZE)}`);
+  const closedness = (axis: 'x' | 'z', at: number, along: number): number => {
+    let c = 0;
+    for (const span of ow?.src.seam.closed ?? []) {
+      if (span.edge !== axis || span.at !== at) continue;
+      const out = Math.max(span.from - along, 0, along - span.to);
+      c = Math.max(c, out <= 0 ? 1 : smooth(1 - out / SEAM_TAPER));
+    }
+    return c;
+  };
+  /** Per edge: distance to it, whether a neighbour is across (open seam), and the cliff factor there. */
+  const edges = (x: number, z: number) => {
+    const zc = Math.min(Math.max(z, z0m + 0.5), z1m - 0.5), xc = Math.min(Math.max(x, x0m + 0.5), x1m - 0.5);
+    const list: { e: number; seam: boolean; cliff: number }[] = [];
+    const add = (e: number, across: [number, number], axis: 'x' | 'z', at: number, along: number) => {
+      const seam = hasCell(across[0], across[1]);
+      list.push({ e, seam, cliff: seam ? closedness(axis, at, along) : 1 });
+    };
+    add(x - x0m, [x0m - 0.5, zc], 'x', x0m, z);
+    add(x1m - x, [x1m + 0.5, zc], 'x', x1m, z);
+    add(z - z0m, [xc, z0m - 0.5], 'z', z0m, x);
+    add(z1m - z, [xc, z1m + 0.5], 'z', z1m, x);
+    return list;
+  };
+  const wallDist = (x: number, z: number) => {
+    let best = Infinity;
+    for (const ed of edges(x, z)) if (!ed.seam || ed.cliff > 0.5) best = Math.min(best, ed.e);
+    return best;
+  };
+  const seamCfg = ow?.src.seam;
+  /** The height both sides of a seam agree on: the shared grid, bilinear, plus shared noise. */
+  const seamHeight = (x: number, z: number): number => {
+    const g = seamCfg!.grid;
+    const rows = g.heights.length, cols = g.heights[0].length;
+    const fx = Math.min(Math.max((x - g.origin[0]) / g.step, 0), cols - 1), fz = Math.min(Math.max((z - g.origin[1]) / g.step, 0), rows - 1);
+    const ix = Math.min(Math.floor(fx), cols - 2), iz = Math.min(Math.floor(fz), rows - 2);
+    const tx = smooth(fx - ix), tz = smooth(fz - iz);
+    const a = g.heights[iz][ix], b = g.heights[iz][ix + 1], c = g.heights[iz + 1][ix], d = g.heights[iz + 1][ix + 1];
+    return lerp(lerp(a, b, tx), lerp(c, d, tx), tz) + fbm(x, z, seamCfg!.noise, ow!.seed);
+  };
 
   /** Phases 1–3: base fBm, noise stamps, raises. */
   const natural = (x: number, z: number): number => {
@@ -252,6 +358,9 @@ function buildTerrain(src: TerrainSrc): Terrain {
 
   const heights = new Float64Array((W + 1) * (D + 1));
   const pathW = new Float64Array((W + 1) * (D + 1));
+  const seamWs = new Float32Array((W + 1) * (D + 1));
+  const bankW = new Float32Array((W + 1) * (D + 1));
+  const bedW = new Float32Array((W + 1) * (D + 1));
   const b = src.border;
   for (let iz = 0; iz <= D; iz++) {
     for (let ix = 0; ix <= W; ix++) {
@@ -283,12 +392,66 @@ function buildTerrain(src: TerrainSrc): Terrain {
         lower = Math.max(lower, bw.depth * prof);
       }
       h -= lower;
-      // Phase 7: the border. A soft rise, then a cliff in the outer cliffWidth metres.
-      const e = Math.min(ix, iz, W - ix, D - iz);
-      if (e < b.cliffWidth + b.softWidth) {
-        h += b.softHeight * smooth((b.cliffWidth + b.softWidth - e) / b.softWidth);
-        if (e < b.cliffWidth) h += (b.cliffHeight * (b.cliffWidth - e)) / b.cliffWidth;
+      // Phase 6b: this region's own rivers and pools (absolute surfaces).
+      let bank = 0, bed = 0;
+      for (const { r, pl } of localRivers) {
+        const [nh, bk, bd] = applyRiver(r, pl, x, z, h);
+        h = nh;
+        bank = Math.max(bank, bk);
+        bed = Math.max(bed, bd);
       }
+      for (const p of localPools) {
+        const [nh, bk, bd] = applyPool(p, x, z, h);
+        h = nh;
+        bank = Math.max(bank, bk);
+        bed = Math.max(bed, bd);
+      }
+      // Phase 7: seams and the border. Toward an open seam the terrain blends into the shared seam
+      // height; a wall edge (no neighbour, or a closed span) adds the soft rise and the cliff.
+      const eds = edges(x, z);
+      let seamW = 0;
+      // On a closed span the blend only reaches across the cliff itself, so the ground behind it stays this region's.
+      if (ow) {
+        for (const ed of eds) {
+          if (!ed.seam) continue;
+          const band = lerp(seamCfg!.band, b.cliffWidth, ed.cliff);
+          if (ed.e < band) seamW = Math.max(seamW, smooth(1 - ed.e / band));
+        }
+      }
+      if (seamW > 0) {
+        h = lerp(h, seamHeight(x, z), seamW);
+        pw *= 1 - seamW;
+        bank *= 1 - seamW;
+        bed *= 1 - seamW;
+      }
+      // Shared roads only paint (their line is the same on both sides of a seam).
+      for (const { p, pl } of sharedPaths) {
+        const n = nearest(pl, x, z, p.halfWidth + src.splat.pathFade);
+        if (n.d < p.halfWidth + src.splat.pathFade) pw = Math.max(pw, n.d <= p.halfWidth ? 1 : smooth(1 - (n.d - p.halfWidth) / src.splat.pathFade));
+      }
+      for (const { r, pl } of sharedRivers) {
+        const [nh, bk, bd] = applyRiver(r, pl, x, z, h);
+        h = nh;
+        bank = Math.max(bank, bk);
+        bed = Math.max(bed, bd);
+      }
+      for (const p of sharedPools) {
+        const [nh, bk, bd] = applyPool(p, x, z, h);
+        h = nh;
+        bank = Math.max(bank, bk);
+        bed = Math.max(bed, bd);
+      }
+      let rise = 0;
+      for (const ed of eds) {
+        if (ed.cliff <= 0 || ed.e >= b.cliffWidth + b.softWidth) continue;
+        let r = b.softHeight * smooth((b.cliffWidth + b.softWidth - ed.e) / b.softWidth);
+        if (ed.e < b.cliffWidth) r += (b.cliffHeight * (b.cliffWidth - ed.e)) / b.cliffWidth;
+        rise = Math.max(rise, r * ed.cliff);
+      }
+      h += rise;
+      seamWs[iz * (W + 1) + ix] = seamW;
+      bankW[iz * (W + 1) + ix] = bank;
+      bedW[iz * (W + 1) + ix] = bed;
       heights[iz * (W + 1) + ix] = h;
       pathW[iz * (W + 1) + ix] = pw;
     }
@@ -316,11 +479,12 @@ function buildTerrain(src: TerrainSrc): Terrain {
         }
         if (m <= 0) return;
         if (zn.patch) m *= smooth(0.5 + valueNoise(x / zn.patch, z / zn.patch, seed + 31 * (zi + 1)) * 0.9);
-        const w = m * zn.weight;
+        const w = m * zn.weight * (1 - seamWs[iz * (W + 1) + ix]);
         if (zn.layer === 'rock') rock = Math.max(rock, w);
         else dirt = Math.max(dirt, w);
       });
-      const p = pathW[iz * (W + 1) + ix];
+      dirt = Math.max(dirt, bedW[iz * (W + 1) + ix]);
+      const p = Math.max(pathW[iz * (W + 1) + ix], bankW[iz * (W + 1) + ix] * 0.85);
       const P = Math.round(p * 255);
       const R = Math.round((1 - p) * rock * 255);
       const Dt = Math.round((1 - p) * (1 - rock) * dirt * 255);
@@ -333,7 +497,19 @@ function buildTerrain(src: TerrainSrc): Terrain {
     }
   }
 
-  return { heights, splat, W, D, paths: new Map(pathLines.map(({ p, pl }) => [p.id, { pl, halfWidth: p.halfWidth }])), splines };
+  // Water the renderer draws: every river or pool that reaches this region (shared ones are deduped at load by id).
+  const inRegion = (minX: number, maxX: number, minZ: number, maxZ: number) => maxX >= x0m - 8 && minX <= x1m + 8 && maxZ >= z0m - 8 && minZ <= z1m + 8;
+  const water: WaterBody[] = [];
+  for (const { r, pl } of [...localRivers, ...sharedRivers]) {
+    if (!inRegion(pl.minX - r.halfWidth, pl.maxX + r.halfWidth, pl.minZ - r.halfWidth, pl.maxZ + r.halfWidth)) continue;
+    water.push({ id: r.id, kind: 'river', points: pl.xs.map((x, i) => [r2(x), r2(pl.zs[i]), r2(pl.vs[i])] as [number, number, number]), halfWidth: r2(r.halfWidth + r.bankWidth * 0.35), flow: r.flow ?? 1.2 });
+  }
+  for (const p of [...localPools, ...sharedPools]) {
+    const R = p.radius + p.bank * 0.35;
+    if (!inRegion(p.center[0] - R, p.center[0] + R, p.center[1] - R, p.center[1] + R)) continue;
+    water.push({ id: p.id, kind: 'pool', center: [r2(p.center[0]), r2(p.center[1])], radius: r2(R), y: r2(p.surface) });
+  }
+  return { heights, splat, W, D, paths: new Map(pathLines.map(({ p, pl }) => [p.id, { pl, halfWidth: p.halfWidth }])), splines, wallDist, water };
 }
 
 // ------------------------------------------------------------------ props
@@ -424,8 +600,9 @@ function placeProps(t: Terrain, terrainSrc: TerrainSrc, src: PlacementsSrc, grou
         // Always draw the same five numbers per grid point, so editing one constraint doesn't reshuffle the rest.
         const jx = rand(), jz = rand(), accept = rand(), ryaw = rand(), rscale = rand();
         const x = ox + (gx + jx) * g, z = oz + (gz + jz) * g;
-        const lx = x - ox, lz = z - oz;
-        if (Math.min(lx, lz, t.W - lx, t.D - lz) < rule.minBorder) continue;
+        // Inside this region (an open seam lets the grid run to its edge), and clear of every wall edge.
+        if (x < ox + 0.5 || z < oz + 0.5 || x > ox + t.W - 0.5 || z > oz + t.D - 0.5) continue;
+        if (t.wallDist(x, z) < rule.minBorder) continue;
         let w = 1;
         if (rule.in?.length) w = Math.max(...rule.in.map((n) => shapeMask(zone(n), zone(n).falloff ?? 0, x, z)));
         if (w <= 0 || accept >= w) continue;
@@ -571,6 +748,23 @@ async function buildHorizon(
 const json = (v: unknown, pretty: boolean) => new TextEncoder().encode(JSON.stringify(v, null, pretty ? 2 : undefined) + '\n');
 const sortedKeys = <T>(o: Record<string, T>): Record<string, T> => Object.fromEntries(Object.keys(o).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).map((k) => [k, o[k]]));
 
+/** The overworld this region belongs to, or null (the cave). Reads every other region's rectangle. */
+function loadOverworld(region: string): Overworld | null {
+  const file = path.join(ROOT, 'world-src', 'overworld.json');
+  if (!fs.existsSync(file)) return null;
+  const src = JSON.parse(fs.readFileSync(file, 'utf8')) as OverworldSrc;
+  if (!src.regions.includes(region)) return null;
+  const others = new Set<string>();
+  for (const id of src.regions) {
+    if (id === region) continue;
+    const tf = path.join(ROOT, 'world-src', id, 'terrain.json');
+    if (!fs.existsSync(tf)) continue;
+    const o = JSON.parse(fs.readFileSync(tf, 'utf8')) as TerrainSrc;
+    for (let cz = 0; cz < o.size[1]; cz++) for (let cx = 0; cx < o.size[0]; cx++) others.add(`${o.origin[0] + cx},${o.origin[1] + cz}`);
+  }
+  return { src, others, seed: 20261120 };
+}
+
 async function bakeRegion(region: string): Promise<{ files: Map<string, Uint8Array>; stats: string[] }> {
   const dir = path.join(ROOT, 'world-src', region);
   const terrainSrc = JSON.parse(fs.readFileSync(path.join(dir, 'terrain.json'), 'utf8')) as TerrainSrc;
@@ -578,7 +772,14 @@ async function bakeRegion(region: string): Promise<{ files: Map<string, Uint8Arr
   if (terrainSrc.id !== region) throw new Error(`terrain.json id ${terrainSrc.id} != ${region}`);
   const [SW, SD] = terrainSrc.size;
   const [OX, OZ] = terrainSrc.origin;
-  const t = buildTerrain(terrainSrc);
+  const ow = loadOverworld(region);
+  if (ow) {
+    if (terrainSrc.heightRange && (terrainSrc.heightRange.min !== ow.src.heightRange.min || terrainSrc.heightRange.max !== ow.src.heightRange.max)) {
+      throw new Error(`terrain.json heightRange differs from overworld.json's (leave it out: the overworld sets it)`);
+    }
+    terrainSrc.heightRange = ow.src.heightRange;
+  }
+  const t = buildTerrain(terrainSrc, ow);
 
   let hmin = Infinity, hmax = -Infinity;
   for (const h of t.heights) {
@@ -721,8 +922,9 @@ async function bakeRegion(region: string): Promise<{ files: Map<string, Uint8Arr
     playerStart,
     horizon: `${base}/horizon.glb`,
     splatLayers: ['grass', 'dirt', 'rock', 'path'],
-    fog: { near: 80, far: 180, farPlane: 450 },
+    fog: ow?.src.fog ?? terrainSrc.fog ?? { near: 80, far: 180, farPlane: 450 },
   };
+  if (t.water.length) manifest.water = t.water;
   files.set('region.json', json(manifest, true));
 
   // Budgets (plan §3.5).

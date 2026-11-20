@@ -16,7 +16,15 @@ const ROOT = path.resolve('public/assets');
  * World props that are landmarks or set pieces (plan §3.5: landmarks ≤ 10k triangles, other props
  * ≤ 4k). Matched by file name under models/props/, LOD0 and LOD1.
  */
-const LANDMARKS = ['grove_water_tower', 'grove_tower', 'grove_beanstalk', 'grove_silo', 'skyline_crane', 'frost_beacon', 'frost_gate', 'underworks_hoist'];
+/** Environment kits built by this repo (tools/build-env-props.mjs): their files are owned, and their landmarks take the landmark cap. */
+const ENV_PROPS_FILE = path.resolve('art/source/env/ENV_PROPS.json');
+const ENV_PROPS = fs.existsSync(ENV_PROPS_FILE) ? JSON.parse(fs.readFileSync(ENV_PROPS_FILE, 'utf8')).props : {};
+const ENV_LANDMARKS = Object.entries(ENV_PROPS).filter(([, p]) => p.landmark).map(([name]) => name);
+const ownedEnvProp = (rel) => {
+  const m = /^models\/props\/(.+?)(-lod1)?\.glb$/.exec(rel);
+  return Boolean(m && ENV_PROPS[m[1]]);
+};
+const LANDMARKS = [...ENV_LANDMARKS, 'grove_water_tower', 'grove_tower', 'grove_beanstalk', 'grove_silo', 'skyline_crane', 'frost_beacon', 'frost_gate', 'underworks_hoist'];
 /** Triangle caps (plan §3.5, revision 2): 9k standard; 22k elites, bosses, NPCs and the player. */
 const CAPS = [
   [new RegExp(`^models/props/(${LANDMARKS.join('|')})(-lod1)?\\.glb$`), 10000],
@@ -67,7 +75,7 @@ function walk(dir, base = '') {
 }
 
 for (const rel of walk(ROOT)) {
-  if (!OWN.has(rel) && !imported[rel] && !ownedLod1(rel) && !ownedKeepsakeIcon(rel)) fail(`${rel} is not tracked in IMPORTED.json`);
+  if (!OWN.has(rel) && !imported[rel] && !ownedLod1(rel) && !ownedKeepsakeIcon(rel) && !ownedEnvProp(rel)) fail(`${rel} is not tracked in IMPORTED.json`);
   if (/^models\/props\/[^/]+\.glb$/.test(rel) && !rel.endsWith('-lod1.glb') && !fs.existsSync(path.join(ROOT, rel.replace(/\.glb$/, '-lod1.glb')))) {
     fail(`${rel} has no generated LOD1 (run npm run import:assets)`);
   }

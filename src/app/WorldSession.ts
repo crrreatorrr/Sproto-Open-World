@@ -5,10 +5,11 @@ import { cellOf } from '../content/world/format';
 import type { Renderer } from '../render/Renderer';
 import { CellStreamer, type CellSink, type CellView } from '../world/CellStreamer';
 import { GrassField } from '../world/GrassField';
-import { loadWorld, propPath, type Region } from '../world/RegionManifest';
+import { loadWorld, propPath, type Region, type WorldManifest } from '../world/RegionManifest';
 import { VEIL_TIMEOUT_MS, withRetry } from '../world/rings';
 import { TerrainBuilder } from '../world/TerrainBuilder';
 import { UploadBudget } from '../world/UploadBudget';
+import { WaterLayer, waterClock } from '../world/Water';
 
 export type GroundState = 'ready' | 'loading' | 'timeout';
 
@@ -26,6 +27,7 @@ export class WorldSession {
   readonly uploads = new UploadBudget();
   private builder: TerrainBuilder | null = null;
   private grass: GrassField | null = null;
+  private water: WaterLayer | null = null;
   private loading: Promise<Region> | null = null;
   /** When the veil went up for missing ground (performance.now ms), or null. */
   private veilSince: number | null = null;
@@ -38,7 +40,7 @@ export class WorldSession {
     if (this.grass) this.grass.enabled = on;
   }
 
-  /** Load Sproutvale and the Rootdeep as one world (3 retries) and set up streaming. Safe to call again after a failure. */
+  /** Load every region as one world (3 retries) and set up streaming. Safe to call again after a failure. */
   load(): Promise<Region> {
     this.loading ??= withRetry(() => loadWorld(), sleep).then(
       (region) => {
@@ -92,15 +94,25 @@ export class WorldSession {
     this.grass = field;
     streamer.root.add(field.root);
     void this.renderer.compile(field.root);
-    // The horizon is resident for the whole session.
-    this.assets.gltf(m.horizon, 'now').then(
-      (g) => {
-        if (this.streamer !== streamer) return;
-        streamer.horizon.attach(g.scene);
-        void this.renderer.compile(streamer.horizon.root);
-      },
-      (err: unknown) => console.warn(`[world] horizon ${m.horizon} failed to load; distant terrain stays empty`, err),
-    );
+    // Rivers, pools and falls: a few meshes for the whole world, resident like the horizon.
+    if (m.water?.length) {
+      const water = new WaterLayer(m.water);
+      this.water = water;
+      streamer.root.add(water.root);
+      void this.renderer.compile(water.root);
+    }
+    // The horizons are resident for the whole session: one per overworld region.
+    const horizons = (m as Partial<WorldManifest>).horizons ?? [m.horizon];
+    for (const path of horizons) {
+      this.assets.gltf(path, 'now').then(
+        (g) => {
+          if (this.streamer !== streamer) return;
+          streamer.horizon.attach(g.scene);
+          void this.renderer.compile(streamer.horizon.root);
+        },
+        (err: unknown) => console.warn(`[world] horizon ${path} failed to load; distant terrain there stays empty`, err),
+      );
+    }
   }
 
   /** The manifest's player start. */
@@ -112,6 +124,7 @@ export class WorldSession {
   frame(focus: { x: number; z: number; vx: number; vz: number }, view: CellView | null, tick: number): void {
     if (!this.streamer) return;
     this.uploads.run();
+    waterClock.value = performance.now() / 1000;
     this.streamer.update(focus, view, tick);
     this.grass?.update(focus.x, focus.z, performance.now() / 1000, this.streamer);
   }
@@ -205,6 +218,8 @@ export class WorldSession {
 
   dispose(): void {
     this.grass?.dispose();
+    this.water?.dispose();
+    this.water = null;
     this.grass = null;
     this.streamer?.dispose();
     this.streamer = null;

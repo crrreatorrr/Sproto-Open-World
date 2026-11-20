@@ -1,0 +1,436 @@
+{
+  "_doc": "What the walkable overworld's regions share (tools/bake-world.ts). Every region listed bakes into the same heightRange and fog. Where two regions touch, both blend their terrain over `seam.band` metres into the same seam height (bilinear `seam.grid` plus `seam.noise`), so the cells meet with no step. A seam stays a cliff ridge where `closed` says so (both sides keep their border cliff there); everywhere else it is open ground. Shared `rivers`, `pools` and `paths` cross seams: every region applies them after the blend, so they line up. Regions and their rectangles: src/content/world/regions.ts and each world-src/<id>/terrain.json. Rivers: points [x, z, surfaceY]; the bed is surfaceY - depth, banks rise to at least surfaceY + 0.4. World metres, x east, z north.",
+  "regions": [
+    "sproutvale",
+    "town",
+    "zen",
+    "river",
+    "mountains",
+    "waterfalls"
+  ],
+  "heightRange": {
+    "min": -16,
+    "max": 240
+  },
+  "fog": {
+    "near": 140,
+    "far": 820,
+    "farPlane": 2200
+  },
+  "seam": {
+    "band": 40,
+    "noise": {
+      "amplitude": 1.5,
+      "scale": 90,
+      "octaves": 3,
+      "persistence": 0.5,
+      "lacunarity": 2
+    },
+    "grid": {
+      "_doc": "Heights at every `step` metres from `origin`; rows go north (z), columns east (x). 7 columns: x 0..1536; 11 rows: z 0..2560.",
+      "origin": [
+        0,
+        0
+      ],
+      "step": 256,
+      "heights": [
+        [
+          10,
+          10,
+          10,
+          14,
+          8,
+          8,
+          16
+        ],
+        [
+          10,
+          10,
+          10,
+          16,
+          9,
+          9,
+          18
+        ],
+        [
+          12,
+          11,
+          10,
+          12,
+          9,
+          10,
+          16
+        ],
+        [
+          16,
+          14,
+          12,
+          10,
+          9,
+          10,
+          14
+        ],
+        [
+          24,
+          20,
+          16,
+          11,
+          9,
+          10,
+          16
+        ],
+        [
+          34,
+          28,
+          20,
+          12,
+          10,
+          12,
+          20
+        ],
+        [
+          48,
+          40,
+          30,
+          18,
+          14,
+          18,
+          28
+        ],
+        [
+          70,
+          64,
+          56,
+          48,
+          30,
+          40,
+          56
+        ],
+        [
+          110,
+          100,
+          90,
+          80,
+          70,
+          72,
+          80
+        ],
+        [
+          150,
+          140,
+          130,
+          110,
+          90,
+          86,
+          90
+        ],
+        [
+          180,
+          170,
+          160,
+          130,
+          100,
+          92,
+          96
+        ]
+      ]
+    },
+    "closed": [
+      {
+        "_": "Sproutvale's quarry corner keeps its cliffs (north edge east of x 380)",
+        "edge": "z",
+        "at": 512,
+        "from": 380,
+        "to": 512
+      },
+      {
+        "_": "Sproutvale's quarry corner keeps its cliffs (east edge north of z 330)",
+        "edge": "x",
+        "at": 512,
+        "from": 330,
+        "to": 512
+      }
+    ]
+  },
+  "rivers": [
+    {
+      "id": "willowrun",
+      "halfWidth": 7,
+      "bankWidth": 6,
+      "depth": 1.3,
+      "flow": 1.4,
+      "points": [
+        [
+          1150,
+          1700,
+          21.5
+        ],
+        [
+          1120,
+          1600,
+          16.5
+        ],
+        [
+          1060,
+          1536,
+          12.6
+        ],
+        [
+          980,
+          1440,
+          11.4
+        ],
+        [
+          900,
+          1320,
+          9.8
+        ],
+        [
+          960,
+          1180,
+          8.6
+        ],
+        [
+          1080,
+          1060,
+          7.8
+        ],
+        [
+          1120,
+          920,
+          7.6
+        ],
+        [
+          1020,
+          800,
+          7.4
+        ],
+        [
+          900,
+          700,
+          7.2
+        ],
+        [
+          880,
+          600,
+          7.0
+        ],
+        [
+          920,
+          512,
+          6.8
+        ],
+        [
+          960,
+          420,
+          6.4
+        ],
+        [
+          1000,
+          300,
+          6.0
+        ],
+        [
+          1060,
+          200,
+          5.6
+        ],
+        [
+          1100,
+          120,
+          5.3
+        ]
+      ]
+    }
+  ],
+  "pools": [
+    {
+      "id": "veilfalls_pool",
+      "center": [
+        1150,
+        1730
+      ],
+      "radius": 34,
+      "bank": 8,
+      "depth": 3.5,
+      "surface": 21.6
+    },
+    {
+      "id": "bellmere_harbour",
+      "center": [
+        1110,
+        96
+      ],
+      "radius": 38,
+      "bank": 8,
+      "depth": 2.2,
+      "surface": 5.2
+    }
+  ],
+  "paths": [
+    {
+      "id": "road_sprout_town",
+      "halfWidth": 2.6,
+      "points": [
+        [
+          436,
+          172
+        ],
+        [
+          512,
+          180
+        ],
+        [
+          600,
+          200
+        ],
+        [
+          690,
+          222
+        ],
+        [
+          760,
+          232
+        ]
+      ]
+    },
+    {
+      "id": "road_town_river",
+      "halfWidth": 2.4,
+      "points": [
+        [
+          760,
+          232
+        ],
+        [
+          748,
+          330
+        ],
+        [
+          732,
+          430
+        ],
+        [
+          720,
+          512
+        ],
+        [
+          706,
+          600
+        ],
+        [
+          700,
+          660
+        ]
+      ]
+    },
+    {
+      "id": "road_sprout_zen",
+      "halfWidth": 2.2,
+      "points": [
+        [
+          222,
+          390
+        ],
+        [
+          206,
+          460
+        ],
+        [
+          192,
+          512
+        ],
+        [
+          196,
+          580
+        ],
+        [
+          214,
+          650
+        ]
+      ]
+    },
+    {
+      "id": "road_river_zen",
+      "halfWidth": 2.2,
+      "points": [
+        [
+          700,
+          660
+        ],
+        [
+          620,
+          720
+        ],
+        [
+          540,
+          780
+        ],
+        [
+          512,
+          800
+        ],
+        [
+          440,
+          830
+        ],
+        [
+          360,
+          860
+        ]
+      ]
+    },
+    {
+      "id": "trail_mountains",
+      "halfWidth": 1.8,
+      "points": [
+        [
+          250,
+          1440
+        ],
+        [
+          280,
+          1500
+        ],
+        [
+          300,
+          1536
+        ],
+        [
+          320,
+          1600
+        ],
+        [
+          300,
+          1680
+        ]
+      ]
+    },
+    {
+      "id": "path_falls",
+      "halfWidth": 1.8,
+      "points": [
+        [
+          940,
+          1400
+        ],
+        [
+          1000,
+          1480
+        ],
+        [
+          1040,
+          1536
+        ],
+        [
+          1080,
+          1600
+        ],
+        [
+          1100,
+          1660
+        ]
+      ]
+    }
+  ]
+}

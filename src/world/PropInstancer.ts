@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { patchFlowingWater } from './Water';
 import type { Priority } from '../assets/RequestQueue';
 import type { CellData, PropKind } from '../content/world/format';
 import { cellKey } from '../content/world/format';
@@ -326,6 +327,8 @@ export class PropInstancer {
       mesh.geometry.dispose();
       t.parts.push({ geometry: g, material: mesh.material });
       for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        // The environment kits' flowing water (waterfall sheets, mist, foam) runs on the world's water clock.
+        if (m.name === 'fx_water') patchFlowingWater(m);
         for (const v of Object.values(m)) if (v instanceof THREE.Texture) textures.add(v);
       }
     });

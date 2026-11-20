@@ -59,7 +59,18 @@ export interface RegionManifest {
   splatLayers: [string, string, string, string];
   /** World-space fog band and far plane (plan §3.2). */
   fog: { near: number; far: number; farPlane: number };
+  /** Water surfaces the renderer draws (rivers as ribbons, pools as discs). Visual only: the bed is terrain. */
+  water?: WaterBody[];
 }
+
+/**
+ * A water surface in world metres. A river is a ribbon along `points` ([x, z, surfaceY], already
+ * sampled smooth), `halfWidth` either side; where the surface drops steeply the ribbon becomes a
+ * falling sheet. A pool is a flat disc. `flow` is metres per second along the ribbon (0 for still).
+ */
+export type WaterBody =
+  | { id: string; kind: 'river'; points: [number, number, number][]; halfWidth: number; flow: number }
+  | { id: string; kind: 'pool'; center: [number, number]; radius: number; y: number };
 
 /**
  * A cell's JSON half. Prop placements are packed per prop key as flat arrays of

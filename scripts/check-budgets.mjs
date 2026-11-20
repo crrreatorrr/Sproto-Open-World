@@ -4,8 +4,8 @@
  *   - Title shell (index.html + CSS + entry JS, gzip): ≤ 150 KiB.
  *   - Critical transfer to playable in the world (all JS, the player, the small boot staff, the terrain textures, the combat sounds,
  *     the village's villagers, shrine, chests, pickups and square props,
- *     Sproutvale's region.json, the village cells (3–4, 0–1) and their ring, every prop those cells place (LOD0 + LOD1) and
- *     horizon.glb), as served (JS gzip; GLB/JPG/WebM already compressed; cell .bin/.json counted raw): ≤ 6 MiB.
+ *     every region's region.json, the village cells (3–4, 0–1) and their ring, every prop those cells place (LOD0 + LOD1) and
+ *     every overworld region's horizon.glb), as served (JS gzip; GLB/JPG/WebM already compressed; cell .bin/.json counted raw): ≤ 6 MiB.
  *     Enemies, other staffs and the full starter staff load later, by distance or when calm, so they don't count.
  *   - World (plan §3.1, §3.5): every cell (bin + json) ≤ 120 KB; each region under world/ ≤ 30 MiB.
  * Prints the Rapier chunk size, which the plan asked M0 to measure.
@@ -53,6 +53,13 @@ for (const key of [...villageProps].sort()) {
   if (k.lod1Path) critical.push(`assets/${k.lod1Path}`);
 }
 critical.push('world/sproutvale/region.json', region.horizon);
+// The world loads every region's manifest before Play, and every overworld horizon at once (src/content/world/regions.ts).
+for (const id of fs.readdirSync(WORLD).sort()) {
+  const m = path.join(WORLD, id, 'region.json');
+  if (!fs.existsSync(m)) continue;
+  critical.push(`world/${id}/region.json`);
+  if (id !== 'rootdeep') critical.push(JSON.parse(fs.readFileSync(m, 'utf8')).horizon);
+}
 const criticalBytes = allJs + [...new Set(critical)].reduce((n, f) => n + size(path.join(DIST, f)), 0);
 
 // Per-cell and per-region payloads, for every baked region.
