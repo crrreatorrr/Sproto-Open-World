@@ -6,9 +6,51 @@
  * deterministic sparring bot.
  */
 import * as THREE from 'three';
+import { createPvpClient, type PvpClient, type PvpTransport } from '../net/pvpClient';
 import { ARENA_R, ARENA_SOLIDS, ARENA_WALL_H } from '../sim/pvp/arena';
 import { DT, MATCH_TICKS, PVP_SIM_VERSION, PVP_TUNING, STOCK_GUNS } from '../sim/pvp/rules';
 import { createMatch, stepMatch, yawTo, type PartialPvpWish, type PvpMatchState, type PvpShotEvent } from '../sim/pvp/sim';
+
+function createWsTransport(url: string): { transport: PvpTransport; close: () => void } {
+  const ws = new WebSocket(url);
+  const msgListeners = new Set<(msg: { opCode: number; json: () => unknown }) => void>();
+  const closeListeners = new Set<() => void>();
+  const queue: string[] = [];
+  ws.addEventListener('open', () => {
+    for (const payload of queue.splice(0)) ws.send(payload);
+  });
+  ws.addEventListener('message', (ev) => {
+    try {
+      const parsed = JSON.parse(String(ev.data)) as { opCode?: number; data?: unknown };
+      if (typeof parsed.opCode !== 'number') return;
+      const pkt = { opCode: parsed.opCode, json: () => parsed.data };
+      for (const fn of msgListeners) fn(pkt);
+    } catch {
+      // Ignore malformed packets.
+    }
+  });
+  ws.addEventListener('close', () => {
+    for (const fn of closeListeners) fn();
+  });
+  return {
+    transport: {
+      send: (op, data) => {
+        const raw = JSON.stringify({ opCode: op, data });
+        if (ws.readyState === WebSocket.OPEN) ws.send(raw);
+        else if (ws.readyState === WebSocket.CONNECTING) queue.push(raw);
+      },
+      onMessage: (fn) => {
+        msgListeners.add(fn);
+        return () => msgListeners.delete(fn);
+      },
+      onClose: (fn) => {
+        closeListeners.add(fn);
+        return () => closeListeners.delete(fn);
+      },
+    },
+    close: () => ws.close(),
+  };
+}
 
 function botWish(state: PvpMatchState): PartialPvpWish {
   const me = state.players[1];
@@ -94,6 +136,22 @@ export function startPvpArena(host: HTMLElement): () => void {
   hud.append(topBar, botBar, cross, banner);
   host.append(hud);
 
+  const params = new URLSearchParams(window.location.search);
+  const wsUrl = params.get('ws');
+  const accountId = params.get('account') || 'local_player';
+  let wsHandle: { transport: PvpTransport; close: () => void } | null = null;
+  let onlineClient: PvpClient | null = null;
+  let sentReady = false;
+  if (wsUrl) {
+    wsHandle = createWsTransport(wsUrl);
+    onlineClient = createPvpClient({
+      accountId,
+      transport: wsHandle.transport,
+      clock: () => performance.now(),
+      predict: true,
+    });
+  }
+
   let seed = 7;
   let state = createMatch(seed);
   let yaw = state.players[0].yaw;
@@ -107,6 +165,7 @@ export function startPvpArena(host: HTMLElement): () => void {
   const exitToTitle = () => {
     const url = new URL(window.location.href);
     url.searchParams.delete('pvp');
+    url.searchParams.delete('ws');
     window.location.assign(url.toString());
   };
 
@@ -124,12 +183,13 @@ export function startPvpArena(host: HTMLElement): () => void {
     if (e.code === 'Digit1') slot = 0;
     else if (e.code === 'Digit2') slot = 1;
     else if (e.code === 'Digit3') slot = 2;
-    else if (e.code === 'Escape' && state.phase === 'done') exitToTitle();
-    else if (e.code === 'KeyR' && state.phase === 'done') resetMatch();
+    else if (e.code === 'Escape' && (onlineClient ? onlineClient.phase() === 'done' : state.phase === 'done')) exitToTitle();
+    else if (e.code === 'KeyR' && !onlineClient && state.phase === 'done') resetMatch();
   };
   const onKeyUp = (e: KeyboardEvent) => keys.delete(e.code);
   const onMouseDown = (e: MouseEvent) => {
-    if (document.pointerLockElement !== renderer.domElement && state.phase === 'live') {
+    const isLive = onlineClient ? onlineClient.phase() === 'live' : state.phase === 'live';
+    if (document.pointerLockElement !== renderer.domElement && isLive) {
       renderer.domElement.requestPointerLock?.();
     }
     if (e.button === 0) firing = true;
@@ -195,10 +255,74 @@ export function startPvpArena(host: HTMLElement): () => void {
       const startNow = Boolean(pad.buttons[9]?.pressed);
       if (startNow && !prevPadStart) exitToTitle();
       prevPadStart = startNow;
-      if (state.phase === 'done') {
-        if (pad.buttons[0]?.pressed) resetMatch();
+      const done = onlineClient ? onlineClient.phase() === 'done' : state.phase === 'done';
+      if (done) {
+        if (!onlineClient && pad.buttons[0]?.pressed) resetMatch();
         if (pad.buttons[1]?.pressed) exitToTitle();
       }
+    }
+
+    const localWish: PartialPvpWish = {
+      yaw,
+      pitch,
+      moveX,
+      moveZ,
+      fire: firing || padFire,
+      zoom: zooming || padZoom,
+      sprint: keys.has('ShiftLeft'),
+      jump: keys.has('Space') || padJump,
+      dash: keys.has('KeyQ') || padDash,
+      reload: keys.has('KeyR') || padReload,
+      slide: keys.has('KeyC') || padSlide,
+      slot,
+    };
+
+    if (onlineClient) {
+      if (onlineClient.phase() === 'lobby' && !sentReady) {
+        sentReady = true;
+        onlineClient.ready();
+      }
+      onlineClient.update(now, () => localWish);
+      const snap = onlineClient.sample(now);
+      const seat = onlineClient.seat() === 1 ? 1 : 0;
+      const oppSeat = seat === 0 ? 1 : 0;
+      const pred = onlineClient.predictedLocal();
+      const p0 = pred ?? snap?.players[seat] ?? state.players[0];
+      const p1 = snap?.players[oppSeat] ?? state.players[1];
+
+      const isZoom = pred ? pred.zooming : (zooming || padZoom);
+      camera.fov = isZoom ? (p0.slot === 2 ? 32 : 55) : 75;
+      camera.updateProjectionMatrix();
+      camera.position.set(p0.x, p0.y + 1.6, p0.z);
+      camera.rotation.order = 'YXZ';
+      camera.rotation.y = yaw;
+      camera.rotation.x = pitch;
+
+      oppMesh.visible = p1.alive;
+      oppMesh.position.set(p1.x, p1.y + 0.9, p1.z);
+
+      const rtt = onlineClient.rttMs();
+      const secsLeft = Math.max(0, Math.ceil((MATCH_TICKS - (snap?.tick ?? 0)) * DT));
+      const gun = STOCK_GUNS[p0.slot]!;
+      topBar.textContent = `FREE 1v1 ARENA · ONLINE (${onlineClient.phase().toUpperCase()}) · ${secsLeft}s · RTT ${rtt !== null ? Math.round(rtt) : '--'}ms · OPP HP ${Math.ceil(p1.hp / 1000)}`;
+      botBar.textContent = `HP ${Math.ceil(p0.hp / 1000)}  SH ${Math.ceil(p0.shield / 1000)}  ·  [${p0.slot + 1}] ${gun.name} · 1/2/3 Guns · Esc Exit`;
+
+      if (onlineClient.phase() === 'done' && banner.style.display === 'none') {
+        document.exitPointerLock?.();
+        const res = onlineClient.result();
+        const title = res?.winner === seat ? 'VICTORY' : res?.winner === oppSeat ? 'DEFEAT' : 'DRAW';
+        banner.replaceChildren();
+        const h = document.createElement('div');
+        h.textContent = `${title} (${res?.reason ?? res?.outcome ?? 'end'})`;
+        h.style.fontSize = '24px';
+        const back = document.createElement('button');
+        back.textContent = 'Back to Title (Esc / B)';
+        back.onclick = exitToTitle;
+        banner.append(h, back);
+        banner.style.display = 'flex';
+      }
+      renderer.render(scene, camera);
+      return;
     }
 
     acc += dt;
@@ -206,20 +330,7 @@ export function startPvpArena(host: HTMLElement): () => void {
       acc -= DT;
       if (state.phase === 'live') {
         const events: PvpShotEvent[] = [];
-        stepMatch(state, [{
-          yaw,
-          pitch,
-          moveX,
-          moveZ,
-          fire: firing || padFire,
-          zoom: zooming || padZoom,
-          sprint: keys.has('ShiftLeft'),
-          jump: keys.has('Space') || padJump,
-          dash: keys.has('KeyQ') || padDash,
-          reload: keys.has('KeyR') || padReload,
-          slide: keys.has('KeyC') || padSlide,
-          slot,
-        }, botWish(state)], events);
+        stepMatch(state, [localWish, botWish(state)], events);
         if (events.some((ev) => ev.shooter === 0 && ev.hits > 0)) hitFlash = 0.14;
       }
     }
@@ -266,6 +377,7 @@ export function startPvpArena(host: HTMLElement): () => void {
 
   return () => {
     cancelAnimationFrame(raf);
+    wsHandle?.close();
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
     window.removeEventListener('mousedown', onMouseDown);
