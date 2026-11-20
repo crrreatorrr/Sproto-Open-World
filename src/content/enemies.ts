@@ -6,6 +6,7 @@ import type { DamageKind } from './combat';
 import { ENEMY_SIZES, scaleEnemy } from './enemyScale';
 import { C4_ENEMIES } from './packs/c4';
 import { BIG_COIN_ADD_BELOW, BIG_COIN_ADD_COUNT, BIG_COIN_ADD_DEF, DRILL_FAST_WINDUP, GATEKEEPER_STRING3_HOLD } from './packs/encounterTune';
+import { registerRootdeepEnemies } from './packs/rootdeep';
 import { BURROWMOTHER } from './packs/c5';
 import { DRAKE, type DrakeDef } from './packs/c6';
 import { SCRAPJAW } from './packs/m5';
@@ -169,6 +170,11 @@ export interface EnemyDef {
   /** Sight range and leash radius from home (m). */
   aggroRange: number;
   leashRange: number;
+  /**
+   * Aggro needs a clear line to the player. Unhurt, and not already chasing, this enemy ignores a
+   * player it cannot see, so cave rock blocks awareness. Absent on every surface enemy.
+   */
+  needsSight?: boolean;
   /** Ticks dead before it respawns at home (sandbox). */
   respawnTicks: number;
   moves: EnemyMoveDef[];
@@ -404,6 +410,11 @@ ENEMIES.scrapjaw = SCRAPJAW;
 ENEMIES.burrowmother = BURROWMOTHER;
 // C6: the boss over the Orchard.
 ENEMIES.skyfire_drake = DRAKE;
+
+// Rootdeep variants copy the bodies above, including the unscaled elites. The scale loop below
+// then grows rd_brute and deep_warden with the rest of ENEMY_SIZES. Registering after that loop
+// would leave them at the authored size.
+registerRootdeepEnemies(ENEMIES);
 
 // The very strong tower over the player: every elite and boss, grown as a whole (enemyScale.ts).
 for (const [id, k] of Object.entries(ENEMY_SIZES)) ENEMIES[id] = scaleEnemy(ENEMIES[id], k);
