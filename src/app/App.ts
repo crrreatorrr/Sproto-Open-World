@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { AssetLoader } from '../assets/AssetLoader';
 import { MODELS, STAFF_BOOT_LOD, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
+import { zoneAt } from '../audio/zones';
 import { CameraRig } from '../camera/CameraRig';
 import { ITEMS } from '../content/items';
 import { keepsake, keepsakeIcon } from '../content/relics';
@@ -14,11 +15,13 @@ import { staffCostMult } from '../content/packs/c2';
 import { QUESTS, type QuestOffer } from '../content/quests';
 import { SANDBOX } from '../content/sandbox';
 import { SPELLS, WOVEN, type SpellId } from '../content/spells';
+import { DT } from '../content/tuning';
 import { worldLevel } from '../content/world/level';
 import { WORLD_CONTENT } from '../content/world/worldContent';
 import { frameDataLines, targetLines } from '../debug/frameData';
 import { Overlay } from '../debug/Overlay';
 import { QA_LOG_ENABLED, qaLog } from '../debug/qaLog';
+import type { FeedbackHost, FeedbackSnapshot } from '../hub/feedback';
 import { GAMEPAD, KEYS, PAD } from '../input/bindings';
 import { CommandBuilder } from '../input/CommandBuilder';
 import { applyControlPrefs, loadControlPrefs, saveControlPrefs } from '../input/controlPrefs';
@@ -60,6 +63,13 @@ import { powerFeedback } from './powerFeedback';
 import { WorldSession } from './WorldSession';
 
 export type AppState = 'title' | 'loading' | 'playing' | 'paused' | 'error';
+
+/** What the hub feedback window froze, so closing it puts back exactly that (src/hub/feedback.ts). */
+interface FeedbackHold {
+  state: AppState;
+  /** Play had the mouse when the screenshot was taken (the SDK releases it right after). */
+  locked: boolean;
+}
 
 const LOCAL_PLAYER = 0;
 /** How long a lost WebGL context may take to come back before we offer a reload (plan §2.9). */
@@ -146,6 +156,12 @@ export class App {
   /** QA teleport waiting for the target cell's heights, to set the player down on the ground. */
   private pendingDrop: { x: number; z: number } | null = null;
   private frameCount = 0;
+  /** The hub feedback window (N twice, keyboard only) has started loading, off the boot path. */
+  private feedbackLoad: Promise<boolean> | null = null;
+  /** Set while the feedback window holds the game: nothing ticks and the pad is ignored. */
+  private feedbackHold: FeedbackHold | null = null;
+  /** The feedback window's breadcrumbs: every sim event after its tick. */
+  private simEventHook: ((e: SimEvent, me: EntityId | null) => void) | null = null;
   /** The RPG HUD layer and menus (plan §5; world mode). */
   readonly rpgHud: RpgHud;
   /** The boss bar, its intro card and the end card (M5). */
@@ -295,6 +311,8 @@ export class App {
     // The world streams in behind the title (around the player start), so Play is quick.
     this.stream?.load().catch((err: unknown) => console.warn('[world] the region manifest could not load yet', err));
     requestAnimationFrame((t) => this.frame(t));
+    // N twice opens the hub feedback window: it and its screenshot code load once the title is up.
+    window.setTimeout(() => void this.loadFeedback(), import.meta.env.DEV ? 0 : 1000);
   }
 
   private applySettings(s: Settings): void {
@@ -496,7 +514,8 @@ export class App {
   }
 
   pause(): void {
-    if (this.state !== 'playing') return;
+    // The feedback window releases the mouse and may take the focus: the game is already held.
+    if (this.state !== 'playing' || this.feedbackHold) return;
     this.state = 'paused';
     this.commands.clear();
     this.input.clearHeld();
@@ -610,6 +629,10 @@ export class App {
     const frameStart = performance.now();
     const pad = this.input.pad;
     pad.update();
+    if (this.feedbackHold) {
+      this.feedbackFrame();
+      return;
+    }
 
     // Tracked all the time: a stick already held when the panel opens isn't a push.
     const stick = Math.abs(pad.move.x) > Math.abs(pad.move.y) ? pad.move.x : pad.move.y;
@@ -1015,6 +1038,7 @@ export class App {
       if (a?.kind === 'attack' && a.t === 0) qaLog.add({ kind: 'attackStart', tick: view.now, what: a.move });
     }
     for (const e of view.events) {
+      this.simEventHook?.(e, this.playerId);
       this.present(view, e);
       this.presentBoss(view, e);
       this.polish.event(view, e, this.playerId);
@@ -1637,6 +1661,119 @@ export class App {
     this.rig.snap(this.target, this.rig.yaw);
   }
 
+  // --- Hub feedback window (src/hub/feedback.ts) -----------------------------------------------------
+
+  /** Install the window; the SDK itself listens for N twice from then on. */
+  private loadFeedback(): Promise<boolean> {
+    this.feedbackLoad ??= Promise.all([
+      import('../hub/feedback'),
+      import('../hub/link').then((m) => m.connectHub()).catch((err: unknown) => {
+        console.warn('[hub] not connected', err);
+        return null;
+      }),
+    ])
+      .then(([m, sdk]) => m.installGameFeedback(this.feedbackHost(), sdk))
+      .catch((err: unknown) => {
+        console.warn('[feedback] not loaded', err);
+        return false;
+      });
+    return this.feedbackLoad;
+  }
+
+  private feedbackHost(): FeedbackHost {
+    return {
+      snapshot: () => this.feedbackSnapshot(),
+      hold: () => this.holdForFeedback(),
+      release: (token) => this.releaseFeedback(token),
+      renderNow: () => this.renderer.render(),
+      canvas: () => this.renderer.renderer.domElement,
+      onSimEvent: (fn) => {
+        this.simEventHook = fn;
+      },
+    };
+  }
+
+  /** Freeze whatever is up (play, a menu, the title) for the feedback window. */
+  private holdForFeedback(): FeedbackHold {
+    const hold: FeedbackHold = { state: this.state, locked: this.input.locked };
+    this.feedbackHold = hold;
+    this.commands.clear();
+    this.input.clearHeld();
+    return hold;
+  }
+
+  /** The window closed: back to exactly what `holdForFeedback` found. */
+  private releaseFeedback(token: unknown): void {
+    const hold = this.feedbackHold;
+    if (!hold || token !== hold) return;
+    this.feedbackHold = null;
+    // The window swallowed key-ups and mouse moves meant for it.
+    this.input.clearHeld();
+    this.input.consumeMouseDelta();
+    this.commands.clear();
+    this.loop.reset();
+    // Play had the mouse: take it back (closing the window was a click or a key, so the browser allows it).
+    if (this.state === 'playing' && hold.locked && !this.nav.open && this.input.pad.device === 'kbm') this.input.requestLock();
+  }
+
+  /** A frame while the feedback window holds the game: the scene stays put and the pad is ignored. */
+  private feedbackFrame(): void {
+    this.polish.mix('paused');
+    this.renderer.render();
+    this.input.endFrame();
+  }
+
+  /** What a feedback note says about this moment. Read only; called once, when the window opens. */
+  private feedbackSnapshot(): FeedbackSnapshot {
+    const r1 = (n: number) => Math.round(n * 10) / 10;
+    const sim = this.sim;
+    const p = sim?.playerEntity(LOCAL_PLAYER);
+    const pos = p?.tf.pos;
+    const prog = p?.progress;
+    const region = this.stream?.region?.manifest.id ?? null;
+    const place = this.mode === 'world' ? [region ?? 'sproutvale', pos ? zoneAt(pos.x, pos.z) : null, this.renderer.inCave ? 'cave' : null] : [this.mode];
+    const boss = sim?.entities.find((e) => e.boss?.state === 'intro' || e.boss?.state === 'fight');
+    return {
+      level: place.filter(Boolean).join(' · '),
+      mode: this.mode,
+      ...(pos ? { position: { x: r1(pos.x), y: r1(pos.y), z: r1(pos.z) } } : {}),
+      ...(sim ? { gameTime: r1(sim.now * DT) } : {}),
+      ...(p
+        ? {
+            player: {
+              hp: p.vitals ? Math.round(p.vitals.hp) : null,
+              hpMax: p.vitals?.hpMax ?? null,
+              mana: p.vitals ? Math.round(p.vitals.mana) : null,
+              stamina: p.vitals ? Math.round(p.vitals.stamina) : null,
+              action: p.combat?.action?.kind ?? null,
+              locked: p.combat?.lock != null,
+              riding: p.riding?.state ?? null,
+              level: prog?.level ?? null,
+              xp: prog?.xp ?? null,
+              sprouts: prog?.sprouts ?? null,
+              equipment: prog ? { ...prog.equipment } : null,
+              loadout: prog ? [...prog.loadout] : null,
+              tonics: prog ? prog.tonics.charges : null,
+              tracked: prog?.tracked ?? null,
+              lastShrine: prog?.lastShrine ?? null,
+            },
+          }
+        : {}),
+      extra: {
+        screen: this.state,
+        menu: this.nav.top?.el.id ?? null,
+        menuTab: this.nav.has(this.gameMenu.screen) ? this.gameMenu.tab : null,
+        quests: prog ? Object.entries(prog.quests).filter(([, q]) => q.status === 'active').map(([id, q]) => `${id}@${q.step}`) : [],
+        boss: boss ? { def: boss.brain?.def ?? null, hp: boss.vitals ? Math.round(boss.vitals.hp) : null, phase: boss.boss?.phase ?? null } : null,
+        wave: sim?.view().wave ?? null,
+        tick: sim?.now ?? 0,
+        hash: sim?.hash() ?? 0,
+        groundWait: this.groundWait,
+        device: this.input.pad.device === 'gamepad' ? `pad (${this.input.pad.style})` : 'keyboard + mouse',
+      },
+    };
+  }
+
   /** State for the QA API and the smoke test. */
   qaState(): Record<string, unknown> {
     const p = this.sim?.playerEntity(LOCAL_PLAYER);
@@ -1697,6 +1834,7 @@ export class App {
       interact: this.sim?.view().interactTarget(LOCAL_PLAYER) ?? null,
       choices: this.sim?.view().dialogueChoices(LOCAL_PLAYER) ?? [],
       typing: this.rpgMenus.typing,
+      feedbackHeld: this.feedbackHold !== null,
       menuTab: this.nav.has(this.gameMenu.screen) ? this.gameMenu.tab : null,
       menuPick: this.gameMenu.pending,
       hudSlots: this.hud.slotSpells,
