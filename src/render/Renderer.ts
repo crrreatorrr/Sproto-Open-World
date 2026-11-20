@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { AssetLoader } from '../assets/AssetLoader';
 import { TEXTURES } from '../assets/manifest';
 import type { LevelDef } from '../content/sandbox';
-import { lookFor, sunCastsShadow } from './caveLook';
+import { DAY_HAZE, sunCastsShadow, worldLight } from './caveLook';
 
 /** Draw calls and triangles of the last frame, split into the shadow pass and the main pass. */
 export interface FrameStats {
@@ -19,12 +19,12 @@ export interface WorldLook {
 
 /** Daylight sky colours: overhead, and the haze at the horizon (the fog fades into it). */
 const SKY_TOP = new THREE.Color(0x4f8fd6);
-const SKY_HAZE = new THREE.Color(0xcfe3ef);
+const SKY_HAZE = new THREE.Color(DAY_HAZE);
 
 /**
  * The WebGL2 renderer, scene, lights and the level's greybox meshes. One directional "sun" whose
- * shadow box follows the player. Two looks: the night grove sky over the training yard, and a
- * bright daylight sky with the manifest's fog over the streamed world.
+ * shadow box follows the player. The training yard keeps its night sky. The streamed world shares
+ * one look, computed from the storm, the cave and the graphics quality: the cave wins underground.
  */
 export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
@@ -37,8 +37,12 @@ export class Renderer {
   private readonly levelGroup = new THREE.Group();
   /** False on the surface. `setCave` does nothing when this is already the value asked for. */
   private cave = false;
+  /** The bait post's roar, until the Drake is down. Remembered in the cave and painted on the way out. */
+  private storm = false;
   /** Sun shadows as the graphics quality asks (`applyQuality`). The cave can only turn them off. */
   private shadowsWanted = true;
+  /** True after `worldLook`. The training yard keeps its own sky and only takes a storm tint. */
+  private daylight = false;
   /** Fog band from the last `worldLook`, put back when the player leaves the cave. */
   private surfaceFog: WorldLook['fog'] = { near: 80, far: 180, farPlane: 450 };
   private readonly caveSky = new THREE.Color(0x000000);
@@ -81,6 +85,7 @@ export class Renderer {
 
   /** The M1 look: the grove's night sky and light fog over the training yard. */
   yardLook(): void {
+    this.daylight = false;
     if (!this.yardSky) {
       this.yardSky = this.assets.texture(TEXTURES.sky);
       this.yardSky.mapping = THREE.EquirectangularReflectionMapping;
@@ -99,18 +104,19 @@ export class Renderer {
   /**
    * Sproutvale's daylight: a bright gradient sky, fog from the manifest's band in the sky's haze
    * colour (so the edge of the loaded rings melts into the sky), and the far plane at 450 m.
+   * A storm that is already going keeps its dim light.
    */
   worldLook(look: WorldLook): void {
     this.surfaceFog = { near: look.fog.near, far: look.fog.far, farPlane: look.fog.farPlane };
-    if (!this.cave) this.applySurface();
+    this.daylight = true;
+    if (!this.cave) this.applyComposed();
   }
 
   /** The player is in the Rootdeep. No-op when the boolean has not changed. */
   setCave(on: boolean): void {
     if (on === this.cave) return;
     this.cave = on;
-    if (on) this.applyCave();
-    else this.applySurface();
+    this.applyComposed();
   }
 
   get inCave(): boolean {
@@ -123,49 +129,50 @@ export class Renderer {
     this.sun.castShadow = sunCastsShadow(on, this.cave);
   }
 
-  /** Sproutvale's daylight, from `lookFor(false)` plus the fog `worldLook` stored. */
-  private applySurface(): void {
-    const look = lookFor(false);
-    const fog = this.surfaceFog;
-    this.daySky ??= daySkyTexture();
-    this.scene.background = this.daySky;
-    this.scene.fog = new THREE.Fog(SKY_HAZE.getHex(), fog.near, fog.far);
-    this.camera.far = fog.farPlane;
-    this.camera.updateProjectionMatrix();
-    this.hemi.color.set(0xe8f4ff);
-    this.hemi.groundColor.set(0x5a6a3a);
-    this.hemi.intensity = look.hemiIntensity;
-    this.sun.color.set(0xfff4e0);
-    this.sun.intensity = look.sunIntensity;
-    this.sun.castShadow = sunCastsShadow(this.shadowsWanted, this.cave);
-    this.torch.intensity = look.torchIntensity;
-  }
-
-  /** Black, short fog, no sun. The torch and a dim hemisphere light the rock. */
-  private applyCave(): void {
-    const look = lookFor(true);
-    this.scene.background = this.caveSky;
-    this.scene.fog = new THREE.Fog(0x050608, look.fogNear, look.fogFar);
-    this.camera.far = look.farPlane;
-    this.camera.updateProjectionMatrix();
-    this.hemi.color.set(0x6a7a8a);
-    this.hemi.groundColor.set(0x1a1a22);
-    this.hemi.intensity = look.hemiIntensity;
-    this.sun.intensity = look.sunIntensity;
-    this.sun.castShadow = sunCastsShadow(this.shadowsWanted, this.cave);
-    this.torch.intensity = look.torchIntensity;
-  }
-
-  private storm = false;
-
-  /** The bait post's distant roar: the orchard light drops until the Drake is down. */
+  /**
+   * The bait post's distant roar, until the Drake is down. Both setters paint `worldLight`, so
+   * neither writes over the other: the cave stays dark, and the storm is still there on the way out.
+   */
   setStorm(on: boolean): void {
-    if (on === this.storm || !(this.scene.fog instanceof THREE.Fog)) return;
+    if (on === this.storm) return;
+    // Before any look exists there is nothing to paint. The next call tries again.
+    if (!this.daylight && !this.cave && !(this.scene.fog instanceof THREE.Fog)) return;
     this.storm = on;
-    this.scene.fog.color.setHex(on ? 0x6a6258 : SKY_HAZE.getHex());
-    this.hemi.intensity = on ? 0.55 : 1.3;
-    this.sun.intensity = on ? 1.15 : 2.8;
-    this.sun.color.set(on ? 0xc4b39a : 0xfff4e0);
+    if (this.daylight || this.cave) this.applyComposed();
+    else this.applyStormTint();
+  }
+
+  /** Sun, hemisphere, fog and torch from the storm, the cave and the quality, together. */
+  private applyComposed(): void {
+    const light = worldLight(
+      { storm: this.storm, cave: this.cave, shadows: this.shadowsWanted },
+      this.surfaceFog,
+    );
+    if (light.background === 'cave') this.scene.background = this.caveSky;
+    else {
+      this.daySky ??= daySkyTexture();
+      this.scene.background = this.daySky;
+    }
+    this.scene.fog = new THREE.Fog(light.fogColor, light.fogNear, light.fogFar);
+    this.camera.far = light.farPlane;
+    this.camera.updateProjectionMatrix();
+    this.hemi.color.set(light.hemiColor);
+    this.hemi.groundColor.set(light.hemiGround);
+    this.hemi.intensity = light.hemiIntensity;
+    this.sun.color.set(light.sunColor);
+    this.sun.intensity = light.sunIntensity;
+    this.sun.castShadow = light.castShadow;
+    this.torch.intensity = light.torchIntensity;
+  }
+
+  /** The yard keeps its sky and fog distances. A storm only drops the light, the way it used to. */
+  private applyStormTint(): void {
+    if (!(this.scene.fog instanceof THREE.Fog)) return;
+    const light = worldLight({ storm: this.storm, cave: false, shadows: this.shadowsWanted }, this.surfaceFog);
+    this.scene.fog.color.setHex(light.fogColor);
+    this.hemi.intensity = light.hemiIntensity;
+    this.sun.intensity = light.sunIntensity;
+    this.sun.color.set(light.sunColor);
   }
 
   resize(): void {
