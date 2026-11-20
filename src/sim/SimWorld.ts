@@ -16,8 +16,9 @@ import type { ObstaclePlacement, RegionContent } from '../content/world/sproutva
 import { SAVE_SCHEMA, type SaveFile } from '../save/schema';
 import { getDungeon } from '../content/dungeons/catalog';
 import type { DungeonId } from '../content/dungeons/types';
-import { gunDef } from '../content/guns';
-import { createGunRuntimeState, startReload, tickReload, type GunRuntimeState } from './combat/ballistics';
+import { gunDef, type GunType } from '../content/guns';
+import { createGunRuntimeState, stepGunFire, type GunRuntimeState } from './combat/ballistics';
+import { canDualWield, createDualWieldState, stepDualWieldFire } from './combat/dualWield';
 import { createDungeonSession, stepDungeon, type DungeonEvent, type DungeonSessionState } from './dungeon/DungeonDirector';
 import { computeClassModifiers } from './systems/classSkills';
 import { createMovementTechState, stepMovementTech, type MovementTechState } from './systems/movementTech';
@@ -32,13 +33,13 @@ import { DT, MOVE, PLAYER_BODY } from '../content/tuning';
 import { enemyBrains, muzzle } from './ai/brain';
 import type { CommandMap } from './commands';
 import { resolveAim } from './combat/aim';
-import { kill, resolveAttacks } from './combat/hits';
+import { kill, resolveAttacks, resolveHit } from './combat/hits';
 import { lockOn } from './combat/lockon';
 import { playerCombat, type CombatCtx, type Motion } from './combat/playerCombat';
 import { wallBarrier } from './combat/powers/bramble';
 import { stepPowers } from './combat/powers/index';
 import { stepProjectiles } from './combat/projectiles';
-import { tickStatuses } from './combat/statuses';
+import { applyStatus, tickStatuses } from './combat/statuses';
 import { defaultAbilities, defaultAmmo, type Combat, type Entity, type EntityId, type Hazard, type PlayerId, type Team, type WorldState } from './entity';
 import type { SimEvent } from './events';
 import { hashValue } from './hash';
@@ -121,6 +122,17 @@ function savedWorld(world: WorldState): WorldState {
  * commands it is given; nothing else changes gameplay state. Pure: no three.js, DOM, clock or
  * Math.random (tests/architecture.test.ts). Call `initPhysics()` before constructing one.
  */
+export interface GunTickEvent {
+  entity: EntityId;
+  gunType: GunType;
+  fired: boolean;
+  hand: 'right' | 'left' | 'single';
+  hit: boolean;
+  crit: boolean;
+  reloadStarted: boolean;
+  reloadCompleted: boolean;
+}
+
 export class SimWorld {
   now = 0;
   entities: Entity[] = [];
@@ -134,6 +146,8 @@ export class SimWorld {
   dungeon: DungeonSessionState | null = null;
   /** Dungeon events emitted during the most recent tick. */
   dungeonEvents: readonly DungeonEvent[] = [];
+  /** Gun fire/hit/reload events emitted during the most recent tick. */
+  gunEvents: readonly GunTickEvent[] = [];
   /** Per-player ability-gated movement tech state (Slide, Dash, Double-Jump, Grapple). */
   private readonly moveTech = new Map<PlayerId, MovementTechState>();
   /** Per-player gun runtime state (magazine, reload progress). */
@@ -810,8 +824,10 @@ export class SimWorld {
       }
       const busy = playerRpg(rpg, e, cmd?.pressed ?? 0, uiActions, this.chests, cmd?.held ?? 0);
       if (busy) effective.set(e.owner, { ...idleInput(cmd?.camYaw ?? e.tf.yaw) });
-      // The Brick Phone never swings on Light attack: that button is the phone's (systems/travel.ts).
-      else if (cmd && wieldsPhone(e) && ((cmd.pressed | cmd.held) & BTN.light)) effective.set(e.owner, { ...cmd, pressed: cmd.pressed & ~BTN.light, held: cmd.held & ~BTN.light });
+      // The Brick Phone and equipped guns never swing on Light attack: Light triggers phone or gun fire.
+      else if (cmd && (wieldsPhone(e) || gunDef(e.progress?.equipment.staff)) && ((cmd.pressed | cmd.held) & BTN.light)) {
+        effective.set(e.owner, { ...cmd, pressed: cmd.pressed & ~BTN.light, held: cmd.held & ~BTN.light });
+      }
     }
     // Travel is applied here, not through RpgCtx: the destination's arrive point, then a settle onto its floor.
     for (const ev of this.events) {
@@ -830,6 +846,7 @@ export class SimWorld {
       this.teleportPlayer(who.owner, { x: dest.arrive[0], y: SETTLE_FROM_Y, z: dest.arrive[1] });
       who.settle = true;
     }
+    const rawCommands = commands;
     commands = effective;
     const motion = new Map<number, Motion>();
     const ctx: CombatCtx = { now: this.now, entities: this.entities, get: (id) => this.byId.get(id), events: this.events, motion, frozen };
@@ -846,6 +863,7 @@ export class SimWorld {
     this.physics.step();
     followRiders(this.entities, (id) => this.byId.get(id));
     resolveAttacks(ctx, this.physics);
+    this.gunRuntimeTick(ctx, rawCommands);
     for (const id of stepProjectiles(ctx, this.physics)) this.remove(id);
     for (const id of stepPowers(ctx)) this.remove(id);
     for (const id of stepHazards(ctx)) this.remove(id);
@@ -886,7 +904,6 @@ export class SimWorld {
     this.waveTick();
     this.dungeonTick(rpg, commands);
     this.movementTechTick(effective);
-    this.gunRuntimeTick(effective);
     this.fallGuard();
     this.now++;
   }
@@ -955,8 +972,12 @@ export class SimWorld {
     }
   }
 
-  /** Track per-player gun magazine & reload state when holding any of the 9 fixed guns. */
-  private gunRuntimeTick(commands: CommandMap): void {
+  /** Run per-player gun ballistics, dual-wield alternating fire, reloads, and elemental/crit-weave procs. */
+  private gunRuntimeTick(ctx: CombatCtx, commands: CommandMap): void {
+    const gunEvents: GunTickEvent[] = [];
+    const liveEnemies = this.entities.filter(
+      (x) => (x.kind === 'enemy' || x.kind === 'boss') && x.combat?.action?.kind !== 'dead',
+    );
     for (const e of this.entities) {
       if (e.owner === undefined || !e.progress) continue;
       const gun = gunDef(e.progress.equipment.staff);
@@ -964,20 +985,167 @@ export class SimWorld {
         this.gunState.delete(e.owner);
         continue;
       }
-      const mods = computeClassModifiers(e.progress.class, e.progress.skills);
-      const skillMods = { reloadMult: mods.reloadSpeedMult, fireRateMult: mods.fireRateMult, dmgMult: mods.gunDmgMult };
+      const activeSlot = e.progress.activeWeaponSlot ?? 0;
+      const offhand = e.progress.weapons?.find((w, i) => i !== activeSlot && canDualWield(gun.itemId, w)) ?? null;
+      const offhandDef = offhand ? gunDef(offhand) : undefined;
+      const isDual = Boolean(offhandDef && canDualWield(gun.itemId, offhand));
+      const mt = this.moveTech.get(e.owner);
+      const slidingOrDashing = Boolean(mt && (mt.slidingTicks > 0 || mt.dashTicks > 0));
+      const mods = computeClassModifiers(e.progress.class, e.progress.skills, {
+        dualWielding: isDual,
+        slidingOrDashing,
+      });
+      const skillMods = {
+        dmgMult: mods.gunDmgMult,
+        reloadMult: mods.reloadSpeedMult,
+        fireRateMult: mods.fireRateMult,
+        spreadMult: mods.recoilSpreadMult,
+        critBonus: mods.gunCritBonus,
+        weakspotMult: mods.weakspotMult,
+        elementChanceBonus: mods.elementProcBonus,
+        magMult: mods.ammoCapacityMult,
+      };
       let entry = this.gunState.get(e.owner);
       if (!entry || entry.gunId !== gun.itemId) {
         entry = { gunId: gun.itemId, runtime: createGunRuntimeState(gun.id, e.progress.level, skillMods) };
         this.gunState.set(e.owner, entry);
       }
+      if (isDual && offhandDef && !entry.runtime.dual) {
+        entry.runtime.dual = createDualWieldState(offhandDef.id, e.progress.level, skillMods);
+      } else if (!isDual && entry.runtime.dual) {
+        entry.runtime.dual = undefined;
+      }
       const cmd = commands.get(e.owner);
       const ammo = (e.progress.ammo ??= defaultAmmo());
-      if (cmd && (cmd.pressed & BTN.reload)) {
-        startReload(entry.runtime, gun.id, ammo, e.progress.level, skillMods);
+      const canAct = e.combat?.action?.kind !== 'dead' && !e.riding && !e.progress.dialogue && !e.progress.shop && !e.progress.atShrine;
+      const fireHeld = canAct && Boolean(cmd && ((cmd.held | cmd.pressed) & BTN.light));
+      const reloadPressed = canAct && Boolean(cmd && (cmd.pressed & BTN.reload));
+      entry.runtime.adsActive = canAct && !isDual && Boolean(cmd && (cmd.held & BTN.block));
+
+      const origin = { x: e.tf.pos.x, y: e.tf.pos.y + 1.45, z: e.tf.pos.z };
+      const aimDir = cmd?.aim?.dir ?? { x: Math.sin(e.tf.yaw), y: 0, z: Math.cos(e.tf.yaw) };
+      const worldHit = fireHeld ? this.physics.raycast(origin, aimDir, 120) : null;
+      const rng = this.rng.stream('combat');
+
+      const res = isDual
+        ? stepDualWieldFire({
+            runtime: entry.runtime,
+            rightGun: gun.id,
+            ammo,
+            fireHeld,
+            reloadPressed,
+            yaw: e.tf.yaw,
+            origin,
+            aimDir,
+            enemies: liveEnemies,
+            rng,
+            playerLevel: e.progress.level,
+            skillMods,
+            worldHitDist: worldHit?.distance,
+          })
+        : stepGunFire({
+            runtime: entry.runtime,
+            gun: gun.id,
+            ammo,
+            fireHeld,
+            reloadPressed,
+            origin,
+            aimDir,
+            enemies: liveEnemies,
+            rng,
+            playerLevel: e.progress.level,
+            skillMods,
+            worldHitDist: worldHit?.distance,
+          });
+
+      let anyHit = false;
+      let anyCrit = false;
+      for (const hit of res.hits) {
+        const target = this.byId.get(hit.entityId);
+        if (!target || target.combat?.action?.kind === 'dead') continue;
+        anyHit = true;
+        if (hit.isCrit || hit.isWeak) anyCrit = true;
+        resolveHit(ctx, e, target, {
+          move: 'gun_shot',
+          base: hit.damage,
+          kind: 'physical',
+          poise: hit.isCrit ? 18 : 8,
+          hitstun: hit.isCrit ? 8 : 4,
+          knockdown: false,
+          pushback: 0.35,
+          hitstop: hit.isCrit ? 2 : 0,
+          unblockable: false,
+          heavy: false,
+          crit: hit.isCrit,
+          mana: Math.round(mods.gunHitManaFrac * 20),
+          from: hit.point,
+          projectile: true,
+          fixedDamage: Math.max(1, Math.round(hit.damage)),
+        });
+        if (hit.statusProc && target.vitals && target.vitals.hp > 0) {
+          applyStatus(ctx, target, hit.statusProc.status, hit.statusProc.stacks, e.id);
+        }
+        for (const chain of hit.shockChains) {
+          const ct = this.byId.get(chain.targetEntityId);
+          if (!ct || ct.combat?.action?.kind === 'dead') continue;
+          resolveHit(ctx, e, ct, {
+            move: 'gun_shock_chain',
+            base: chain.damage,
+            kind: 'arcane',
+            poise: 6,
+            hitstun: 4,
+            knockdown: false,
+            pushback: 0.2,
+            hitstop: 0,
+            unblockable: true,
+            heavy: false,
+            crit: false,
+            mana: 0,
+            from: hit.point,
+            projectile: true,
+            fixedDamage: Math.max(1, Math.round(chain.damage)),
+          });
+        }
+        if (e.combat && ((hit.critWeave && mods.gunCritTriggersWeave) || mods.gunHitTriggersWeave)) {
+          e.combat.lastHitTick = this.now;
+        }
       }
-      tickReload(entry.runtime, gun.id, ammo, e.progress.level, skillMods);
+
+      for (const proj of res.projectiles) {
+        const statusId = proj.element === 'fire' ? 'burn' : proj.element === 'shock' ? 'shock' : proj.element === 'goo' ? 'chill' : undefined;
+        this.spawnSpellProjectile({
+          kind: 'projectile',
+          tf: { pos: { ...proj.origin }, prevPos: { ...proj.origin }, vel: { ...proj.vel }, yaw: e.tf.yaw, prevYaw: e.tf.yaw },
+          projectile: {
+            owner: e.id,
+            team: 'player',
+            kind: 'physical',
+            damage: proj.damage,
+            poise: 24,
+            radius: proj.radius,
+            life: proj.ttlTicks,
+            reflected: false,
+            explode: proj.splash?.radius,
+            status: statusId ? { id: statusId, stacks: 1 } : undefined,
+          },
+          view: { model: proj.kind === 'rocket' ? 'rocket' : 'bullet' },
+        });
+      }
+
+      if (res.fired || res.reloadStarted || res.reloadCompleted) {
+        gunEvents.push({
+          entity: e.id,
+          gunType: gun.id,
+          fired: res.fired,
+          hand: res.hand,
+          hit: anyHit,
+          crit: anyCrit,
+          reloadStarted: res.reloadStarted,
+          reloadCompleted: res.reloadCompleted,
+        });
+      }
     }
+    this.gunEvents = gunEvents;
   }
 
   /** Boot an instanced Campaign Dungeon (L01-L10): compiles Rapier colliders and places player at spawn. */
