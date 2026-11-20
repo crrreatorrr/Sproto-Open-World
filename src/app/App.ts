@@ -61,7 +61,9 @@ import { RpgHud, type HudRpgState } from '../ui/RpgHud';
 import { RpgMenus } from '../ui/rpgMenus';
 import { compassOffset, gallopLabel, headingTo, interactLabel, leadLine, trackedQuest } from '../ui/rpgText';
 import { loadSettings, motionScale, saveSettings, type Settings } from '../ui/settings';
+import { gunDef, type FixedGunDef } from '../content/guns';
 import { SurgeMeter } from '../ui/SurgeMeter';
+import { WeaponBarHud, type WeaponSlotView } from '../ui/WeaponBarHud';
 import { FixedLoop } from './loop';
 import { Polish } from './Polish';
 import { powerFeedback } from './powerFeedback';
@@ -185,6 +187,7 @@ export class App {
   readonly rpgHud: RpgHud;
   /** The boss bar, its intro card and the end card (M5). */
   readonly bossHud: BossHud;
+  readonly weaponBar: WeaponBarHud;
   /** The last quest is done: the end card shows once any open menu has closed. */
   private endCardPending = false;
   /** Seconds left of a phase change's pull-back (the phase camera moment). */
@@ -253,6 +256,7 @@ export class App {
     this.rpgHud.enabled = MODE === 'world';
     this.bossHud = new BossHud(this.hud.root, ui);
     this.bossHud.onContinue = () => this.resume();
+    this.weaponBar = new WeaponBarHud(this.hud.root);
     this.screenFlash = document.createElement('div');
     this.screenFlash.className = 'screen-flash';
     ui.appendChild(this.screenFlash);
@@ -837,6 +841,7 @@ export class App {
     for (let i = 0; i < ticks; i++) {
       // Behind the veil the player is frozen by the sim anyway; their input is dropped, not buffered.
       const cmd = this.commands.take(this.rig.yaw, this.rig.aimRay());
+      if (!held && !menu && (cmd.pressed & BTN.toggleView)) this.rig.toggleFirstPerson();
       sim.tick(held ? new Map() : new Map([[LOCAL_PLAYER, cmd]]));
       this.afterTick(simView);
     }
@@ -864,7 +869,19 @@ export class App {
     this.fx.update(dt);
     this.polish.frame(simView, p, dt);
     this.target.copy(view.root.position);
-    this.rig.riding = p.riding !== undefined && p.riding.state !== 'dismounting';
+    const riding = p.riding !== undefined && p.riding.state !== 'dismounting';
+    const equippedId = p.progress?.equipment.staff ?? '';
+    const activeGun = gunDef(equippedId) ?? null;
+    const aiming = !menu && !riding && !!activeGun && (this.input.isDown(KEYS.block) || pad.isDown(PAD.block));
+    if (this.rig.isFirstPerson && !riding) {
+      this.rig.setCameraMode('fps');
+    } else if (activeGun && !riding) {
+      this.rig.setCameraMode(aiming ? ((activeGun.zoomLevels ?? 1) >= 2 ? 'scope1' : 'ads') : 'ots', activeGun.base.zoomFov);
+    } else {
+      this.rig.setCameraMode('orbit');
+    }
+    view.root.visible = !this.rig.isFirstPerson || riding;
+    this.rig.riding = riding;
     this.rig.flight = p.riding?.flight ? { yaw: p.tf.yaw, pitch: p.riding.flight.pitch } : null;
     this.rig.occluders = this.cameraOccluders(simView, p);
     this.rig.update(dt, this.target, simView, p.loco?.sprinting ?? false, this.speakerPoint(simView, p) ?? this.lockPoint(simView, p));
@@ -874,8 +891,49 @@ export class App {
     this.numbers.update(dt, this.project);
     this.hud.combat(this.hudCombat(simView, p), dt);
     this.surgeMeter.update(!!p.progress?.spells.includes('sproutSurge'), (p.powers?.surge ?? 0) / POWER.surge.max);
+    this.weaponBarFrame(p, activeGun, aiming, !!menu);
     this.rpgFrame(simView, p, dt, !!menu);
     this.bossFrame(simView, p, dt, !!menu);
+  }
+
+  /** Updates the 4-slot weapon bar, ammo readout, and crosshair/scope overlay. */
+  private weaponBarFrame(p: Readonly<Entity>, activeGun: FixedGunDef | null, aiming: boolean, inMenu: boolean): void {
+    const prog = p.progress;
+    if (!prog || inMenu) {
+      this.weaponBar.setVisible(false);
+      return;
+    }
+    this.weaponBar.setVisible(true);
+    const bar = prog.weapons ?? [prog.equipment.staff, null, null, null];
+    const toSlot = (id: string | null): WeaponSlotView => {
+      if (!id) return { name: '', kind: 'empty' };
+      const g = gunDef(id);
+      if (g) return { name: g.name, kind: 'gun', rarity: g.rarity };
+      const item = ITEMS[id];
+      return item ? { name: item.name, kind: 'staff', rarity: item.rarity } : { name: id, kind: 'staff' };
+    };
+    const slots: [WeaponSlotView, WeaponSlotView, WeaponSlotView, WeaponSlotView] = [
+      toSlot(bar[0] ?? null), toSlot(bar[1] ?? null), toSlot(bar[2] ?? null), toSlot(bar[3] ?? null),
+    ];
+    const ammo = activeGun && prog.ammo ? {
+      mag: activeGun.base.magSize,
+      magSize: activeGun.base.magSize,
+      reserve: prog.ammo[activeGun.ammoType] ?? 0,
+    } : null;
+    this.weaponBar.update({
+      slots,
+      activeSlot: prog.activeWeaponSlot ?? 0,
+      device: this.input.pad.device,
+      padStyle: this.input.pad.style,
+      ammo,
+      reloading: false,
+      reloadProgress: 0,
+      showCrosshair: !!activeGun,
+      spread: activeGun ? (aiming ? activeGun.base.adsSpread : activeGun.base.spread) : 0,
+      hitFlash: 0,
+      critFlash: 0,
+      scopeZoom: activeGun && aiming && (activeGun.zoomLevels ?? 1) >= 2 ? 1 : 0,
+    });
   }
 
   /** The boss bar, the camera pull-back for giants, and the end card once the talk is over. */
