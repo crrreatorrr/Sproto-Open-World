@@ -79,7 +79,7 @@ export class Menus {
   private captureTimer = 0;
   private note = '';
   /** The title's save state: whether Continue is offered, and a notice about a damaged save. */
-  private titleSave: { canContinue: boolean; notice: string } = { canContinue: false, notice: '' };
+  private titleSave: { canContinue: boolean; notice: string; diskPath: string | null } = { canContinue: false, notice: '', diskPath: null };
   private hub: HubChip = { status: 'offline', label: '', error: '', owner: 'device', sync: 'local' };
 
   constructor(
@@ -110,9 +110,10 @@ export class Menus {
   /**
    * Tell the title about the save (plan §2.8): with one, Continue comes first and Play becomes
    * New game; `notice` says when the save was damaged (loaded from the backup, or not at all).
+   * `diskPath`: local save mode is on and keeps the save in this file (dev servers).
    */
-  setSave(canContinue: boolean, notice = ''): void {
-    this.titleSave = { canContinue, notice };
+  setSave(canContinue: boolean, notice = '', diskPath: string | null = this.titleSave.diskPath): void {
+    this.titleSave = { canContinue, notice, diskPath };
     if (this.nav.top === this.title) this.nav.refresh();
   }
 
@@ -134,7 +135,7 @@ export class Menus {
     const s = this.screen('screen-title');
     const render = () => {
       s.replaceChildren(el('h1', 'logo', 'Sproto Open World'), el('p', 'tagline', 'Sproutvale — bootstrap build'));
-      const { canContinue, notice } = this.titleSave;
+      const { canContinue, notice, diskPath } = this.titleSave;
       if (notice) s.append(el('p', 'note save-notice', notice));
       s.append(this.hubChip());
       const list = el('div', 'list');
@@ -144,7 +145,7 @@ export class Menus {
       else if (canContinue) list.append(button('Continue', () => this.actions.continueGame()), button('New game', () => this.nav.push(this.classes)));
       else list.append(button('Play', () => this.nav.push(this.classes)));
       list.append(button('Settings', () => this.nav.push(this.settings)), button('Return to Hub', () => this.actions.returnToHub()));
-      s.append(list, el('p', 'build', `build ${__BUILD_ID__}`));
+      s.append(list, el('p', 'build', diskPath ? `build ${__BUILD_ID__} · local save: ${diskPath}` : `build ${__BUILD_ID__}`));
     };
     return { el: s, render, onBack: () => {} };
   }

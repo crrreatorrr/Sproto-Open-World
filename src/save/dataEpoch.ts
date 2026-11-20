@@ -5,6 +5,11 @@
  */
 export const DATA_EPOCH_KEY = 'sow.epoch';
 export const DATA_EPOCH = 'classes-1';
+/**
+ * The first save schema of this epoch. An older save belongs to the data the epoch wiped: local
+ * save mode's disk file (src/save/DiskSave.ts) ignores one, so it can't bring a wiped save back.
+ */
+export const DATA_EPOCH_SCHEMA = 5;
 /** Every key the game owns. */
 export const GAME_KEYS = ['sow.save', 'sow.save.bak', 'sow.settings', 'sow.controls'] as const;
 

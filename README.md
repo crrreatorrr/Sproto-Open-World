@@ -77,6 +77,14 @@ npm run dev
 
 Then open http://localhost:5180.
 
+**Local save mode.** The game saves in the browser's localStorage, which is separate for every
+port. On a dev server it also keeps the save in `~/.sproto-open-world/save.json` (the previous one
+in `save.bak.json`), so every port, worktree and browser on this machine shares the same progress:
+at the title the newer of the two saves wins, and every save goes to both. The title's bottom line
+shows the file. `SOW_SAVE_DIR=<folder>` moves it, `SOW_LOCAL_SAVE=0 npm run dev` turns it off, and
+`?localsave=0` turns it off for one tab. Automated browsers (the e2e tests) never touch it, and a
+production build has no such endpoint, so it saves in the browser only.
+
 ## Controls
 
 | Action | Keyboard and mouse | Gamepad |

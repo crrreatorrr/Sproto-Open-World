@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { localSavePlugin } from './tools/localSavePlugin';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 
@@ -22,6 +23,8 @@ function buildId(): string {
 
 export default defineConfig({
   define: { __BUILD_ID__: JSON.stringify(buildId()) },
+  // Local save mode: the dev server keeps the save in a file every port shares (tools/localSavePlugin.ts).
+  plugins: [localSavePlugin()],
   // Relative base: the same build works from any sub-path. Asset URLs are BASE_URL + a relative path.
   base: './',
   build: {
