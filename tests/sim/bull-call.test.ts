@@ -208,7 +208,8 @@ describe('awkward places', () => {
     const { w, p, bull } = await field({ ledgeBefore: 60 });
     bull.tf.pos = { x: BULL.x, y: VILLAGE_Y + 8, z: 58 };
     bull.tf.prevPos = { ...bull.tf.pos };
-    standAt(w, BULL.x, 62.5, bull.tf.pos);
+    // Far enough out from the face for the bull to land between it and the caller: 2.5 m on the hub-sized bull.
+    standAt(w, BULL.x, 60 + 2.5 * MOUNT.scale, bull.tf.pos);
     stepN(w, 3);
     step(w, call());
     expect(bull.mount!.call).toBeDefined();

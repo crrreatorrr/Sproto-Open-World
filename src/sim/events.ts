@@ -16,6 +16,8 @@ export type PowerFxId =
 /** Things that happened this tick, for presentation (audio, FX, camera, rumble) and for quests. */
 export type SimEvent =
   | { type: 'jump'; entity: EntityId }
+  /** A ridden bull taking to the air, or coming down out of it (`MOUNT.fly`). */
+  | { type: 'mountFlight'; entity: EntityId; mount: EntityId; phase: 'takeoff' | 'landed' | 'dropped' }
   | { type: 'land'; entity: EntityId; fallSpeed: number; pos: Vec3 }
   | { type: 'spawn'; entity: EntityId }
   /** An attack's first active tick (staff whoosh, enemy swing). */
