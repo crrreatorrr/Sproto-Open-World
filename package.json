@@ -20,7 +20,8 @@
     "bake:map": "node tools/bake-map.mjs",
     "import:assets": "node tools/import-sibling-assets.mjs",
     "check:assets": "node scripts/check-assets.mjs",
-    "budgets": "node scripts/check-budgets.mjs"
+    "budgets": "node scripts/check-budgets.mjs",
+    "build:pvp-sim": "node scripts/build-pvp-sim.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

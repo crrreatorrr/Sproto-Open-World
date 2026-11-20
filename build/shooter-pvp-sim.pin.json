@@ -1,0 +1,61 @@
+{
+  "artifact": "shooter-pvp",
+  "game": "sproto-open-world",
+  "protocol": 2,
+  "sim": 3,
+  "secondWind": false,
+  "contentFingerprint": "1796df6e",
+  "loadoutHash": "716b990e",
+  "global": "SprotoShooterPvp",
+  "sourceCommit": "d6d96cf73a5cfba1f3b7a6e65a0d16481aec176b",
+  "sourceContentHash": "bc793db59487e56d895824f12d18c38c2c02c927dd2ce7d9dd43d6d8a0b85b4b",
+  "bundlePath": "build/shooter-pvp-sim.js",
+  "bundleBytes": 52132,
+  "bundleSha256": "b027499a5ddb841dd22723c9188afad9d5fca2b17801c58a408cdd4d8fc9a18b",
+  "tickHz": 30,
+  "matchSeconds": 90,
+  "matchTicks": 2700,
+  "leadInTicks": 9,
+  "rewind": {
+    "historyTicks": 12,
+    "maxTicks": 10,
+    "maxBack": 255,
+    "fracSteps": 256,
+    "interpMs": 100,
+    "interpMinMs": 50,
+    "interpMaxMs": 150,
+    "extraTicks": 2,
+    "rttWindow": 8,
+    "maxRttMs": 1000,
+    "pongMemory": 4,
+    "maxBackStep": 2
+  },
+  "wager": {
+    "stake": 10,
+    "pot": 20,
+    "fee": 0,
+    "stallMs": 10000
+  },
+  "stockLoadout": [
+    "mg",
+    "shotgun",
+    "sniper"
+  ],
+  "limits": {
+    "maxFramesPerSecond": 45,
+    "maxFramesPerCursor": 9,
+    "futureFrames": 8,
+    "holdTicks": 3,
+    "catchUpTicks": 4,
+    "maxPingsPerSecond": 10,
+    "maxHelloPerSecond": 2,
+    "maxReadyPerSecond": 2,
+    "frameBytes": 18,
+    "maxFrame": 1000000,
+    "maxIdLength": 80,
+    "maxNameLength": 32,
+    "maxLeadInTicks": 90
+  },
+  "matchmakerQueryFree": "+properties.game:sproto-open-world +properties.mode:free +properties.protocol:2 +properties.sim:3 +properties.content:1796df6e",
+  "matchmakerQueryWager": "+properties.game:sproto-open-world +properties.mode:wager +properties.protocol:2 +properties.sim:3 +properties.content:1796df6e"
+}
