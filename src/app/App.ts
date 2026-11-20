@@ -37,6 +37,9 @@ import { HitFx, type SparkStyle } from '../render/fx/HitFx';
 import { isSoftPowerHit, powerSpark } from '../render/fx/powers';
 import { PortraitStudio } from '../render/PortraitStudio';
 import { Renderer } from '../render/Renderer';
+import { getDungeon, getDungeonById } from '../content/dungeons/catalog';
+import type { DungeonId } from '../content/dungeons/types';
+import { DungeonView } from '../render/dungeon/DungeonView';
 import { PlayerView } from '../render/views/PlayerView';
 import { Viewmodel } from '../render/views/Viewmodel';
 import { WorldViews, enemyDef } from '../render/views/WorldViews';
@@ -95,12 +98,14 @@ const STAFF_SHARPEN_SEC = 10;
 const PARAMS = new URLSearchParams(location.search);
 /** `?sandbox=1`: the M1b wave runner (plan §9 M1b), on the flat yard level. */
 const WAVE_SANDBOX = PARAMS.get('sandbox') === '1';
+/** `?dungeon=L01`..`L10`: boot directly into an instanced Campaign Dungeon. */
+const DUNGEON_ID: DungeonId | null = getDungeonById(PARAMS.get('dungeon') ?? '')?.id ?? null;
 /**
  * Which level Play starts: Sproutvale, the streamed world (M2), by default; `?yard=1` keeps the M1
- * training yard and `?sandbox=1` the wave runner, both on the flat yard level.
+ * training yard, `?sandbox=1` the wave runner, and `?dungeon=L01..L10` an instanced Campaign Dungeon.
  */
-export type GameMode = 'world' | 'yard' | 'waves';
-const MODE: GameMode = WAVE_SANDBOX ? 'waves' : PARAMS.get('yard') === '1' ? 'yard' : 'world';
+export type GameMode = 'world' | 'yard' | 'waves' | 'dungeon';
+const MODE: GameMode = DUNGEON_ID ? 'dungeon' : WAVE_SANDBOX ? 'waves' : PARAMS.get('yard') === '1' ? 'yard' : 'world';
 /**
  * God mode (testing: can't die, every item, travel anywhere). The menu offers it in dev and QA
  * builds; `?god=1` offers it in any build and turns it on at the start of play.
@@ -191,6 +196,7 @@ export class App {
   readonly bossHud: BossHud;
   readonly weaponBar: WeaponBarHud;
   readonly viewmodel: Viewmodel;
+  private dungeonView: DungeonView | null = null;
   /** The last quest is done: the end card shows once any open menu has closed. */
   private endCardPending = false;
   /** Seconds left of a phase change's pull-back (the phase camera moment). */
@@ -573,7 +579,15 @@ export class App {
       // The sandbox's dummies and Brute (bare test worlds stay empty), the wave runner, or
       // Sproutvale's villagers, shrines, chest and training yard (its camps arrive in M4). A save
       // goes on top of the fresh world, so opened chests and found shrines come back as they were.
-      if (WAVE_SANDBOX) sim.startWaves();
+      this.dungeonView?.dispose();
+      this.dungeonView = null;
+      if (DUNGEON_ID) {
+        const def = getDungeon(DUNGEON_ID);
+        sim.startDungeon(DUNGEON_ID);
+        this.dungeonView = new DungeonView(def);
+        this.renderer.scene.add(this.dungeonView.root);
+        this.dungeonView.applyLighting(this.renderer.scene);
+      } else if (WAVE_SANDBOX) sim.startWaves();
       else if (this.stream) sim.populateWorld(WORLD_CONTENT);
       else sim.populate();
       if (save && this.stream) sim.applySave(save);
@@ -1252,6 +1266,23 @@ export class App {
       if (this.mode === 'world') {
         const tip = this.tutorial.tip(e, this.playerId, this.input.pad.device === 'gamepad' ? 'pad' : 'kbm');
         if (tip) this.hud.toast(tip);
+      }
+    }
+    if (this.dungeonView && this.sim?.dungeonEvents.length) {
+      for (const ev of this.sim.dungeonEvents) {
+        if (ev.type === 'doorStateChanged') this.dungeonView.setDoorSealed(ev.doorId, ev.sealed);
+        else if (ev.type === 'checkpointActivated') {
+          this.dungeonView.setCheckpointActivated(ev.checkpointId, true);
+          this.hud.toast('Checkpoint reached.');
+        } else if (ev.type === 'encounterStarted') {
+          this.hud.toast(ev.boss ? `Boss encounter: ${ev.boss}` : 'Lockdown! Clear the room.');
+        } else if (ev.type === 'encounterCleared') {
+          if (ev.boss) this.dungeonView.setExitUnlocked(true);
+          this.hud.toast(ev.boss ? 'Boss defeated! Exit portal unlocked.' : 'Room cleared.');
+        } else if (ev.type === 'dungeonCleared') {
+          const bonus = ev.unlockAbility ? ` Unlocked ${ev.unlockAbility}!` : '';
+          this.hud.toast(`Dungeon cleared! +${ev.rewardXp} XP, +${ev.rewardSprouts} Sprouts.${bonus}`);
+        }
       }
     }
   }

@@ -13,9 +13,12 @@ import { AFFIXES, CAMP_GENERATION_FLAG } from '../content/packs/c4';
 import { ROOTDEEP_PORTALS, isRootdeep, portalUsable } from '../content/packs/rootdeep';
 import type { ObstaclePlacement, RegionContent } from '../content/world/sproutvaleContent';
 import { SAVE_SCHEMA, type SaveFile } from '../save/schema';
+import { getDungeon } from '../content/dungeons/catalog';
+import type { DungeonId } from '../content/dungeons/types';
+import { createDungeonSession, stepDungeon, type DungeonEvent, type DungeonSessionState } from './dungeon/DungeonDirector';
 import { BTN, idleInput, type InputCommand } from './commands';
 import {
-  ALL_SPELLS, availableChoices, interactTarget, newProgress, onKill, pickups, playerRpg, questOffers, questTick, recompute, triggers, type RpgCtx,
+  ALL_SPELLS, availableChoices, giveItem, grantXp, interactTarget, newProgress, onKill, pickups, playerRpg, questOffers, questTick, recompute, triggers, type RpgCtx,
   refillTonics,
 } from './systems/rpg';
 import { questPolish } from './systems/encounters';
@@ -122,6 +125,10 @@ export class SimWorld {
   private nextId = 1;
   /** Wave runner state, or null outside the wave runner. */
   wave: WaveState | null = null;
+  /** Active instanced Campaign Dungeon session (L01-L10), or null outside dungeon mode. */
+  dungeon: DungeonSessionState | null = null;
+  /** Dungeon events emitted during the most recent tick. */
+  dungeonEvents: readonly DungeonEvent[] = [];
   /** Camp members that wait for a horn (the second Pest Control wave). Part of the snapshot. */
   private pendingWaves: { camp: string; def: string; pos: Vec3; yaw: number; wave: number; carry?: string }[] = [];
   /** World flags, opened chests, killed uniques (plan §2.8). */
@@ -868,8 +875,83 @@ export class SimWorld {
     for (const e of this.entities) if (e.progress) questTick(rpg, e);
     this.respawns();
     this.waveTick();
+    this.dungeonTick(rpg, commands);
     this.fallGuard();
     this.now++;
+  }
+
+  /** Boot an instanced Campaign Dungeon (L01-L10): compiles Rapier colliders and places player at spawn. */
+  startDungeon(id: DungeonId): void {
+    const def = getDungeon(id);
+    this.dungeon = createDungeonSession(id);
+    this.dungeonEvents = [];
+    this.physics.loadDungeon(def, this.dungeon.sealedDoorIds);
+    const p = this.playerEntity(0);
+    if (p) this.teleportPlayer(0, { x: def.spawn[0], y: def.spawn[1] + 0.15, z: def.spawn[2] });
+  }
+
+  /** Step active instanced dungeon encounters, lockdown doors, checkpoint respawns (no Second Wind), and clear rewards. */
+  private dungeonTick(rpg: RpgCtx, commands: CommandMap): void {
+    if (!this.dungeon) {
+      this.dungeonEvents = [];
+      return;
+    }
+    const p = this.playerEntity(0);
+    if (!p) return;
+    const cmd = commands.get(0);
+    const dead = p.combat?.action?.kind === 'dead';
+    const aliveEnemies = this.entities.filter((e) => (e.kind === 'enemy' || e.kind === 'boss') && e.combat?.action?.kind !== 'dead').length;
+    const res = stepDungeon(
+      this.dungeon,
+      [p.tf.pos.x, p.tf.pos.y, p.tf.pos.z],
+      dead,
+      aliveEnemies,
+      !!(cmd && (cmd.pressed & BTN.interact)),
+    );
+    this.dungeonEvents = res.events;
+    const def = getDungeon(this.dungeon.dungeonId);
+    for (const ev of res.events) {
+      if (ev.type === 'doorStateChanged') {
+        this.physics.setDungeonDoorSealed(ev.doorId, ev.sealed);
+      } else if (ev.type === 'encounterStarted') {
+        const enc = def.encounters.find((x) => x.id === ev.encounterId);
+        const cx = enc ? enc.triggerPos[0] : p.tf.pos.x;
+        const cy = enc ? enc.triggerPos[1] : p.tf.pos.y;
+        const cz = enc ? enc.triggerPos[2] : p.tf.pos.z;
+        let idx = 0;
+        for (const group of ev.enemies) {
+          const enemyKey = Object.hasOwn(ENEMIES, group.kind)
+            ? group.kind
+            : /brute|obama|boss|tinubu|gate/i.test(group.kind) ? 'brute'
+              : /wisp|sahil|hex|fly/i.test(group.kind) ? 'wisp'
+                : /slinger|bot|sniper|gunner/i.test(group.kind) ? 'slinger'
+                  : 'grunt';
+          for (let n = 0; n < group.count; n++) {
+            const angle = (idx++ * 2.39996) % (Math.PI * 2);
+            const r = 4 + (idx % 4) * 1.4;
+            this.spawnEnemy(enemyKey, { x: cx + Math.cos(angle) * r, y: cy + 0.1, z: cz + Math.sin(angle) * r }, angle + Math.PI);
+          }
+        }
+      } else if (ev.type === 'playerRespawn') {
+        this.reset(p, { x: ev.pos[0], y: ev.pos[1] + 0.1, z: ev.pos[2] }, 0);
+        if (p.progress) {
+          refillTonics(p.progress.tonics);
+          p.progress.ammo = defaultAmmo();
+        }
+      } else if (ev.type === 'dungeonCleared' && p.progress) {
+        grantXp(rpg, p, ev.rewardXp);
+        p.progress.sprouts += ev.rewardSprouts;
+        if (ev.unlockAbility) {
+          p.progress.abilities = { ...(p.progress.abilities ?? defaultAbilities()), [ev.unlockAbility]: true };
+        }
+        if (ev.rewardGun) giveItem(rpg, p, ev.rewardGun, 1);
+        const dp = { ...(p.progress.dungeonProgress ?? {}) };
+        const prev = dp[ev.dungeonId];
+        const ticks = this.dungeon.tick;
+        dp[ev.dungeonId] = { cleared: true, bestTimeTicks: prev?.bestTimeTicks ? Math.min(prev.bestTimeTicks, ticks) : ticks };
+        p.progress.dungeonProgress = dp;
+      }
+    }
   }
 
   /**
