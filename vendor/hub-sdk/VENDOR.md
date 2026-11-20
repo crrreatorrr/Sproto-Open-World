@@ -16,8 +16,8 @@ This copy is byte-for-byte the one Sproto Duel and Sproto Shooter vendor from th
 Sproto Open World uses two lean entries:
 
 - `@metaverse/hub-sdk/feedback`: `installFeedback` (the N-N window, its screenshot and its sending)
-  and `feedbackTransportFromSdk`. The adapter is `src/hub/feedback.ts`; `src/hub/feedbackPad.ts`
-  drives the window with a gamepad. modern-screenshot (MIT, `dist/third_party/`) loads on the first
+  and `feedbackTransportFromSdk`. The adapter is `src/hub/feedback.ts` (keyboard only, N twice).
+  modern-screenshot (MIT, `dist/third_party/`) loads on the first
   capture.
 - `@metaverse/hub-sdk/core`: `createHubSdk` and `isGameId`, for ticket redeem in `src/hub/link.ts`.
 

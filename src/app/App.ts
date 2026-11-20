@@ -21,10 +21,9 @@ import { WORLD_CONTENT } from '../content/world/worldContent';
 import { frameDataLines, targetLines } from '../debug/frameData';
 import { Overlay } from '../debug/Overlay';
 import { QA_LOG_ENABLED, qaLog } from '../debug/qaLog';
-import type { FeedbackHost, FeedbackSnapshot, FeedbackWindow } from '../hub/feedback';
+import type { FeedbackHost, FeedbackSnapshot } from '../hub/feedback';
 import { GAMEPAD, KEYS, PAD } from '../input/bindings';
 import { CommandBuilder } from '../input/CommandBuilder';
-import { padGlyph } from '../input/Gamepad';
 import { applyControlPrefs, loadControlPrefs, saveControlPrefs } from '../input/controlPrefs';
 import { promptLabel } from '../input/glyphs';
 import { Input } from '../input/Input';
@@ -157,10 +156,9 @@ export class App {
   /** QA teleport waiting for the target cell's heights, to set the player down on the ground. */
   private pendingDrop: { x: number; z: number } | null = null;
   private frameCount = 0;
-  /** The hub feedback window (N twice, Send feedback), once its chunk has loaded off the boot path. */
-  private feedback: FeedbackWindow | null = null;
-  private feedbackLoad: Promise<FeedbackWindow | null> | null = null;
-  /** Set while the feedback window holds the game: nothing ticks and the pad drives the window. */
+  /** The hub feedback window (N twice, keyboard only) has started loading, off the boot path. */
+  private feedbackLoad: Promise<boolean> | null = null;
+  /** Set while the feedback window holds the game: nothing ticks and the pad is ignored. */
   private feedbackHold: FeedbackHold | null = null;
   /** The feedback window's breadcrumbs: every sim event after its tick. */
   private simEventHook: ((e: SimEvent, me: EntityId | null) => void) | null = null;
@@ -233,7 +231,6 @@ export class App {
       continueGame: () => void this.play(this.bootSave),
       resume: () => this.resume(),
       quitToTitle: () => this.quitToTitle(),
-      feedback: () => this.openFeedback(),
       settingsChanged: (s) => {
         this.settings = s;
         this.applySettings(s);
@@ -272,7 +269,6 @@ export class App {
       resume: () => this.closeGameMenu(),
       quitToTitle: () => this.quitToTitle(),
       openSettings: () => this.nav.push(this.menus.settings),
-      feedback: () => this.openFeedback(),
     });
     this.panels = new Panels(ui);
     this.nav.blocked = () => this.panels.errorOpen;
@@ -1667,12 +1663,8 @@ export class App {
 
   // --- Hub feedback window (src/hub/feedback.ts) -----------------------------------------------------
 
-  /** The pause menus' Send feedback (and N twice, which the SDK itself listens for). */
-  openFeedback(): void {
-    void this.loadFeedback().then((w) => w?.open());
-  }
-
-  private loadFeedback(): Promise<FeedbackWindow | null> {
+  /** Install the window; the SDK itself listens for N twice from then on. */
+  private loadFeedback(): Promise<boolean> {
     this.feedbackLoad ??= Promise.all([
       import('../hub/feedback'),
       import('../hub/link').then((m) => m.connectHub()).catch((err: unknown) => {
@@ -1680,10 +1672,10 @@ export class App {
         return null;
       }),
     ])
-      .then(([m, sdk]) => (this.feedback = m.installGameFeedback(this.feedbackHost(), sdk)))
+      .then(([m, sdk]) => m.installGameFeedback(this.feedbackHost(), sdk))
       .catch((err: unknown) => {
         console.warn('[feedback] not loaded', err);
-        return null;
+        return false;
       });
     return this.feedbackLoad;
   }
@@ -1695,7 +1687,6 @@ export class App {
       release: (token) => this.releaseFeedback(token),
       renderNow: () => this.renderer.render(),
       canvas: () => this.renderer.renderer.domElement,
-      padGlyph: (button) => (this.input.pad.device === 'gamepad' ? padGlyph(button, this.input.pad.style) : null),
       onSimEvent: (fn) => {
         this.simEventHook = fn;
       },
@@ -1725,9 +1716,8 @@ export class App {
     if (this.state === 'playing' && hold.locked && !this.nav.open && this.input.pad.device === 'kbm') this.input.requestLock();
   }
 
-  /** A frame while the feedback window holds the game: the pad drives the window, the scene stays put. */
+  /** A frame while the feedback window holds the game: the scene stays put and the pad is ignored. */
   private feedbackFrame(): void {
-    this.feedback?.frame(this.input.pad);
     this.polish.mix('paused');
     this.renderer.render();
     this.input.endFrame();

@@ -5,7 +5,7 @@
  *
  *   on the training yard (`?yard=1`; plain `/` is Sproutvale, covered by world.mjs):
  *   title → Settings → Controls → back → back → Play → move, jump → pause → Settings → back → Resume
- *   → pause → Send feedback (the hub feedback window, on the pad: pick, send; open again, B closes)
+ *   → N twice on the keyboard (the hub feedback window, keyboard only: 2, Enter sends; again, Esc closes)
  *   → WebGL context lost and restored → walk to a training dummy → RB (light attack)
  *   then, on a fresh page with `?sandbox=1` (the M1b wave runner): Play → the first wave spawns →
  *   walk at the nearest enemy → lock on → LT + X (Arcane Bolt)
@@ -195,50 +195,41 @@ try {
   s = await state();
   check(s.state === 'playing', 'Resume from the pause menu', s.state);
 
-  // The hub feedback window (src/hub/feedback.ts), pad only: Start → Send feedback → the window
-  // holds the game; A picks the focused option, Start sends; opened again, B closes it.
-  const panelOpen = () => page.evaluate(() => !!document.querySelector('[data-hub-feedback]')?.shadowRoot?.querySelector('.panel'));
+  // The hub feedback window (src/hub/feedback.ts) is keyboard only (owner's call): N twice opens
+  // it over play and holds the game, 2 picks an option, Enter sends; again, Esc closes it. The pad
+  // does nothing while it is open.
   const waitPanel = (open) => page.waitForFunction((o) => !!document.querySelector('[data-hub-feedback]')?.shadowRoot?.querySelector('.panel') === o, open, { timeout: 15000 }).then(() => true, () => false);
-  const focusedChip = () => page.evaluate(() => document.querySelector('[data-hub-feedback]')?.shadowRoot?.activeElement?.textContent ?? null);
-  async function openFeedbackFromPause() {
-    await press('start');
-    await press('down');
-    await press('down');
-    const focused = (await state()).focused;
-    await press('a');
-    return focused;
-  }
-  const feedbackFocus = await openFeedbackFromPause();
-  check(feedbackFocus === 'Send feedback', 'the pause menu offers Send feedback', JSON.stringify(feedbackFocus));
-  check(await waitPanel(true), 'A on Send feedback opens the feedback window');
-  s = await state();
-  const heldTick = s.tick;
-  await frames(20);
-  const held = await state();
-  check(held.feedbackHeld && held.tick === heldTick, 'the feedback window holds the game', `held ${held.feedbackHeld}, tick ${heldTick} → ${held.tick}`);
-  check(/Something broke/.test((await focusedChip()) ?? ''), 'the pad focuses the first option', JSON.stringify(await focusedChip()));
-  await press('down');
-  check(/Unclear/.test((await focusedChip()) ?? ''), 'D-pad moves through the options', JSON.stringify(await focusedChip()));
-  await press('a');
-  await shot('05a-feedback');
+  const nTwice = async () => {
+    await page.keyboard.press('KeyN');
+    await page.keyboard.press('KeyN');
+  };
+  check((await page.evaluate(() => window.__qa.app.feedbackLoad)) === true, 'the feedback window is installed');
+  await nTwice();
+  check(await waitPanel(true), 'N twice opens the feedback window');
+  const heldTick = (await state()).tick;
+  await press('b');
   await press('start');
-  check(await waitPanel(false), 'Start sends and closes the window');
+  await frames(10);
+  const held = await state();
+  check(held.feedbackHeld && held.tick === heldTick && held.state === 'playing' && (await waitPanel(true)), 'the window holds the game and the pad does nothing', `held ${held.feedbackHeld}, tick ${heldTick} → ${held.tick}, ${held.state}`);
+  await page.keyboard.press('Digit2');
+  await shot('05a-feedback');
+  await page.keyboard.press('Enter');
+  check(await waitPanel(false), 'Enter sends and closes the window');
   const sent = await page.evaluate(() => window.__feedbackSent ?? []);
   const note = sent[0];
-  check(sent.length === 1 && JSON.stringify(note.categories) === '["unclear"]', 'the note carries the option picked on the pad', JSON.stringify(sent.map((n) => n.categories)));
+  check(sent.length === 1 && JSON.stringify(note.categories) === '["unclear"]', 'the note carries the option picked with 2', JSON.stringify(sent.map((n) => n.categories)));
   check(!!note && note.meta?.mode === 'yard' && !!note.meta?.player && typeof note.image === 'string' && note.image.startsWith('data:image/'), 'the note has the game context and a screenshot', JSON.stringify(note ? { mode: note.meta?.mode, player: !!note.meta?.player, image: String(note.image).slice(0, 16) } : null));
   s = await state();
-  check(!s.feedbackHeld && s.state === 'paused' && s.screen === 'screen-pause', 'closing the window lands back on the pause menu', `${s.feedbackHeld} ${s.state} ${s.screen}`);
-  await press('b');
-  await openFeedbackFromPause();
+  check(!s.feedbackHeld && s.state === 'playing', 'closing the window goes back to play', `${s.feedbackHeld} ${s.state}`);
+  await nTwice();
   check(await waitPanel(true), 'the window opens again');
-  await press('b');
-  check(await waitPanel(false), 'B closes the window');
-  check((await page.evaluate(() => (window.__feedbackSent ?? []).length)) === 1, 'B sends nothing');
-  check(!(await panelOpen()), 'no window left over');
-  await press('b');
+  await page.keyboard.press('Escape');
+  check(await waitPanel(false), 'Esc closes the window');
   s = await state();
-  check(s.state === 'playing', 'B on the pause menu resumes play', s.state);
+  check((await page.evaluate(() => (window.__feedbackSent ?? []).length)) === 1 && s.state === 'playing', 'Esc sends nothing and does not pause the game', s.state);
+  // Back to the pad for the rest of the run.
+  await press('down');
 
   // WebGL context loss (plan §2.9): pause behind a veil, recover when the context returns.
   const lost = await page.evaluate(async () => {

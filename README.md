@@ -78,7 +78,7 @@ Then open http://localhost:5180.
 | Open the menu on Gear | I | Menu, then LB / RB |
 | Switch menu tabs | Q / E | LB / RB |
 | Menus: move, choose, back | Arrows or WASD, Enter, Esc, or the mouse | D-pad or left stick, A, B |
-| Send feedback (the game pauses; options, a note, a screenshot) | N twice, or Send feedback on the menu | Send feedback on the menu, then D-pad, A to pick, Menu to send, B to close |
+| Send feedback (the game pauses; options, a note, a screenshot): 1–7 pick, Tab moves, Enter sends, Esc closes | N twice | — (keyboard only) |
 
 Everything is remappable in Settings → Controls (N stays the feedback key), and the prompts switch to
 your pad's glyphs when you use it.

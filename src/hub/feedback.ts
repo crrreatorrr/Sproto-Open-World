@@ -1,10 +1,11 @@
 /**
- * In-game feedback, as in Sproto Duel and Sproto Shooter: N twice, or Send feedback on the pause
- * menu, opens the hub SDK's feedback window (options, a note, a screenshot). The window, the
- * screenshot and the sending live in the vendored SDK (`@metaverse/hub-sdk/feedback`); this is only
- * Sproto Open World's adapter: how to freeze and unfreeze the game, what "right now" looks like,
- * which sim events are worth a breadcrumb, the window's colors, and driving it with a pad
- * (feedbackPad.ts). Notes send only from a signed-in hub visit (hub/link.ts). See docs/feedback.md
+ * In-game feedback, as in Sproto Duel and Sproto Shooter: N twice opens the hub SDK's feedback
+ * window (options, a note, a screenshot). It is keyboard only (owner's call): no menu button opens
+ * it and the pad does not drive it. Keys 1–7 pick, Tab moves, Enter sends, Esc closes.
+ * The window, the screenshot and the sending live in the vendored SDK
+ * (`@metaverse/hub-sdk/feedback`); this is only Sproto Open World's adapter: how to freeze and
+ * unfreeze the game, what "right now" looks like, which sim events are worth a breadcrumb and the
+ * window's colors. Notes send only from a signed-in hub visit (hub/link.ts). See docs/feedback.md
  * in metaverse-hub.
  *
  * App loads this off the boot path, about a second after the title is up.
@@ -13,7 +14,6 @@ import { feedbackTransportFromSdk, installFeedback, type FeedbackContext, type F
 import type { HubSdk } from '@metaverse/hub-sdk/core';
 import type { SimEvent } from '../sim/events';
 import type { EntityId } from '../sim/entity';
-import { FeedbackPad, type FeedbackDom, type FeedbackPadInput } from './feedbackPad';
 
 /** Matches src/styles.css (--panel, --panel-edge, --accent, --ink) and the menus' rounded type. */
 export const FEEDBACK_THEME = Object.freeze({
@@ -27,8 +27,7 @@ export const FEEDBACK_THEME = Object.freeze({
   accentText: '#2a2008',
   border: 'rgba(240, 214, 120, 0.35)',
   radius: '12px',
-  // A pad moves the focus with focus(), which not every browser marks as :focus-visible.
-  css: '.title { color: #f0c548; } .chip:focus, .mini:focus, .btn:focus { outline: 2px solid #f0c548; outline-offset: 2px; }',
+  css: '.title { color: #f0c548; } .chip:focus-visible, .mini:focus-visible, .btn:focus-visible { outline: 2px solid #f0c548; outline-offset: 2px; }',
 });
 
 /** What the game knows about this moment (App.feedbackSnapshot). Plain data only. */
@@ -46,17 +45,10 @@ export interface FeedbackHost {
   /** Draw one frame now: the drawing buffer is not preserved, and the loop skips frozen frames. */
   renderNow(): void;
   canvas(): HTMLCanvasElement;
-  /** The pad's glyph for a button on the pad in hand, or null while the keyboard is in use. */
-  padGlyph(button: string): string | null;
   /** Every sim event, after the tick that raised it. */
   onSimEvent(fn: (e: SimEvent, me: EntityId | null) => void): void;
 }
 
-/** App's handle on the window: open it, and hand it the pad while the game is held for it. */
-export interface FeedbackWindow {
-  open(): void;
-  frame(pad: FeedbackPadInput): void;
-}
 
 /**
  * The sim events worth a breadcrumb (the last 24 ride along with a note), and the few fields of
@@ -113,7 +105,7 @@ const STANDALONE: FeedbackTransport = {
 
 /**
  * Dev and QA builds only, with `?feedbackMock` in the address: a transport that accepts every note
- * and keeps it on `window.__feedbackSent`, so the smoke test can drive the whole window with a pad.
+ * and keeps it on `window.__feedbackSent`, so the smoke test can drive the whole window from the keyboard.
  * Production builds drop this (import.meta.env is constant there).
  */
 function mockTransport(): FeedbackTransport | null {
@@ -136,9 +128,8 @@ function transportFor(sdk: HubSdk | null): FeedbackTransport {
   return sdk ? feedbackTransportFromSdk(sdk) : STANDALONE;
 }
 
-/** Install the shortcut and the window. Returns null if the SDK refused (the game plays on). */
-export function installGameFeedback(host: FeedbackHost, sdk: HubSdk | null): FeedbackWindow | null {
-  const pad = new FeedbackPad(document as unknown as FeedbackDom);
+/** Install the N-twice shortcut and the window. Returns false if the SDK refused (the game plays on). */
+export function installGameFeedback(host: FeedbackHost, sdk: HubSdk | null): boolean {
   // The screenshot is taken a frame after the window is asked for, and the page's HTML can take
   // a moment to draw: the game is held from the screenshot on, not from when the window appears.
   let token: unknown = false;
@@ -157,11 +148,6 @@ export function installGameFeedback(host: FeedbackHost, sdk: HubSdk | null): Fee
         token = false;
         host.release(t);
       },
-      onOpen: () => {
-        if (host.padGlyph('a') === null) return;
-        pad.focusFirst();
-        pad.hint((b) => host.padGlyph(b) ?? b);
-      },
       context: () => host.snapshot(),
       canvases: () => [host.canvas()],
       theme: FEEDBACK_THEME,
@@ -169,7 +155,7 @@ export function installGameFeedback(host: FeedbackHost, sdk: HubSdk | null): Fee
   } catch (err) {
     // Feedback is an extra: it never stops the game.
     console.warn('[feedback] not installed', err);
-    return null;
+    return false;
   }
 
   host.onSimEvent((e, me) => {
@@ -177,8 +163,5 @@ export function installGameFeedback(host: FeedbackHost, sdk: HubSdk | null): Fee
     if (crumb) handle.breadcrumb(crumb.type, crumb.data);
   });
 
-  return {
-    open: () => handle.open(),
-    frame: (input) => pad.frame(input, () => handle.close()),
-  };
+  return true;
 }

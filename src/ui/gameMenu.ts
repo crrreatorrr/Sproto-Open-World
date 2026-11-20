@@ -46,8 +46,6 @@ export interface GameMenuSource {
   quitToTitle(): void;
   /** Open today's settings screen (sliders, toggles, Controls) over the menu. */
   openSettings(): void;
-  /** Open the hub feedback window (N twice does the same). */
-  feedback(): void;
 }
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''): HTMLElementTagNameMap[K] => {
@@ -524,9 +522,8 @@ export class GameMenu {
     list.append(
       button('Resume', () => this.src.resume()),
       button('Settings', () => this.src.openSettings()),
-      button('Send feedback', () => this.src.feedback()),
       button('Quit to title', () => this.src.quitToTitle()),
     );
-    body.append(list, el('p', 'hint', 'The game saves itself at shrines, on quest steps and level-ups. N twice also sends feedback.'));
+    body.append(list, el('p', 'hint', 'The game saves itself at shrines, on quest steps and level-ups. Press N twice to send feedback.'));
   }
 }
