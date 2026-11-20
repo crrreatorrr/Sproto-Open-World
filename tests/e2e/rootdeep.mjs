@@ -118,6 +118,11 @@ async function leaveTitle(which) {
   const s = await state();
   check(s.focused === which, `the title offers ${which}`, JSON.stringify(s.focused));
   await press('a');
+  // A new game picks its class first: A takes the focused Wizard. Continue keeps the save's class.
+  if (which !== 'Continue') {
+    await page.waitForFunction(() => window.__qa.state().screen === 'screen-classes', null, { timeout: 30000 });
+    await press('a');
+  }
   await page.waitForFunction(() => window.__qa.state().state === 'playing' && !window.__qa.state().groundWait, null, { timeout: 180000 });
   await frames(12);
 }

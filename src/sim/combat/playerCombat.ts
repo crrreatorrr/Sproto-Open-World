@@ -127,6 +127,11 @@ function bufferPresses(p: Entity, cmd: InputCommand, frozen: boolean): void {
   else {
     const i = SPELL_BUTTONS.findIndex((b) => (cmd.pressed & b) !== 0);
     if (i >= 0) pressed = `spell${i + 1}` as BufferedAction;
+    else if (!c.action && !c.buffer) {
+      // A gun keeps firing while its trigger is held: Gunfire's button re-presses itself once it is free.
+      const held = SPELL_BUTTONS.findIndex((b, slot) => (cmd.held & b) !== 0 && slotSpell(p, slot) === 'gunfire');
+      if (held >= 0 && (c.cooldowns.gunfire ?? 0) <= 0) pressed = `spell${held + 1}` as BufferedAction;
+    }
   }
   if (!pressed) return;
   const a = c.action;

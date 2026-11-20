@@ -1,4 +1,5 @@
 import './styles.css';
+import { enterDataEpoch } from './save/dataEpoch';
 
 /**
  * Title shell: tiny on purpose (plan §3.5 budget). It shows a splash at once, then loads the game
@@ -8,6 +9,8 @@ const host = document.getElementById('app')!;
 const splash = document.getElementById('splash');
 
 async function boot(): Promise<void> {
+  // A new data epoch deletes the old saves and settings once, before anything reads them.
+  if (enterDataEpoch()) console.info('[save] new data epoch: local data cleared');
   try {
     const { App, startPhysics } = await import('./app/App');
     const physics = startPhysics();

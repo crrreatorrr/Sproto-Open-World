@@ -558,6 +558,9 @@ try {
   // Wake the pad (that press is swallowed by design), then A on Play.
   await press('down');
   await press('a');
+  // The class picker comes next on a new save: A takes the focused Wizard.
+  await page.waitForFunction(() => window.__qa.state().screen === 'screen-classes', null, { timeout: 30000 });
+  await press('a');
   await page.waitForFunction(() => window.__qa.state().state === 'playing', null, { timeout: 30000 });
   await page.waitForFunction(() => !window.__qa.state().groundWait, null, { timeout: 30000 });
   await frames(20);

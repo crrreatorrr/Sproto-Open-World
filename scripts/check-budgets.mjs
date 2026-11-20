@@ -8,6 +8,8 @@
  *     the start region's horizon.glb), as served (JS and region.json gzip; GLB/JPG/WebM already compressed; cell .bin/.json
  *     counted raw): ≤ 6 MiB. The other overworld horizons load after Play, at low priority.
  *     Enemies, other staffs and the full starter staff load later, by distance or when calm, so they don't count.
+ *     Each class (content/classes.ts) boots with its own body and weapon, so the budget holds for each: the
+ *     Wizard's player.glb and small staff, the Soldier's and Pepe's bodies with the Toy MG.
  *   - World (plan §3.1, §3.5): every cell (bin + json) ≤ 120 KB; each region under world/ ≤ 30 MiB.
  * Prints the Rapier chunk size, which the plan asked M0 to measure.
  */
@@ -26,7 +28,13 @@ const entry = [...html.matchAll(/(?:src|href)="\.\/build\/([^"]+)"/g)].map((m) =
 const shell = gz(path.join(DIST, 'index.html')) + entry.reduce((n, f) => n + gz(path.join(build, f)), 0);
 const allJs = files.filter((f) => f.endsWith('.js')).reduce((n, f) => n + gz(path.join(build, f)), 0);
 const rapier = files.filter((f) => f.startsWith('rapier') && f.endsWith('.js')).reduce((n, f) => n + gz(path.join(build, f)), 0);
-const critical = ['assets/models/characters/player.glb', 'assets/models/staffs/staff_sproto-lod1.glb', 'assets/textures/grove/floor.jpg', 'assets/textures/grove/stone.jpg'];
+// The class's own body and starting weapon (one class plays at a time).
+const CLASS_BOOT = {
+  wizard: ['assets/models/characters/player.glb', 'assets/models/staffs/staff_sproto-lod1.glb'],
+  soldier: ['assets/models/characters/soldier.glb', 'assets/models/guns/gun_mg.glb'],
+  pepe: ['assets/models/characters/pepe_player.glb', 'assets/models/guns/gun_mg.glb'],
+};
+const critical = ['assets/textures/grove/floor.jpg', 'assets/textures/grove/stone.jpg'];
 // The combat sounds load when play starts (App's COMBAT_SOUNDS); Opus is what most browsers fetch.
 critical.push(...fs.readdirSync(path.join(DIST, 'assets/audio')).filter((f) => f.endsWith('.webm')).map((f) => `assets/audio/${f}`));
 // M4: the village start draws its villagers, its shrine and chests, the pickups and the village
@@ -59,7 +67,13 @@ critical.push(region.horizon);
 // The world loads every region's manifest before Play (src/content/world/regions.ts). JSON is
 // served compressed, so the manifests count gzipped, like the JS.
 const manifests = fs.readdirSync(WORLD).sort().map((id) => path.join(WORLD, id, 'region.json')).filter((m) => fs.existsSync(m));
-const criticalBytes = allJs + manifests.reduce((n, f) => n + gz(f), 0) + [...new Set(critical)].reduce((n, f) => n + size(path.join(DIST, f)), 0);
+const sharedBytes = allJs + manifests.reduce((n, f) => n + gz(f), 0) + [...new Set(critical)].reduce((n, f) => n + size(path.join(DIST, f)), 0);
+// A class whose art isn't built yet counts as missing, and fails.
+const classRows = Object.entries(CLASS_BOOT).map(([cls, boot]) => {
+  const missing = boot.filter((f) => !fs.existsSync(path.join(DIST, f)));
+  const bytes = missing.length ? Infinity : sharedBytes + boot.reduce((n, f) => n + size(path.join(DIST, f)), 0);
+  return [`critical to playable (${cls}${missing.length ? `: missing ${missing.join(', ')}` : ''})`, bytes, 6 * MiB];
+});
 
 // Per-cell and per-region payloads, for every baked region.
 let largestCell = 0, largestCellName = '';
@@ -83,7 +97,7 @@ for (const id of fs.readdirSync(WORLD).sort()) {
 
 const rows = [
   ['title shell (gzip)', shell, 150 * KiB],
-  ['critical to playable', criticalBytes, 6 * MiB],
+  ...classRows,
   ...regionRows,
 ];
 let bad = cellFailures;

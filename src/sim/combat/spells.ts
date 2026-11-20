@@ -1,9 +1,10 @@
 import { STAFFS } from '../../content/combat';
 import { PERK_EFFECT, PROTECTION_SPELLS, SKILL_EFFECT, hasPerk, protectionMult } from '../../content/progression';
-import { charmOf, knowsSpell, staffOf } from '../systems/rpg';
+import { charmOf, gunOf, knowsSpell, staffOf } from '../systems/rpg';
+import { firesAsBullets } from '../../content/classes';
 import { ENEMIES } from '../../content/enemies';
 import { staffCostMult, staffSpellMult } from '../../content/packs/c2';
-import { SPELL_BASE, SPELLS, WOVEN, type SpellId } from '../../content/spells';
+import { SPELL_BASE, SPELLS, WOVEN, type SpellDef, type SpellId } from '../../content/spells';
 import { DT } from '../../content/tuning';
 import { idleInput, type InputCommand } from '../commands';
 import type { Entity } from '../entity';
@@ -38,13 +39,28 @@ function aimPoint(from: Vec3, t: Entity, speed: number): Vec3 {
   return { x: c.x + t.tf.vel.x * time, y: c.y + t.tf.vel.y * time, z: c.z + t.tf.vel.z * time };
 }
 
+/**
+ * The numbers a cast uses. Gunfire takes the equipped gun's (content/classes.ts): its fire rate is the
+ * cooldown, and its damage, range and splash are the shot's.
+ */
+export function castDef(p: Entity | undefined, id: SpellId): SpellDef {
+  const def = SPELLS[id];
+  if (id !== 'gunfire') return def;
+  const g = gunOf(p?.progress)?.shot;
+  if (!g) return def;
+  return {
+    ...def, cooldown: g.cooldown, mv: g.mv, poise: g.poise, knockdown: g.knockdown, interruptsRanged: g.interrupts,
+    projectile: { speed: g.speed, radius: g.radius, range: g.range, explodeRadius: g.explodeRadius },
+  };
+}
+
 /** Spell power: SPELL_BASE × the staff's spellPower (and trait) × (1 + 0.04 · Spell Power) × MV, ×1.2 when woven (more with Scholar's Knot). */
 export function spellPower(id: SpellId, woven: boolean, caster?: Entity): number {
   const p = caster?.progress;
   const staff = p ? staffOf(p) : STAFFS.staff_sproto;
   const skill = 1 + SKILL_EFFECT.spellPower * (p?.skills.spellPower ?? 0);
   const wovenMult = WOVEN.damage + (p ? (charmOf(p)?.wovenBonus ?? 0) : 0);
-  return SPELL_BASE * staff.spellPower * staffSpellMult(p?.equipment.staff) * skill * SPELLS[id].mv * (woven ? wovenMult : 1);
+  return SPELL_BASE * staff.spellPower * staffSpellMult(p?.equipment.staff) * skill * castDef(caster, id).mv * (woven ? wovenMult : 1);
 }
 
 /**
@@ -139,7 +155,7 @@ export function advanceCast(ctx: CombatCtx, p: Entity, cmd: InputCommand, physic
     return;
   }
   if (holdChargedBolt(ctx, p, cmd, a, spellCost(p, a.spell, a.woven))) return;
-  const def = SPELLS[a.spell];
+  const def = castDef(p, a.spell);
   a.t++;
   if (!a.released && a.t >= a.release) {
     a.released = true;
@@ -160,8 +176,23 @@ function spellInfo(id: SpellId, base: number, from: Vec3): HitInfo {
   };
 }
 
+/** A projectile's look: a gun's shot (or a Soldier's shooting spell) is a bullet, a slug or a rocket. */
+function projectileModel(p: Entity, id: SpellId): string {
+  if (!firesAsBullets(p.progress?.class, id)) return id === 'blast' ? 'blastOrb' : 'bolt';
+  if (id === 'gunfire') return gunOf(p.progress)?.look ?? 'bullet';
+  return id === 'blast' ? 'rocket' : 'slug';
+}
+
+/** How far (radians) pellet `i` of `n` turns off the aim: an even fan, and a single bullet wobbles with the tick. */
+function pelletYaw(spreadDeg: number, i: number, n: number, now: number): number {
+  const spread = (spreadDeg * Math.PI) / 180;
+  if (spread === 0) return 0;
+  if (n <= 1) return ((((now * 7919) % 13) / 12) - 0.5) * spread;
+  return -spread / 2 + (spread * i) / (n - 1);
+}
+
 function fire(ctx: CombatCtx, p: Entity, id: SpellId, woven: boolean, target: Entity | null, physics: PhysicsWorld, spawn: SpawnSpellProjectile, point?: Vec3): void {
-  const def = SPELLS[id];
+  const def = castDef(p, id);
   const power = spellPower(id, woven, p) * castChargeMult(p);
   // Cast from the hand, but toward what the screen's centre is on, so the shot lands under it.
   if (point && flatDist(p.tf.pos, point) > 1) p.tf.yaw = yawTo(p.tf.pos, point);
@@ -172,16 +203,25 @@ function fire(ctx: CombatCtx, p: Entity, id: SpellId, woven: boolean, target: En
     const aim = point ?? (target ? aimPoint(from, target, sp) : toWorld(p.tf.pos, p.tf.yaw, [0, 1.35, 10]));
     const d = { x: aim.x - from.x, y: aim.y - from.y, z: aim.z - from.z };
     const len = Math.hypot(d.x, d.y, d.z) || 1;
-    spawn({
-      kind: 'projectile',
-      tf: { pos: from, prevPos: { ...from }, yaw: p.tf.yaw, prevYaw: p.tf.yaw, vel: { x: (d.x / len) * sp, y: (d.y / len) * sp, z: (d.z / len) * sp } },
-      projectile: {
-        owner: p.id, team: p.combat!.team, kind: 'arcane', damage: power, poise: def.poise, radius: def.projectile.radius,
-        life: Math.ceil(def.projectile.range / (sp * DT)), reflected: false, spell: id, explode: def.projectile.explodeRadius,
-        status: def.status, interrupts: def.interruptsRanged, knockdown: def.knockdown, woven, ...seekerMods(p, id, target),
-      },
-      view: { model: id === 'blast' ? 'blastOrb' : 'bolt' },
-    });
+    const model = projectileModel(p, id);
+    const shot = id === 'gunfire' ? gunOf(p.progress)?.shot : undefined;
+    const pellets = shot?.pellets ?? 1;
+    for (let i = 0; i < pellets; i++) {
+      // Each pellet turns about the vertical by its share of the gun's spread.
+      const turn = shot ? pelletYaw(shot.spread, i, pellets, ctx.now) : 0;
+      const cs = Math.cos(turn), sn = Math.sin(turn);
+      const vx = (d.x * cs + d.z * sn) / len, vz = (-d.x * sn + d.z * cs) / len, vy = d.y / len;
+      spawn({
+        kind: 'projectile',
+        tf: { pos: { ...from }, prevPos: { ...from }, yaw: p.tf.yaw, prevYaw: p.tf.yaw, vel: { x: vx * sp, y: vy * sp, z: vz * sp } },
+        projectile: {
+          owner: p.id, team: p.combat!.team, kind: 'arcane', damage: power, poise: def.poise, radius: def.projectile.radius,
+          life: Math.ceil(def.projectile.range / (sp * DT)), reflected: false, spell: id, explode: def.projectile.explodeRadius,
+          status: def.status, interrupts: def.interruptsRanged, knockdown: def.knockdown, woven, ...seekerMods(p, id, target),
+        },
+        view: { model },
+      });
+    }
     return;
   }
   if (def.nova) {

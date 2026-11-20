@@ -27,6 +27,12 @@ export const PLAYER_CLIPS = [
   'mount', 'ride', 'dismount',
 ] as const;
 
+/**
+ * The gun classes' bodies carry the Wizard's 21 clips (retargeted onto their Mixamo rigs, same names
+ * and lengths) plus Sproto Shooter's trigger pull: `shoot`, and `aim`, the held pose (art/README.md).
+ */
+export const GUNNER_CLIPS = [...PLAYER_CLIPS, 'shoot', 'aim'] as const;
+
 /** The Thornwood Brute (sproto-shooter's `sproto_monster`). */
 export const BRUTE_CLIPS = ['idle', 'walk', 'run', 'punch', 'kick'] as const;
 
@@ -55,6 +61,20 @@ export const NPC_CLIPS = ['idle'] as const;
 export const MODELS = {
   /** sproto-duel's rigged wizard plus the Blender melee clips (art/README.md). Never optimized again. */
   player: { path: 'models/characters/player.glb', rigged: true, clips: PLAYER_CLIPS },
+  /**
+   * The Soldier Sproto (metaverse-hub's soldier avatar) and Pepe (the hub's Pepe avatar), built by
+   * art/tools/classes: the Wizard's height, a `socket_weapon` in the right hand, and GUNNER_CLIPS.
+   */
+  player_soldier: { path: 'models/characters/soldier.glb', rigged: true, clips: GUNNER_CLIPS },
+  player_pepe: { path: 'models/characters/pepe_player.glb', rigged: true, clips: GUNNER_CLIPS },
+  /** Sproto Shooter's guns (art/tools/classes/build-guns.mjs): grip at the origin, barrel +Z, a `muzzle` node. */
+  gun_mg: { path: 'models/guns/gun_mg.glb' },
+  gun_shotgun: { path: 'models/guns/gun_shotgun.glb' },
+  gun_sniper: { path: 'models/guns/gun_sniper.glb' },
+  gun_bazooka: { path: 'models/guns/gun_bazooka.glb' },
+  gun_raygun: { path: 'models/guns/gun_raygun.glb' },
+  gun_bigbullets: { path: 'models/guns/gun_bigbullets.glb' },
+  gun_duckgun: { path: 'models/guns/gun_duckgun.glb' },
   staff_sproto: { path: 'models/staffs/staff_sproto.glb' },
   /** The small starter staff the world boots with (STAFF_BOOT_LOD). */
   staff_sproto_lod1: { path: 'models/staffs/staff_sproto-lod1.glb' },
@@ -160,3 +180,5 @@ export const TEXTURES = {
 
 /** Where the staff mounts on a rigged character (node extras carry the contract). */
 export const STAFF_SOCKET = 'socket_staff';
+/** Where a gun mounts on the gun classes' bodies: grip at its origin, +Z along the barrel. */
+export const WEAPON_SOCKET = 'socket_weapon';

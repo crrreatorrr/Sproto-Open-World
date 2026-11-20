@@ -1,3 +1,4 @@
+import { CLASSES, CLASS_IDS, type ClassId } from '../content/classes';
 import { padGlyph, PAD_BUTTONS, type GamepadInput } from '../input/Gamepad';
 import {
   ACTION_LABELS, KEY_ACTIONS, KEY_SLOTS, PAD_ACTIONS, bindKey, bindPad, clearKey, defaultControlPrefs,
@@ -10,8 +11,8 @@ import type { Settings } from './settings';
 import { SETTING_GROUPS, settingRow } from './settingsRows';
 
 export interface MenuActions {
-  /** New game (Play). */
-  play(): void;
+  /** New game (Play), as the class picked on the class screen. */
+  play(cls: ClassId): void;
   /** Continue from the save (offered on the title only when one loaded). */
   continueGame(): void;
   resume(): void;
@@ -72,11 +73,13 @@ export class Menus {
   readonly pause: Screen;
   readonly settings: Screen;
   readonly controls: Screen;
+  /** A new save's first choice: Wizard, Soldier or Pepe. */
+  readonly classes: Screen;
   private captureState: { kind: 'key'; action: KeyAction; slot: number } | { kind: 'pad'; action: PadAction } | null = null;
   private captureTimer = 0;
   private note = '';
   /** The title's save state: whether Continue is offered, and a notice about a damaged save. */
-  private titleSave: { canContinue: boolean; notice: string } = { canContinue: false, notice: '' };
+  private titleSave: { canContinue: boolean; notice: string; diskPath: string | null } = { canContinue: false, notice: '', diskPath: null };
   private hub: HubChip = { status: 'offline', label: '', error: '', owner: 'device', sync: 'local' };
 
   constructor(
@@ -93,6 +96,7 @@ export class Menus {
     this.pause = this.makePause();
     this.settings = this.makeSettings();
     this.controls = this.makeControls();
+    this.classes = this.makeClasses();
     input.onKeyDown((code, e) => this.onCaptureKey(code, e));
   }
 
@@ -106,9 +110,10 @@ export class Menus {
   /**
    * Tell the title about the save (plan §2.8): with one, Continue comes first and Play becomes
    * New game; `notice` says when the save was damaged (loaded from the backup, or not at all).
+   * `diskPath`: local save mode is on and keeps the save in this file (dev servers).
    */
-  setSave(canContinue: boolean, notice = ''): void {
-    this.titleSave = { canContinue, notice };
+  setSave(canContinue: boolean, notice = '', diskPath: string | null = this.titleSave.diskPath): void {
+    this.titleSave = { canContinue, notice, diskPath };
     if (this.nav.top === this.title) this.nav.refresh();
   }
 
@@ -130,18 +135,39 @@ export class Menus {
     const s = this.screen('screen-title');
     const render = () => {
       s.replaceChildren(el('h1', 'logo', 'Sproto Open World'), el('p', 'tagline', 'Sproutvale — bootstrap build'));
-      const { canContinue, notice } = this.titleSave;
+      const { canContinue, notice, diskPath } = this.titleSave;
       if (notice) s.append(el('p', 'note save-notice', notice));
       s.append(this.hubChip());
       const list = el('div', 'list');
       // While a hub visit signs in, whose save this is isn't known yet: no Play over it.
       if (this.hub.owner === 'pending') list.append(el('p', 'note hub-wait', 'Loading your hub save…'));
-      else if (canContinue) list.append(button('Continue', () => this.actions.continueGame()), button('New game', () => this.actions.play()));
-      else list.append(button('Play', () => this.actions.play()));
+      // A new game picks its class first.
+      else if (canContinue) list.append(button('Continue', () => this.actions.continueGame()), button('New game', () => this.nav.push(this.classes)));
+      else list.append(button('Play', () => this.nav.push(this.classes)));
       list.append(button('Settings', () => this.nav.push(this.settings)), button('Return to Hub', () => this.actions.returnToHub()));
-      s.append(list, el('p', 'build', `build ${__BUILD_ID__}`));
+      s.append(list, el('p', 'build', diskPath ? `build ${__BUILD_ID__} · local save: ${diskPath}` : `build ${__BUILD_ID__}`));
     };
     return { el: s, render, onBack: () => {} };
+  }
+
+  /** Creating a save: pick a class (content/classes.ts). It is kept for the whole save. */
+  private makeClasses(): Screen {
+    const s = this.screen('screen-classes');
+    const render = () => {
+      s.replaceChildren(el('h2', '', 'Choose your class'));
+      if (this.titleSave.canContinue) s.append(el('p', 'note', 'A new game replaces your saved one.'));
+      const list = el('div', 'list class-list');
+      for (const id of CLASS_IDS) {
+        const c = CLASSES[id];
+        const b = button('', () => this.actions.play(id), 'btn class-card');
+        b.dataset.class = id;
+        b.append(el('span', 'label', c.name), el('span', 'blurb', c.blurb));
+        list.append(b);
+      }
+      list.append(button('Back', () => this.nav.pop()));
+      s.append(list);
+    };
+    return { el: s, render, onBack: () => this.nav.pop() };
   }
 
   private makePause(): Screen {

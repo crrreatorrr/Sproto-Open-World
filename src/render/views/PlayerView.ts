@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import type { AssetLoader, ModelInstance } from '../../assets/AssetLoader';
 import type { Priority } from '../../assets/RequestQueue';
-import { STAFF_SOCKET, type ModelKey } from '../../assets/manifest';
+import { STAFF_SOCKET, WEAPON_SOCKET, type ModelKey } from '../../assets/manifest';
 import { PLAYER_MOVES, ROLL, clipTiming, type PlayerMoveId } from '../../content/combat';
 import { PLAYER_MOVE_TIMING } from '../../content/generated/playerMoveTiming';
 import { BACKSTEP, PLUNGE } from '../../content/packs/m7';
-import { SPELLS } from '../../content/spells';
+import { SPELLS, type SpellDef } from '../../content/spells';
 import { TICK_HZ } from '../../content/tuning';
 import type { Entity } from '../../sim/entity';
 import { Animator, ENTRY_FADE } from '../anim/Animator';
@@ -24,6 +24,14 @@ const CAST_IN_FADE = 0.06;
 const CAST_OUT_FADE = 0.15;
 /** How much of a flinch a raised guard lets through. */
 const GUARD_RECOIL = 0.55;
+const GUN_Q1 = new THREE.Quaternion();
+const GUN_Q2 = new THREE.Quaternion();
+const GUN_Q3 = new THREE.Quaternion();
+const GUN_Q4 = new THREE.Quaternion();
+const GUN_V = new THREE.Vector3();
+const GUN_UP = new THREE.Vector3(0, 1, 0);
+/** A gun stays raised this long after the last shot (s). */
+const AIM_HOLD = 0.6;
 /** Into and out of the saddle poses. */
 const RIDE_FADE = 0.1;
 /** The rider's bounce: its rate at a standstill, and how fast it rises with the bull's speed (m/s per 1× rate). */
@@ -49,7 +57,19 @@ const BOUNCE_ROCK = 0.5;
 /** How quickly the saddle's average height follows it (1/s): the bounce is what is left over. */
 const SADDLE_MEAN_RATE = 4;
 
-/** Draws one player entity: the rigged model, its staff on `socket_staff`, and its animation. */
+/**
+ * The arms' clip time for a cast. Gunfire's `shoot` (the gun classes' trigger pull) plays straight
+ * through its release and recovery; the spells' clips land the hand's peak on the release tick.
+ */
+function castPose(def: SpellDef, t: number, release: number): { clip: string; time: number } {
+  if (def.clip === 'shoot') return { clip: 'shoot', time: t / TICK_HZ };
+  return { clip: def.clip, time: castClipTime(CAST_PEAKS.player, def.clip, t, release, def.recovery) };
+}
+
+/**
+ * Draws one player entity: the rigged body of its class, the weapon in its hand (a staff on
+ * `socket_staff`, a gun on `socket_weapon`), and its animation.
+ */
 export class PlayerView {
   readonly root = new THREE.Group();
   /** The flinch's pivot, between the placed root and the animated model. */
@@ -77,22 +97,33 @@ export class PlayerView {
   private saddleMean = 0;
 
   private staffKey: ModelKey | null = null;
+  /** The gun classes' spine and weapon socket (squareGun). */
+  private gunSpine: THREE.Object3D | null = null;
+  private gunSocket: THREE.Object3D | null = null;
+  /** Seconds the gun stays raised after a shot. */
+  private aimHold = 0;
   private readonly stopListening: () => void;
 
-  constructor(private readonly assets: AssetLoader) {
+  constructor(private readonly assets: AssetLoader, readonly body: ModelKey = 'player') {
     this.stopListening = assets.onRecovered((key) => {
-      if (key === 'player') void this.reloadBody();
+      if (key === this.body) void this.reloadBody();
       else if (key === this.staffKey) void this.setStaff(key);
     });
     this.root.add(this.pivot);
   }
 
   async load(staffKey: ModelKey = 'staff_sproto'): Promise<void> {
-    this.model = await this.assets.instance('player');
+    this.model = await this.assets.instance(this.body);
     this.pivot.add(this.model.root);
+    this.forgetGunBones();
     this.glow.adopt(this.model.root);
     this.animator = new Animator(this.model.root, this.model.clips);
     await this.setStaff(staffKey);
+  }
+
+  /** A new body: find its spine and weapon socket again. */
+  private forgetGunBones(): void {
+    this.gunSpine = this.gunSocket = null;
   }
 
   /** Struck from `from`: the body flashes and is knocked away from the blow. */
@@ -123,12 +154,13 @@ export class PlayerView {
   async setStaff(key: ModelKey, priority: Priority = 'now'): Promise<void> {
     const request = ++this.staffRequest;
     this.staffKey = key;
-    const socket = this.model?.root.getObjectByName(STAFF_SOCKET);
+    const root = this.model?.root;
+    const socket = root?.getObjectByName(WEAPON_SOCKET) ?? root?.getObjectByName(STAFF_SOCKET);
     if (!socket) {
       this.staff?.dispose();
       this.staff = null;
       this.staffMounted = false;
-      console.warn('[player] no socket_staff node: staff not shown');
+      console.warn('[player] no weapon socket: weapon not shown');
       return;
     }
     const next = await this.assets.instance(key, priority);
@@ -144,13 +176,14 @@ export class PlayerView {
 
   /** The body's file arrived after a failed download: swap the stand-in and remount the staff. */
   private async reloadBody(): Promise<void> {
-    const next = await this.assets.instance('player');
+    const next = await this.assets.instance(this.body);
     this.animator?.dispose();
     this.staff?.dispose();
     this.staff = null;
     this.model?.dispose();
     this.model = next;
-    this.root.add(next.root);
+    this.pivot.add(next.root);
+    this.forgetGunBones();
     this.animator = new Animator(next.root, next.clips);
     if (this.staffKey) await this.setStaff(this.staffKey);
   }
@@ -181,11 +214,17 @@ export class PlayerView {
     // the release tick, while the legs keep the locomotion layer (the player may walk slowly).
     const a = e.combat?.action;
     if (a?.kind === 'cast') {
-      const def = SPELLS[a.spell];
       // A channel holds the hands at the release pose for as long as it lasts.
-      const t = a.channel ? Math.min(a.t, a.release) : a.t;
-      this.castShown = anim.upper(def.clip, castClipTime(CAST_PEAKS.player, def.clip, t, a.release, def.recovery), CAST_IN_FADE);
+      const pose = castPose(SPELLS[a.spell], a.channel ? Math.min(a.t, a.release) : a.t, a.release);
+      this.castShown = anim.upper(pose.clip, pose.time, CAST_IN_FADE);
+      if (a.spell === 'gunfire') this.aimHold = AIM_HOLD;
+    } else if (!a && this.aimHold > 0) {
+      // Between trigger pulls a gun stays up on the aim pose, so a held MG doesn't bob.
+      this.aimHold -= dt;
+      this.castShown = false;
+      anim.upper('aim', 0, CAST_IN_FADE);
     } else {
+      this.aimHold = 0;
       this.castShown = false;
       anim.upperOff(a ? ENTRY_FADE : CAST_OUT_FADE);
     }
@@ -227,11 +266,38 @@ export class PlayerView {
   /** Advance the clips, then the flinch and the status glow on top of them. */
   private finishFrame(e: Readonly<Entity>, anim: Animator, dt: number): void {
     anim.update(dt);
+    this.squareGun();
     this.reaction.update(dt);
     this.lean += (this.driveLean(e) - this.lean) * (1 - Math.exp(-DRIVE_LEAN_SHARPNESS * dt));
     this.reaction.apply(this.pivot, this.lean);
     this.glow.setStatus(glowStatusOf(e));
     this.glow.update(dt);
+  }
+
+  /**
+   * The Wizard's idle stands with its hips turned (about 25°), and a gun's aim and shot clips ride on
+   * whatever the legs do. While the gun is up, the spine turns about the body's up by however far the
+   * barrel is off the body's facing, so it points where the shots go (a run's hips already face ahead).
+   */
+  private squareGun(): void {
+    const name = this.animator?.upperClip;
+    if (name !== 'aim' && name !== 'shoot') return;
+    const body = this.model?.root;
+    const spine = this.gunSpine ??= body?.getObjectByName('mixamorigSpine') ?? null;
+    const socket = this.gunSocket ??= body?.getObjectByName(WEAPON_SOCKET) ?? null;
+    if (!body || !spine?.parent || !socket) return;
+    body.updateWorldMatrix(true, true);
+    // The barrel (the socket's +Z) in the body's frame, flattened: its yaw off the body's +Z.
+    body.getWorldQuaternion(GUN_Q1);
+    socket.getWorldQuaternion(GUN_Q2).premultiply(GUN_Q4.copy(GUN_Q1).invert());
+    GUN_V.set(0, 0, 1).applyQuaternion(GUN_Q2);
+    const off = Math.atan2(GUN_V.x, GUN_V.z);
+    if (Math.abs(off) < 1e-3) return;
+    // Turn the spine by −off about the body's up, expressed in the spine's parent frame.
+    GUN_Q3.setFromAxisAngle(GUN_UP, -off).premultiply(GUN_Q1).multiply(GUN_Q4.copy(GUN_Q1).invert());
+    spine.parent.getWorldQuaternion(GUN_Q1);
+    spine.quaternion.premultiply(GUN_Q2.copy(GUN_Q1).invert().multiply(GUN_Q3).multiply(GUN_Q1));
+    spine.updateMatrixWorld(true);
   }
 
   /** How far a sprint attack is leaning into its drive this frame. */
@@ -269,10 +335,9 @@ export class PlayerView {
         return;
       }
       case 'cast': {
-        const def = SPELLS[a.spell];
         // A channel holds the hands at the release pose for as long as it lasts.
-        const t = a.channel ? Math.min(a.t, a.release) : a.t;
-        this.castShown = anim.upper(def.clip, castClipTime(CAST_PEAKS.player, def.clip, t, a.release, def.recovery), CAST_IN_FADE);
+        const pose = castPose(SPELLS[a.spell], a.channel ? Math.min(a.t, a.release) : a.t, a.release);
+        this.castShown = anim.upper(pose.clip, pose.time, CAST_IN_FADE);
         return;
       }
       case 'block':
