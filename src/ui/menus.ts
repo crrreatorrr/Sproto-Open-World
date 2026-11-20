@@ -16,6 +16,8 @@ export interface MenuActions {
   continueGame(): void;
   resume(): void;
   quitToTitle(): void;
+  /** Open the hub feedback window (the pause list's Send feedback). */
+  feedback(): void;
   settingsChanged(s: Settings): void;
   controlsChanged(p: ControlPrefs): void;
 }
@@ -102,7 +104,11 @@ export class Menus {
       s.replaceChildren(el('h2', '', 'Paused'));
       const list = el('div', 'list');
       list.append(button('Resume', () => this.actions.resume()));
-      list.append(button('Settings', () => this.nav.push(this.settings)), button('Quit to title', () => this.actions.quitToTitle()));
+      list.append(
+        button('Settings', () => this.nav.push(this.settings)),
+        button('Send feedback', () => this.actions.feedback()),
+        button('Quit to title', () => this.actions.quitToTitle()),
+      );
       s.append(list);
     };
     return { el: s, render, onBack: () => this.actions.resume() };
