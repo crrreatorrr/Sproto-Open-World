@@ -92,6 +92,12 @@ const WAVE_SANDBOX = PARAMS.get('sandbox') === '1';
  */
 export type GameMode = 'world' | 'yard' | 'waves';
 const MODE: GameMode = WAVE_SANDBOX ? 'waves' : PARAMS.get('yard') === '1' ? 'yard' : 'world';
+/**
+ * God mode (testing: can't die, every item, travel anywhere). The menu offers it in dev and QA
+ * builds; `?god=1` offers it in any build and turns it on at the start of play.
+ */
+const GOD_URL = PARAMS.get('god') === '1';
+const GOD_ALLOWED = import.meta.env.DEV || import.meta.env.VITE_QA === '1' || GOD_URL;
 /** Blast shakes the camera less the further it is from you (m at which it stops). */
 const BLAST_SHAKE_RANGE = 16;
 /** Autosave every 5 minutes of play when out of combat (plan §2.8), on top of the event saves. */
@@ -184,6 +190,12 @@ export class App {
   private sinceSave = 0;
   /** Saves written this session (QA). */
   private saves = 0;
+  /** God mode goes on at the start of each session (the URL asked, or it was on last session). */
+  private godWanted = GOD_URL;
+  /** God mode was on at some point this session: nothing is saved until the next one, so the real save is kept. */
+  private godUsed = false;
+  /** God mode goes on with the first tick the player isn't held behind the veil (held ticks drop input). */
+  private godPending = false;
   /** This frame's Start press closed the tabbed menu: it doesn't also pause. */
   private startUsed = false;
   /** Which way the left stick was pushed on the error panel: one push moves the focus once. */
@@ -266,6 +278,11 @@ export class App {
       gearLocked: () => this.sim?.view().gearLocked(LOCAL_PLAYER) ?? false,
       prompt: (keys, padButtons) => promptLabel(this.input.pad.device, this.input.pad.style, keys, padButtons),
       slotGlyph: (i) => spellSlotGlyph(i, this.input.pad.device, this.input.pad.style),
+      godAllowed: () => GOD_ALLOWED && this.mode === 'world',
+      setGod: (on) => {
+        this.godWanted = on;
+        this.sendUi({ kind: 'godMode', on });
+      },
       resume: () => this.closeGameMenu(),
       quitToTitle: () => this.quitToTitle(),
       openSettings: () => this.nav.push(this.menus.settings),
@@ -408,6 +425,7 @@ export class App {
     const region = this.stream?.region;
     if (!sim || !region) return;
     this.sinceSave = 0;
+    if (this.godUsed) return;
     let ok = false;
     try {
       ok = writeSave(sim.toSave({ savedAt: new Date().toISOString(), build: __BUILD_ID__, region: region.manifest.id }));
@@ -498,6 +516,8 @@ export class App {
       this.commands.clearUi();
       this.saveWanted = false;
       this.sinceSave = 0;
+      this.godUsed = false;
+      this.godPending = this.godWanted && GOD_ALLOWED && !!this.stream;
       this.rpgHud.clearFeed();
       this.state = 'playing';
       if (this.groundWait) this.showGroundVeil(entity.tf.pos.x);
@@ -725,6 +745,10 @@ export class App {
     } else this.commands.frame({ locked, mouseDx: m.x, dt });
     // Streaming runs before the ticks, so colliders queued now are built at the top of this frame's ticks.
     const held = this.streamFrame(simView);
+    if (this.godPending && !held) {
+      this.godPending = false;
+      this.sendUi({ kind: 'godMode', on: true });
+    }
     const ticks = this.loop.advance(dt);
     const t0 = performance.now();
     for (let i = 0; i < ticks; i++) {
@@ -1169,6 +1193,12 @@ export class App {
           }
         }
         return;
+      case 'godMode':
+        if (e.entity !== me) return;
+        if (e.on) this.godUsed = true;
+        this.hud.toast(e.on ? "God mode: you can't die, and you have everything. Saving is off until you quit to the title." : "God mode off. Saving stays off until you quit to the title.");
+        return;
+      case 'travel':
       case 'portalTravel': {
         // The sim has already moved the body. Snap the camera the way a debug teleport does, or it
         // eases across the whole valley, and cover the jump with the veil until the new ground is up.

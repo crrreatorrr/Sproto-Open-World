@@ -339,6 +339,11 @@ export function enemyMove(e: Entity, id: string): EnemyMoveDef | undefined {
 
 export function kill(ctx: CombatCtx, target: Entity, killer: Entity | null): void {
   if (target.brain?.held) return;
+  // God mode (testing): never dies.
+  if (target.progress?.god) {
+    target.vitals!.hp = target.vitals!.hpMax;
+    return;
+  }
   if (target.brain && target.combat?.action?.kind === 'stagger') target.brain.wasStaggered = true;
   const def = target.brain ? ENEMIES[target.brain.def] : undefined;
   if (def?.dummy && !def.breakable) {

@@ -55,6 +55,12 @@ export type UiAction =
   | { kind: 'respecSkills' }
   | { kind: 'rest' }
   | { kind: 'closeMenu' }
+  /** Testing: god mode on (every item, spell and relic, level 99, can't die) or off. */
+  | { kind: 'godMode'; on: boolean }
+  /** Fast travel to a shrine: with the Waystone, to one you have used, out of combat (god mode: any). */
+  | { kind: 'fastTravel'; shrine: string }
+  /** Testing: a god goes straight to world (x, z), dropped onto the floor there. Refused for anyone else. */
+  | { kind: 'godWarp'; x: number; z: number }
   | { kind: 'track'; quest: string };
 
 export interface InputCommand {

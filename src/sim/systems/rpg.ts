@@ -18,6 +18,8 @@ import type { Entity, InteractKind, Progress, WorldState } from '../entity';
 import type { SimEvent } from '../events';
 import type { Vec3 } from '../math';
 import { affixXp } from './affixes';
+import { setGod } from './god';
+import { fastTravel, godWarp } from './travel';
 import { equipSpell, gearLocked, grantSkillPoints, learnIntoLoadout, respecSkills, spendSkill } from './loadout';
 import { clearRelic, equipRelic, equipTotem, grantKeepsake, holdTotem, onShrineRest, grantFlagKeepsakes } from './relics';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
@@ -509,6 +511,15 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
         // A shrine's rest doesn't raise the dead: the respawn does.
         if (dead) ctx.events.push({ type: 'refused', entity: e.id, action: 'rest', reason: "You can't rest now." });
         else if (p.atShrine) rest(ctx, e, p.atShrine);
+        break;
+      case 'godMode':
+        setGod(ctx.events, e, a.on);
+        break;
+      case 'fastTravel':
+        fastTravel(ctx, e, a.shrine);
+        break;
+      case 'godWarp':
+        godWarp(ctx, e, a.x, a.z);
         break;
       case 'closeMenu':
         p.shop = null;
