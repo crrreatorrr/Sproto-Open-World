@@ -120,6 +120,7 @@ export const STAFF_TO_GUN: Readonly<Record<string, string>> = {
 /** True for an item the class can hold in its weapon slot. */
 export function canWield(cls: ClassId | undefined, item: ItemDef | undefined): boolean {
   if (!item || item.kind !== 'staff') return false;
+  if (item.anyClass) return true;
   return classOf(cls).weapon === 'gun' ? !!item.gun : !item.gun;
 }
 

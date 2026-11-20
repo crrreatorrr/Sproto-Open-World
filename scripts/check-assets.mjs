@@ -46,7 +46,7 @@ const CLASS_BODIES = ['models/characters/soldier.glb', 'models/characters/pepe_p
 const CLASS_CLIPS = [...PLAYER_CLIPS, 'aim', 'shoot'];
 const GUNS = ['mg', 'shotgun', 'sniper', 'bazooka', 'raygun', 'bigbullets', 'duckgun'].map((id) => `models/guns/gun_${id}.glb`);
 /** Files made by this repo's own pipelines (not copied from a sibling). */
-const OWN = new Set(['models/characters/player.glb', 'models/characters/player.melee.json', 'models/mounts/pepe_bull.glb', 'models/staffs/staff_rootcleaver.glb', 'IMPORTED.json', ...CLASS_BODIES, ...GUNS]);
+const OWN = new Set(['models/characters/player.glb', 'models/characters/player.melee.json', 'models/mounts/pepe_bull.glb', 'models/staffs/staff_rootcleaver.glb', 'models/staffs/staff_brick_phone.glb', 'IMPORTED.json', ...CLASS_BODIES, ...GUNS]);
 /**
  * Relic and totem icons. Design expert finals from the approved Higgsfield sheets
  * (relics hf_20261119_155949_8f60c417, totems hf_20261119_160337_090c3573). Not sibling imports,

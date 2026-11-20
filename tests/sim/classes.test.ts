@@ -146,6 +146,16 @@ describe('weapons by class', () => {
     sol.w.dispose();
   });
 
+  it('every class can hold the Brick Phone', async () => {
+    for (const cls of ['wizard', 'soldier', 'pepe'] as const) {
+      const { w, p } = await world(cls);
+      p.progress!.inventory.staff_brick_phone = 1;
+      step(w, ui([equip('staff_brick_phone')]));
+      expect(p.progress!.equipment.staff, cls).toBe('staff_brick_phone');
+      w.dispose();
+    }
+  });
+
   it('a gun class handed an epic staff gets Sproto Shooter\'s boss gun instead', async () => {
     const { w, p } = await world('soldier');
     const ctx = { now: 0, entities: w.entities, events: [], world: w.world, rng: { s: 1 }, spawnPickup: () => {} } as unknown as RpgCtx;

@@ -5,7 +5,7 @@ import { ENEMIES } from '../../src/content/enemies';
 import { INVENTORY_CAP, ITEMS } from '../../src/content/items';
 import { DROPS } from '../../src/content/loot';
 import { QUESTS } from '../../src/content/quests';
-import { SPROUTVALE_CONTENT as C } from '../../src/content/world/sproutvaleContent';
+import { WORLD_CONTENT as C } from '../../src/content/world/worldContent';
 
 /** Quest content that a run through the game can't vouch for on its own. */
 describe('dialogue graphs', () => {

@@ -1,9 +1,9 @@
 import { canWield } from '../content/classes';
-import { ITEMS, WAYSTONE, type ItemDef } from '../content/items';
+import { ITEMS, TRAVEL_DEVICE, type ItemDef } from '../content/items';
 import { isRootdeep } from '../content/packs/rootdeep';
 import { NPCS } from '../content/npcs';
 import { staffCostMult } from '../content/packs/c2';
-import { BRANCHES, GEAR_LOCK_TICKS, PERKS, PERK_IDS, SKILLS, SKILL_MAX_RANK, branchTotal, hasPerk, RESPEC_SPROUTS_PER_LEVEL, type Branch } from '../content/progression';
+import { BRANCHES, PERKS, PERK_IDS, SKILLS, SKILL_MAX_RANK, branchTotal, hasPerk, RESPEC_SPROUTS_PER_LEVEL, type Branch } from '../content/progression';
 import { QUESTS, type QuestOffer } from '../content/quests';
 import { SPELLS, type SpellId } from '../content/spells';
 import { CAVE_AREAS, SURFACE_AREAS, type AreaDef } from '../content/world/areas';
@@ -161,12 +161,6 @@ export class GameMenu {
     if (!first) this.nav.refresh();
   }
 
-  /** An enemy targeted the player in the last 5 s (the sim's fast-travel and gear rule, systems/loadout.ts). */
-  private inCombat(): boolean {
-    const c = this.src.player()?.combat;
-    return !!c && (this.src.view()?.now ?? 0) - c.targetedAt < GEAR_LOCK_TICKS;
-  }
-
   private progress(): Readonly<Progress> | undefined {
     return this.src.player()?.progress;
   }
@@ -196,7 +190,7 @@ export class GameMenu {
       case 'quests':
         return `${p.tracked}|${JSON.stringify(p.quests)}|${this.src.questLead()?.quest}|${this.src.questOffers().map((o) => o.quest).join(',')}`;
       case 'map':
-        return e ? `${mapSignature(this.src.view(), e, p, this.src.questLead())}|${!!p.inventory[WAYSTONE]}|${!!p.god}|${p.discoveredShrines.join(',')}|${p.lastShrine}|${this.inCombat()}` : 'none';
+        return e ? `${mapSignature(this.src.view(), e, p, this.src.questLead())}|${p.equipment.staff === TRAVEL_DEVICE}|${!!p.god}|${p.discoveredShrines.join(',')}|${p.lastShrine}` : 'none';
       default:
         return `settings|${this.src.godAllowed()}|${!!p.god}`;
     }
@@ -567,18 +561,22 @@ export class GameMenu {
   }
 
   /**
-   * Fast travel, under the map: with the Waystone, the shrines you have used; in god mode, every
-   * shrine and every named area. The sim checks it all again (systems/travel.ts).
+   * God mode's travel, under the map: every shrine and every named area. Everyone else travels by
+   * the Brick Phone (RpgMenus' phone screen). The sim checks it all again (systems/travel.ts).
    */
   private travel(body: HTMLElement, p: Readonly<Progress>): void {
     const god = !!p.god;
     body.append(el('h3', 'travel-title', 'Fast travel'));
-    if (!god && !p.inventory[WAYSTONE]) {
-      body.append(el('p', 'hint', 'With a Waystone (Trader Pepe sells one) you can travel from here to any shrine you have used.'));
+    if (!god) {
+      const held = p.equipment.staff === TRAVEL_DEVICE;
+      const owned = held || !!p.inventory[TRAVEL_DEVICE];
+      body.append(el('p', 'hint', held
+        ? 'Press Light attack with the Brick Phone in hand to call a shrine you have used.'
+        : owned
+          ? 'Wield the Brick Phone (Gear) and press Light attack to call a shrine you have used.'
+          : 'Trader Pepe sells a Brick Phone: wield it to call any shrine you have used, and go there.'));
       return;
     }
-    const locked = !god && this.inCombat();
-    if (locked) body.append(el('p', 'note locked', "You can't travel in combat."));
     let y = 0;
     const group = (title: string, places: readonly { name: string; act: UiAction; here?: boolean }[]) => {
       if (!places.length) return;
@@ -589,20 +587,15 @@ export class GameMenu {
           this.src.send(t.act);
           this.src.resume();
         }), i % TRAVEL_COLS, y + Math.floor(i / TRAVEL_COLS));
-        if (locked) b.disabled = true;
         g.append(b);
       });
       y += Math.ceil(places.length / TRAVEL_COLS);
       body.append(g);
     };
-    const shrines = WORLD_CONTENT.shrines.filter((s) => god || p.discoveredShrines.includes(s.id));
+    const shrines = WORLD_CONTENT.shrines;
     const shrineRow = (s: (typeof shrines)[number]) => ({ name: shrineLabel(s.id), act: { kind: 'fastTravel', shrine: s.id } as UiAction, here: p.lastShrine === s.id });
-    const valley = shrines.filter((s) => !isRootdeep(s.pos[0]));
-    const cave = shrines.filter((s) => isRootdeep(s.pos[0]));
-    if (!shrines.length) body.append(el('p', 'hint', 'Touch or rest at a shrine and it shows up here.'));
-    group('Shrines: Sproutvale', valley.map(shrineRow));
-    group('Shrines: the Rootdeep', cave.map(shrineRow));
-    if (!god) return;
+    group('Shrines: Sproutvale', shrines.filter((s) => !isRootdeep(s.pos[0])).map(shrineRow));
+    group('Shrines: the Rootdeep', shrines.filter((s) => isRootdeep(s.pos[0])).map(shrineRow));
     const area = (a: AreaDef) => ({ name: a.name, act: { kind: 'godWarp', x: a.x, z: a.z } as UiAction });
     group('Areas: Sproutvale (god mode)', SURFACE_AREAS.map(area));
     group('Areas: the Rootdeep (god mode)', CAVE_AREAS.map(area));
