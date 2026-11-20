@@ -19,6 +19,8 @@ import type { Entity, InteractKind, Progress, WorldState } from '../entity';
 import type { SimEvent } from '../events';
 import type { Vec3 } from '../math';
 import { affixXp } from './affixes';
+import { setGod } from './god';
+import { fastTravel, godWarp } from './travel';
 import { equipSpell, gearLocked, grantSkillPoints, learnIntoLoadout, respecSkills, spendSkill } from './loadout';
 import { clearRelic, equipRelic, equipTotem, grantKeepsake, holdTotem, onShrineRest, grantFlagKeepsakes } from './relics';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
@@ -356,7 +358,8 @@ const FRONT = (80 * Math.PI) / 180;
 
 /** The nearest NPC, shrine or unopened chest within reach and roughly in front of the player. */
 export function interactTarget(player: Entity, entities: readonly Entity[]): { e: Entity; id: string; kind: 'npc' | 'mount' | InteractKind; name: string } | null {
-  if (player.riding && player.riding.state !== 'riding') return null;
+  // Getting on or off, or flying: nothing to talk to, and no getting down in mid-air.
+  if (player.riding && (player.riding.state !== 'riding' || player.riding.flight)) return null;
   let best: { e: Entity; id: string; kind: 'npc' | 'mount' | InteractKind; name: string } | null = null;
   let bestD = Infinity;
   for (const e of entities) {
@@ -544,6 +547,15 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
         // A shrine's rest doesn't raise the dead: the respawn does.
         if (dead) ctx.events.push({ type: 'refused', entity: e.id, action: 'rest', reason: "You can't rest now." });
         else if (p.atShrine) rest(ctx, e, p.atShrine);
+        break;
+      case 'godMode':
+        setGod(ctx.events, e, a.on);
+        break;
+      case 'fastTravel':
+        fastTravel(ctx, e, a.shrine);
+        break;
+      case 'godWarp':
+        godWarp(ctx, e, a.x, a.z);
         break;
       case 'closeMenu':
         p.shop = null;

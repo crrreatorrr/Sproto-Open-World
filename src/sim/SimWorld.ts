@@ -46,6 +46,7 @@ import { relicSlowTick } from './systems/relics';
 import { mountCalls, MOUNT_RUNNER } from './systems/mountCall';
 import { cancelMount, followRiders, ridingMotion } from './systems/riding';
 import { vitals } from './systems/vitals';
+import { godVitals } from './systems/god';
 import type { ReadonlySimView } from './view';
 
 /** The wave runner's state (`?sandbox=1`). */
@@ -444,10 +445,12 @@ export class SimWorld {
   toSave(meta: { savedAt: string; build: string; region: string }, player: PlayerId = 0): SaveFile {
     const p = this.playerEntity(player)?.progress;
     if (!p) throw new Error('toSave: no player');
-    const { dialogue: _d, shop: _s, atShrine: _a, ...rest } = structuredClone(p);
+    // God mode is for this session only: a save never carries it.
+    const { dialogue: _d, shop: _s, atShrine: _a, god: _g, ...rest } = structuredClone(p);
     void _d;
     void _s;
     void _a;
+    void _g;
     return { schema: SAVE_SCHEMA, ...meta, player: rest, world: savedWorld(this.world) };
   }
 
@@ -769,6 +772,14 @@ export class SimWorld {
     }
     // Travel is applied here, not through RpgCtx: the destination's arrive point, then a settle onto its floor.
     for (const ev of this.events) {
+      if (ev.type === 'travel') {
+        // Fast travel or a god's warp: off the bull if riding, then the same drop onto the floor as a portal.
+        const who = this.byId.get(ev.entity);
+        if (!who || who.owner === undefined) continue;
+        this.teleportPlayer(who.owner, this.streamed ? { x: ev.x, y: SETTLE_FROM_Y, z: ev.z } : { x: ev.x, y: who.tf.pos.y, z: ev.z });
+        if (this.streamed) who.settle = true;
+        continue;
+      }
       if (ev.type !== 'portalTravel') continue;
       const who = this.byId.get(ev.entity);
       const dest = ROOTDEEP_PORTALS[ev.to];
@@ -799,6 +810,7 @@ export class SimWorld {
       if (entity.combat?.action?.kind !== 'dead') kill(ctx, entity, this.byId.get(source) ?? null);
     }
     vitals(this.entities, frozen, this.now);
+    godVitals(this.entities);
     // Kills feed XP and loot; then pickups, triggers and the quest runtime see this tick's events.
     for (const ev of [...this.events]) {
       if (ev.type !== 'death' || ev.killer === null) continue;

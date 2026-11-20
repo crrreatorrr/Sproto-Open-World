@@ -303,7 +303,7 @@ async function rpgLoop() {
   s = await until((q) => q.screen === 'screen-shop');
   check(s.screen === 'screen-shop' && s.rpg.shop === 'merchant_village', '"Show me your wares." opens the shop', `${s.screen} ${s.rpg.shop}`);
   const stock = await page.evaluate(() => [...document.querySelectorAll('#screen-shop [data-item]')].map((e) => e.dataset.item));
-  check(stock.includes('staff_nobu') && stock.length === 4, 'the shop lists the merchant\'s stock', stock.join(','));
+  check(stock.includes('staff_nobu') && stock.includes('waystone') && stock.length === 5, 'the shop lists the merchant\'s stock', stock.join(','));
   await shot('w12-shop');
   await press('a');
   s = await until((q) => !!q.toast);

@@ -216,6 +216,8 @@ export interface Progress {
   atShrine: string | null;
   /** Relic sockets, the totem, and what has been won. Absent on a progress built before that save. */
   relics?: RelicProgress;
+  /** God mode (testing, systems/god.ts): can't die. This session only, never saved. */
+  god?: boolean;
 }
 
 /** Session clocks for relics. Not saved: a load starts them over. */
@@ -296,6 +298,20 @@ export interface Mount {
   /** Planar speed (m/s), for its legs. */
   speed: number;
   call?: MountCall;
+  /** Flying under its rider: the body's pitch (nose up, radians) and bank (right wing down, radians), for its view. */
+  fly?: { pitch: number; bank: number };
+}
+
+/** A ridden bull in the air (`MOUNT.fly`): where its nose points and how hard it banks. */
+export interface Flight {
+  /** Nose up, radians. */
+  pitch: number;
+  /** Rolled right, radians: it turns the way it banks. */
+  bank: number;
+  /** Airspeed along the nose (m/s). */
+  speed: number;
+  /** Ticks since take-off: the ground it leaves from doesn't count as a landing. */
+  age: number;
 }
 
 /** On a mount, or getting on or off it. */
@@ -310,6 +326,10 @@ export interface Riding {
   holdSpent: boolean;
   /** Dodging: the momentum the bull carries through it (m/s). */
   carry?: { x: number; z: number };
+  /** Jump presses in a quick run (three switch flight on or off), and ticks left for the next to count. */
+  jumps?: { count: number; window: number };
+  /** In the air: flying, not running. Touching down ends it. */
+  flight?: Flight;
 }
 
 /** A talkable NPC. */

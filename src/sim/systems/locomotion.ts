@@ -7,7 +7,7 @@ import type { Entity } from '../entity';
 import type { SimEvent } from '../events';
 import { approach, clamp, turnToward, wrapAngle } from '../math';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
-import { faceBull, gallopInput, holdPaceUphill, steerBull } from './riding';
+import { faceBull, flightJumps, flyBull, gallopInput, holdPaceUphill, noseStop, steerBull } from './riding';
 
 const JUMP_SPEED = Math.sqrt(2 * MOVE.gravity * MOVE.jumpHeight);
 
@@ -49,8 +49,16 @@ export function locomotion(
     const tf = e.tf;
     const isPlayer = e.owner !== undefined;
     const cmd = isPlayer ? (commands.get(e.owner!) ?? idleInput(tf.yaw)) : idleInput(tf.yaw);
-    if (e.riding) gallopInput(e, cmd, wishDir(cmd).mag);
+    if (e.riding) {
+      gallopInput(e, cmd, wishDir(cmd).mag);
+      if (isPlayer) flightJumps(e, cmd, events);
+    }
     if (frozen.has(e.id)) continue;
+    // In the air on the bull, it flies: no gravity, and swings and spells don't slow it.
+    if (e.riding?.state === 'riding' && e.riding.flight) {
+      flyBull(e, cmd, physics, hasGround, events);
+      continue;
+    }
     const m = motion.get(e.id);
     const steer = isPlayer ? (m ? m.inputScale : 1) : 0;
 
@@ -121,10 +129,14 @@ export function locomotion(
     else tf.vel.y = 0; // snap-to-ground keeps the capsule on slopes; a downward push sinks it into the skin
 
     const want = { x: (tf.vel.x + px) * DT, y: tf.vel.y * DT, z: (tf.vel.z + pz) * DT };
+    if (e.riding?.state === 'riding') noseStop(physics, tf, want);
     // A player won't leave the built world: they run along the map's edge, or a cell still loading.
+    // In the saddle it is the edge of the bull's wider collider that must stay on built ground.
+    const lead = e.riding?.state === 'riding' ? MOUNT.rideRadius : 0;
+    const out = (d: number) => d + Math.sign(d) * lead;
     if (isPlayer) {
-      if (!hasGround(tf.pos.x + want.x, tf.pos.z)) want.x = 0;
-      if (!hasGround(tf.pos.x + want.x, tf.pos.z + want.z)) want.z = 0;
+      if (!hasGround(tf.pos.x + out(want.x), tf.pos.z)) want.x = 0;
+      if (!hasGround(tf.pos.x + out(want.x), tf.pos.z + out(want.z))) want.z = 0;
     }
     let res = physics.moveCharacter(e.id, tf.pos, want);
     if (isPlayer && !hasGround(tf.pos.x + res.moved.x, tf.pos.z + res.moved.z)) {

@@ -241,6 +241,46 @@ describe('in the saddle the bull is as wide as it looks', () => {
   });
 });
 
+describe('in the saddle the bull is as long as it looks', () => {
+  it('runs at a wall and stops with its nose on it, not its middle', async () => {
+    const { w, p, bull } = await field();
+    saddleUp(w, p, bull);
+    const wall = bull.tf.pos.z + 30;
+    w.physics.addBarrier(9001, { x: bull.tf.pos.x, y: VILLAGE_Y + 1.5, z: wall }, [10, 3, 0.1], 0);
+    w.physics.step();
+    hold(w, 150, push(0, 1, BTN.sprint));
+    const nose = p.tf.pos.z + MOUNT.bodyHalfLength;
+    expect(nose).toBeLessThanOrEqual(wall - 0.1 + 0.02);
+    expect(nose).toBeGreaterThan(wall - 0.1 - MOUNT.noseRadius - 0.1);
+    expect(p.loco!.speed).toBeLessThan(0.5);
+    w.dispose();
+  });
+
+  it('puts its head over a low fence: only its body stops on it', async () => {
+    const { w, p, bull } = await field();
+    saddleUp(w, p, bull);
+    const fence = bull.tf.pos.z + 10;
+    const top = MOUNT.noseHeight - MOUNT.noseRadius - 0.2;
+    w.physics.addBarrier(9001, { x: bull.tf.pos.x, y: VILLAGE_Y + top / 2, z: fence }, [10, top / 2, 0.1], 0);
+    w.physics.step();
+    hold(w, 120, push(0, 1));
+    expect(fence - 0.1 - p.tf.pos.z).toBeLessThan(MOUNT.rideRadius + 0.1);
+    expect(p.tf.pos.z + MOUNT.bodyHalfLength).toBeGreaterThan(fence);
+    w.dispose();
+  });
+
+  it('stands on the ground in the saddle, not above it', async () => {
+    const { w, p, bull } = await field();
+    saddleUp(w, p, bull);
+    hold(w, 60, push(0, 1));
+    hold(w, 60, push(0, 0));
+    expect(p.tf.pos.y).toBeCloseTo(VILLAGE_Y, 1);
+    expect(Math.abs(p.tf.pos.y - VILLAGE_Y)).toBeLessThan(0.05);
+    expect(Math.abs(bull.tf.pos.y - VILLAGE_Y)).toBeLessThan(0.05);
+    w.dispose();
+  });
+});
+
 describe('the bull climbs', () => {
   const climb = async (deg: number, gallop: boolean) => {
     const { w, p, bull } = await field(deg);
