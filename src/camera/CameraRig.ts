@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GAMEPAD, MOUSE } from '../input/bindings';
+import { MOUNT } from '../content/mounts';
 import type { AimRay } from '../sim/commands';
 import type { ReadonlySimView } from '../sim/view';
 
@@ -52,6 +53,21 @@ export const CAM = {
   solidFrom: 3,
   /** The camera and the pivot keep this far off a big body's capsule (m). */
   solidMargin: 0.45,
+  /**
+   * On the bull: the pivot rises with the saddle above the hub-sized bull's (1.27 m at 1×), and the
+   * camera pulls back so the whole beast stays in the picture. Eased at `rideSharpness` (1/s).
+   */
+  rideLift: 1.27 * (MOUNT.scale - 1),
+  rideDistance: 1 + 0.3 * (MOUNT.scale - 1),
+  rideSharpness: 3,
+  /**
+   * Flying the bull: with no look input for `flyChaseAfter` s, the camera swings round behind it
+   * and follows its climbs and dives (a share of its pitch, a little above), at `flyChaseSharpness`.
+   */
+  flyChaseAfter: 0.6,
+  flyChaseSharpness: 2.5,
+  flyChasePitch: 0.55,
+  flyChaseAbove: -0.12,
 } as const;
 
 /** A big body the camera must not end up inside: the locked target, or the boss of the fight. */
@@ -89,6 +105,13 @@ export class CameraRig {
   distance: number = CAM.distance;
   /** Giants pull the camera back (EnemyDef.cameraScale): the follow distance's multiplier, eased. */
   distanceScale = 1;
+  /** In the saddle (App sets it): lifts the pivot and pulls the camera back, eased. */
+  riding = false;
+  private rideNow = 0;
+  /** Flying the bull (App sets it): its heading and nose pitch, for the chase camera. */
+  flight: { yaw: number; pitch: number } | null = null;
+  /** Seconds since the player last turned the camera. */
+  private sinceLook = Infinity;
   /** The body to keep out of (App sets it every frame). */
   solid: CameraSolid | null = null;
   private scaleNow = 1;
@@ -115,6 +138,7 @@ export class CameraRig {
 
   rotateMouse(dx: number, dy: number): void {
     const s = MOUSE.sensitivity * this.mouseScale;
+    if (dx !== 0 || dy !== 0) this.sinceLook = 0;
     this.yaw -= dx * s;
     this.pitch -= dy * s * (this.invertY ? -1 : 1);
     this.clampPitch();
@@ -124,6 +148,7 @@ export class CameraRig {
   rotatePad(x: number, y: number, dt: number): void {
     const G = GAMEPAD;
     const A = G.acceleration;
+    if (x !== 0 || y !== 0) this.sinceLook = 0;
     // Held at the edge: ramp in extra yaw for quick turns.
     if (Math.abs(x) >= A.threshold) this.padHeldEdge += dt;
     else this.padHeldEdge = 0;
@@ -222,7 +247,15 @@ export class CameraRig {
     const body = lockOn ? big : null;
     const tall = body && Math.abs(body.y - target.y) < body.height ? (body.height - CAM.lockTallFrom) * CAM.lockTallLift : 0;
     this.lift = damp(this.lift, Math.min(CAM.lockTallMax, Math.max(0, tall)), 5, dt);
-    this.tmp.set(target.x, target.y + CAM.height + this.lift, target.z);
+    this.rideNow = damp(this.rideNow, this.riding ? 1 : 0, CAM.rideSharpness, dt);
+    this.sinceLook += dt;
+    if (this.flight && !lockOn && this.sinceLook > CAM.flyChaseAfter) {
+      const k = 1 - Math.exp(-CAM.flyChaseSharpness * dt);
+      this.yaw += Math.atan2(Math.sin(this.flight.yaw - this.yaw), Math.cos(this.flight.yaw - this.yaw)) * k;
+      this.pitch += (this.flight.pitch * CAM.flyChasePitch + CAM.flyChaseAbove - this.pitch) * k;
+      this.clampPitch();
+    }
+    this.tmp.set(target.x, target.y + CAM.height + this.lift + this.rideNow * CAM.rideLift, target.z);
     if (lockOn) {
       const dx = lockOn.x - target.x, dz = lockOn.z - target.z;
       const flat = Math.max(1e-3, Math.hypot(dx, dz));
@@ -264,7 +297,7 @@ export class CameraRig {
     this.shoulder = allowedShoulder < this.shoulder ? allowedShoulder : damp(this.shoulder, allowedShoulder, 8, dt);
     const shoulder = this.tmp.copy(this.pivot).addScaledVector(this.right, this.shoulder);
 
-    this.scaleNow = damp(this.scaleNow, this.distanceScale, 3, dt);
+    this.scaleNow = damp(this.scaleNow, this.distanceScale * (1 + this.rideNow * (CAM.rideDistance - 1)), 3, dt);
     if (this.pushInT > 0) this.pushInT = Math.max(0, this.pushInT - dt);
     const reach = CAM.distance * this.scaleNow * (this.pushInT > 0 ? 0.78 : 1);
     this.desired.copy(this.forward).multiplyScalar(-reach);

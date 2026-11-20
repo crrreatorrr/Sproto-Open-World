@@ -24,6 +24,7 @@ import { QA_LOG_ENABLED, qaLog } from '../debug/qaLog';
 import type { FeedbackHost, FeedbackSnapshot } from '../hub/feedback';
 import type { HubLink } from '../hub/link';
 import { GAMEPAD, KEYS, PAD } from '../input/bindings';
+import { freshDigitChord, godChordPressed } from '../input/godChord';
 import { CommandBuilder } from '../input/CommandBuilder';
 import { applyControlPrefs, loadControlPrefs, saveControlPrefs } from '../input/controlPrefs';
 import { promptLabel } from '../input/glyphs';
@@ -93,6 +94,12 @@ const WAVE_SANDBOX = PARAMS.get('sandbox') === '1';
  */
 export type GameMode = 'world' | 'yard' | 'waves';
 const MODE: GameMode = WAVE_SANDBOX ? 'waves' : PARAMS.get('yard') === '1' ? 'yard' : 'world';
+/**
+ * God mode (testing: can't die, every item, travel anywhere). The menu offers it in dev and QA
+ * builds; `?god=1` offers it in any build and turns it on at the start of play.
+ */
+const GOD_URL = PARAMS.get('god') === '1';
+const GOD_ALLOWED = import.meta.env.DEV || import.meta.env.VITE_QA === '1' || GOD_URL;
 /** Blast shakes the camera less the further it is from you (m at which it stops). */
 const BLAST_SHAKE_RANGE = 16;
 /** Autosave every 5 minutes of play when out of combat (plan §2.8), on top of the event saves. */
@@ -187,6 +194,14 @@ export class App {
   private sinceSave = 0;
   /** Saves written this session (QA). */
   private saves = 0;
+  /** God mode goes on at the start of each session (the URL asked, or it was on last session). */
+  private godWanted = GOD_URL;
+  /** Two quick 9s toggle testing God Mode through the same command as the Settings switch. */
+  private readonly godChord = freshDigitChord();
+  /** God mode was on at some point this session: nothing is saved until the next one, so the real save is kept. */
+  private godUsed = false;
+  /** God mode goes on with the first tick the player isn't held behind the veil (held ticks drop input). */
+  private godPending = false;
   /** This frame's Start press closed the tabbed menu: it doesn't also pause. */
   private startUsed = false;
   /** Which way the left stick was pushed on the error panel: one push moves the focus once. */
@@ -270,6 +285,8 @@ export class App {
       gearLocked: () => this.sim?.view().gearLocked(LOCAL_PLAYER) ?? false,
       prompt: (keys, padButtons) => promptLabel(this.input.pad.device, this.input.pad.style, keys, padButtons),
       slotGlyph: (i) => spellSlotGlyph(i, this.input.pad.device, this.input.pad.style),
+      godAllowed: () => GOD_ALLOWED && this.mode === 'world',
+      setGod: (on) => this.setGodMode(on),
       resume: () => this.closeGameMenu(),
       quitToTitle: () => this.quitToTitle(),
       openSettings: () => this.nav.push(this.menus.settings),
@@ -356,6 +373,11 @@ export class App {
         if (e.code === 'BracketRight') this.cycleClip(1);
         if (e.code === 'BracketLeft') this.cycleClip(-1);
       }
+      // 99 toggles testing God Mode. Ignored in a text field, while rebinding, and while feedback is open.
+      if ((this.state === 'playing' || this.state === 'paused') && this.sim && !this.feedbackHold &&
+        godChordPressed(this.godChord, e, performance.now(), !!this.nav.top?.capturing?.())) {
+        this.setGodMode(!this.sim.playerEntity(LOCAL_PLAYER)?.progress?.god);
+      }
     });
     // WebGL context loss: pause, veil, and offer a reload if it doesn't come back.
     canvas.addEventListener('webglcontextlost', (e) => {
@@ -407,6 +429,15 @@ export class App {
   }
 
   /**
+   * Testing God Mode, the same path as Settings → God mode and `?god=1`: the sim grants everything
+   * and keeps the player alive. `99` toggles it in every build; the menu switch stays dev, QA, or `?god=1`.
+   */
+  private setGodMode(on: boolean): void {
+    this.godWanted = on;
+    this.sendUi({ kind: 'godMode', on });
+  }
+
+  /**
    * Write the autosave (plan §2.8): the sim's state as a SaveFile, stamped with the app's clock.
    * A full or blocked storage is said on screen, never fatal.
    */
@@ -415,6 +446,7 @@ export class App {
     const region = this.stream?.region;
     if (!sim || !region) return;
     this.sinceSave = 0;
+    if (this.godUsed) return;
     let ok = false;
     try {
       ok = writeSave(sim.toSave({ savedAt: new Date().toISOString(), build: __BUILD_ID__, region: region.manifest.id }));
@@ -505,6 +537,8 @@ export class App {
       this.commands.clearUi();
       this.saveWanted = false;
       this.sinceSave = 0;
+      this.godUsed = false;
+      this.godPending = this.godWanted && GOD_ALLOWED && !!this.stream;
       this.rpgHud.clearFeed();
       this.state = 'playing';
       if (this.groundWait) this.showGroundVeil(entity.tf.pos.x);
@@ -732,6 +766,10 @@ export class App {
     } else this.commands.frame({ locked, mouseDx: m.x, dt });
     // Streaming runs before the ticks, so colliders queued now are built at the top of this frame's ticks.
     const held = this.streamFrame(simView);
+    if (this.godPending && !held) {
+      this.godPending = false;
+      this.sendUi({ kind: 'godMode', on: true });
+    }
     const ticks = this.loop.advance(dt);
     const t0 = performance.now();
     for (let i = 0; i < ticks; i++) {
@@ -764,6 +802,8 @@ export class App {
     this.fx.update(dt);
     this.polish.frame(simView, p, dt);
     this.target.copy(view.root.position);
+    this.rig.riding = p.riding !== undefined && p.riding.state !== 'dismounting';
+    this.rig.flight = p.riding?.flight ? { yaw: p.tf.yaw, pitch: p.riding.flight.pitch } : null;
     this.rig.update(dt, this.target, simView, p.loco?.sprinting ?? false, this.speakerPoint(simView, p) ?? this.lockPoint(simView, p));
     this.renderer.follow(this.target);
     // Screen-space UI projects through this frame's camera.
@@ -990,7 +1030,8 @@ export class App {
       prompt = { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.interact, PAD.interact), text: interactLabel(t.kind, t.name) };
     }
     const ride: HudRpgState['ride'] = !inMenu && p.riding?.state === 'riding'
-      ? { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.sprint, PAD.sprint), text: gallopLabel(p.riding.gallop) }
+      // Flying, the same button is the throttle.
+      ? { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.sprint, PAD.sprint), text: p.riding.flight ? (p.riding.gallop ? 'Cruise' : 'Boost') : gallopLabel(p.riding.gallop) }
       : null;
     this.rpgHud.update({ level: pr.level, xp: pr.xp, points: pr.points, sprouts: pr.sprouts, tonics: pr.tonics, tracker, compass: { camYaw: this.rig.yaw, marker }, prompt, ride }, dt);
   }
@@ -1176,6 +1217,12 @@ export class App {
           }
         }
         return;
+      case 'godMode':
+        if (e.entity !== me) return;
+        if (e.on) this.godUsed = true;
+        this.hud.toast(e.on ? "God mode: you can't die, and you have everything. Saving is off until you quit to the title." : "God mode off. Saving stays off until you quit to the title.");
+        return;
+      case 'travel':
       case 'portalTravel': {
         // The sim has already moved the body. Snap the camera the way a debug teleport does, or it
         // eases across the whole valley, and cover the jump with the veil until the new ground is up.

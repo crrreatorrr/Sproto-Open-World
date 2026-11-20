@@ -40,9 +40,11 @@ npm run test:e2e
 `test:e2e` needs Playwright's Chromium (`npx playwright install chromium`). It boots the game in
 headless Chromium and drives it with a simulated gamepad only. Headless Chromium (and CI) renders
 on a software GPU, so long tasks during gameplay are reported there, not asserted. On a machine
-with a GPU, `SMOKE_STRICT_LONGTASKS=1 npm run test:e2e` opens a visible window and asserts them. CI runs one
-Sproutvale lap (`world.mjs --laps 1`); run the full `npm run test:e2e` (three laps, the heap check)
-locally before a world-streaming PR.
+with a GPU, `SMOKE_STRICT_LONGTASKS=1 npm run test:e2e` opens a visible window and asserts them. World tests are
+off until the exhaustive world pass: `tests/world`, `tests/content/world-*` and
+`tests/sim/riding-streaming.test.ts` are excluded in `vitest.config.ts`, and `tests/e2e/world.mjs`
+(the Sproutvale laps and heap check) is out of `test:e2e` and CI. Run them by hand before a
+world-streaming PR.
 
 ## Working with other agents
 
