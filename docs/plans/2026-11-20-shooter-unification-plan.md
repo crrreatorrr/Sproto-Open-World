@@ -127,7 +127,7 @@ SOW requires **100% gamepad playability** (verified by Playwright E2E, including
 | **Drink Tonic / Call Mount** | `H` / `V` | `D-pad ↑` (Tonic) / `D-pad ↓` (Call Pepe Bull) | Identical to SOW today. |
 
 ### 3.4 Unified Ballistics, Multi-Zone Hitboxes, Elements & Rigging
-- **All 9 Gun Types**: Extend PR #41's 7 gun types (`mg`, `shotgun`, `sniper`, `bazooka`, `raygun`, `bigbullets`, `duckgun`) with `handgun` and `machinepistol`, upgrading them from static `GunShot` configs to full **procedural `generateGun()`** (seeded `sfc32`, 4 manufacturers, 12 barrel/grip/mag/scope parts, rarities Common → Legendary, 3 elements, 6 wacky legendary perks).
+- **All 9 Gun Types**: Extend PR #41's 7 gun types (`mg`, `shotgun`, `sniper`, `bazooka`, `raygun`, `bigbullets`, `duckgun`) with `handgun` and `machinepistol`, upgrading them from static `GunShot` configs to full **procedural `generateGun()`** (seeded `sfc32`, 12 barrel/grip/mag/scope parts, rarities Common → Legendary, 3 elements, 6 wacky legendary perks; no gun manufacturers).
 - **Hitscan & Projectiles (`src/sim/combat/ballistics.ts`)**:
   - Hitscan guns cast against Rapier `GROUP.WORLD` (barrel-modified `gunRange`) and test **analytic multi-zone hitboxes** (`weak` > `shield` > `body`, `0.05m` priority tie-breaker) so `bigHead` scaling and boss `onlyWhen: 'stunned'` weak spots work trivially.
   - Projectile guns (`bazooka`, `bigbullets`, `duckgun`, `rubberDuck` perk) extend `src/sim/combat/projectiles.ts` with swept Rapier raycasts, bounce, pierce, and radial splash (including rocket-jump self-knockback at `0.35×`).

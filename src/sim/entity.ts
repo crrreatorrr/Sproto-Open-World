@@ -191,7 +191,6 @@ export interface GunInstance {
   level: number;
   type: string;
   quality: string;
-  manufacturer: string;
   element: string | null;
   parts: Record<string, string>;
   wacky: string | null;

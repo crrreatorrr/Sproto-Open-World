@@ -107,8 +107,8 @@ export interface GunShot {
 }
 
 export interface GunDef {
-  /** Sproto Shooter's gun id. */
-  type: 'mg' | 'shotgun' | 'sniper' | 'bazooka' | 'raygun' | 'bigbullets' | 'duckgun';
+  /** Sproto Shooter's gun id (all 9 single-gun-per-type weapons). */
+  type: 'mg' | 'handgun' | 'machinepistol' | 'shotgun' | 'sniper' | 'bazooka' | 'raygun' | 'bigbullets' | 'duckgun';
   shot: GunShot;
   /** The projectile's look: a tracer, a heavy slug or a rocket. */
   look: 'bullet' | 'slug' | 'rocket';
@@ -119,12 +119,18 @@ const gun = (id: string, name: string, rarity: ItemDef['rarity'], blurb: string,
 });
 
 /**
- * Sproto Shooter's seven guns. Shot numbers keep the shooter's character (the MG sprays, the shotgun
- * fans, the sniper is slow and hard) at this game's damage scale: an Arcane Bolt is 12 a shot.
+ * Sproto Shooter's nine fixed guns (one per gun type). Shot numbers keep the shooter's character
+ * at this game's damage scale: an Arcane Bolt is 12 a shot.
  */
 export const GUN_ITEMS: Record<string, ItemDef> = {
-  gun_mg: gun('gun_mg', 'Toy MG', 'common', 'Sprays. Never runs dry.', 20, 1.0, {
+  gun_mg: gun('gun_mg', 'Toy MG', 'common', 'Sprays. Reliable automatic rifle.', 20, 1.0, {
     type: 'mg', look: 'bullet', shot: { mv: 0.3, cooldown: 7, pellets: 1, spread: 2, speed: 90, range: 40, radius: 0.14, poise: 3 },
+  }),
+  gun_handgun: gun('gun_handgun', 'Handgun', 'common', 'Crisp sidearm. Dual-wieldable.', 18, 0.95, {
+    type: 'handgun', look: 'bullet', shot: { mv: 0.55, cooldown: 14, pellets: 1, spread: 1.5, speed: 100, range: 38, radius: 0.14, poise: 5 },
+  }),
+  gun_machinepistol: gun('gun_machinepistol', 'Machine Pistol', 'common', 'Rapid-fire sidearm. Dual-wieldable.', 18, 0.95, {
+    type: 'machinepistol', look: 'bullet', shot: { mv: 0.24, cooldown: 5, pellets: 1, spread: 3.5, speed: 88, range: 32, radius: 0.13, poise: 2 },
   }),
   gun_shotgun: gun('gun_shotgun', 'Toy Shotgun', 'common', 'Up close, all of it lands.', 22, 0.95, {
     type: 'shotgun', look: 'bullet', shot: { mv: 0.25, cooldown: 45, pellets: 9, spread: 14, speed: 70, range: 16, radius: 0.14, knockdown: false, poise: 4 },

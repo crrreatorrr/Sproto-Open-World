@@ -130,6 +130,8 @@ export class GamepadInput {
   /** Buttons as the game sees them (latched ones masked out), this frame and the previous one. */
   private readonly down = new Uint8Array(PAD_BUTTONS.length);
   private readonly prev = new Uint8Array(PAD_BUTTONS.length);
+  /** Continuous hold duration (seconds) for each unlatched button. */
+  private readonly heldSec = new Float32Array(PAD_BUTTONS.length);
   /** Buttons as the hardware reports them (device activity and trigger hysteresis read these). */
   private readonly raw = new Uint8Array(PAD_BUTTONS.length);
   private readonly rawPrev = new Uint8Array(PAD_BUTTONS.length);
@@ -219,6 +221,10 @@ export class GamepadInput {
     }
     this.down.set(this.raw);
     applyLatch(this.down, this.latched);
+    for (let i = 0; i < this.heldSec.length; i++) {
+      if (this.down[i]) this.heldSec[i] = this.prev[i] ? this.heldSec[i] + this.dt : 0;
+      else this.heldSec[i] = 0;
+    }
     this.lt = this.latched[LT] ? 0 : (buttons[LT]?.value ?? 0);
     this.rt = this.latched[RT] ? 0 : (buttons[RT]?.value ?? 0);
     const ax = pad.axes;
@@ -246,6 +252,21 @@ export class GamepadInput {
       if (i !== undefined && this.down[i] && !this.prev[i]) return true;
     }
     return false;
+  }
+
+  /** Went up this frame. */
+  wasReleased(buttons: readonly string[]): boolean {
+    for (const b of buttons) {
+      const i = INDEX.get(b);
+      if (i !== undefined && !this.down[i] && this.prev[i]) return true;
+    }
+    return false;
+  }
+
+  /** Seconds `button` has been held continuously (0 when not held). */
+  holdTime(button: PadButton): number {
+    const i = INDEX.get(button);
+    return i !== undefined ? this.heldSec[i] : 0;
   }
 
   /**
@@ -372,6 +393,7 @@ export class GamepadInput {
   private clearState(): void {
     this.down.fill(0);
     this.raw.fill(0);
+    this.heldSec.fill(0);
     this.move.x = this.move.y = this.look.x = this.look.y = 0;
     this.lt = this.rt = 0;
   }

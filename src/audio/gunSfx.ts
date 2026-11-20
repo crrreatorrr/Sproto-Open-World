@@ -41,7 +41,11 @@ function tone(ctx: AudioContext, gain: number, o: { freq: number; end?: number; 
   osc.stop(t + o.dur + 0.02);
 }
 
-function noise(ctx: AudioContext, gain: number, o: { dur: number; vol: number; freq: number; end?: number; type?: BiquadFilterType; delay?: number }): void {
+function noise(
+  ctx: AudioContext,
+  gain: number,
+  o: { dur: number; vol: number; freq: number; end?: number; q?: number; type?: BiquadFilterType; delay?: number },
+): void {
   if (!noiseBuf) {
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0);
@@ -53,6 +57,7 @@ function noise(ctx: AudioContext, gain: number, o: { dur: number; vol: number; f
   const f = ctx.createBiquadFilter();
   f.type = o.type ?? 'lowpass';
   f.frequency.setValueAtTime(o.freq, t);
+  if (o.q !== undefined) f.Q.value = o.q;
   if (o.end) f.frequency.exponentialRampToValueAtTime(o.end, t + o.dur);
   const g = ctx.createGain();
   g.gain.setValueAtTime(o.vol * gain, t);
@@ -64,13 +69,22 @@ function noise(ctx: AudioContext, gain: number, o: { dur: number; vol: number; f
   s.stop(t + o.dur + 0.02);
 }
 
-/** One shot of `type`, at `gain` (0–1, the effects volume). Never throws: audio is optional. */
-export function playGunshot(type: GunDef['type'], gain: number): void {
+export type GunshotType = GunDef['type'] | 'handgun' | 'machinepistol';
+
+function withAudio(gain: number, key: string, max: number, win: number, fn: (ctx: AudioContext, v: number) => void): void {
   try {
     const ctx = Howler.ctx as AudioContext | undefined;
-    if (!ctx || gain <= 0 || !throttle('shot', 3)) return;
+    if (!ctx || gain <= 0 || !throttle(key, max, win)) return;
     if (ctx.state === 'suspended') void ctx.resume();
-    const v = gain * 0.5;
+    fn(ctx, gain * 0.5);
+  } catch {
+    // Audio is optional.
+  }
+}
+
+/** One shot of `type`, at `gain` (0–1, the effects volume). Never throws: audio is optional. */
+export function playGunshot(type: GunshotType, gain: number): void {
+  withAudio(gain, 'shot', 3, 50, (ctx, v) => {
     switch (type) {
       case 'mg':
         noise(ctx, v, { dur: 0.06, vol: 0.25, freq: jitter(2600) });
@@ -83,6 +97,14 @@ export function playGunshot(type: GunDef['type'], gain: number): void {
       case 'sniper':
         noise(ctx, v, { dur: 0.35, vol: 0.45, freq: jitter(3200), end: 300 });
         tone(ctx, v, { freq: 900, end: 60, dur: 0.3, type: 'sawtooth', vol: 0.2 });
+        break;
+      case 'handgun':
+        noise(ctx, v, { dur: 0.08, vol: 0.3, freq: jitter(2200), end: 700 });
+        tone(ctx, v, { freq: jitter(320), end: 110, dur: 0.07, vol: 0.15 });
+        break;
+      case 'machinepistol':
+        noise(ctx, v, { dur: 0.04, vol: 0.2, freq: jitter(3000) });
+        tone(ctx, v, { freq: jitter(280), end: 120, dur: 0.04, vol: 0.1 });
         break;
       case 'bazooka':
         noise(ctx, v, { dur: 0.3, vol: 0.4, freq: 600, end: 150 });
@@ -102,7 +124,56 @@ export function playGunshot(type: GunDef['type'], gain: number): void {
         noise(ctx, v, { dur: 0.12, vol: 0.2, freq: 1200, end: 300 });
         break;
     }
-  } catch {
-    // Audio is optional.
-  }
+  });
+}
+
+/** Mechanical magazine click on reload start (or latch on `'end'`). */
+export function playReloadSfx(gain: number, phase: 'start' | 'end' = 'start'): void {
+  withAudio(gain, 'reload', 2, 100, (ctx, v) => {
+    if (phase === 'end') {
+      tone(ctx, v, { freq: 900, end: 1200, dur: 0.06, vol: 0.15 });
+    } else {
+      tone(ctx, v, { freq: 700, end: 500, dur: 0.05, vol: 0.12 });
+      tone(ctx, v, { freq: 500, end: 700, dur: 0.05, vol: 0.12, delay: 0.15 });
+    }
+  });
+}
+
+/** Empty-magazine dry-fire click. */
+export function playDryFireSfx(gain: number): void {
+  withAudio(gain, 'empty', 1, 300, (ctx, v) => {
+    tone(ctx, v, { freq: 1800, end: 1700, dur: 0.03, vol: 0.12 });
+  });
+}
+
+/** Headshot / weak-spot critical hit chime. */
+export function playCritSfx(gain: number): void {
+  withAudio(gain, 'crit', 2, 60, (ctx, v) => {
+    tone(ctx, v, { freq: jitter(1100), end: 500, dur: 0.12, type: 'triangle', vol: 0.35 });
+    tone(ctx, v, { freq: 1650, end: 900, dur: 0.08, type: 'sine', vol: 0.2, delay: 0.02 });
+  });
+}
+
+/** Subtle body-hit confirmation tick. */
+export function playHitmarkerSfx(gain: number): void {
+  withAudio(gain, 'hit', 3, 50, (ctx, v) => {
+    tone(ctx, v, { freq: jitter(500), end: 300, dur: 0.04, type: 'square', vol: 0.08 });
+  });
+}
+
+/** Grapple hook launch zip. */
+export function playGrappleSfx(gain: number): void {
+  withAudio(gain, 'grapple', 2, 100, (ctx, v) => {
+    noise(ctx, v, { dur: 0.18, vol: 0.2, freq: 2500, type: 'bandpass', q: 3 });
+    tone(ctx, v, { freq: 300, end: 900, dur: 0.18, type: 'sawtooth', vol: 0.12 });
+  });
+}
+
+/** Explosive blast (bazooka, bigbullets, barrels). */
+export function playExplosionSfx(gain: number, radius = 3.5): void {
+  withAudio(gain, 'boom', 3, 80, (ctx, v) => {
+    const big = radius > 3;
+    noise(ctx, v, { dur: big ? 0.7 : 0.4, vol: big ? 0.7 : 0.4, freq: 1500, end: 80 });
+    tone(ctx, v, { freq: 90, end: 30, dur: 0.5, type: 'sine', vol: 0.5 });
+  });
 }

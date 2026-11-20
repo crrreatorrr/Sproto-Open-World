@@ -210,7 +210,6 @@ function validGuns(v: unknown): boolean {
     isCount(g.level) &&
     typeof g.type === 'string' &&
     typeof g.quality === 'string' &&
-    typeof g.manufacturer === 'string' &&
     (g.element === null || typeof g.element === 'string') &&
     isTable(g.parts) && Object.values(g.parts).every((x) => typeof x === 'string') &&
     (g.wacky === null || typeof g.wacky === 'string') &&

@@ -1,9 +1,10 @@
 import { BTN, type AimRay, type ButtonName, type InputCommand, type UiAction } from '../sim/commands';
-import { GAMEPAD, KEYS, PAD } from './bindings';
+import { GAMEPAD, GUN_KEYS, GUN_PAD, KEYS, PAD } from './bindings';
 import { shapeStick } from './Gamepad';
 import type { Input } from './Input';
 
 const SPELL_FACE = { spell1: 'x', spell2: 'y', spell3: 'b', spell4: 'a' } as const;
+const WEAPON_SLOT_KEYS = ['slot1', 'slot2', 'slot3', 'slot4'] as const;
 
 /**
  * Hard-lock target switching (plan §4.1): a horizontal mouse flick over `flickPxPerSec`, or the
@@ -37,6 +38,7 @@ export class CommandBuilder {
   /** The pad's spell modifier is held: face buttons cast spells 1–4. */
   private spellMode = false;
   private switchLatched = 0;
+  private weaponSlotLatched: number | undefined = undefined;
   private mouseArmed = true;
   private stickArmed = true;
   /** Menu intents waiting for the next tick (plan §2.2: menus change the sim only through commands). */
@@ -61,6 +63,14 @@ export class CommandBuilder {
     for (const name of ['jump', 'sprint', 'dodge', 'light', 'heavy', 'block', 'lock', 'interact', 'potion', 'callMount', 'spell1', 'spell2', 'spell3', 'spell4'] as const) {
       btn(name, inp.isDown(KEYS[name]), inp.wasPressed(KEYS[name]));
     }
+    // Gunplay & movement-tech keyboard bindings.
+    for (const name of ['reload', 'swapWeapon', 'grapple', 'toggleView', 'slide', 'dash'] as const) {
+      btn(name, inp.isDown(GUN_KEYS[name]), inp.wasPressed(GUN_KEYS[name]));
+    }
+    // Direct 1–4 weapon bar slot selection (keyboard).
+    for (let i = 0; i < WEAPON_SLOT_KEYS.length; i++) {
+      if (inp.wasPressed(GUN_KEYS[WEAPON_SLOT_KEYS[i]])) this.weaponSlotLatched = i;
+    }
     // Pad: face buttons are spells while the modifier is held, their own action otherwise.
     this.spellMode = pad.isDown(PAD.spellModifier);
     for (const name of ['sprint', 'light', 'heavy', 'block', 'lock', 'potion', 'callMount'] as const) {
@@ -72,6 +82,21 @@ export class CommandBuilder {
       }
     } else {
       for (const name of ['jump', 'dodge', 'interact'] as const) btn(name, pad.isDown(PAD[name]), pad.wasPressed(PAD[name]));
+      btn('reload', pad.isDown(GUN_PAD.reload), pad.wasPressed(GUN_PAD.reload));
+    }
+    // Non-face gunplay pad actions (D-pad Right = swapWeapon, D-pad Left = toggleView, optional slide/dash).
+    for (const name of ['swapWeapon', 'toggleView', 'slide', 'dash'] as const) {
+      if (GUN_PAD[name].length) btn(name, pad.isDown(GUN_PAD[name]), pad.wasPressed(GUN_PAD[name]));
+    }
+    // Grapple: dedicated binding if set, otherwise LB + RB chord.
+    if (GUN_PAD.grapple.length) {
+      btn('grapple', pad.isDown(GUN_PAD.grapple), pad.wasPressed(GUN_PAD.grapple));
+    } else {
+      const lbDown = pad.isDown(PAD.block);
+      const rbDown = pad.isDown(PAD.light);
+      const chordDown = lbDown && rbDown;
+      const chordPressed = chordDown && (pad.wasPressed(PAD.block) || pad.wasPressed(PAD.light));
+      btn('grapple', chordDown, chordPressed);
     }
     this.held = held;
     this.latched |= pressed;
@@ -127,6 +152,10 @@ export class CommandBuilder {
   /** The command for the next tick. Latched presses, a lock switch and queued menu intents go to this tick only. */
   take(camYaw: number, aim?: AimRay): InputCommand {
     const cmd: InputCommand = { kind: 'input', move: { ...this.move }, camYaw, held: this.held | this.latched, pressed: this.latched, lockSwitch: this.switchLatched };
+    if (this.weaponSlotLatched !== undefined) {
+      cmd.weaponSlot = this.weaponSlotLatched;
+      this.weaponSlotLatched = undefined;
+    }
     if (aim) cmd.aim = aim;
     if (this.ui.length) {
       cmd.ui = this.ui;
@@ -151,6 +180,7 @@ export class CommandBuilder {
     this.held = 0;
     this.latched = 0;
     this.switchLatched = 0;
+    this.weaponSlotLatched = undefined;
     this.mouseArmed = this.stickArmed = true;
     this.move = { x: 0, y: 0 };
   }
