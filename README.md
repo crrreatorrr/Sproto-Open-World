@@ -36,6 +36,16 @@ On the dev server, **F9** (or LB + RB + View) opens the placement editor: move t
 `world-src/sproutvale/placements.json`, copy the resulting file, paste it over the original and run
 `npm run bake:world -- sproutvale`. After a re-bake, `npm run bake:map` redraws the Map tab's picture.
 
+## The Rootdeep
+
+A cave in the same streamed world, through doors hidden in hedges and quarry walls that are already
+there. A sealed door has no prompt and no map pin. After Lost Relics, Collector Pepe sends you to
+the old hedge on the north side of the Orchard Fields. Inside, the sun is off, a torch follows you,
+and the Map tab shows the cave (Lantern Hall, the vault, and the other halls). Rest at the Lantern
+Hall shrine and Continue wakes you on that floor. The Pepe Bull stays on the surface. Mouths you
+climb out of open both ways. The vault chest holds **Rootcleaver**, a greatsword in the staff slot.
+`node tests/e2e/rootdeep.mjs` plays that run with a pad only.
+
 **In the yard and the wave runner** you fight with the staff (three-hit combo, chargeable heavy,
 dodge roll, block and parry) and four spells: Arcane Bolt, Blast (burns), Frost Nova (chills; three
 stacks freeze) and Chain Zap (shocks). A spell cast right after a melee hit is *woven*: faster and
