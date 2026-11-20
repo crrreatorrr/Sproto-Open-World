@@ -21,7 +21,9 @@ single player first with co-op planned. Three.js, Rapier, TypeScript and Vite. T
   proves it. The one exception, by the owner's call, is the hub feedback window: keyboard only
   (N twice; no menu button, the pad does nothing while it is open).
 - `vendor/hub-sdk` comes from `metaverse-hub`. Follow `vendor/hub-sdk/VENDOR.md` to update it, and
-  never edit its files by hand. The game imports only the lean `/feedback` and `/core` entries.
+  never edit its files by hand. The game imports only the lean `/feedback`, `/core` and `/progress`
+  entries (`/progress` is `createProgressStore`, for the hub account's save in `src/save/slot.ts`),
+  never the root entry.
 
 ## Checks
 
