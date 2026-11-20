@@ -1,7 +1,8 @@
+import type { GameId } from '@metaverse/hub-sdk/core';
+
 /**
  * Hub identity for Sproto Open World. The hub's game id, its plaza slug and the `#from=` value are
- * the same string in the other Sproto games. The vendored hub SDK (0.9.0) does not list this id
- * yet: until metaverse-hub registers it (GAME_IDS and the server), every visit is standalone and
- * the feedback window says feedback needs a signed-in hub visit, as the other games do on their own.
+ * the same string, as in the other Sproto games. The hub lists it from hub-sdk 0.10.0 on (its ring
+ * stands beside Sproto Shooter's in the plaza). It has no Relic and reports no events.
  */
-export const HUB_GAME_ID: string = 'sproto-open-world';
+export const HUB_GAME_ID = 'sproto-open-world' satisfies GameId;

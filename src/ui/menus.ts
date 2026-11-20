@@ -16,6 +16,8 @@ export interface MenuActions {
   continueGame(): void;
   resume(): void;
   quitToTitle(): void;
+  /** Leave for the hub plaza (its ring for this game), signed in or not. */
+  returnToHub(): void;
   settingsChanged(s: Settings): void;
   controlsChanged(p: ControlPrefs): void;
 }
@@ -26,6 +28,34 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''):
   if (text) e.textContent = text;
   return e;
 };
+
+/** The hub account as the title shows it (src/hub/link.ts, src/save/slot.ts). */
+export interface HubChip {
+  status: 'connecting' | 'connected' | 'guest' | 'offline' | 'error';
+  /** The hub username, or `Guest`. */
+  label: string;
+  /** The error code, when `status` is `error`. */
+  error: string;
+  /** Whose save the title shows: the account's (cloud) or this browser's. */
+  owner: 'device' | 'pending' | 'account';
+  sync: 'local' | 'syncing' | 'synced' | 'offline' | 'error';
+}
+
+const SYNC_TEXT: Record<HubChip['sync'], string> = {
+  local: '',
+  syncing: 'syncing your save…',
+  synced: 'save in the cloud',
+  offline: 'cloud save will retry',
+  error: "cloud save failed (kept on this browser)",
+};
+
+/** The chip's text: who is signed in and where the save lives. */
+export function hubChipText(h: HubChip): string {
+  if (h.status === 'connecting' || h.owner === 'pending') return 'Signing in to the hub…';
+  const account = h.status === 'error' ? `Hub: ${h.error || 'error'}` : h.status === 'offline' ? 'Not signed in' : h.label;
+  const where = h.owner === 'account' ? SYNC_TEXT[h.sync] : 'saves on this browser';
+  return where ? `${account} · ${where}` : account;
+}
 
 function button(label: string, onClick: () => void, cls = 'btn'): HTMLButtonElement {
   const b = el('button', cls, label);
@@ -47,6 +77,7 @@ export class Menus {
   private note = '';
   /** The title's save state: whether Continue is offered, and a notice about a damaged save. */
   private titleSave: { canContinue: boolean; notice: string } = { canContinue: false, notice: '' };
+  private hub: HubChip = { status: 'offline', label: '', error: '', owner: 'device', sync: 'local' };
 
   constructor(
     host: HTMLElement,
@@ -81,16 +112,33 @@ export class Menus {
     if (this.nav.top === this.title) this.nav.refresh();
   }
 
+  /** Tell the title about the hub account and its save (redrawn in place when it is up). */
+  setHub(hub: HubChip): void {
+    const same = JSON.stringify(hub) === JSON.stringify(this.hub);
+    this.hub = hub;
+    if (!same && this.nav.top === this.title) this.nav.refresh();
+  }
+
+  private hubChip(): HTMLElement {
+    const chip = el('div', `hub-chip ${this.hub.status}`, hubChipText(this.hub));
+    chip.dataset.hub = this.hub.status;
+    chip.dataset.save = this.hub.owner;
+    return chip;
+  }
+
   private makeTitle(): Screen {
     const s = this.screen('screen-title');
     const render = () => {
       s.replaceChildren(el('h1', 'logo', 'Sproto Open World'), el('p', 'tagline', 'Sproutvale — bootstrap build'));
       const { canContinue, notice } = this.titleSave;
       if (notice) s.append(el('p', 'note save-notice', notice));
+      s.append(this.hubChip());
       const list = el('div', 'list');
-      if (canContinue) list.append(button('Continue', () => this.actions.continueGame()), button('New game', () => this.actions.play()));
+      // While a hub visit signs in, whose save this is isn't known yet: no Play over it.
+      if (this.hub.owner === 'pending') list.append(el('p', 'note hub-wait', 'Loading your hub save…'));
+      else if (canContinue) list.append(button('Continue', () => this.actions.continueGame()), button('New game', () => this.actions.play()));
       else list.append(button('Play', () => this.actions.play()));
-      list.append(button('Settings', () => this.nav.push(this.settings)));
+      list.append(button('Settings', () => this.nav.push(this.settings)), button('Return to Hub', () => this.actions.returnToHub()));
       s.append(list, el('p', 'build', `build ${__BUILD_ID__}`));
     };
     return { el: s, render, onBack: () => {} };
@@ -102,7 +150,11 @@ export class Menus {
       s.replaceChildren(el('h2', '', 'Paused'));
       const list = el('div', 'list');
       list.append(button('Resume', () => this.actions.resume()));
-      list.append(button('Settings', () => this.nav.push(this.settings)), button('Quit to title', () => this.actions.quitToTitle()));
+      list.append(
+        button('Settings', () => this.nav.push(this.settings)),
+        button('Quit to title', () => this.actions.quitToTitle()),
+        button('Return to Hub', () => this.actions.returnToHub()),
+      );
       s.append(list);
     };
     return { el: s, render, onBack: () => this.actions.resume() };
