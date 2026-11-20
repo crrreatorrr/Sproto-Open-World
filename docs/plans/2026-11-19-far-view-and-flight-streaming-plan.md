@@ -302,7 +302,6 @@ tuning in a new content pack):
 - Fireballs come from a pool of at most 24, reusing the Drake's `fireball` model and VFX, which the
   shader warm-up at the title already covers.
 - It is session state only: nothing goes in the save.
-
 - **At night** its eyes, mouth, fireballs and the burn's mark are emissive, so it and its telegraphs read
   in the dark; the e2e lap checks the warning at midnight too.
 
@@ -335,8 +334,78 @@ cycle, shaped so the far view keeps working at every hour.
 - **Far tiers at night:** T2 and T3 use lit materials, so they darken with the same sun and ambient.
   T4's mountains become dark silhouettes against the sky; the sea shows a moon glint from the same cheap
   shader.
-- **Gameplay at night** (night-only enemies, closed shops) is out of scope for this plan. The clock is
-  in the sim, so later systems can read it.
+- **Gameplay by the hour:** day-only and night-only enemies are in this plan (§3.12). Other hour rules
+  (closed shops, NPC schedules) are out of scope; the clock is in the sim, so later systems can read it.
+
+### 3.12 Day enemies and night enemies
+
+**The owner's call (2026-11-19):** add enemies that only come by day and enemies that only come at
+night. **Every enemy in the game today stays at every hour.** The new ones use placeholders for now:
+one placeholder look for day-only enemies and a different one for night-only enemies, so it is obvious
+in play which group you are fighting. Real models come later through the art pipeline and replace the
+placeholders without touching the sim.
+
+**Hours on camps and enemies.** `CampDef` and `EnemyDef` get an optional `hours: 'day' | 'night'`.
+Leaving it out means every hour, so all current content keeps working unchanged. Day is 06:00–19:00 and
+night is 19:00–06:00, with the swap at dusk and dawn.
+
+**The placeholders** (built in code, no download, no GPU texture):
+
+| | Day-only placeholder | Night-only placeholder |
+|---|---|---|
+| Shape | A rounded capsule body with a simple head, sized from the enemy's `body` radius and height, so its hitbox matches | The same build, so collisions and hitboxes don't change when real art arrives |
+| Look | Warm and bright: sun-yellow body, orange band, a small sun disc on the chest | Cool and dark: deep violet body, glowing cyan eyes and a crescent on the chest, emissive so it reads in the dark |
+| Motion | Procedural: bob, lean into moves, squash on hits, and a flash on telegraphs. No skeleton | Same, plus a faint trail |
+| Telegraphs | The game's usual glints and attack colours, unchanged | The same, made brighter by `nightGlow` so they are readable at night |
+
+Each new enemy names `model: 'placeholder_day'` or `'placeholder_night'` in its `EnemyDef`. When its real
+GLB lands, the def switches to the real model and nothing else changes.
+
+**The first enemies** (moves, stats and AI styles come from the existing kinds, so no new combat code):
+
+| Group | Working name | Built from | Where | What makes it different |
+|---|---|---|---|---|
+| Day | Sun Raider | Grunt moves, faster | Orchard Fields and Millrun roads | Comes in groups of 3–4 and runs off with dropped loot if you leave it |
+| Day | Glare Archer | Slinger moves | Watchtower Hill, Quarry rim | Longer range in the open; worse in shade and at dusk |
+| Day | Field Ox-Brute | Brute moves | Open fields | Charges across open ground |
+| Night | Gloam Stalker | Grunt moves, harder hits | Thornwood, Sprout Hollow outskirts | Hard to see until close; +50% XP |
+| Night | Hollow Wisp-Swarm | Wisp moves, several weak bodies | Over fields and the river | Groups that drift towards light |
+| Night | Night Brute | Brute moves, more poise | Quarry, Thornwood edge | Tougher; +50% XP and sprouts |
+
+Night enemies give more XP and sprouts, because the dark makes fights harder. Names and the exact
+roster are for the owner; the plan only fixes the system.
+
+**How the swap works** (all in the sim, pure, reading the sim clock):
+
+- At dusk, day-only camps stand down and night-only camps come out; at dawn the reverse. A camp only
+  swaps when no player is within 80 m of it and none of its members is fighting or leashing, so enemies
+  never pop in or vanish in front of the player. A camp that couldn't swap tries again each game minute.
+- Camps that are mixed stay as they are; only members with `hours` come and go.
+- Killed `unique` members stay dead, as now. A cleared hour-bound camp comes back at its next hour or
+  when you rest, like other camps.
+- **Shrines get "Wait until nightfall" and "Wait until morning"**, so a player can choose the enemies
+  they want to fight. It works with the pad only, like every menu.
+- **Never by hour:** bosses, quest camps and anything a quest needs (a content test checks that no quest
+  objective points at an hour-bound camp), the Rootdeep (caves ignore the clock, as the cave look does),
+  and the Edge Warden.
+
+**Streaming and performance:** placeholders cost nothing to download. When real models replace them, a
+night model is fetched at LATER priority 15 game minutes before dusk (and a day model before dawn) if a
+player is within 300 m of a camp that uses it, so the swap never waits on a download. The swap changes
+which enemies exist, not how many: an hour-bound camp is no larger than the camp budget allows now.
+
+**Saves:** the hour (§3.11) is already saved. Camp state is saved as now; which group is out follows
+from the hour when loading.
+
+**Tests:**
+
+- `tests/sim`: at dusk a day camp far from the player stands down and a night camp comes out; a camp
+  within 80 m or in a fight does not swap; "wait until nightfall" swaps them; bosses, quest camps and
+  the Rootdeep never change.
+- Content test: every `hours` camp uses a placeholder or a real model that exists; no quest points at
+  one.
+- e2e, pad only: rest until nightfall at a shrine, find a night placeholder, fight it, rest until
+  morning, and see a day placeholder at its camp.
 
 ---
 
@@ -400,8 +469,9 @@ runs locally before a streaming PR.
 | **F10** | The Edge Warden: bands, flight and attacks on the Drake brain, 3 × scale and tint, HUD warning, pool, tests (§3.10) | 1.5 | new `src/sim/systems/edgeWarden.ts`, new `src/content/packs/edge.ts`, `drake.ts`, `DrakeViews.ts`, HUD | The sim and e2e rows in §5 pass | Medium: tuning so it is scary but fair |
 | **F11** | Day and night: the sim clock and save, the hour look table, the blend order, moon light, `nightGlow` emissive, god-mode "set hour" (§3.11) | 1.5 | new `src/sim/systems/clock.ts`, `save/schema.ts`, `Renderer.ts`, `caveLook.ts`, materials, `god.ts` | A full day passes with smooth light; the cave look and storm still work; the save keeps the hour | Medium: the look |
 | **F12** | Far lamps as sprites, and the nearest 4 as real lights (§3.9) | 0.5 | `bake-world.ts`, new `src/world/LampSprites.ts`, `BlockLod.ts` | The midnight row in §5 passes | Low |
+| **F13** | Day and night enemies: `hours` on camps and enemies, the swap rule, the day and night placeholders, the first six enemies, "wait until" at shrines (§3.12) | 1.5 | `content/enemies.ts`, `sproutvaleContent.ts`, `sim/systems/encounters.ts`, new `src/render/views/PlaceholderEnemy.ts`, shrine menu | The tests in §3.12 pass; current enemies are unchanged at every hour | Low |
 
-Total about **15.5 units**, of which F8 and F9 are the gameplay flight itself. F0 alone gives most of the
+Total about **17 units**, of which F8 and F9 are the gameplay flight itself. F0 alone gives most of the
 visible win, because T3 already covers the region; it is the place to start and to judge the look
 before investing in F2 and F3.
 
@@ -411,7 +481,7 @@ ships to players only after F3 and F4, so nobody sees the bare-ground or popping
 F10 needs the `edge` list from F2; it can start on foot before F8 and gets its flying test once F8 lands.
 It must ship no later than flight (F8), because flight is what lets players reach the edge easily.
 F11 is independent and can start any time (it only touches the look and the sim clock). F12 needs F3's
-blocks and F11's `nightGlow`.
+blocks and F11's `nightGlow`. F13 needs F11's clock only; it doesn't wait for any streaming work.
 
 ### Collisions with work in flight
 
@@ -453,7 +523,10 @@ blocks and F11's `nightGlow`.
    sea in others** (§3.1.1). Still open: which side of the world gets which, and it should match the
    big-world work's map.
 4. ~~Will there be night?~~ **Answered 2026-11-19: yes, day and night** (§3.9, §3.11, F11, F12). Still
-   open: the length of a game day (24 real minutes assumed), and whether night changes gameplay.
+   open: the length of a game day (24 real minutes assumed).
+   **Day and night enemies, decided 2026-11-19** (§3.12): current enemies stay at every hour; new
+   day-only and night-only enemies use two different placeholders for now. Still open: their names and
+   final roster, and when real art replaces the placeholders.
 5. **The Edge Warden** (§3.10, decided 2026-11-19: a dragon at the edge, using the sproto-shooter
    dragon). Still open: its name, and whether 3 × scale with a dark tint is different enough from the
    Skyfire Drake, which uses the same model.
