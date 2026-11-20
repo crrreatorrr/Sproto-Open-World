@@ -24,7 +24,7 @@ async function shopOpen(sprouts = 1000) {
 
 describe('the merchant (plan §5)', () => {
   it('sells Nobu, two charms, +1 Tonic charge and (after Scrapjaw) the Seeker Swarm tome', () => {
-    expect(Object.keys(MERCHANTS.merchant_village.stock).sort()).toEqual(['charm_quick_step', 'charm_second_wind', 'staff_nobu', 'tome_seeker_swarm', 'tonic_upgrade', 'waystone']);
+    expect(Object.keys(MERCHANTS.merchant_village.stock).sort()).toEqual(['charm_quick_step', 'charm_second_wind', 'staff_brick_phone', 'staff_nobu', 'tome_seeker_swarm', 'tonic_upgrade']);
   });
 
   it('buy is refused while the shop is closed, even standing next to the merchant', async () => {

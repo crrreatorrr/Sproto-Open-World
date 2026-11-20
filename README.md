@@ -31,6 +31,7 @@ The camps, the other quests and the boss come in M4 and M5. The plan is in
 | http://localhost:5180/ | Sproutvale (the streamed world) |
 | http://localhost:5180/?yard=1 | The training yard: dummies and the Thornwood Brute |
 | http://localhost:5180/?sandbox=1 | The wave runner: mixed waves of 5–7 enemies |
+| http://localhost:5180/?god=1 | God mode, for testing: you can't die, level 99, every item, spell and relic, and the Map tab travels to any shrine or area. Nothing is saved while it is on. (Dev builds also have the switch in the menu's Settings tab.) |
 
 On the dev server, **F9** (or LB + RB + View) opens the placement editor: move the marks in
 `world-src/sproutvale/placements.json`, copy the resulting file, paste it over the original and run
@@ -82,6 +83,7 @@ Then open http://localhost:5180.
 | Ride or get off the Pepe Bull (east of the start) | F | Y |
 | Gallop on the Pepe Bull: press once and it keeps going, at no stamina cost, until you press again or stop (holding works too) | Left Shift | Left stick click |
 | Call the Pepe Bull: it runs to you, or appears nearby and runs in if it is too far away | V | D-pad ↓ |
+| Fast travel: with the Brick Phone in hand (Trader Pepe sells it; wield it from Gear), Light attack opens it. Call any shrine you have touched or rested at; the others show as locked. Not in combat | Left mouse | RB |
 | Drink a Sprout Tonic | H | D-pad ↑ |
 | Open the menu / close it | Esc | Menu (Start) |
 | Open the menu on Quests | J | View (Back) |

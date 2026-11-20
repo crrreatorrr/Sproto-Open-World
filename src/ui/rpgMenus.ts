@@ -1,12 +1,17 @@
 import { DIALOGUE, type DialogueNode } from '../content/dialogue';
 import { NPCS } from '../content/npcs';
+import { isRootdeep } from '../content/packs/rootdeep';
+import { GEAR_LOCK_TICKS } from '../content/progression';
+import { WORLD_CONTENT } from '../content/world/worldContent';
 import type { UiAction } from '../sim/commands';
 import type { Entity, Progress } from '../sim/entity';
 import type { SimEvent } from '../sim/events';
 import type { ReadonlySimView } from '../sim/view';
 import type { MenuNav, Screen } from './MenuNav';
 import type { MenuTab } from './gameMenu';
+import { shrineLabel } from './mapTab';
 import { itemStats, shopStock } from './rpgText';
+import './phone.css';
 import './portrait.css';
 
 /** What the RPG menus read and how they act: the sim's view, the local player, and the command queue. */
@@ -61,6 +66,7 @@ export class RpgMenus {
   readonly dialogue: Screen;
   readonly shop: Screen;
   readonly shrine: Screen;
+  readonly phone: Screen;
   private readonly root: HTMLElement;
   /** The dialogue on screen: its node key, full text, and how much has typed out. */
   private talk = { key: '', text: '', shown: 0, typing: false };
@@ -78,6 +84,7 @@ export class RpgMenus {
     this.dialogue = this.makeDialogue();
     this.shop = this.makeShop();
     this.shrine = this.makeShrine();
+    this.phone = this.makePhone();
   }
 
   /** The sim menu the player's progress asks for: dialogue first, then the shop, then the shrine. */
@@ -86,6 +93,7 @@ export class RpgMenus {
     if (p.dialogue) return this.dialogue;
     if (p.shop) return this.shop;
     if (p.atShrine) return this.shrine;
+    if (p.phone) return this.phone;
     return null;
   }
 
@@ -159,6 +167,8 @@ export class RpgMenus {
       }
       case this.shrine:
         return `${p.atShrine}|${p.points}|${this.shrineNote}`;
+      case this.phone:
+        return `${p.discoveredShrines.join(',')}|${p.lastShrine}|${!!p.god}|${this.inCombat()}`;
       default:
         return null;
     }
@@ -276,4 +286,56 @@ export class RpgMenus {
     };
     return { el: s, render, onBack: () => this.src.send({ kind: 'closeMenu' }) };
   }
+
+  // --- Brick Phone ------------------------------------------------------------------------------
+
+  /** An enemy targeted the player in the last 5 s: the sim refuses travel then (systems/travel.ts). */
+  private inCombat(): boolean {
+    const c = this.src.player()?.combat;
+    return !!c && (this.src.view()?.now ?? 0) - c.targetedAt < GEAR_LOCK_TICKS;
+  }
+
+  /**
+   * The Brick Phone's screen: every shrine, the ones you have used to call (the sim travels there),
+   * the rest locked until you touch or rest at them. God mode calls any of them. No signal in combat.
+   */
+  private makePhone(): Screen {
+    const s = this.screen('screen-phone', 'rpg phone');
+    const render = () => {
+      const p = this.progress();
+      const god = !!p?.god;
+      const noSignal = !god && this.inCombat();
+      const handset = el('div', 'phone-handset');
+      const lcd = el('div', 'phone-lcd');
+      const bars = el('span', 'phone-bars', noSignal ? 'NO SIGNAL' : '▂▄▆█');
+      lcd.append(el('div', 'phone-status', ''), el('h2', '', 'SHRINES'));
+      lcd.firstElementChild!.append(el('span', '', god ? 'GOD MODE' : 'SPROTO TEL'), bars);
+      if (noSignal) lcd.append(el('p', 'phone-note', "You can't travel in combat."));
+      const used = new Set(p?.discoveredShrines ?? []);
+      const list = el('div', 'list phone-list');
+      for (const [title, cave] of [['Sproutvale', false], ['The Rootdeep', true]] as const) {
+        list.append(el('p', 'phone-group', title));
+        for (const sh of WORLD_CONTENT.shrines.filter((x) => isRootdeep(x.pos[0]) === cave)) {
+          const name = this.shrineNames.get(sh.id) ?? shrineLabel(sh.id);
+          if (god || used.has(sh.id)) {
+            const b = button('', () => this.src.send({ kind: 'fastTravel', shrine: sh.id }), 'btn phone-row');
+            b.dataset.shrine = sh.id;
+            b.append(el('span', 'name', name), el('span', 'tag', p?.lastShrine === sh.id ? 'HOME' : 'CALL'));
+            if (noSignal) b.disabled = true;
+            list.append(b);
+          } else {
+            const row = el('div', 'phone-row locked');
+            row.dataset.shrine = sh.id;
+            row.append(el('span', 'name', name), el('span', 'tag', 'LOCKED'));
+            list.append(row);
+          }
+        }
+      }
+      lcd.append(list, el('p', 'phone-hint', 'Shrines unlock once you touch or rest at them.'));
+      handset.append(el('div', 'phone-ear'), lcd, button('Hang up', () => this.src.send({ kind: 'closeMenu' }), 'btn phone-end'));
+      s.replaceChildren(handset);
+    };
+    return { el: s, render, onBack: () => this.src.send({ kind: 'closeMenu' }) };
+  }
+
 }

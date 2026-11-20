@@ -77,8 +77,8 @@ export const ITEMS: Record<string, ItemDef> = {
   stolen_pumpkin: { id: 'stolen_pumpkin', name: 'Stolen Pumpkin', kind: 'quest', rarity: 'common', blurb: "Farmer Broccoli's.", stacks: true },
   quarry_key: { id: 'quarry_key', name: 'Quarry Key', kind: 'quest', rarity: 'epic', blurb: 'Opens the Quarry Gate.' },
   sprout_seed: { id: 'sprout_seed', name: 'Sprout Seed', kind: 'quest', rarity: 'common', blurb: 'For the Elder.', stacks: true },
-  // Fast travel (Map tab) to any shrine you have used, out of combat.
-  waystone: { id: 'waystone', name: 'Waystone', kind: 'quest', rarity: 'rare', blurb: 'Fast travel from the Map to any shrine you have used.', price: 150 },
+  // The fast-travel device. Wielded in the staff slot: Light attack opens it, to call a shrine you have used and go there.
+  staff_brick_phone: { id: 'staff_brick_phone', name: 'Brick Phone', kind: 'staff', rarity: 'epic', blurb: 'Light attack: call a shrine you have used, and go.', staff: { damage: 6, spellPower: 0.5, model: 'staff_brick_phone' }, price: 150 },
   ...C2_ITEMS,
 };
 
@@ -87,8 +87,8 @@ Object.assign(ITEMS, C5_ITEMS);
 Object.assign(ITEMS, C6_ITEMS);
 Object.assign(ITEMS, ROOTDEEP_ITEMS);
 
-/** The fast-travel device. */
-export const WAYSTONE = 'waystone';
+/** The fast-travel device: wield it, and Light attack opens its shrine list (sim/systems/travel.ts). */
+export const TRAVEL_DEVICE = 'staff_brick_phone';
 
 export const STARTING_GEAR = { staff: 'staff_sproto', robe: 'robe_apprentice', charm: null } as const;
 
