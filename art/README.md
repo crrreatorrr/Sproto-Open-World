@@ -20,8 +20,12 @@ are in `player.melee.json` next to the GLB.
 
 ## Riding clips
 
-`mount`, `ride` and `dismount` are posed for the hub's Pepe Bull at the game's 1.7 m fit height by
-`tools/ride_anim.py`. The clips carry height only: the game moves the rider onto and off the bull.
+`mount`, `ride` and `dismount` are posed by `tools/ride_anim.py` for the Pepe Bull at its game size:
+the hub pet's 1.7 m fit height times `BULL_SCALE` (2, so 3.4 m), the same constant as in
+`src/content/mounts.ts`. At 2 the back is too broad to hang legs down the flanks, so the rider sits
+up on it, and climbing on is a leap to the saddle. `POSES` holds each size's leg targets; change
+both constants together and rebuild. The clips carry height only: the game moves the rider onto and
+off the bull.
 To rebuild them and the raw export without opening the Blender UI:
 
 ```bash
@@ -54,8 +58,11 @@ Then run `node art/tools/build-bull-glb.mjs`, which also sets each gait's real l
 | `follow_run` | 0.42 s | 9.5 m/s | Three-beat canter |
 | `gallop` | 0.32 s | 17 m/s | Four-beat gallop with a moment of suspension |
 
+The ground speeds are the clips' at the hub pet's size. `MountView` multiplies them by the bull's
+scale (a longer stride covers more ground), so at 2 the same sim speed plays each clip at half rate.
+
 Every gait starts its loop when the left hind hoof lands, so `MountView` can blend between them in
-step. If a clip's length or speed changes, change the speed in `MountView`'s `GAITS` to match.
+step. If a clip's length or speed changes, change the speed in `MountView`'s `GAITS_AT_1` to match.
 
 ```bash
 /Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python art/tools/verify_bull.py -- public/assets/models/mounts/pepe_bull.glb

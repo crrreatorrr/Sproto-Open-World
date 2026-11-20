@@ -116,7 +116,7 @@ describe('riding', () => {
     mountUp(w);
     ride(w, 30);
     // Just off the bull's path, so it rides past while the rider swings at it.
-    const dummy = w.spawnEnemy('dummy_passive', { x: p.tf.pos.x + 1.2, y: VILLAGE_Y, z: p.tf.pos.z + 2.2 }, Math.PI);
+    const dummy = w.spawnEnemy('dummy_passive', { x: p.tf.pos.x + MOUNT.rideRadius + 0.55, y: VILLAGE_Y, z: p.tf.pos.z + 2.2 }, Math.PI);
     delete dummy.settle;
     const z0 = p.tf.pos.z;
     const ev = ride(w, 34, (i) => (i === 0 ? BTN.light : 0));
@@ -166,7 +166,7 @@ describe('riding', () => {
     expect(p.riding).toBeUndefined();
     expect(bull.mount!.rider).toBeNull();
     const shrine = w.locate('shrine_first_light')!;
-    expect(Math.hypot(bull.tf.pos.x - shrine.x, bull.tf.pos.z - shrine.z)).toBeLessThan(6);
+    expect(Math.hypot(bull.tf.pos.x - shrine.x, bull.tf.pos.z - shrine.z)).toBeLessThan(Math.hypot(...MOUNT.shrineOffset) + 1.7);
     w.dispose();
   });
 

@@ -1,6 +1,6 @@
 /**
  * The Pepe Bull on the real world, pad only (a teleport is the only cheat): ride up with Y, run, swing
- * with RB, cast with LT + X, and get down with Y.
+ * with RB, cast with LT + X, fly with three taps of A, and get down with Y.
  *
  *   node tests/e2e/mount.mjs [--shots dir]
  */
@@ -187,6 +187,31 @@ try {
   check(s.player.riding === 'riding', 'LT + X casts from the saddle');
   await shot('b6-cast');
   await until((q) => q.player.action === null, 'the cast ending');
+
+  // Flight: three quick taps of A take off, the stick flies it like a plane (back climbs, forward
+  // dives), and touching down lands it, still in the saddle. One frame down and one up per tap, so
+  // even a slow software GPU's frames fit three taps in the window.
+  await backToBull();
+  const flying = () => page.evaluate(() => !!window.__qa.app.sim.playerEntity(0).riding?.flight);
+  const height = () => page.evaluate(() => window.__qa.app.sim.playerEntity(0).tf.pos.y);
+  const ground = await height();
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate(() => window.__pad.set('a', true));
+    await frames(1);
+    await page.evaluate(() => window.__pad.set('a', false));
+    await frames(1);
+  }
+  await frames(2);
+  check(await flying(), 'three quick taps of A take off');
+  await page.evaluate(() => window.__pad.axes(0, 1));
+  for (let i = 0; i < 300 && (await height()) < ground + 8; i += 3) await frames(3);
+  check((await height()) > ground + 8 && (await flying()), 'the stick back climbs', `${((await height()) - ground).toFixed(1)} m up`);
+  await shot('b6b-flying');
+  await page.evaluate(() => window.__pad.axes(0, -1));
+  for (let i = 0; i < 900 && (await flying()); i += 3) await frames(3);
+  s = await state();
+  check(!(await flying()) && s.player.riding === 'riding', 'the stick forward dives, and touching down lands it in the saddle', `${((await height()) - ground).toFixed(1)} m`);
+  await backToBull();
 
   // Stop, and get down.
   await page.evaluate(() => window.__pad.axes(0, 0));

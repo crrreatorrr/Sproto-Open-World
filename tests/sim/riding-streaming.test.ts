@@ -146,7 +146,7 @@ describe('streaming keeps up with a gallop', () => {
     const { w, p } = await rider([flat(0, 0)], 32, 0, 50);
     for (let i = 0; i < 180; i++) w.tick(new Map([[0, go(0)]]));
     expect(cellOf(p.tf.pos.x, p.tf.pos.z)).toEqual([0, 0]);
-    expect(p.tf.pos.z).toBeGreaterThan(CELL_SIZE - MOUNT.gallopSpeed * DT - 0.5);
+    expect(p.tf.pos.z).toBeGreaterThan(CELL_SIZE - MOUNT.rideRadius - MOUNT.gallopSpeed * DT - 0.5);
     expect(p.tf.pos.y).toBeCloseTo(0, 1);
     expect(w.view().waitingForGround).toBe(false);
     expect(p.riding!.gallop).toBe(true);
@@ -179,9 +179,10 @@ describe('colliders at a gallop', () => {
         const near = p.tf.pos.z > 52 && dodge && !p.combat!.action;
         w.tick(new Map([[0, go(0, near ? BTN.dodge : 0)]]));
         fastest = Math.max(fastest, p.loco!.speed);
-        expect(p.tf.pos.z).toBeLessThan(60 - half);
+        expect(p.tf.pos.z).toBeLessThan(60 - half - MOUNT.bodyHalfLength + MOUNT.noseRadius + 0.05);
       }
-      expect(p.tf.pos.z).toBeGreaterThan(59);
+      // Its nose stops at the wall.
+      expect(p.tf.pos.z).toBeGreaterThan(60 - half - MOUNT.bodyHalfLength - 1);
       expect(fastest).toBeGreaterThan(dodge ? MOUNT.gallopSpeed + 1 : MOUNT.gallopSpeed - 0.1);
       w.dispose();
     }

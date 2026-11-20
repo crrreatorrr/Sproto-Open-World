@@ -4,6 +4,7 @@ import type { Entity, Progress } from '../sim/entity';
 import type { ReadonlySimView } from '../sim/view';
 import { publicUrl } from '../world/RegionManifest';
 import { NPCS } from '../content/npcs';
+import { CAVE_AREAS, SURFACE_AREAS } from '../content/world/areas';
 import { leadLine, placeName, questPlaces, questSteps, shrineLabel, trackedQuest, type QuestPlace, type QuestStepLine } from './rpgText';
 import './mapTab.css';
 
@@ -12,28 +13,9 @@ const MAP_SIZE = 512;
 /** Baked by tools/bake-map.mjs. */
 const MAP_IMAGE = 'world/sproutvale/map.webp';
 
-/** Where the regions of Sproutvale are, for the names on the map (world x, z). */
-const REGIONS: readonly { name: string; x: number; z: number }[] = [
-  { name: 'Sprout Hollow', x: 260, z: 98 },
-  { name: 'Orchard Fields', x: 104, z: 160 },
-  { name: 'Millrun', x: 424, z: 176 },
-  { name: 'Watchtower Hill', x: 256, z: 286 },
-  { name: 'Thornwood', x: 216, z: 352 },
-  { name: 'The Quarry', x: 440, z: 452 },
-];
+const REGIONS = SURFACE_AREAS;
 
-/** The eight main caves and the vault, in world x (local x + 4096) and world z. */
-const CAVE_REGIONS: readonly { name: string; x: number; z: number }[] = [
-  { name: 'Lantern Hall', x: RD_X + 168, z: 168 },
-  { name: 'Grunt Warren', x: RD_X + 256, z: 148 },
-  { name: 'Slinger Gallery', x: RD_X + 344, z: 168 },
-  { name: 'Wisp Hollow', x: RD_X + 364, z: 256 },
-  { name: 'Brute Den', x: RD_X + 344, z: 344 },
-  { name: 'Fungus Crossing', x: RD_X + 256, z: 364 },
-  { name: 'Old Mine', x: RD_X + 168, z: 344 },
-  { name: 'Echo Pit', x: RD_X + 148, z: 256 },
-  { name: 'Vault', x: RD_X + 256, z: 256 },
-];
+const CAVE_REGIONS = CAVE_AREAS;
 
 /** Which picture a world x belongs on. The cave sits at x 4096, the same 512 m square as the valley. */
 export function mapBounds(x: number): { minX: number; size: number; image: string } {

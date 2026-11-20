@@ -76,12 +76,17 @@ export const ITEMS: Record<string, ItemDef> = {
   stolen_pumpkin: { id: 'stolen_pumpkin', name: 'Stolen Pumpkin', kind: 'quest', rarity: 'common', blurb: "Farmer Broccoli's.", stacks: true },
   quarry_key: { id: 'quarry_key', name: 'Quarry Key', kind: 'quest', rarity: 'epic', blurb: 'Opens the Quarry Gate.' },
   sprout_seed: { id: 'sprout_seed', name: 'Sprout Seed', kind: 'quest', rarity: 'common', blurb: 'For the Elder.', stacks: true },
+  // Fast travel (Map tab) to any shrine you have used, out of combat.
+  waystone: { id: 'waystone', name: 'Waystone', kind: 'quest', rarity: 'rare', blurb: 'Fast travel from the Map to any shrine you have used.', price: 150 },
   ...C2_ITEMS,
 };
 
 Object.assign(ITEMS, C4_ITEMS);
 Object.assign(ITEMS, C5_ITEMS);
 Object.assign(ITEMS, C6_ITEMS);
+
+/** The fast-travel device. */
+export const WAYSTONE = 'waystone';
 
 export const STARTING_GEAR = { staff: 'staff_sproto', robe: 'robe_apprentice', charm: null } as const;
 
