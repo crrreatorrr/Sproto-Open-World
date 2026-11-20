@@ -7,6 +7,7 @@ import { C4_DIALOGUE, C4_DIALOGUE_PATCHES } from './packs/c4';
 import { registerC5Dialogue } from './packs/c5';
 import { registerDrakeDialogue } from './packs/c6';
 import { registerScrapjawDialogue } from './packs/m5';
+import { WEAPON_BOX_SHOPS } from './packs/overworldMix';
 import { registerRootdeepDialogue } from './packs/rootdeep';
 import type { Condition, Effect } from './quests';
 
@@ -276,3 +277,16 @@ registerScrapjawDialogue(DIALOGUE);
 registerC5Dialogue(DIALOGUE);
 registerDrakeDialogue(DIALOGUE);
 registerRootdeepDialogue(DIALOGUE);
+for (const b of WEAPON_BOX_SHOPS) {
+  DIALOGUE[b.id] = {
+    id: b.id,
+    entry: [{ node: 'open' }],
+    nodes: {
+      open: {
+        speaker: b.name,
+        text: 'Fixed-price firearms stocked for Sprouts.',
+        choices: [{ text: 'Browse Weapon Box.', do: [{ openShop: b.id }] }, { text: 'Leave.' }],
+      },
+    },
+  };
+}

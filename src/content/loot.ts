@@ -3,6 +3,7 @@
  * a short list. Chests have fixed contents. The merchant's stock.
  */
 import { C4_DROPS, C4_EXTRA_DROPS, C4_STOCK, C4_STOCK_AFTER } from './packs/c4';
+import { WEAPON_BOX_SHOPS } from './packs/overworldMix';
 import { SHOOTER_LOOT } from './shooterEnemies';
 
 export interface DropTable {
@@ -69,3 +70,6 @@ export const MERCHANTS: Record<string, MerchantDef> = {
 
 Object.assign(MERCHANTS.merchant_village.stock, C4_STOCK);
 MERCHANTS.merchant_village.after = { ...MERCHANTS.merchant_village.after, ...C4_STOCK_AFTER };
+for (const b of WEAPON_BOX_SHOPS) {
+  MERCHANTS[b.id] = { id: b.id, stock: Object.fromEntries(b.guns.map((g) => [g.item, 1])) };
+}

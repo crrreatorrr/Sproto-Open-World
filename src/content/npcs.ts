@@ -1,5 +1,6 @@
 import { C4_NPCS } from './packs/c4';
 import { C5_NPCS } from './packs/c5';
+import { WEAPON_BOX_SHOPS } from './packs/overworldMix';
 
 /** NPCs (plan §6): who they are, how they look, what they say. */
 export interface NpcDef {
@@ -25,3 +26,6 @@ export const NPCS: Record<string, NpcDef> = {
 
 Object.assign(NPCS, C4_NPCS);
 Object.assign(NPCS, C5_NPCS);
+for (const b of WEAPON_BOX_SHOPS) {
+  NPCS[b.id] = { id: b.id, name: b.name, model: 'npc_trader', dialogue: b.id, merchant: b.id, body: BODY };
+}

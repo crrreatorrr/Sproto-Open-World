@@ -2,7 +2,7 @@
  * Everything the streamed world spawns: Sproutvale and the Rootdeep together.
  * `SPROUTVALE_CONTENT` itself stays the valley, because its tests count that region alone.
  */
-import { DUNGEON_PORTALS, OVERWORLD_MIX_CAMPS } from '../packs/overworldMix';
+import { DUNGEON_PORTALS, OVERWORLD_MIX_CAMPS, WEAPON_BOX_SHOPS } from '../packs/overworldMix';
 import { ROOTDEEP_CONTENT } from '../packs/rootdeep';
 import { SPROUTVALE_CONTENT, type Placement, type RegionContent } from './sproutvaleContent';
 
@@ -16,8 +16,15 @@ const DUNGEON_PORTAL_PLACEMENTS: Placement[] = DUNGEON_PORTALS.map((p) => ({
   yaw: p.yaw,
 }));
 
+const WEAPON_BOX_PLACEMENTS = WEAPON_BOX_SHOPS.map((b) => ({
+  id: b.id,
+  npc: b.id,
+  pos: [b.pos[0], b.pos[1], b.pos[2]] as [number, number, number],
+  yaw: b.yaw,
+}));
+
 export const WORLD_CONTENT: RegionContent = {
-  npcs: join(SPROUTVALE_CONTENT.npcs, ROOTDEEP_CONTENT.npcs),
+  npcs: [...join(SPROUTVALE_CONTENT.npcs, ROOTDEEP_CONTENT.npcs), ...WEAPON_BOX_PLACEMENTS],
   shrines: join(SPROUTVALE_CONTENT.shrines, ROOTDEEP_CONTENT.shrines),
   chests: join(SPROUTVALE_CONTENT.chests, ROOTDEEP_CONTENT.chests),
   mounts: join(SPROUTVALE_CONTENT.mounts, ROOTDEEP_CONTENT.mounts),
