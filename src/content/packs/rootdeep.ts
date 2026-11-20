@@ -1,10 +1,13 @@
 /**
- * The Rootdeep (cave plan, Design): eight hidden entrances, the cave's camps, levers, gate and chests.
- * Pure data, and only `import type` from the registries, so this module never takes part in an import cycle.
- * Pepe's quests arrive in a later quest. Nothing here is environment art.
+ * The Rootdeep (cave plan, Design): eight hidden entrances, the cave's camps, levers, gate and chests,
+ * and Collector Pepe's two quests. Pure data, and only `import type` from the registries, so this
+ * module never takes part in an import cycle. Nothing here is environment art.
  */
+import type { DialogueGraph } from '../dialogue';
 import type { EnemyDef, EnemyMoveDef } from '../enemies';
+import type { ItemDef } from '../items';
 import type { ObjectDef } from '../objects';
+import type { QuestDef } from '../quests';
 import type { CampDef, Placement, RegionContent } from '../world/sproutvaleContent';
 
 /** World x of local cave x 0. The cave sits east of Sproutvale, cell column 64. */
@@ -230,3 +233,124 @@ export const ROOTDEEP_CONTENT: RegionContent = {
     { id: 'rootdeep_vault', pos: world(256, 256), radius: 24 },
   ],
 };
+
+/** A quest item. Three of them, from the diggers, are what the hidden door asks you to spend. */
+export const ROOTDEEP_ITEMS: Record<string, ItemDef> = {
+  seal_shard: { id: 'seal_shard', name: 'Seal Shard', kind: 'quest', rarity: 'rare', blurb: 'Warm to the touch.', stacks: true },
+};
+
+/**
+ * Pepe's two jobs. The map opens only after Lost Relics. Going through the hidden door starts
+ * The Rootdeep, so the giver's `rootdeep_busy` line also offers it: the content test requires that,
+ * and `startQuest` does nothing when the quest is already active.
+ */
+export const ROOTDEEP_QUESTS: Record<string, QuestDef> = {
+  q_collectors_map: {
+    id: 'q_collectors_map',
+    title: "The Collector's Last Map",
+    giver: 'collector_pepe',
+    kind: 'side',
+    prereq: [{ questDone: 'q_relics' }],
+    steps: [
+      {
+        id: 'wall', text: 'Find the old hedge on the north side of the Orchard Fields.',
+        objectives: [{ kind: 'reach', trigger: 'old_hedge_wall' }], marker: 'old_hedge_wall',
+      },
+      {
+        id: 'diggers', text: 'Drive off the diggers working along the hedge.',
+        objectives: [{ kind: 'kill', tag: 'rootdeep_digger', count: 4 }], marker: 'old_hedge_wall',
+        onComplete: [{ give: 'seal_shard', count: 3 }, { setFlag: DOOR_REVEALED_FLAG }],
+      },
+      {
+        id: 'door', text: 'The map says the leaves grow wrong where the door is hidden. Search the hedge.',
+        objectives: [
+          { kind: 'collect', item: 'seal_shard', count: 3, consume: true },
+          { kind: 'interact', object: 'rd_surface_hedge_north' },
+        ],
+      },
+    ],
+    rewards: [{ xp: 150 }, { startQuest: 'q_rootdeep' }],
+  },
+  q_rootdeep: {
+    id: 'q_rootdeep',
+    title: 'The Rootdeep',
+    giver: 'collector_pepe',
+    kind: 'side',
+    prereq: [{ questDone: 'q_collectors_map' }],
+    steps: [
+      {
+        id: 'lantern', text: 'Rest at the shrine in the Lantern Hall.',
+        objectives: [{ kind: 'interact', object: 'shrine_rootdeep_lantern' }], marker: 'shrine_rootdeep_lantern',
+      },
+      {
+        id: 'levers', text: 'Pull the three old levers: Slinger Gallery, Brute Den and Old Mine.',
+        objectives: [
+          { kind: 'interact', object: 'rootdeep_lever_a' },
+          { kind: 'interact', object: 'rootdeep_lever_b' },
+          { kind: 'interact', object: 'rootdeep_lever_c' },
+        ],
+      },
+      {
+        id: 'lock', text: 'Open the vault gate north of the Grunt Warren.',
+        objectives: [{ kind: 'interact', object: 'rootdeep_vault_lock' }], marker: 'rootdeep_vault_lock',
+      },
+      {
+        id: 'warden', text: 'Defeat the Deep Warden.',
+        objectives: [{ kind: 'kill', tag: 'deep_warden', count: 1 }], marker: 'rootdeep_vault',
+      },
+      {
+        id: 'chest', text: 'Open the chest in the vault.',
+        objectives: [{ kind: 'interact', object: 'chest_rootdeep_vault' }], marker: 'chest_rootdeep_vault',
+      },
+      {
+        id: 'return', text: 'Tell Collector Pepe what you found.',
+        objectives: [{ kind: 'talk', npc: 'collector_pepe', node: 'rootdeep_done' }], marker: 'collector_pepe',
+      },
+    ],
+    rewards: [{ xp: 900 }, { currency: 300 }],
+  },
+};
+
+/**
+ * Lines for the two quests, inserted above Pepe's `after` rule. The first passing rule wins, so a
+ * finished Lost Relics would otherwise always land on `after` and the map would never be offered.
+ * The map's offer is two nodes: the whole line is past the dialogue box, and the choice stays on
+ * the second, the same way Lost Relics splits `offer` and `offer_ask`.
+ */
+export function registerRootdeepDialogue(table: Record<string, DialogueGraph>): void {
+  const pepe = table.collector_pepe;
+  const after = pepe.entry.findIndex((r) => r.node === 'after');
+  // `return` is step 5. A 1-based reading would open the chest step on the hand-in.
+  const handIn = ROOTDEEP_QUESTS.q_rootdeep.steps.findIndex((s) => s.id === 'return');
+  pepe.entry.splice(
+    after, 0,
+    { if: [{ quest: 'q_rootdeep', status: 'complete' }], node: 'rootdeep_after' },
+    { if: [{ quest: 'q_rootdeep', status: 'active', step: handIn }], node: 'rootdeep_done' },
+    { if: [{ quest: 'q_rootdeep', status: 'active' }], node: 'rootdeep_busy' },
+    { if: [{ quest: 'q_collectors_map', status: 'active' }], node: 'map_busy' },
+    { if: [{ quest: 'q_relics', status: 'complete' }, { quest: 'q_collectors_map', status: 'available' }], node: 'map_offer' },
+  );
+  Object.assign(pepe.nodes, {
+    map_offer: {
+      speaker: 'Collector Pepe',
+      text: "One of those relics was never a relic. It's a map, and it shows a door hidden in the old Orchard hedge.",
+      next: 'map_offer_ask',
+    },
+    map_offer_ask: {
+      speaker: 'Collector Pepe',
+      text: 'Something very sharp is buried behind it. The way down is dangerous, mind.',
+      choices: [
+        { text: 'Show me.', do: [{ startQuest: 'q_collectors_map' }] },
+        { text: 'Maybe later.' },
+      ],
+    },
+    map_busy: { speaker: 'Collector Pepe', text: 'North side of the Orchard. Look where the leaves grow wrong.' },
+    rootdeep_busy: {
+      speaker: 'Collector Pepe',
+      text: 'Three levers, one vault. And more ways out than the map shows.',
+      do: [{ startQuest: 'q_rootdeep' }],
+    },
+    rootdeep_done: { speaker: 'Collector Pepe', text: 'You found it! Keep the blade. My collection could never hold it.' },
+    rootdeep_after: { speaker: 'Collector Pepe', text: 'My collection is complete. I mean it this time.' },
+  });
+}

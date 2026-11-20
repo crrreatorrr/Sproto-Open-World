@@ -12,6 +12,7 @@ import { QUESTS, type Effect } from '../../src/content/quests';
 import { SPELLS } from '../../src/content/spells';
 import { cellOf } from '../../src/content/world/format';
 import { SPROUTVALE_CONTENT as C } from '../../src/content/world/sproutvaleContent';
+import { WORLD_CONTENT } from '../../src/content/world/worldContent';
 
 /** M4 content checks (plan §6, §8): placements, camp rules, quest references, rewards, the XP curve. */
 const marks: { id: string; kind: string; at: [number, number]; clear?: number }[] = JSON.parse(readFileSync('world-src/sproutvale/placements.json', 'utf8')).marks;
@@ -110,14 +111,21 @@ describe('camps (plan §6.5)', () => {
 });
 
 describe('quests (plan §6.2, §6.3)', () => {
-  const placeIds = new Set([...C.chests.map((c) => c.id), ...(C.objects ?? []).map((o) => o.id), ...C.shrines.map((s) => s.id)]);
-  const triggerIds = new Set(C.triggers.map((t) => t.id));
-  const npcIds = new Set(C.npcs.map((n) => n.id));
-  const campDefs = camps.flatMap((c) => c.members.map((m) => ENEMIES[m.def])).concat(C.enemies.map((e) => ENEMIES[e.def]));
+  // The valley's own counts stay on SPROUTVALE_CONTENT. Quest references see the cave too.
+  const worldCamps = WORLD_CONTENT.camps ?? [];
+  const placeIds = new Set([
+    ...WORLD_CONTENT.chests.map((c) => c.id),
+    ...(WORLD_CONTENT.objects ?? []).map((o) => o.id),
+    ...WORLD_CONTENT.shrines.map((s) => s.id),
+    ...(WORLD_CONTENT.portals ?? []).map((p) => p.id),
+  ]);
+  const triggerIds = new Set(WORLD_CONTENT.triggers.map((t) => t.id));
+  const npcIds = new Set(WORLD_CONTENT.npcs.map((n) => n.id));
+  const campDefs = worldCamps.flatMap((c) => c.members.map((m) => ENEMIES[m.def])).concat(WORLD_CONTENT.enemies.map((e) => ENEMIES[e.def]));
   const obtainable = new Set<string>([
-    ...C.chests.flatMap((c) => c.chest.items.map((i) => i.item)),
+    ...WORLD_CONTENT.chests.flatMap((c) => c.chest.items.map((i) => i.item)),
     ...Object.values(DROPS).flatMap((d) => (d.items ?? []).map((i) => i.item)),
-    ...camps.flatMap((c) => c.members.flatMap((m) => (m.carry ? [m.carry] : []))),
+    ...worldCamps.flatMap((c) => c.members.flatMap((m) => (m.carry ? [m.carry] : []))),
     ...Object.values(QUESTS).flatMap((q) => q.steps.flatMap((s) => (s.onComplete ?? []).flatMap((e) => ('give' in e ? [e.give] : [])))),
     ...Object.values(OBJECTS).flatMap((o) => (o.effects ?? []).flatMap((e) => ('give' in e ? [e.give] : []))),
   ]);
@@ -161,7 +169,7 @@ describe('quests (plan §6.2, §6.3)', () => {
     };
     for (const q of Object.values(QUESTS)) for (const fx of [...q.rewards, ...q.steps.flatMap((s) => s.onComplete ?? [])]) add(fx);
     for (const o of Object.values(OBJECTS)) for (const fx of o.effects ?? []) add(fx);
-    for (const c of C.chests) for (const i of c.chest.items) if (!ITEMS[i.item].stacks) given.push(i.item);
+    for (const c of WORLD_CONTENT.chests) for (const i of c.chest.items) if (!ITEMS[i.item].stacks) given.push(i.item);
     expect(given.filter((g, i) => given.indexOf(g) !== i)).toEqual([]);
   });
 });
