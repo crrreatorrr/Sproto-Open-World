@@ -24,4 +24,5 @@ jobs:
       - run: npm run gen:moves -- --check
       - run: npx playwright install --with-deps chromium
       # The Sproutvale laps (tests/e2e/world.mjs) are off until the exhaustive world pass.
-      - run: node tests/e2e/smoke.mjs && node tests/e2e/camps.mjs && node tests/e2e/loading.mjs && node tests/e2e/mount.mjs
+      # Handwritten copy of npm run test:e2e (find-quest.mjs included). world.mjs --laps 1 stays out.
+      - run: node tests/e2e/smoke.mjs && node tests/e2e/camps.mjs && node tests/e2e/loading.mjs && node tests/e2e/mount.mjs && node tests/e2e/find-quest.mjs && node tests/e2e/rootdeep.mjs

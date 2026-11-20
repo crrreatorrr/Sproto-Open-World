@@ -34,6 +34,7 @@ npm run build
 npm run check:assets
 npm run budgets
 npm run gen:moves -- --check
+npm run bake:world -- rootdeep --check
 npm run test:e2e
 ```
 
