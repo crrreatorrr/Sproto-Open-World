@@ -3,7 +3,8 @@ import type { QuestOffer } from '../content/quests';
 import type { Entity, Progress } from '../sim/entity';
 import type { ReadonlySimView } from '../sim/view';
 import { publicUrl } from '../world/RegionManifest';
-import { leadLine, trackedQuest } from './rpgText';
+import { NPCS } from '../content/npcs';
+import { leadLine, placeName, questPlaces, questSteps, shrineLabel, trackedQuest, type QuestPlace, type QuestStepLine } from './rpgText';
 import './mapTab.css';
 
 /** Sproutvale's side (m): 8 cells of 64 m, with its south-west corner at the world's origin. */
@@ -20,12 +21,6 @@ const REGIONS: readonly { name: string; x: number; z: number }[] = [
   { name: 'Thornwood', x: 216, z: 352 },
   { name: 'The Quarry', x: 440, z: 452 },
 ];
-
-const SHRINE_NAMES: Readonly<Record<string, string>> = {
-  shrine_first_light: 'Shrine of First Light',
-  shrine_rootdeep_lantern: 'Lantern Hall Shrine',
-  shrine_rootdeep_crossing: 'Crossing Shrine',
-};
 
 /** The eight main caves and the vault, in world x (local x + 4096) and world z. */
 const CAVE_REGIONS: readonly { name: string; x: number; z: number }[] = [
@@ -46,12 +41,7 @@ export function mapBounds(x: number): { minX: number; size: number; image: strin
   return { minX: 0, size: MAP_SIZE, image: MAP_IMAGE };
 }
 
-/** "shrine_quarry_gate" → "Quarry Gate Shrine". */
-function shrineLabel(id: string): string {
-  const known = SHRINE_NAMES[id];
-  if (known) return known;
-  return `${id.replace(/^shrine_/, '').split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} Shrine`;
-}
+export { shrineLabel };
 
 /**
  * A world point on the picture, in percent. North (+z) is up and the world is seen from above, so +x
@@ -80,14 +70,38 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''):
   return e;
 };
 
-/** What the map shows: you, the tracked quest's marker, and every shrine found so far. */
-function mapPins(view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<Progress>, lead: QuestOffer | null): Pin[] {
+/** The quest the map follows: the one "Find a quest" leads to, else the tracked one. */
+export interface MapQuest {
+  id: string;
+  title: string;
+  steps: QuestStepLine[];
+  places: QuestPlace[];
+}
+
+export function mapQuest(p: Readonly<Progress>, lead: QuestOffer | null): MapQuest | null {
+  if (lead) {
+    const line = leadLine(lead);
+    const giver = { id: lead.npc, name: NPCS[lead.npc]?.name ?? placeName(lead.npc) };
+    return { id: line.id, title: line.title, steps: [{ text: line.step, state: 'current', lines: [] }], places: [giver] };
+  }
+  const q = trackedQuest(p);
+  if (!q) return null;
+  return { id: q.id, title: q.title, steps: questSteps(q.id, p.quests[q.id]), places: questPlaces(q.id, p.quests[q.id]) };
+}
+
+/** What the map shows: you, every place the followed quest's step sends you, and every shrine found so far. */
+function mapPins(view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<Progress>, quest: MapQuest | null): Pin[] {
   const me = e.tf.pos;
-  const away = (x: number, z: number) => `${Math.round(Math.hypot(x - me.x, z - me.z))} m away`;
+  const cave = isRootdeep(me.x);
+  // The cave and the valley share no ground, so a place on the other map has no distance worth giving.
+  const away = (x: number, z: number) => isRootdeep(x) === cave
+    ? `${Math.round(Math.hypot(x - me.x, z - me.z))} m away`
+    : cave ? 'Up in Sproutvale' : 'Down in the Rootdeep';
   const pins: Pin[] = [{ key: 'player', kind: 'player', title: 'You', detail: `Level ${p.level}`, x: me.x, z: me.z }];
-  const quest = lead ? leadLine(lead) : trackedQuest(p);
-  const at = quest?.marker ? view?.locate(quest.marker) : null;
-  if (quest && at) pins.push({ key: 'quest', kind: 'quest', title: quest.title, detail: `${quest.step} · ${away(at.x, at.z)}`, x: at.x, z: at.z });
+  for (const place of quest?.places ?? []) {
+    const at = view?.locate(place.id);
+    if (at) pins.push({ key: `quest:${place.id}`, kind: 'quest', title: place.name, detail: away(at.x, at.z), x: at.x, z: at.z });
+  }
   for (const id of p.discoveredShrines) {
     const s = view?.locate(id);
     if (!s) continue;
@@ -99,16 +113,37 @@ function mapPins(view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<
 
 /** Re-render the tab when any of this changes. */
 export function mapSignature(view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<Progress>, lead: QuestOffer | null = null): string {
-  return mapBounds(e.tf.pos.x).image + '|' + mapPins(view, e, p, lead).map((q) => `${q.key}:${Math.round(q.x)},${Math.round(q.z)}:${q.detail}`).join('|') + `|${e.tf.yaw.toFixed(2)}`;
+  const quest = mapQuest(p, lead);
+  const steps = quest ? `${quest.id}:${quest.steps.map((s) => s.state[0] + s.lines.map((l) => l.text).join(',')).join(';')}` : '';
+  return mapBounds(e.tf.pos.x).image + '|' + steps + '|' + mapPins(view, e, p, quest).map((q) => `${q.key}:${Math.round(q.x)},${Math.round(q.z)}:${q.detail}`).join('|') + `|${e.tf.yaw.toFixed(2)}`;
+}
+
+/** The followed quest's steps: ticked off, the one you are on (with what is left of it), and what comes next. */
+function stepList(quest: MapQuest): HTMLElement {
+  const box = el('div', 'map-quest');
+  box.append(el('p', 'map-quest-title', quest.title));
+  const ol = el('ol', 'map-steps');
+  for (const s of quest.steps) {
+    const li = el('li', `map-step ${s.state}`, s.text);
+    if (s.lines.length) {
+      const ul = el('ul', 'map-step-lines');
+      for (const l of s.lines) ul.append(el('li', l.done ? 'done' : '', l.text));
+      li.append(ul);
+    }
+    ol.append(li);
+  }
+  box.append(ol);
+  return box;
 }
 
 /**
- * The Map tab: Sproutvale from above with you, the found shrines and the tracked quest's marker. The
- * list beside it works with a pad alone: up and down walk the pins and light the one in focus, and
- * confirming the quest's row opens the Quests tab.
+ * The Map tab: Sproutvale from above with you, the found shrines, and a pin on every place the tracked
+ * quest's step sends you, with that quest's steps listed beside it. The list works with a pad alone:
+ * up and down walk the pins and light the one in focus, and confirming a quest row opens the Quests tab.
  */
 export function renderMap(body: HTMLElement, view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<Progress>, openQuests: () => void, lead: QuestOffer | null = null): void {
-  const pins = mapPins(view, e, p, lead);
+  const quest = mapQuest(p, lead);
+  const pins = mapPins(view, e, p, quest);
   const bounds = mapBounds(e.tf.pos.x);
   const cave = isRootdeep(e.tf.pos.x);
   const wrap = el('div', 'map-tab');
@@ -129,6 +164,8 @@ export function renderMap(body: HTMLElement, view: ReadonlySimView | null, e: Re
   // Drawn last to first, so you stay on top of a shrine you are standing at.
   // Mouths are never pins: a sealed one must show nothing, and an open one is the passage itself.
   for (const pin of [...pins].reverse()) {
+    // A place in the other map (the valley seen from the cave) is listed, not pinned on the edge.
+    if (isRootdeep(pin.x) !== cave) continue;
     const at = mapPoint(pin.x, pin.z, bounds.minX, bounds.size);
     const mark = el('i', `map-pin ${pin.kind}`);
     mark.style.left = `${at.left}%`;
@@ -139,7 +176,9 @@ export function renderMap(body: HTMLElement, view: ReadonlySimView | null, e: Re
     frame.append(mark);
   }
   const list = el('div', 'list map-legend');
-  for (const pin of pins) {
+  pins.forEach((pin, i) => {
+    // The quest's steps sit under you, above the places they send you.
+    if (i === 1 && quest) list.append(stepList(quest));
     const row = el('button', `btn item-row map-row ${pin.kind}`);
     row.type = 'button';
     row.dataset.nav = '';
@@ -151,7 +190,8 @@ export function renderMap(body: HTMLElement, view: ReadonlySimView | null, e: Re
     });
     if (pin.kind === 'quest') row.addEventListener('click', openQuests);
     list.append(row);
-  }
+  });
+  if (quest && pins.length === 1) list.append(stepList(quest));
   if (!pins.some((q) => q.kind === 'shrine')) list.append(el('p', 'note', 'Shrines you find will appear here.'));
   wrap.append(frame, list);
   body.append(wrap);

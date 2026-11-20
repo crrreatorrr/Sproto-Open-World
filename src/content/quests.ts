@@ -13,12 +13,15 @@ export type Objective =
   | { kind: 'kill'; tag: string; count: number }
   /** Hold `count` of `item`; `consume` takes them when the step completes. */
   | { kind: 'collect'; item: string; count: number; consume?: boolean }
-  /** Talk to `npc` (reaching dialogue node `node`, if given). */
-  | { kind: 'talk'; npc: string; node?: string }
+  /**
+   * Talk to `npc` (reaching dialogue node `node`, if given). `label`, on this and the two below,
+   * names the place on the map and in the tracker when the id has no display name of its own.
+   */
+  | { kind: 'talk'; npc: string; node?: string; label?: string }
   /** Stand in trigger volume `trigger`. */
-  | { kind: 'reach'; trigger: string }
+  | { kind: 'reach'; trigger: string; label?: string }
   /** Interact with object `object` (a chest, a shrine, a lever). */
-  | { kind: 'interact'; object: string }
+  | { kind: 'interact'; object: string; label?: string }
   /**
    * Do a combat feat `count` times: land a heavy, perfect-dodge an attack, parry one (M4 drills),
    * or fell something with a reflected shot (`reflectKill`). `against` limits it to that enemy.
@@ -58,7 +61,10 @@ export interface QuestStep {
   id: string;
   text: string;
   objectives: Objective[];
-  /** Where the compass marker points (a trigger, npc or object id), if anywhere. */
+  /**
+   * Where the compass marker points (a trigger, npc or object id), if anywhere. On a `clue` step the
+   * compass stays dark and only the map uses it.
+   */
   marker?: string;
   /**
    * A side-quest search found in the world, so the compass stays dark: footprints, a chest shimmer,
@@ -180,7 +186,7 @@ export const QUESTS: Record<string, QuestDef> = {
     giver: 'farmer_broccoli',
     kind: 'side',
     steps: [
-      { id: 'pumpkins', text: 'Take back 5 Stolen Pumpkins from the Orchard Grunts.', clue: 'carriers', objectives: [{ kind: 'collect', item: 'stolen_pumpkin', count: 5, consume: true }] },
+      { id: 'pumpkins', text: 'Take back 5 Stolen Pumpkins from the Orchard Grunts.', clue: 'carriers', marker: 'orchard_fields', objectives: [{ kind: 'collect', item: 'stolen_pumpkin', count: 5, consume: true }] },
       { id: 'return', text: 'Bring the pumpkins to Farmer Broccoli.', objectives: [{ kind: 'talk', npc: 'farmer_broccoli', node: 'pumpkins_done' }], marker: 'farmer_broccoli' },
     ],
     rewards: [{ give: 'staff_gourd' }, { currency: 120 }, { xp: 80 }],
@@ -207,7 +213,11 @@ export const QUESTS: Record<string, QuestDef> = {
       {
         id: 'relics', text: 'Find the three relic chests: by the mill waterfall, under the Thornwood root arch, at the Beanstalk.',
         clue: 'shimmer',
-        objectives: [{ kind: 'interact', object: 'relic_mill' }, { kind: 'interact', object: 'relic_rootarch' }, { kind: 'interact', object: 'relic_beanstalk' }],
+        objectives: [
+          { kind: 'interact', object: 'relic_mill', label: 'Relic chest by the mill waterfall' },
+          { kind: 'interact', object: 'relic_rootarch', label: 'Relic chest under the root arch' },
+          { kind: 'interact', object: 'relic_beanstalk', label: 'Relic chest at the Beanstalk' },
+        ],
       },
       { id: 'return', text: 'Tell Collector Pepe what you found.', objectives: [{ kind: 'talk', npc: 'collector_pepe', node: 'relics_done' }], marker: 'collector_pepe', onComplete: [{ give: 'totem_seekers_lantern' }] },
     ],

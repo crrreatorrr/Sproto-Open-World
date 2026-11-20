@@ -8,6 +8,7 @@ import { ITEMS, type ItemDef, type ItemKind } from '../content/items';
 import { MERCHANTS } from '../content/loot';
 import { STAFF_TRAITS, staffTrait } from '../content/packs/c2';
 import { NPCS } from '../content/npcs';
+import { OBJECTS } from '../content/objects';
 import { LEVEL_CAP, SKILL_EFFECT, xpForLevel, xpToNext, type SkillId } from '../content/progression';
 import { SPELLS, SWAP_MIN_COOLDOWN, type SpellId } from '../content/spells';
 import { TICK_HZ } from '../content/tuning';
@@ -58,13 +59,13 @@ export function objectiveLines(objectives: readonly Objective[], progress: reado
         return;
       }
       case 'talk':
-        if (several) out.push({ text: `Talk to ${NPCS[o.npc]?.name ?? o.npc}`, done: have >= 1 });
+        if (several) out.push({ text: `Talk to ${placeName(o.npc, o.label)}`, done: have >= 1 });
         return;
       case 'reach':
-        if (several) out.push({ text: `Reach ${humanize(o.trigger)}`, done: have >= 1 });
+        if (several) out.push({ text: `Reach ${placeName(o.trigger, o.label)}`, done: have >= 1 });
         return;
       case 'interact':
-        if (several) out.push({ text: `Use ${humanize(o.object)}`, done: have >= 1 });
+        if (several) out.push({ text: placeName(o.object, o.label), done: have >= 1 });
         return;
     }
   });
@@ -74,6 +75,32 @@ export function objectiveLines(objectives: readonly Objective[], progress: reado
 /** `training_yard` → "the training yard": ids without a display name, said plainly. */
 export function humanize(id: string): string {
   return `the ${id.replace(/_/g, ' ')}`;
+}
+
+const SHRINE_NAMES: Readonly<Record<string, string>> = {
+  shrine_first_light: 'Shrine of First Light',
+  shrine_rootdeep_lantern: 'Lantern Hall Shrine',
+  shrine_rootdeep_crossing: 'Crossing Shrine',
+};
+
+const titleCase = (words: string) => words.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+/** "shrine_quarry_gate" → "Quarry Gate Shrine". */
+export function shrineLabel(id: string): string {
+  return SHRINE_NAMES[id] ?? `${titleCase(id.replace(/^shrine_/, ''))} Shrine`;
+}
+
+/**
+ * A place a quest sends you, by name: the objective's own label, else the NPC's or object's name,
+ * else the shrine's, else the id said plainly ("thornwood_clearing" → "Thornwood clearing").
+ */
+export function placeName(id: string, label?: string): string {
+  if (label) return label;
+  const named = NPCS[id]?.name ?? OBJECTS[id]?.name;
+  if (named) return named;
+  if (id.startsWith('shrine_')) return shrineLabel(id);
+  const plain = id.replace(/_/g, ' ');
+  return plain.charAt(0).toUpperCase() + plain.slice(1);
 }
 
 export interface QuestLine {
@@ -118,6 +145,55 @@ export function questLine(id: string, state: QuestState | undefined): QuestLine 
     marker: done || !step || step.clue ? null : (step.marker ?? nextTarget(step.objectives, state.progress)),
     mark: prize && !done ? { id: prize.id } : null,
   };
+}
+
+export interface QuestStepLine {
+  text: string;
+  state: 'done' | 'current' | 'todo';
+  /** The current step's objective lines; empty on the others. */
+  lines: ObjectiveLine[];
+}
+
+/** Every step of a started quest, in order, for the map: done, the one you are on, and what comes after. */
+export function questSteps(id: string, state: QuestState | undefined): QuestStepLine[] {
+  const def = QUESTS[id];
+  if (!def || !state || state.status === 'locked' || state.status === 'available') return [];
+  const at = state.status === 'complete' ? def.steps.length : state.step;
+  return def.steps.map((s, i) => ({
+    text: s.text,
+    state: i < at ? 'done' : i === at ? 'current' : 'todo',
+    lines: i === at ? objectiveLines(s.objectives, state.progress) : [],
+  }));
+}
+
+export interface QuestPlace {
+  /** A content id `locate` knows (NPC, object, shrine, trigger). */
+  id: string;
+  name: string;
+}
+
+/**
+ * Where the current step sends you, for the map: every objective still open that has a place (all
+ * three relic chests, the miners not yet asked), else the step's marker (the field the Grunts are in).
+ * Unlike the compass, a clue step shows its places here too.
+ */
+export function questPlaces(id: string, state: QuestState | undefined): QuestPlace[] {
+  const def = QUESTS[id];
+  if (!def || !state || state.status !== 'active') return [];
+  const step = def.steps[state.step];
+  if (!step) return [];
+  const out: QuestPlace[] = [];
+  const add = (pid: string, label?: string) => {
+    if (!out.some((q) => q.id === pid)) out.push({ id: pid, name: placeName(pid, label) });
+  };
+  step.objectives.forEach((o, i) => {
+    if ((state.progress[i] ?? 0) >= 1) return;
+    if (o.kind === 'interact') add(o.object, o.label);
+    else if (o.kind === 'talk') add(o.npc, o.label);
+    else if (o.kind === 'reach') add(o.trigger, o.label);
+  });
+  if (!out.length && step.marker) add(step.marker);
+  return out;
 }
 
 /** The tracked quest (or, with none tracked, the first active one), as the HUD tracker shows it. */
