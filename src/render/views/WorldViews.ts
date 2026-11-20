@@ -514,6 +514,10 @@ export class WorldViews {
       case 'big_coin':
       case 'robot_shooter':
       case 'robot_laser':
+      case 'midget_stage3':
+      case 'obama_stage3':
+      case 'sahil_stage3':
+      case 'tinubu_stage3':
         return def ? new HumanoidEnemyView(this.assets, def, e.view.model) : new FallbackView(e);
       default:
         return e.kind === 'enemy' || e.kind === 'boss' ? new FallbackView(e) : null;
