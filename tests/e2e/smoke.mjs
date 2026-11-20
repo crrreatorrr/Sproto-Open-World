@@ -129,9 +129,25 @@ try {
   check(s.screen === 'screen-title', 'B backs out to the title', s.screen);
   await press('up');
   await press('a');
+  // A new save picks its class first, by pad: down to the Soldier, B back out, in again, then the Wizard.
+  s = await state();
+  check(s.screen === 'screen-classes', 'A on Play opens the class picker', s.screen);
+  const classes = await page.evaluate(() => [...document.querySelectorAll('#screen-classes .class-card')].map((b) => b.dataset.class));
+  check(classes.join(',') === 'wizard,soldier,pepe', 'the picker offers the Wizard, the Soldier and Pepe', classes.join(','));
+  check(s.focused?.startsWith('Wizard Sproto'), 'the Wizard is focused first', JSON.stringify(s.focused));
+  await press('down');
+  s = await state();
+  check(s.focused?.startsWith('Soldier Sproto'), 'down moves to the Soldier', JSON.stringify(s.focused));
+  await shot('02b-classes');
+  await press('b');
+  s = await state();
+  check(s.screen === 'screen-title', 'B backs out of the picker to the title', s.screen);
+  await press('a');
+  await page.waitForFunction(() => window.__qa.state().screen === 'screen-classes', null, { timeout: 30000 });
+  await press('a');
   await page.waitForFunction(() => window.__qa.state().state === 'playing', null, { timeout: 30000 });
   s = await state();
-  check(s.state === 'playing', 'A on Play starts the game');
+  check(s.state === 'playing', 'A on the Wizard starts the game');
   check(s.staffMounted === true, 'staff mounted on socket_staff');
   check(s.clips.length === 21 && s.clips.includes('attack_light_1') && s.clips.includes('block'), 'player.glb has all 21 clips', s.clips.join(','));
 
@@ -317,6 +333,9 @@ try {
   await page.goto(`${url}?sandbox=1`);
   await page.waitForFunction(() => window.__qa?.ready && window.__qa.state().screen === 'screen-title', null, { timeout: 30000 });
   await press('down');
+  await press('a');
+  // The class picker comes next on a new save: A takes the focused Wizard.
+  await page.waitForFunction(() => window.__qa.state().screen === 'screen-classes', null, { timeout: 30000 });
   await press('a');
   await page.waitForFunction(() => window.__qa.state().state === 'playing', null, { timeout: 30000 });
   s = await state();

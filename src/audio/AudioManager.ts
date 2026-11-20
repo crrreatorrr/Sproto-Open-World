@@ -1,4 +1,6 @@
 import { Howl, Howler } from 'howler';
+import type { GunDef } from '../content/classes';
+import { playGunshot } from './gunSfx';
 
 /** Sounds by id; files are Opus (.webm) with an AAC (.m4a) fallback, from tools/import-sibling-assets.mjs. */
 const SOUNDS = {
@@ -94,5 +96,10 @@ export class AudioManager {
 
   setEffects(v: number): void {
     this.sfx = v;
+  }
+
+  /** A gun class's shot (synthesized, like Sproto Shooter's). */
+  gunshot(type: GunDef['type'], volume = 1): void {
+    playGunshot(type, this.sfx * volume);
   }
 }

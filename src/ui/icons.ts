@@ -21,6 +21,8 @@ const BRAMBLE = svg(`<path d="M4 22V9M10 22V4M16 22V4M21 22V9" ${line}/><path d=
 const VINE = svg(`<path d="M3 21c6 0 4-9 9-9s3-9 9-9" ${line}/><path d="M9 8c0-3 2-5 6-5 0 3-2 5-6 5zM15 16c0 3 2 5 6 5 0-3-2-5-6-5z" fill="currentColor"/>`);
 const BLOOM = svg(`<circle cx="12" cy="12" r="2.600" fill="currentColor"/><circle cx="12" cy="5.500" r="3" ${line}/><circle cx="18.200" cy="10" r="3" ${line}/><circle cx="15.800" cy="17.300" r="3" ${line}/><circle cx="8.200" cy="17.300" r="3" ${line}/><circle cx="5.800" cy="10" r="3" ${line}/>`);
 const BREATH = svg(`<path d="M2 12l9-5.500v11z" fill="currentColor"/><path d="M14 6c2 2 1 4 3 6-2 2-1 4-3 6M19 5c2 4 2 10 0 14" ${line}/>`);
+// The gun classes' trigger: a toy blaster.
+const GUN = svg('<path d="M3 8h15l2-2h1v6h-6l-1 2h-3l-1 5H6l1-5H3z" fill="currentColor"/><path d="M21 9h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>');
 const SURGE = svg(`<path d="M12 21v-9" ${line}/><path d="M12 12c0-4-3-7-8-7 0 4 3 7 8 7zM12 12c0-4 3-7 8-7 0 4-3 7-8 7z" fill="currentColor"/><path d="M2 21h20M6 17.500H3M21 17.500h-3" ${line}/>`);
 
 export const ICONS = {
@@ -42,5 +44,6 @@ export const ICONS = {
   healingBloom: BLOOM,
   emberBreath: BREATH,
   sproutSurge: SURGE,
+  gunfire: GUN,
 } as const;
 export type IconId = keyof typeof ICONS;

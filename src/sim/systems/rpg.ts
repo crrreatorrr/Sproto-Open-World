@@ -1,3 +1,4 @@
+import { STAFF_TO_GUN, canWield, classOf, classSpell, classSpells, type ClassId } from '../../content/classes';
 import { PLAYER_STATS } from '../../content/combat';
 import { DIALOGUE, type DialogueNode } from '../../content/dialogue';
 import { ENEMIES } from '../../content/enemies';
@@ -41,19 +42,49 @@ export interface RpgCtx {
 
 // ---------------------------------------------------------------- progress and derived stats
 
-export function newProgress(spells: SpellId[]): Progress {
-  return {
+/**
+ * A new save's progress. A class (content/classes.ts) picks the starting weapon and bags, and swaps the
+ * spells it learns: the Soldier's gun takes the Arcane Bolt's place, and Pepe knows both.
+ */
+export function newProgress(spells: SpellId[], cls: ClassId = 'wizard'): Progress {
+  const def = classOf(cls);
+  const known = classSpells(def.id, spells);
+  const inventory: Record<string, number> = { [def.startWeapon]: 1, [STARTING_GEAR.robe]: 1 };
+  for (const item of def.startItems) inventory[item] = 1;
+  const p: Progress = {
     level: 1, xp: 0, skills: noSkills(), points: 0, sprouts: 0,
-    equipment: { staff: STARTING_GEAR.staff, robe: STARTING_GEAR.robe, charm: STARTING_GEAR.charm },
-    inventory: { [STARTING_GEAR.staff]: 1, [STARTING_GEAR.robe]: 1 },
-    spells: [...spells], loadout: defaultLoadout(spells), tonics: { charges: TONIC.charges, max: TONIC.charges },
+    equipment: { staff: def.startWeapon, robe: STARTING_GEAR.robe, charm: STARTING_GEAR.charm },
+    inventory,
+    spells: known, loadout: classLoadout(known), tonics: { charges: TONIC.charges, max: TONIC.charges },
     quests: {}, tracked: null, lastShrine: null, discoveredShrines: [], dialogue: null, shop: null, atShrine: null,
     relics: emptyRelics(),
   };
+  // The Wizard's save stays exactly as it was before classes (no field), so its replays don't move.
+  if (def.id !== 'wizard') p.class = def.id;
+  return p;
 }
 
+/**
+ * Each known spell in its home slot. A gun class always has Gunfire in slot 1: what was there (Pepe's
+ * bolt) moves to a free slot, or waits in the Powers tab when all four are full.
+ */
+function classLoadout(known: readonly SpellId[]): (SpellId | null)[] {
+  const slots = defaultLoadout(known.filter((s) => s !== 'gunfire'));
+  if (!known.includes('gunfire')) return slots;
+  const moved = slots[0];
+  slots[0] = 'gunfire';
+  const free = slots.indexOf(null);
+  if (moved && free >= 0) slots[free] = moved;
+  return slots;
+}
+
+/** The class a progress was made for. */
+export const classOfProgress = (p: Progress | undefined): ClassId => p?.class ?? 'wizard';
+
 export const charmOf = (p: Progress) => (p.equipment.charm ? ITEMS[p.equipment.charm]?.charm : undefined);
-export const staffOf = (p: Progress) => ITEMS[p.equipment.staff]?.staff ?? ITEMS[STARTING_GEAR.staff].staff!;
+export const staffOf = (p: Progress) => ITEMS[p.equipment.staff]?.staff ?? ITEMS[classOf(p.class).startWeapon]?.staff ?? ITEMS[STARTING_GEAR.staff].staff!;
+/** The gun in the weapon slot, if it is one. */
+export const gunOf = (p: Progress | undefined) => (p ? ITEMS[p.equipment.staff]?.gun : undefined);
 
 /** Re-derive max HP/stamina/mana, defense and tonic charges from level, skills and gear. */
 export function recompute(e: Entity): void {
@@ -117,9 +148,11 @@ export function grantXp(ctx: RpgCtx, e: Entity, amount: number): void {
   recompute(e);
 }
 
-export function giveItem(ctx: RpgCtx, e: Entity, item: string, count = 1): boolean {
-  if (isKeepsake(item)) return grantKeepsake(ctx, e, item);
+export function giveItem(ctx: RpgCtx, e: Entity, given: string, count = 1): boolean {
+  if (isKeepsake(given)) return grantKeepsake(ctx, e, given);
   const p = e.progress!;
+  // A gun class is handed the gun beside an epic staff instead of the staff (content/classes.ts).
+  const item = classOf(p.class).weapon === 'gun' ? (STAFF_TO_GUN[given] ?? given) : given;
   const def = ITEMS[item];
   if (!def) return false;
   const kinds = Object.keys(p.inventory).filter((k) => p.inventory[k] > 0).length;
@@ -166,10 +199,12 @@ export function applyEffects(ctx: RpgCtx, e: Entity, effects: readonly Effect[] 
     if ('give' in fx) giveItem(ctx, e, fx.give, fx.count ?? 1);
     else if ('xp' in fx) grantXp(ctx, e, fx.xp);
     else if ('learnSpell' in fx) {
-      if (!p.spells.includes(fx.learnSpell)) {
-        p.spells.push(fx.learnSpell);
-        learnIntoLoadout(p, fx.learnSpell);
-        ctx.events.push({ type: 'spellLearned', entity: e.id, spell: fx.learnSpell });
+      // The class decides what is learned: a Soldier taught the Arcane Bolt gets Gunfire.
+      const spell = classSpell(p.class, fx.learnSpell);
+      if (spell && !p.spells.includes(spell)) {
+        p.spells.push(spell);
+        learnIntoLoadout(p, spell);
+        ctx.events.push({ type: 'spellLearned', entity: e.id, spell });
       }
     } else if ('setFlag' in fx) ctx.world.flags[fx.setFlag] = fx.value ?? 1;
     else if ('startQuest' in fx) startQuest(ctx, e, fx.startQuest);
@@ -586,6 +621,11 @@ function equip(ctx: RpgCtx, e: Entity, item: string): void {
   const def = ITEMS[item];
   if (!def || !(p.inventory[item] > 0) || (def.kind !== 'staff' && def.kind !== 'robe' && def.kind !== 'charm')) {
     ctx.events.push({ type: 'refused', entity: e.id, action: 'equip', reason: "You don't have that." });
+    return;
+  }
+  if (def.kind === 'staff' && !canWield(p.class, def)) {
+    const reason = classOf(p.class).weapon === 'gun' ? 'You fight with a gun, not a staff.' : "A wizard doesn't use guns.";
+    ctx.events.push({ type: 'refused', entity: e.id, action: 'equip', reason });
     return;
   }
   // Gear changes only out of combat, or at a shrine (expansion plan §1.1).

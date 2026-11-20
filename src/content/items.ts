@@ -2,6 +2,7 @@
  * Items (plan §5): staffs, robes, charms, consumables and quest items, with fixed stats per item
  * (no procedural affixes). Pure data.
  */
+import { GUN_ITEMS, type GunDef } from './classes';
 import { C2_ITEMS } from './packs/c2';
 import { C4_ITEMS } from './packs/c4';
 import { C5_ITEMS } from './packs/c5';
@@ -36,6 +37,8 @@ export interface ItemDef {
   blurb: string;
   /** Staff: melee damage and spell power (plan §4.6 table); model key for the view. */
   staff?: { damage: number; spellPower: number; model: string };
+  /** A gun (content/classes.ts): it is held in the staff slot by the gun classes, and Gunfire shoots it. */
+  gun?: GunDef;
   /** Robe: defense and a body tint. */
   robe?: { physical: number; arcane: number; tint: number };
   charm?: CharmEffects;
@@ -82,6 +85,7 @@ export const ITEMS: Record<string, ItemDef> = {
 Object.assign(ITEMS, C4_ITEMS);
 Object.assign(ITEMS, C5_ITEMS);
 Object.assign(ITEMS, C6_ITEMS);
+Object.assign(ITEMS, GUN_ITEMS);
 
 export const STARTING_GEAR = { staff: 'staff_sproto', robe: 'robe_apprentice', charm: null } as const;
 

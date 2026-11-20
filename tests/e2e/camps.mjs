@@ -92,6 +92,9 @@ try {
   await page.waitForFunction(() => window.__qa?.ready && window.__qa.state().screen === 'screen-title', null, { timeout: 60000 });
   await press('down');
   await press('a');
+  // The class picker comes next on a new save: A takes the focused Wizard.
+  await page.waitForFunction(() => window.__qa.state().screen === 'screen-classes', null, { timeout: 30000 });
+  await press('a');
   await page.waitForFunction(() => window.__qa.state().state === 'playing' && !window.__qa.state().groundWait, null, { timeout: 60000 });
   await frames(20);
 

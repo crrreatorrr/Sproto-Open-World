@@ -107,7 +107,7 @@ describe('learned spells (plan §4.4, §5 learnSpell)', () => {
 
   it('the yard / sandbox world knows every spell', async () => {
     const { w, p } = await combatWorld();
-    expect([...p.progress!.spells].sort()).toEqual(Object.keys(SPELLS).sort());
+    expect([...p.progress!.spells].sort()).toEqual(Object.keys(SPELLS).filter((id) => id !== 'gunfire').sort());
     expect(step(w, press(BTN.spell2)).filter((e) => e.type === 'castStart').length).toBe(1);
     w.dispose();
   });

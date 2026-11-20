@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { STAFF_TO_GUN } from '../../src/content/classes';
 import { DIALOGUE } from '../../src/content/dialogue';
 import { ENEMIES } from '../../src/content/enemies';
 import { INVENTORY_CAP, ITEMS } from '../../src/content/items';
@@ -46,7 +47,12 @@ describe('quest steps', () => {
 });
 
 describe('the bags', () => {
-  it('can never fill: there are fewer kinds of item in the game than slots, so no quest item is ever refused', () => {
-    expect(Object.keys(ITEMS).length).toBeLessThanOrEqual(INVENTORY_CAP);
+  it('can never fill: there are fewer kinds of item a class can own than slots, so no quest item is ever refused', () => {
+    // A Wizard is never handed a gun; a gun class gets a gun in place of each STAFF_TO_GUN staff.
+    const all = Object.values(ITEMS);
+    const wizard = all.filter((i) => !i.gun);
+    const gunner = all.filter((i) => !Object.hasOwn(STAFF_TO_GUN, i.id));
+    expect(wizard.length).toBeLessThanOrEqual(INVENTORY_CAP);
+    expect(gunner.length).toBeLessThanOrEqual(INVENTORY_CAP);
   });
 });
