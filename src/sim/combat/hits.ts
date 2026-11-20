@@ -2,6 +2,7 @@ import {
   BACKSTAB, BLOCK, BREAK_CRIT, CHARGED_HEAVY, COUNTER, CRIT_HITSTOP, HITSTOP_CAP, MANA, PLAYER_MOVES, PLAYER_STATS, STAFFS, clipTiming, type DamageKind, type PlayerMoveId,
 } from '../../content/combat';
 import { dodgeFrames } from '../../content/packs/m7';
+import { MOUNT } from '../../content/mounts';
 import { PLAYER_HITBOXES, STAFF_CAPSULE_RADIUS } from '../../content/generated/playerHitboxes';
 import { AFFINITY_MULT, ENEMIES, type Affinity, type EnemyMoveDef } from '../../content/enemies';
 import { affixedMove } from '../../content/enemyScale';
@@ -372,7 +373,7 @@ export function resolveAttacks(ctx: CombatCtx, physics: PhysicsWorld): void {
       if (tgt.combat.action?.kind === 'dead' || a.hit.includes(tgt.id)) continue;
       const [b0, b1] = bodySegment(tgt.tf.pos, tgt.body.radius, tgt.body.height);
       const r = shape.radius + tgt.body.radius;
-      if (segmentSegmentDistSq(shape.a, shape.b, b0, b1) > r * r) continue;
+      if (!shapeTouches(shape, b0, b1, r)) continue;
       // An area attack lands where its circle is: a pillar between the caster and you doesn't save you.
       if (!shape.area && !lineOfSight(physics, att, tgt)) continue;
       a.hit.push(tgt.id);
@@ -400,7 +401,27 @@ interface AttackShape {
   b: Vec3;
   radius: number;
   area?: boolean;
+  /** Also tested this far (m) below where it is: a swing from a flying bull reaches what it passes over. */
+  reachDown?: number;
   info: HitInfo;
+}
+
+/** Does this attack's shape touch that body, where it is or (from the air) as far below as it reaches? */
+function shapeTouches(shape: AttackShape, b0: Vec3, b1: Vec3, r: number): boolean {
+  if (segmentSegmentDistSq(shape.a, shape.b, b0, b1) <= r * r) return true;
+  const down = shape.reachDown;
+  if (!down) return false;
+  const lower = (v: Vec3) => ({ x: v.x, y: v.y - down, z: v.z });
+  return segmentSegmentDistSq(lower(shape.a), lower(shape.b), b0, b1) <= r * r;
+}
+
+/**
+ * A staff hitbox point, in the rider's frame, from the saddle: the swing's arc across the ground is
+ * `MOUNT.saddleReach` times as wide, so it clears a bigger bull's flank and nose as it does the hub-sized bull's.
+ */
+export function saddleReach(local: readonly [number, number, number]): [number, number, number] {
+  const [x, y, z] = local;
+  return [x * MOUNT.saddleReach, y, z * MOUNT.saddleReach];
 }
 
 /** The hitbox of an attack on its current tick, or null outside its active window. */
@@ -417,10 +438,12 @@ function attackShape(e: Entity): AttackShape | null {
     // Melee power: the staff's damage × (1 + 0.04 · Attack) (expansion plan §7.2).
     const power = staff.damage * (1 + SKILL_EFFECT.attack * (e.progress?.skills.attack ?? 0));
     const charged = a.charged;
+    const seated = e.riding?.state === 'riding';
     return {
-      a: toWorld(e.tf.pos, e.tf.yaw, box.a),
-      b: toWorld(e.tf.pos, e.tf.yaw, box.b),
-      radius: STAFF_CAPSULE_RADIUS,
+      a: toWorld(e.tf.pos, e.tf.yaw, seated ? saddleReach(box.a) : box.a),
+      b: toWorld(e.tf.pos, e.tf.yaw, seated ? saddleReach(box.b) : box.b),
+      radius: STAFF_CAPSULE_RADIUS + (seated ? MOUNT.saddleStaffPad : 0),
+      reachDown: e.riding?.flight ? MOUNT.fly.reachDown : undefined,
       info: {
         move: a.move,
         base: power * (charged ? CHARGED_HEAVY.mv : def.mv),

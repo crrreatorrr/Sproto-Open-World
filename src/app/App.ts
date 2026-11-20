@@ -23,6 +23,7 @@ import { Overlay } from '../debug/Overlay';
 import { QA_LOG_ENABLED, qaLog } from '../debug/qaLog';
 import type { FeedbackHost, FeedbackSnapshot } from '../hub/feedback';
 import { GAMEPAD, KEYS, PAD } from '../input/bindings';
+import { freshDigitChord, godChordPressed } from '../input/godChord';
 import { CommandBuilder } from '../input/CommandBuilder';
 import { applyControlPrefs, loadControlPrefs, saveControlPrefs } from '../input/controlPrefs';
 import { promptLabel } from '../input/glyphs';
@@ -192,6 +193,8 @@ export class App {
   private saves = 0;
   /** God mode goes on at the start of each session (the URL asked, or it was on last session). */
   private godWanted = GOD_URL;
+  /** Two quick 9s toggle testing God Mode through the same command as the Settings switch. */
+  private readonly godChord = freshDigitChord();
   /** God mode was on at some point this session: nothing is saved until the next one, so the real save is kept. */
   private godUsed = false;
   /** God mode goes on with the first tick the player isn't held behind the veil (held ticks drop input). */
@@ -279,10 +282,7 @@ export class App {
       prompt: (keys, padButtons) => promptLabel(this.input.pad.device, this.input.pad.style, keys, padButtons),
       slotGlyph: (i) => spellSlotGlyph(i, this.input.pad.device, this.input.pad.style),
       godAllowed: () => GOD_ALLOWED && this.mode === 'world',
-      setGod: (on) => {
-        this.godWanted = on;
-        this.sendUi({ kind: 'godMode', on });
-      },
+      setGod: (on) => this.setGodMode(on),
       resume: () => this.closeGameMenu(),
       quitToTitle: () => this.quitToTitle(),
       openSettings: () => this.nav.push(this.menus.settings),
@@ -366,6 +366,11 @@ export class App {
         if (e.code === 'BracketRight') this.cycleClip(1);
         if (e.code === 'BracketLeft') this.cycleClip(-1);
       }
+      // 99 toggles testing God Mode. Ignored in a text field, while rebinding, and while feedback is open.
+      if ((this.state === 'playing' || this.state === 'paused') && this.sim && !this.feedbackHold &&
+        godChordPressed(this.godChord, e, performance.now(), !!this.nav.top?.capturing?.())) {
+        this.setGodMode(!this.sim.playerEntity(LOCAL_PLAYER)?.progress?.god);
+      }
     });
     // WebGL context loss: pause, veil, and offer a reload if it doesn't come back.
     canvas.addEventListener('webglcontextlost', (e) => {
@@ -414,6 +419,15 @@ export class App {
   /** Queue a menu intent for the next tick. */
   private sendUi(a: UiAction): void {
     this.commands.queueUi(a);
+  }
+
+  /**
+   * Testing God Mode, the same path as Settings → God mode and `?god=1`: the sim grants everything
+   * and keeps the player alive. `99` toggles it in every build; the menu switch stays dev, QA, or `?god=1`.
+   */
+  private setGodMode(on: boolean): void {
+    this.godWanted = on;
+    this.sendUi({ kind: 'godMode', on });
   }
 
   /**
@@ -781,6 +795,8 @@ export class App {
     this.fx.update(dt);
     this.polish.frame(simView, p, dt);
     this.target.copy(view.root.position);
+    this.rig.riding = p.riding !== undefined && p.riding.state !== 'dismounting';
+    this.rig.flight = p.riding?.flight ? { yaw: p.tf.yaw, pitch: p.riding.flight.pitch } : null;
     this.rig.update(dt, this.target, simView, p.loco?.sprinting ?? false, this.speakerPoint(simView, p) ?? this.lockPoint(simView, p));
     this.renderer.follow(this.target);
     // Screen-space UI projects through this frame's camera.
@@ -1007,7 +1023,8 @@ export class App {
       prompt = { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.interact, PAD.interact), text: interactLabel(t.kind, t.name) };
     }
     const ride: HudRpgState['ride'] = !inMenu && p.riding?.state === 'riding'
-      ? { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.sprint, PAD.sprint), text: gallopLabel(p.riding.gallop) }
+      // Flying, the same button is the throttle.
+      ? { key: promptLabel(this.input.pad.device, this.input.pad.style, KEYS.sprint, PAD.sprint), text: p.riding.flight ? (p.riding.gallop ? 'Cruise' : 'Boost') : gallopLabel(p.riding.gallop) }
       : null;
     this.rpgHud.update({ level: pr.level, xp: pr.xp, points: pr.points, sprouts: pr.sprouts, tonics: pr.tonics, tracker, compass: { camYaw: this.rig.yaw, marker }, prompt, ride }, dt);
   }

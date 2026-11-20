@@ -40,7 +40,8 @@ function press(w: SimWorld, buttons: number): void {
 
 async function mountBull(w: SimWorld): Promise<void> {
   const bull = bullOf(w);
-  standAt(w, bull.tf.pos.x - 2, bull.tf.pos.z);
+  // Past its rump: the bull stands long along X at home.
+  standAt(w, bull.tf.pos.x - MOUNT.bodyHalfLength - 0.8, bull.tf.pos.z);
   const p = player(w);
   p.tf.yaw = p.tf.prevYaw = Math.atan2(bull.tf.pos.x - p.tf.pos.x, bull.tf.pos.z - p.tf.pos.z);
   press(w, BTN.interact);

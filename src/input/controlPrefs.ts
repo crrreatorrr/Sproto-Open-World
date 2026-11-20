@@ -46,11 +46,11 @@ export const KEY_SLOTS = 2;
 
 /**
  * Keys that keep a fixed job and cannot be bound: Esc (pause, back), Enter (menus), ` (debug
- * overlay), N (N twice opens the hub feedback window, which takes the key from the game) and the
- * browser's own keys.
+ * overlay), N (N twice opens the hub feedback window, which takes the key from the game), 9 (9 twice
+ * toggles testing God Mode) and the browser's own keys.
  */
 export const RESERVED_KEYS: ReadonlySet<string> = new Set([
-  'Escape', 'Enter', 'NumpadEnter', 'Backquote', 'KeyN', 'Tab', 'F11', 'F12', 'MetaLeft', 'MetaRight', 'ContextMenu', 'CapsLock',
+  'Escape', 'Enter', 'NumpadEnter', 'Backquote', 'KeyN', 'Digit9', 'Numpad9', 'Tab', 'F11', 'F12', 'MetaLeft', 'MetaRight', 'ContextMenu', 'CapsLock',
 ]);
 /** Why a reserved key is reserved, for the controls screen's note. */
 export function reservedReason(code: string): string {
@@ -59,6 +59,7 @@ export function reservedReason(code: string): string {
     case 'Enter': case 'NumpadEnter': return 'Enter is the menu key';
     case 'Backquote': return '` opens the debug overlay';
     case 'KeyN': return 'N twice sends feedback';
+    case 'Digit9': case 'Numpad9': return '9 twice toggles god mode';
     default: return 'the browser uses it';
   }
 }

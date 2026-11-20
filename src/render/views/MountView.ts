@@ -4,9 +4,10 @@ import type { Entity } from '../../sim/entity';
 import { Animator } from '../anim/Animator';
 import type { EntityView } from './EnemyViews';
 import { placeEntity } from './interp';
+import { MOUNT } from '../../content/mounts';
 
 /** The saddle sits this far behind the model's origin: moved so the rider's origin is on it (m). */
-const SADDLE_BACK = 0.15;
+const SADDLE_BACK = 0.15 * MOUNT.scale;
 /** Speeds where the gait changes (m/s). */
 const WALK_FROM = 0.4;
 const RUN_FROM = 5;
@@ -41,12 +42,19 @@ export function turnLean(speed: number, yawRate: number): number {
 
 export type MountGait = 'idle' | 'walk' | 'run' | 'gallop';
 
-/** Each gait's clip, the ground speed it is authored for (m/s), and how far its rate may stretch. */
-const GAITS: Record<Exclude<MountGait, 'idle'>, { clip: string; speed: number; minRate: number; maxRate: number }> = {
+/**
+ * Each gait's clip, the ground speed it covers at 1× on the hub-sized bull (m/s), and how far its
+ * rate may stretch there. A bigger bull's stride is longer by `MOUNT.scale`, so the same speed plays
+ * the clip that much slower: the limits are divided by the scale and cover the same speeds.
+ */
+const GAITS_AT_1: Record<Exclude<MountGait, 'idle'>, { clip: string; speed: number; minRate: number; maxRate: number }> = {
   walk: { clip: 'follow_walk', speed: 2.6, minRate: 0.5, maxRate: 2.1 },
   run: { clip: 'follow_run', speed: 9.5, minRate: 0.5, maxRate: 1.35 },
   gallop: { clip: 'gallop', speed: 17, minRate: 0.65, maxRate: 1.25 },
 };
+const GAITS = Object.fromEntries(
+  Object.entries(GAITS_AT_1).map(([k, g]) => [k, { clip: g.clip, speed: g.speed * MOUNT.scale, minRate: g.minRate / MOUNT.scale, maxRate: g.maxRate / MOUNT.scale }]),
+) as typeof GAITS_AT_1;
 
 /** The gait for a ground speed, given the gait the bull is in now. */
 export function mountGait(speed: number, current: MountGait): MountGait {
@@ -74,7 +82,7 @@ function saddleAt(path: Float32Array, phase: number): number {
 /** The Pepe Bull: the hub's model with its idle and three gaits, driven by the sim's speed. */
 export class MountView implements EntityView {
   readonly root = new THREE.Group();
-  readonly height = 1.7;
+  readonly height = MOUNT.standHeight;
   private model: ModelInstance | null = null;
   private animator: Animator | null = null;
   private clips: readonly THREE.AnimationClip[] = [];
@@ -122,7 +130,7 @@ export class MountView implements EntityView {
   update(e: Readonly<Entity>, alpha: number, dt: number): void {
     placeEntity(this.root, e, alpha);
     const speed = e.mount?.speed ?? 0;
-    this.tiltBody(speed, dt);
+    this.tiltBody(speed, dt, e.mount?.fly);
     const a = this.animator;
     if (!a) return;
     this.playGait(a, mountGait(speed, this.gait), speed);
@@ -130,16 +138,20 @@ export class MountView implements EntityView {
     this.saddleLift = this.spine ? this.spineHeight() - this.spineRest + this.saddleStep(a, dt) : 0;
   }
 
-  /** Pitch the body to the slope it is running on and lean it into its turns. */
-  private tiltBody(speed: number, dt: number): void {
+  /**
+   * Pitch the body to the slope it is running on and lean it into its turns. Flying, it takes the
+   * flight's own pitch and bank, legs still running (the gait follows its airspeed).
+   */
+  private tiltBody(speed: number, dt: number, fly?: { pitch: number; bank: number }): void {
     const p = this.root.position;
     if (this.placed && dt > 0) {
       const run = Math.hypot(p.x - this.last.x, p.z - this.last.z);
       if (run / dt > TELEPORT_SPEED) this.pitchGoal = this.tilt.pitch = 0;
       else if (run / dt > PITCH_FROM) this.pitchGoal = slopePitch(p.y - this.last.y, run);
       const turned = Math.atan2(Math.sin(this.root.rotation.y - this.lastYaw), Math.cos(this.root.rotation.y - this.lastYaw));
+      if (fly) this.pitchGoal = fly.pitch;
       this.tilt.pitch = THREE.MathUtils.damp(this.tilt.pitch, this.pitchGoal, TILT_RATE, dt);
-      this.tilt.roll = THREE.MathUtils.damp(this.tilt.roll, turnLean(speed, turned / dt), TILT_RATE, dt);
+      this.tilt.roll = THREE.MathUtils.damp(this.tilt.roll, fly ? fly.bank : turnLean(speed, turned / dt), TILT_RATE, dt);
     }
     this.last.copy(p);
     this.lastYaw = this.root.rotation.y;
