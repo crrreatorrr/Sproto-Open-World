@@ -1,0 +1,219 @@
+{
+  "river_birch": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.25,
+      "height": 4.0
+    },
+    "footprint": 3.21,
+    "size": [
+      6.31,
+      10.75,
+      4.97
+    ],
+    "notes": "White birch with black marks. Bank and meadow scatter. Collider is the trunk only."
+  },
+  "river_birch_pair": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.55,
+      "height": 4.0
+    },
+    "footprint": 3.18,
+    "size": [
+      6.22,
+      10.65,
+      4.96
+    ],
+    "notes": "Two birches from one root, leaning apart. Collider covers both trunks near the base."
+  },
+  "river_boat": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        1.75,
+        0.35,
+        0.7
+      ]
+    },
+    "footprint": 1.93,
+    "size": [
+      3.58,
+      0.77,
+      3.23
+    ],
+    "notes": "Rowing boat, bow +X. Floats: put z = 0 at the water level (hull bottom ~0.2 m below). One oar rests out over the -Y side."
+  },
+  "river_boulder": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 1.05,
+      "height": 1.0
+    },
+    "footprint": 1.37,
+    "size": [
+      2.57,
+      1.05,
+      2.24
+    ],
+    "notes": "Mossy river boulder. Put z = 0 at the water level (it extends ~0.33 m below). Pair with river_foam_ring at the same spot."
+  },
+  "river_boulder_large": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 1.75,
+      "height": 1.5
+    },
+    "footprint": 2.28,
+    "size": [
+      4.49,
+      1.62,
+      3.53
+    ],
+    "notes": "Large mossy boulder with a small companion rock. Put z = 0 at the water level. Pair with river_foam_ring scaled ~1.6."
+  },
+  "river_bridge": {
+    "landmark": true,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 9.11,
+    "size": [
+      22.15,
+      4.82,
+      5.27
+    ],
+    "notes": "Stone arch bridge, 22 m along X, 4.5 m wide. The arch spans 12 m of water at z = 0 (springing), soffit crown at 3.0 m. Walkable: another mechanism must carry the walk surface: deck top y = 4.03 - 1.75 * (x / 11)^2 (4.0 m at the crown, 2.28 m at the ends), between parapets at |z| <= 1.8; parapets 0.45 thick, 0.65 high (+0.18 coping). Ends (x = +-11) butt into the banks; the end faces are plain mortar and should be buried."
+  },
+  "river_cattails": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 1.31,
+    "size": [
+      2.64,
+      1.74,
+      1.95
+    ],
+    "notes": "Cattails and reeds. Plant at the water's edge or in shallows; the base starts at z = -0.15 so it can sit slightly submerged."
+  },
+  "river_dock": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 3.03,
+    "size": [
+      6.17,
+      2.11,
+      4.38
+    ],
+    "notes": "Fishing dock 6 x 2.5 m; z = 0 is the water level, deck top at 0.8 m. The bank end is -X, the ladder end +X. Walkable: another mechanism must carry the deck surface (a 6 x 2.5 m plane at y = 0.8). Posts go 1.2 m below the water."
+  },
+  "river_foam_ring": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 2.21,
+    "size": [
+      4.02,
+      0.0,
+      3.79
+    ],
+    "notes": "White foam ring and streaks (fx_water, U around the ring, V outward) for the water around a boulder. Lies 0.015 above the water surface (z = 0); inner radius ~1.1 fits river_boulder (scale ~1.6 for the large one). The ring trails slightly toward +X: turn +X downstream."
+  },
+  "river_lilypads": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 1.47,
+    "size": [
+      3.15,
+      0.22,
+      1.9
+    ],
+    "notes": "Lily pad cluster with one white and one pink flower. Sits ON the water surface: put z = 0 at the water level. Calm water only."
+  },
+  "river_mill": {
+    "landmark": true,
+    "collider": {
+      "kind": "box",
+      "half": [
+        5.92,
+        3.0,
+        4.72
+      ]
+    },
+    "footprint": 6.6,
+    "size": [
+      12.63,
+      10.6,
+      10.63
+    ],
+    "notes": "Watermill landmark. Mill house on the bank; the wheel side (+X) overhangs the river or a mill race: the wheel dips about 0.2 m below z = 0, the stone pier stands in the water. Flume and trestle at the back (-Z in game). The wheel is joined into this mesh (static); river_mill_wheel is the same wheel alone for a spinning version, axle centre at [3.603, 3.3, 0.285] in this prop's frame. Box collider covers the house, wheel and trestle."
+  },
+  "river_mill_wheel": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 2.97,
+    "size": [
+      2.5,
+      7.0,
+      7.0
+    ],
+    "notes": "The mill wheel alone (7 m diameter, 1.6 m wide). Pivot is the AXLE centre, not the ground: spin it about its local X axis (same axis in Blender and glTF). Fed at the front-top (overshot): spin it by a positive angle about +X so the top moves toward the front (+Z in game). No collider of its own (the mill's box covers it)."
+  },
+  "river_pine": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.4,
+      "height": 4.0
+    },
+    "footprint": 3.11,
+    "size": [
+      5.5,
+      12.15,
+      5.49
+    ],
+    "notes": "Conifer in the concept's distant style (cheap: ~230 triangles); for hillsides and the valley rim."
+  },
+  "river_shoal": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 3.78,
+    "size": [
+      8.4,
+      0.53,
+      4.32
+    ],
+    "notes": "Sandbar with a pebble bank. Put z = 0 at the water level: the sandy rim dips to -0.15 under the water, the top is at most 0.4 m. Pebbles cluster on the +Y side (game -Z): face that side toward the bank. Visual only; the riverbed or terrain carries the walk surface."
+  },
+  "river_willow": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.45,
+      "height": 4.0
+    },
+    "footprint": 4.56,
+    "size": [
+      7.29,
+      9.85,
+      8.77
+    ],
+    "notes": "Weeping willow for river banks; the leaf curtain hangs to ~1.5 m above ground. Collider is the trunk only."
+  }
+}

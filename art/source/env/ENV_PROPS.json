@@ -1,6 +1,66 @@
 {
   "_doc": "Written by tools/build-env-props.mjs. Environment-kit props this repo builds itself (art/tools/env); scripts/check-assets.mjs reads it.",
   "props": {
+    "river_birch": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_birch_pair": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_boat": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_boulder": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_boulder_large": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_bridge": {
+      "kit": "river",
+      "landmark": true
+    },
+    "river_cattails": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_dock": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_foam_ring": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_lilypads": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_mill": {
+      "kit": "river",
+      "landmark": true
+    },
+    "river_mill_wheel": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_pine": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_shoal": {
+      "kit": "river",
+      "landmark": false
+    },
+    "river_willow": {
+      "kit": "river",
+      "landmark": false
+    },
     "town_bridge": {
       "kit": "town",
       "landmark": true
