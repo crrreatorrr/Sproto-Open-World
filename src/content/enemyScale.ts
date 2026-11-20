@@ -23,6 +23,11 @@ export const ENEMY_SIZES: Readonly<Record<string, number>> = {
   scrapjaw: 1.6,
   burrowmother: 1.6,
   skyfire_drake: 1.8,
+  big_bitcoin_obama: 1.5,
+  laser_bot: 1.5,
+  shooter_bot: 1.5,
+  mega_tinubu: 1.6,
+  hex_sahil: 1.6,
 };
 
 /** An area circle must stay outrunnable: this much slack (m) on a sprint out of it during the wind-up. */

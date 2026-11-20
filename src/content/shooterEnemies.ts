@@ -780,7 +780,7 @@ export const SHOOTER_ENEMIES: Record<ShooterEnemyId, ShooterEnemyDef> = {
     blink: { hits: 3, distance: 9 },
     hover: 1.1,
     flying: { cruiseHeight: 1.1, bobAmplitude: 0.35, bobSpeed: 2.0 },
-    lockPoint: { up: 1.9 },
+    lockPoint: { up: 1.55 },
     cameraScale: 1.35,
     boss: {
       title: 'Arch-Hexer of the Moonlit Veil',
@@ -827,7 +827,7 @@ export const SHOOTER_ENEMIES: Record<ShooterEnemyId, ShooterEnemyDef> = {
       {
         id: 'void_sigil_storm',
         phases: [1, 2, 3],
-        windup: 38,
+        windup: 46,
         active: 8,
         recovery: 36,
         damage: 54,
@@ -842,7 +842,7 @@ export const SHOOTER_ENEMIES: Record<ShooterEnemyId, ShooterEnemyDef> = {
         trackUntil: 0,
         hitstop: 6,
         clip: 'cast_big',
-        area: { radius: 4.0 },
+        area: { radius: 3.4 },
         decal: 'circle',
       },
       {
