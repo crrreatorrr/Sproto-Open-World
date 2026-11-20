@@ -44,6 +44,10 @@ export type UiAction =
   | { kind: 'dialogueChoose'; choice: number }
   | { kind: 'buy'; merchant: string; item: string }
   | { kind: 'equip'; item: string }
+  /** Put a relic in a socket. With no socket, the first empty one; A on an equipped relic clears it. */
+  | { kind: 'equipRelic'; item: string; socket?: number }
+  | { kind: 'clearRelic'; socket: number }
+  | { kind: 'equipTotem'; item: string }
   /** Put a known spell (or nothing) in loadout slot 0–3. A spell already in another slot moves. */
   | { kind: 'equipSpell'; slot: number; spell: SpellId | null }
   | { kind: 'spendSkill'; skill: SkillId }

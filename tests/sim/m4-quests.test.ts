@@ -122,9 +122,17 @@ describe('side quests (plan §6.3)', () => {
     const { w } = await flatSproutvale();
     talk(w, 'miller_pepe', [0]);
     reach(w, 'mill');
-    slay(w, campMembers(w, 'mill_yard').find((x) => x.brain!.unique === 'big_coin')!);
+    const seal = (ev: readonly SimEvent[]) => ev.filter((x) => x.type === 'itemGained' && x.item === 'relic_tinubus_broken_seal');
+    // Big Coin down: the seal is still in the wheel.
+    const fought = slay(w, campMembers(w, 'mill_yard').find((x) => x.brain!.unique === 'big_coin')!);
+    expect(seal(fought)).toHaveLength(0);
+    expect(w.playerEntity(0)!.progress!.relics?.owned ?? []).not.toContain('relic_tinubus_broken_seal');
     standBy(w, 'mill_lever');
-    step(w, interact());
+    // The lever shakes it loose (the sealDrop cue) and the hook flag grants it, once.
+    const pulled = [...step(w, interact()), ...stepN(w, 3).map((t) => t.ev)];
+    expect(pulled.some((x) => x.type === 'cue' && x.cue === 'sealDrop')).toBe(true);
+    expect(seal(pulled)).toHaveLength(1);
+    expect(w.playerEntity(0)!.progress!.relics!.owned.filter((id) => id === 'relic_tinubus_broken_seal')).toHaveLength(1);
     expect(status(w, 'q_mill')).toBe('complete');
     expect(w.playerEntity(0)!.progress!.spells).toContain('chainZap');
     w.dispose();

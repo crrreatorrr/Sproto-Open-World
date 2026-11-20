@@ -1,6 +1,7 @@
 import type { DamageKind, PlayerMoveId } from '../content/combat';
 import type { AffixId } from '../content/packs/c4';
 import type { SkillRanks } from '../content/progression';
+import type { RelicProgress } from '../content/relics';
 import type { QuestState } from '../content/quests';
 import type { SpellId } from '../content/spells';
 import type { StatusId } from '../content/statuses';
@@ -82,6 +83,12 @@ export type Action =
       fired?: number;
       /** Enemy area moves: where the circle was placed when the wind-up started. */
       aim?: Vec3;
+      /**
+       * Enemy moves: a held wind-up waits at tick `holdAt` for `hold` more ticks (a fighter's delayed
+       * swing, or the move's own `holdTicks`). On the action, so every brain (fighter, boss, Drake) holds.
+       */
+      holdAt?: number;
+      hold?: number;
     }
   | {
       /** Casting a spell (upper body; the player may walk slowly). */
@@ -123,6 +130,8 @@ export interface Buffered {
   ttl: number;
   /** Pressed after the current attack's activeStart: held until its cancel opens. */
   untilCancel: boolean;
+  /** Tinubu's Broken Seal has already lengthened this press. */
+  relic?: true;
 }
 
 export interface Combat {
@@ -202,6 +211,40 @@ export interface Progress {
   shop: string | null;
   /** At a shrine (Rest / Skills menu): which one. */
   atShrine: string | null;
+  /** Relic sockets, the totem, and what has been won. Absent on a progress built before that save. */
+  relics?: RelicProgress;
+}
+
+/** Session clocks for relics. Not saved: a load starts them over. */
+export interface RelicRuntime {
+  hopeglassUntil: number;
+  hopeglassReadyAt: number;
+  /** Co-op Hopeglass: freeze until this tick instead of slowing the world. */
+  coopFreezeUntil: number;
+  rivetReadyAt: number;
+  briarReadyAt: number;
+  burnImmuneUntil: number;
+  holdTicks: number;
+  totemReadyAt: number;
+  lanternUntil: number;
+  lanternAt?: { x: number; z: number };
+  /** comboUntil last seen, so the Seal lengthens each new chain once. */
+  chainSeen: number;
+}
+
+/** A totem standing in the world. Age is in ticks; it fades over its last 2 s. */
+export interface PlacedTotem {
+  id: string;
+  age: number;
+  life: number;
+  x: number;
+  y: number;
+  z: number;
+  drawn: boolean;
+  reflectAt: number;
+  splashed: boolean;
+  lured: boolean;
+  seeded: boolean;
 }
 
 /** World flags and per-session world state (plan §2.8). */
@@ -311,9 +354,6 @@ export interface FightState {
   hits: number;
   hitAge: number;
   poise: number;
-  /** A delayed swing: the wind-up waits at tick `holdAt` for `hold` more ticks. */
-  holdAt: number;
-  hold: number;
   /** A feint: the wind-up breaks off at this tick (-1: it is a real attack). */
   feintAt: number;
   /** It just feinted, so the next attack is real. */
@@ -364,6 +404,12 @@ export interface EnemyBrain {
   affix?: AffixId;
   /** Called in by a boss: gone for good once dead, and gone when the fight resets. */
   summoned?: boolean;
+  /** Field Warden: walk here until this tick. */
+  lure?: { x: number; z: number; until: number };
+  /** Earthspeaker Stake: movement multiplier (1 when it isn't pulling). */
+  speedMul?: number;
+  /** Skylure Post: glide low until this tick. */
+  lowUntil?: number;
   /** Which wave of a scripted camp this member belongs to (1 is up; later waves wait). */
   wave?: number;
   /** Waiting offstage: no collider, no lock, no damage, until its wave is called. */
@@ -371,8 +417,9 @@ export interface EnemyBrain {
   /** A pumpkin (or similar) worn until a hit knocks it off. `carryHome` comes back with a rest. */
   carry?: string;
   carryHome?: string;
-  /** Running to this ally after the thing it carried was knocked off. */
+  /** Running to this ally (a Grunt of its own camp) after the thing it carried was knocked off, until `fleeUntil`. */
   fleeTo?: EntityId | null;
+  fleeUntil?: number;
   /** The add phase has already been called this life. */
   called?: boolean;
   /** It died staggered, so a stagger-only drop still falls. */
@@ -396,6 +443,8 @@ export interface BossState {
   summoned: boolean;
   /** Underground (dormant, or mid-burrow): nothing can touch it, and it has no collider. */
   under?: boolean;
+  /** Skylure Post already pulled this boss down in this phase. */
+  skylurePhase?: number;
   /** A boss that flies (the Skyfire Drake): where it is in the air. */
   flight?: DrakeFlight;
 }
@@ -472,8 +521,8 @@ export interface Projectile {
   woven?: boolean;
   /** Parried back into `shooter`: takes this fraction of its max HP and staggers it (Scrap Throw). */
   reflectBonus?: { hpFrac: number; stagger: number; shooter: EntityId; poiseFrac?: number; homing?: number };
-  /** The enemy move that fired it, so a reflected charged shot is not just "a projectile". */
-  move?: string;
+  /** The enemy move that fired this shot, so a reflected charged_shot can be told from a burst. */
+  sourceMove?: string;
 }
 
 /**
@@ -510,6 +559,10 @@ export interface Entity {
    * colliders are built (M4 camps, villagers, objects). Cleared once settled.
    */
   settle?: true;
+  /** Session relic clocks (Hopeglass, cooldowns). Not part of the save. */
+  relicRun?: RelicRuntime;
+  /** The totem this player has standing in the world. */
+  placedTotem?: PlacedTotem;
   /** Presentation hint only: which model to draw. */
   view: { model: string; tint?: number; scale?: number };
 }

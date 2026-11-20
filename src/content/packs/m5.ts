@@ -125,12 +125,12 @@ export const Q_SCRAPJAW: QuestDef = {
     { id: 'gate', text: 'Open the Quarry Gate with the Quarry Key.', objectives: [{ kind: 'interact', object: 'quarry_gate_lock' }], marker: 'quarry_gate_lock' },
     {
       id: 'boss', text: 'Defeat Scrapjaw in the Old Quarry.', objectives: [{ kind: 'kill', tag: 'scrapjaw', count: 1 }], marker: 'old_quarry',
-      onComplete: [{ give: 'staff_fighters_might' }, { setFlag: 'boss.scrapjaw.dead' }, { skillPoints: 1 }],
+      onComplete: [{ give: 'staff_fighters_might' }, { setFlag: 'boss.scrapjaw.dead' }, { skillPoints: 1 }, { give: 'relic_hopeglass' }],
     },
     { id: 'elder', text: 'Tell Elder Pepe the quarry is quiet.', objectives: [{ kind: 'talk', npc: 'elder_pepe', node: 'scrapjaw_return' }], marker: 'elder_pepe' },
   ],
   // Ember Heart has no other source: Scrapjaw's furnace, handed over by the Elder.
-  rewards: [{ give: 'charm_ember_heart' }, { currency: 300 }],
+  rewards: [{ give: 'charm_ember_heart' }, { currency: 300 }, { give: 'relic_sprotos_stride' }],
 };
 
 /** The quest. Captain Agent offers it; the Quarry Gate lock still starts it if you walk up with the key. */

@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { ENEMIES } from '../../src/content/enemies';
-import { BIG_COIN_ADD_BELOW, BIG_COIN_ADD_COUNT, BONUS_FLAGS, GATEKEEPER_STRING3_HOLD, PEST_CAMP, PEST_WAVE_SIZE } from '../../src/content/packs/encounterTune';
+import {
+  BIG_COIN_ADD_BELOW, BIG_COIN_ADD_COUNT, BONUS_FLAGS, GATEKEEPER_STRING3_HOLD, LENS_PREVIEW_FLAG, PEST_CAMP, PEST_WAVE_SIZE, PUMPKIN_FLEE_M,
+  PUMPKIN_FLEE_TICKS, SCRAPJAW_BITE_HOLD, SCRAPJAW_BITE_WINDUP,
+} from '../../src/content/packs/encounterTune';
 import { QUESTS } from '../../src/content/quests';
 import type { SimEvent } from '../../src/sim/events';
 import { newFight } from '../../src/sim/ai/tactics';
 import { questPolish, type PolishCtx } from '../../src/sim/systems/encounters';
 import type { Entity } from '../../src/sim/entity';
-import { step } from './combatHelpers';
+import { idle, step } from './combatHelpers';
 import { combatWorld } from './combatHelpers';
+import { bossWorld, startFight, tickAlive, until } from './bossHelpers';
 import { alive, campMembers, flatSproutvale } from './m4Helpers';
 
 function polish(w: { now: number; entities: Entity[]; world: PolishCtx['world'] }, events: SimEvent[], spawn?: PolishCtx['spawnAdd']): { added: Entity[]; dropped: { item?: string }[] } {
@@ -28,7 +32,7 @@ function polish(w: { now: number; entities: Entity[]; world: PolishCtx['world'] 
 
 const hit = (attacker: number, target: number, extra: Partial<Extract<SimEvent, { type: 'hit' }>> = {}): SimEvent => ({
   type: 'hit', attacker, target, move: 'projectile', damage: 9, kind: 'physical', affinity: 'normal', crit: false, heavy: false,
-  pos: { x: 0, y: 1, z: 0 }, hitstop: 3, reflected: true, source: 'coinBurst', ...extra,
+  pos: { x: 0, y: 1, z: 0 }, hitstop: 3, reflected: true, sourceMove: 'coinBurst', ...extra,
 });
 
 describe('pest control waves', () => {
@@ -106,6 +110,35 @@ describe('Gatekeeper delayed swing', () => {
   });
 });
 
+describe('Scrapjaw two-beat bite', () => {
+  it('in a real boss fight, the bite waits out its second beat: it lands at windup + hold, as the telegraph says', async () => {
+    const { w, p, boss } = await bossWorld('scrapjaw');
+    const bite = ENEMIES.scrapjaw.moves.find((m) => m.id === 'bite')!;
+    expect([bite.windup, bite.holdTicks]).toEqual([SCRAPJAW_BITE_WINDUP, SCRAPJAW_BITE_HOLD]);
+    startFight(w, p, boss, 3);
+    let telegraph: Extract<SimEvent, { type: 'telegraph' }> | undefined;
+    until(w, p, () => {
+      // Keep the player in the bite's reach, in front of it.
+      p.tf.pos = { x: boss.tf.pos.x + Math.sin(boss.tf.yaw) * 3, y: p.tf.pos.y, z: boss.tf.pos.z + Math.cos(boss.tf.yaw) * 3 };
+      telegraph = w.events.find((e): e is Extract<SimEvent, { type: 'telegraph' }> => e.type === 'telegraph' && e.entity === boss.id && e.move === 'bite');
+      return !!telegraph;
+    }, 6000, 'a bite');
+    expect(telegraph!.ticks).toBe(SCRAPJAW_BITE_WINDUP + SCRAPJAW_BITE_HOLD);
+
+    let swungAt = -1, hitAt = -1;
+    for (let t = 1; t <= telegraph!.ticks + bite.active + 4 && hitAt < 0; t++) {
+      const ev = tickAlive(w, p);
+      if (swungAt < 0 && ev.some((e) => e.type === 'swing' && e.entity === boss.id && e.move === 'bite')) swungAt = t;
+      if (ev.some((e) => e.type === 'hit' && e.attacker === boss.id && e.move === 'bite')) hitAt = t;
+    }
+    // The snap comes after both beats, not after the first one (24).
+    expect(swungAt).toBe(telegraph!.ticks);
+    expect(hitAt).toBeGreaterThanOrEqual(telegraph!.ticks);
+    expect(hitAt).toBeLessThanOrEqual(telegraph!.ticks + bite.active);
+    w.dispose();
+  }, 60_000);
+});
+
 describe('bonus feats', () => {
   it('counts reflected coins into Slingers, and a reflect kill only when the shot fells', async () => {
     const { w, p } = await combatWorld();
@@ -121,15 +154,15 @@ describe('bonus feats', () => {
     // A hit that is not a reflect does not count, and the gallery bonus wants the killing shot.
     const gun = w.spawnEnemy('rivet_gunner', { x: -3, y: 0, z: 0 });
     p.progress!.quests.q_iron_gallery = { status: 'active', step: QUESTS.q_iron_gallery.steps.findIndex((x) => x.id === 'gunners'), progress: [0, 0] };
-    polish(w, [hit(p.id, gun.id, { reflected: false, source: 'charged_shot' })]);
+    polish(w, [hit(p.id, gun.id, { reflected: false, sourceMove: 'charged_shot' })]);
     expect(w.world.flags[`${BONUS_FLAGS.gallery}.n`] ?? 0).toBe(0);
-    polish(w, [hit(p.id, gun.id, { source: 'charged_shot' })]);
+    polish(w, [hit(p.id, gun.id, { sourceMove: 'charged_shot' })]);
     expect(w.world.flags[`${BONUS_FLAGS.gallery}.n`] ?? 0).toBe(0);
-    polish(w, [hit(p.id, gun.id, { source: 'charged_shot' }), { type: 'death', entity: gun.id, killer: p.id }]);
+    polish(w, [hit(p.id, gun.id, { sourceMove: 'charged_shot' }), { type: 'death', entity: gun.id, killer: p.id }]);
     expect(w.world.flags[`${BONUS_FLAGS.gallery}.n`]).toBe(1);
-    polish(w, [hit(p.id, gun.id, { source: 'rivet_burst' }), { type: 'death', entity: gun.id, killer: p.id }]);
+    polish(w, [hit(p.id, gun.id, { sourceMove: 'rivet_burst' }), { type: 'death', entity: gun.id, killer: p.id }]);
     expect(w.world.flags[`${BONUS_FLAGS.gallery}.n`]).toBe(1);
-    polish(w, [hit(p.id, gun.id, { source: 'charged_shot' }), { type: 'death', entity: gun.id, killer: p.id }]);
+    polish(w, [hit(p.id, gun.id, { sourceMove: 'charged_shot' }), { type: 'death', entity: gun.id, killer: p.id }]);
     expect(w.world.flags[BONUS_FLAGS.gallery]).toBe(1);
     w.dispose();
   });
@@ -186,12 +219,125 @@ describe('pumpkin carriers', () => {
     const { w, p } = await combatWorld();
     const a = w.spawnEnemy('grunt_orchard', { x: 0, y: 0, z: 2 });
     const b = w.spawnEnemy('grunt_orchard', { x: 4, y: 0, z: 2 });
+    a.brain!.camp = b.brain!.camp = 'orchard_test';
     a.brain!.carry = 'stolen_pumpkin';
     a.brain!.carryHome = 'stolen_pumpkin';
-    const { dropped } = polish(w, [hit(p.id, a.id, { move: 'light1', reflected: false, source: undefined })]);
+    const { dropped } = polish(w, [hit(p.id, a.id, { move: 'light1', reflected: false, sourceMove: undefined })]);
     expect(dropped.map((d) => d.item)).toEqual(['stolen_pumpkin']);
     expect(a.brain!.carry).toBeUndefined();
     expect(a.brain!.fleeTo).toBe(b.id);
+    expect(a.brain!.fleeUntil).toBe(w.now + PUMPKIN_FLEE_TICKS);
+    w.dispose();
+  });
+
+  it('runs only to the nearest Grunt of its own camp inside the flee range, and stays put when there is none', async () => {
+    const { w, p } = await combatWorld();
+    const carrier = (x: number, camp: string) => {
+      const e = w.spawnEnemy('grunt_orchard', { x, y: 0, z: 2 });
+      e.brain!.camp = camp;
+      return e;
+    };
+    const a = carrier(0, 'orchard_a');
+    const knock = () => {
+      a.brain!.carry = 'stolen_pumpkin';
+      a.brain!.fleeTo = null;
+      polish(w, [hit(p.id, a.id, { move: 'light1', reflected: false, sourceMove: undefined })]);
+      return a.brain!.fleeTo;
+    };
+    // Another camp's Grunt right beside it, its own camp's beyond the range: nowhere to run.
+    carrier(1, 'orchard_b');
+    const far = carrier(PUMPKIN_FLEE_M + 2, 'orchard_a');
+    expect(knock()).toBeNull();
+    // Of two in range, the nearer one.
+    carrier(6, 'orchard_a');
+    const near = carrier(3, 'orchard_a');
+    expect(knock()).toBe(near.id);
+    // A dead one does not count.
+    near.combat!.action = { kind: 'dead', t: 0 };
+    expect(knock()).not.toBe(near.id);
+    expect(knock()).not.toBe(far.id);
+    w.dispose();
+  });
+
+  it('gives up the run at its leash or when the time is up, and the leash brings it home', async () => {
+    // The player well away, so nothing but the run and the leash moves the Grunt.
+    const { w } = await combatWorld({ pos: { x: -60, y: 0, z: -60 } });
+    const a = w.spawnEnemy('grunt_orchard', { x: 0, y: 0, z: 0 });
+    const b = w.spawnEnemy('grunt_orchard', { x: 200, y: 0, z: 0 });
+    a.brain!.camp = b.brain!.camp = 'orchard_a';
+    // Even a stale run to a far ally (an old save, a moved Grunt) ends at the leash.
+    a.brain!.fleeTo = b.id;
+    a.brain!.fleeUntil = w.now + 100_000;
+    const leash = ENEMIES.grunt_orchard.leashRange;
+    let fromHome = 0;
+    for (let i = 0; i < 3000 && a.brain!.fleeTo; i++) {
+      step(w, idle());
+      fromHome = Math.hypot(a.tf.pos.x - a.brain!.home.x, a.tf.pos.z - a.brain!.home.z);
+    }
+    expect(a.brain!.fleeTo).toBeNull();
+    expect(fromHome).toBeLessThan(leash + 1);
+    for (let i = 0; i < 1200 && Math.hypot(a.tf.pos.x, a.tf.pos.z) > 1.5; i++) step(w, idle());
+    expect(Math.hypot(a.tf.pos.x, a.tf.pos.z)).toBeLessThan(1.5);
+    expect(a.brain!.fleeTo).toBeNull();
+
+    // Time up: it stops running even with the ally still ahead.
+    b.tf.pos = { x: 8, y: 0, z: 0 };
+    a.brain!.fleeTo = b.id;
+    a.brain!.fleeUntil = w.now + 5;
+    for (let i = 0; i < 10; i++) step(w, idle());
+    expect(a.brain!.fleeTo).toBeNull();
+    w.dispose();
+  });
+});
+
+describe('bonus flags grant the keepsakes (workstream C counts, B grants)', () => {
+  it('the first tick a bonus flag is set, its keepsake is won, once', async () => {
+    const { w, p } = await combatWorld();
+    const gained = (ev: readonly SimEvent[], id: string) => ev.filter((e) => e.type === 'itemGained' && e.item === id).length;
+    expect(gained(step(w), 'relic_drowned_coins')).toBe(0);
+    w.world.flags[`${BONUS_FLAGS.watchtower}.n`] = 2;
+    expect(gained(step(w), 'relic_drowned_coins')).toBe(0);
+    w.world.flags[BONUS_FLAGS.watchtower] = 1;
+    expect(gained(step(w), 'relic_drowned_coins')).toBe(1);
+    expect(gained(step(w), 'relic_drowned_coins')).toBe(0);
+    w.world.flags[BONUS_FLAGS.gallery] = 1;
+    w.world.flags[BONUS_FLAGS.giant] = 1;
+    const ev = step(w);
+    expect(gained(ev, 'relic_elder_iron_rivet')).toBe(1);
+    expect(gained(ev, 'relic_sprotos_stride')).toBe(1);
+    expect(p.progress!.relics!.owned.filter((id) => id === 'relic_drowned_coins')).toHaveLength(1);
+    w.dispose();
+  });
+
+  it('three reflected coins into Slingers, through the real tick, win the Coins', async () => {
+    const { w, p } = await combatWorld();
+    const s = w.spawnEnemy('slinger', { x: 3, y: 0, z: 0 });
+    p.progress!.quests.q_watchtower = { status: 'active', step: QUESTS.q_watchtower.steps.findIndex((x) => x.id === 'slingers'), progress: [0] };
+    let won = 0;
+    for (let i = 0; i < 3; i++) {
+      // A reflected coin connecting, as stepProjectiles reports it, then the rest of the tick.
+      w.events.push(hit(p.id, s.id));
+      polish(w, w.events.splice(0));
+      won += step(w).filter((e) => e.type === 'itemGained' && e.item === 'relic_drowned_coins').length;
+    }
+    expect(w.world.flags[BONUS_FLAGS.watchtower]).toBe(1);
+    expect(won).toBe(1);
+    w.dispose();
+  });
+});
+
+describe('lens preview', () => {
+  it('is a tick of this session: never saved, and dropped from an older save on load', async () => {
+    const { w } = await flatSproutvale();
+    w.world.flags[LENS_PREVIEW_FLAG] = w.now + 300;
+    const save = w.toSave({ savedAt: 'now', build: 'test', region: 'sproutvale' });
+    expect(save.world.flags[LENS_PREVIEW_FLAG]).toBeUndefined();
+    // Still in the live world.
+    expect(w.world.flags[LENS_PREVIEW_FLAG]).toBe(w.now + 300);
+    const old = structuredClone(save);
+    old.world.flags[LENS_PREVIEW_FLAG] = 99_999;
+    w.applySave(old);
+    expect(w.world.flags[LENS_PREVIEW_FLAG]).toBeUndefined();
     w.dispose();
   });
 });

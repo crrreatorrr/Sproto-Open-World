@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DIALOGUE } from '../../src/content/dialogue';
 import { ENEMIES } from '../../src/content/enemies';
 import { ITEMS } from '../../src/content/items';
+import { isKeepsake } from '../../src/content/relics';
 import { DROPS } from '../../src/content/loot';
 import { NPCS } from '../../src/content/npcs';
 import { OBJECTS } from '../../src/content/objects';
@@ -140,7 +141,7 @@ describe('quests (plan §6.2, §6.3)', () => {
         if (s.marker) expect(npcIds.has(s.marker) || placeIds.has(s.marker) || triggerIds.has(s.marker), s.marker).toBe(true);
       }
       for (const fx of [...q.rewards, ...q.steps.flatMap((s) => s.onComplete ?? [])]) {
-        if ('give' in fx) expect(ITEMS[fx.give], fx.give).toBeDefined();
+        if ('give' in fx) expect(!!ITEMS[fx.give] || isKeepsake(fx.give), fx.give).toBe(true);
         if ('learnSpell' in fx) expect(SPELLS[fx.learnSpell], fx.learnSpell).toBeDefined();
       }
     });
@@ -155,7 +156,7 @@ describe('quests (plan §6.2, §6.3)', () => {
   it('nothing is given twice (quest rewards, chests, objects)', () => {
     const given: string[] = [];
     const add = (fx: Effect) => {
-      if ('give' in fx && !ITEMS[fx.give].stacks) given.push(fx.give);
+      if ('give' in fx && !ITEMS[fx.give]?.stacks) given.push(fx.give);
       if ('learnSpell' in fx) given.push(`spell:${fx.learnSpell}`);
     };
     for (const q of Object.values(QUESTS)) for (const fx of [...q.rewards, ...q.steps.flatMap((s) => s.onComplete ?? [])]) add(fx);

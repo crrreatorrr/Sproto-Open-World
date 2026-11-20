@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SaveError, migrate } from '../../src/save/migrations';
+import { QUESTS } from '../../src/content/quests';
 import { SAVE_SCHEMA } from '../../src/save/schema';
 import { evs, interact, standBy, tick1, village } from '../sim/m3Helpers';
 
@@ -11,7 +12,7 @@ const fixture = (name: string): Record<string, unknown> => JSON.parse(fs.readFil
 
 describe('save migrations (M3 acceptance 2)', () => {
   it(`the current schema is ${SAVE_SCHEMA} and has a fixture`, () => {
-    expect(SAVE_SCHEMA).toBe(3);
+    expect(SAVE_SCHEMA).toBe(4);
     expect(fixture(`save-v${SAVE_SCHEMA}.json`).schema).toBe(SAVE_SCHEMA);
   });
 
@@ -48,7 +49,7 @@ describe('save migrations (M3 acceptance 2)', () => {
   it('v2 → v3: known spells go to their old slots; attributes map to skills; total points = 2 × (level − 1)', () => {
     const v2 = fixture('save-v2.json');
     const s = migrate(structuredClone(v2));
-    expect(s.schema).toBe(3);
+    expect(s.schema).toBe(SAVE_SCHEMA);
     expect(s.player.loadout).toEqual(['bolt', 'blast', null, null]);
     expect(s.player.skills).toEqual({ spellPower: 1, protection: 0, focus: 0, attack: 0, defense: 0, stamina: 0 });
     expect(s.player.points).toBe(1);
@@ -117,8 +118,102 @@ describe('save migrations (M3 acceptance 2)', () => {
   });
 
   it('the current schema passes unchanged', () => {
+    const v4 = fixture('save-v4.json');
+    expect(migrate(structuredClone(v4))).toEqual(v4);
+  });
+
+  it('v3 → v4: an old save grows empty relic sockets and keeps everything else', () => {
     const v3 = fixture('save-v3.json');
-    expect(migrate(structuredClone(v3))).toEqual(v3);
+    const s = migrate(structuredClone(v3));
+    expect(s.schema).toBe(4);
+    // The fixture finished Wake Up, Sproto, whose shrine step gives Elder's Hearth.
+    expect(s.player.relics).toEqual({ sockets: [null, null, null], totem: null, owned: ['totem_elders_hearth'], seedSpent: false, introduced: false });
+    const p3 = v3.player as Record<string, unknown>;
+    for (const k of ['level', 'xp', 'sprouts', 'equipment', 'inventory', 'spells', 'loadout', 'skills', 'points', 'tonics', 'quests', 'tracked', 'lastShrine', 'discoveredShrines'] as const) {
+      expect(s.player[k], k).toEqual(p3[k]);
+    }
+    expect(s.world).toEqual(v3.world);
+  });
+
+  it('v3 → v4: keepsakes already won are handed over (steps done, quests done, fallback givers)', () => {
+    const v3 = fixture('save-v3.json');
+    const p = v3.player as Record<string, unknown>;
+    const done = { status: 'complete', step: 99, progress: [] };
+    const quests = { q_wake_up: done, q_pest_control: done, q_thornwood: done, q_scrapjaw: done };
+    const s = migrate({ ...structuredClone(v3), player: { ...p, quests } });
+    // In catalog order: Coins (Thornwood's fallback reward), the Grip (Thornwood's Gatekeeper step),
+    // Hopeglass (Scrapjaw's boss step), Stride (Scrapjaw's fallback reward), then the two totems.
+    expect(s.player.relics!.owned).toEqual([
+      'relic_drowned_coins', 'relic_gatekeepers_grip', 'relic_hopeglass', 'relic_sprotos_stride', 'totem_elders_hearth', 'totem_field_warden',
+    ]);
+    expect(s.player.relics!.sockets).toEqual([null, null, null]);
+    expect(s.player.relics!.totem).toBeNull();
+  });
+
+  it('v3 → v4: an active quest owns what its finished steps gave, not what is ahead or a bonus not won', () => {
+    const v3 = fixture('save-v3.json');
+    const p = v3.player as Record<string, unknown>;
+    const at = (quest: string, stepId: string) => {
+      const steps = QUESTS[quest].steps;
+      const step = steps.findIndex((x) => x.id === stepId);
+      return { status: 'active', step, progress: new Array<number>(steps[step].objectives.length).fill(0) };
+    };
+    const quests = {
+      // Past the Gatekeeper: the Grip was given.
+      q_thornwood: at('q_thornwood', 'key'),
+      // Facing Scrapjaw: Hopeglass comes when the boss step is done.
+      q_scrapjaw: at('q_scrapjaw', 'boss'),
+      // Watchtower done: its Coins are a bonus (three reflect kills), not a step reward.
+      q_watchtower: { status: 'complete', step: QUESTS.q_watchtower.steps.length, progress: [] },
+    };
+    const s = migrate({ ...structuredClone(v3), player: { ...p, quests } });
+    expect(s.player.relics!.owned).toEqual(['relic_gatekeepers_grip']);
+  });
+
+  it('a save whose bonus flag (or mill lever) is already set owns that keepsake after reconcile', () => {
+    const v4 = fixture('save-v4.json');
+    const world = v4.world as { flags: Record<string, number> };
+    const flagged = (flags: Record<string, number>) => migrate({ ...structuredClone(v4), world: { ...world, flags: { ...world.flags, ...flags } } }).player.relics!.owned;
+    expect(flagged({ 'bonus.q_watchtower.reflect': 1 })).toContain('relic_drowned_coins');
+    expect(flagged({ 'bonus.q_iron_gallery.reflect': 1 })).toContain('relic_elder_iron_rivet');
+    expect(flagged({ 'bonus.q_hollow_giant.dodge': 1 })).toContain('relic_sprotos_stride');
+    expect(flagged({ 'hook.tinubu_seal': 1 })).toContain('relic_tinubus_broken_seal');
+    // A save from before the lever's hook flag: the lever's used flag says it was pulled.
+    expect(flagged({ 'used:mill_lever': 1 })).toContain('relic_tinubus_broken_seal');
+    // Progress toward a bonus is not the bonus.
+    expect(flagged({ 'bonus.q_watchtower.reflect.n': 2 })).not.toContain('relic_drowned_coins');
+    expect(flagged({})).toEqual(['totem_elders_hearth']);
+  });
+
+  it('a v4 save with the old relic feat counters loads, and the counters are dropped', () => {
+    const v4 = fixture('save-v4.json');
+    const p = v4.player as { relics: Record<string, unknown> };
+    const old = { ...structuredClone(v4), player: { ...p, relics: { ...p.relics, giantDodges: 2, bonus: { relic_drowned_coins: 1 } } } };
+    const s = migrate(old);
+    expect(s.player.relics).toEqual(p.relics);
+    expect(s.player.relics).not.toHaveProperty('giantDodges');
+    expect(s.player.relics).not.toHaveProperty('bonus');
+  });
+
+  it('a fresh save owns no keepsakes', async () => {
+    const { w } = await village();
+    const s = migrate(JSON.parse(JSON.stringify(w.toSave({ savedAt: 'now', build: 'test', region: 'sproutvale' }))));
+    expect(s.player.relics!.owned).toEqual([]);
+    w.dispose();
+  });
+
+  it('keepsakes are handed over once: reconciling again adds nothing, and owned ones keep their order', () => {
+    const v3 = fixture('save-v3.json');
+    const p = v3.player as Record<string, unknown>;
+    const done = { status: 'complete', step: 99, progress: [] };
+    const once = migrate({ ...structuredClone(v3), player: { ...p, quests: { q_wake_up: done, q_thornwood: done } } });
+    const twice = migrate(JSON.parse(JSON.stringify(once)));
+    expect(twice).toEqual(once);
+    expect(new Set(twice.player.relics!.owned).size).toBe(twice.player.relics!.owned.length);
+    // A keepsake won in play keeps its place; what the log says was won goes after it, once.
+    const played = structuredClone(once);
+    played.player.relics!.owned = ['totem_elders_hearth', 'relic_hopeglass', 'relic_hopeglass'];
+    expect(migrate(played).player.relics!.owned).toEqual(['totem_elders_hearth', 'relic_hopeglass', 'relic_drowned_coins', 'relic_gatekeepers_grip']);
   });
 
   it('a newer schema is rejected (SaveError)', () => {

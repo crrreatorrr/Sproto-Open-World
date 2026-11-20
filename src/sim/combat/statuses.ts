@@ -2,6 +2,7 @@ import { AFFINITY_MULT, ENEMIES, type Affinity } from '../../content/enemies';
 import { STATUS, type StatusId } from '../../content/statuses';
 import type { Entity, EntityId } from '../entity';
 import { affixAffinity } from '../systems/affixes';
+import { burnBlocked } from '../systems/relics';
 import type { CombatCtx } from './playerCombat';
 
 /** A target's affinity for a status (players have none: normal). */
@@ -18,6 +19,7 @@ export function applyStatus(ctx: CombatCtx, target: Entity, id: StatusId, stacks
   const c = target.combat;
   const v = target.vitals;
   if (!c || !v || c.action?.kind === 'dead') return;
+  if (id === 'burn' && burnBlocked(target, ctx.now)) return;
   const affinity = statusAffinity(target, id);
   const k = AFFINITY_MULT[affinity];
   const st = (target.statuses ??= {});
@@ -105,9 +107,9 @@ export function clockTicks(e: Entity): boolean {
   return false;
 }
 
-/** Movement speed multiplier from chill. */
+/** Movement speed multiplier from chill, and from an Earthspeaker Stake in the ground. */
 export function moveScale(e: Entity): number {
-  return chillSpeed(e);
+  return chillSpeed(e) * (e.brain?.speedMul ?? 1);
 }
 
 /** How fast poise's refill delay counts down: shock halves it, ×1.5 / ×0.5 by affinity (§4.6). */
