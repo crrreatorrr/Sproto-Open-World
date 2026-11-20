@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { AssetLoader } from '../assets/AssetLoader';
 import { MODELS, STAFF_BOOT_LOD, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
+import { playCritSfx, playGunshot, playHitmarkerSfx, playReloadSfx } from '../audio/gunSfx';
 import { zoneAt } from '../audio/zones';
 import { CAM, CameraRig, type CameraOccluder } from '../camera/CameraRig';
 import { classOf, firesAsBullets, type ClassId, type GunDef } from '../content/classes';
@@ -1293,6 +1294,21 @@ export class App {
           const bonus = ev.unlockAbility ? ` Unlocked ${ev.unlockAbility}!` : '';
           this.hud.toast(`Dungeon cleared! +${ev.rewardXp} XP, +${ev.rewardSprouts} Sprouts.${bonus}`);
         }
+      }
+    }
+    if (this.sim?.gunEvents.length) {
+      const vol = this.settings.sfxVolume;
+      for (const ev of this.sim.gunEvents) {
+        if (ev.fired) {
+          playGunshot(ev.gunType, vol);
+          if (ev.entity === this.playerId) this.viewmodel?.kick(1, ev.hand === 'left' ? 'left' : 'right');
+        }
+        if (ev.hit) {
+          if (ev.crit) playCritSfx(vol);
+          else playHitmarkerSfx(vol);
+        }
+        if (ev.reloadStarted) playReloadSfx(vol, 'start');
+        if (ev.reloadCompleted) playReloadSfx(vol, 'end');
       }
     }
   }
