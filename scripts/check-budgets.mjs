@@ -26,8 +26,8 @@ const files = fs.readdirSync(build);
 const html = fs.readFileSync(path.join(DIST, 'index.html'), 'utf8');
 const entry = [...html.matchAll(/(?:src|href)="\.\/build\/([^"]+)"/g)].map((m) => m[1]);
 const shell = gz(path.join(DIST, 'index.html')) + entry.reduce((n, f) => n + gz(path.join(build, f)), 0);
-// PvpArenaMode is only dynamically imported on `?pvp=1`, never on open-world boot.
-const allJs = files.filter((f) => f.endsWith('.js') && !f.startsWith('PvpArenaMode-')).reduce((n, f) => n + gz(path.join(build, f)), 0);
+// PvpArenaMode (`?pvp=1`) and DungeonView (`?dungeon=LXX`) are dynamically imported only in their modes.
+const allJs = files.filter((f) => f.endsWith('.js') && !f.startsWith('PvpArenaMode-') && !f.startsWith('DungeonView-')).reduce((n, f) => n + gz(path.join(build, f)), 0);
 const rapier = files.filter((f) => f.startsWith('rapier') && f.endsWith('.js')).reduce((n, f) => n + gz(path.join(build, f)), 0);
 // The class's own body and starting weapon (one class plays at a time).
 const CLASS_BOOT = {

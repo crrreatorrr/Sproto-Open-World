@@ -40,7 +40,7 @@ import { PortraitStudio } from '../render/PortraitStudio';
 import { Renderer } from '../render/Renderer';
 import { getDungeon, getDungeonById } from '../content/dungeons/catalog';
 import type { DungeonId } from '../content/dungeons/types';
-import { DungeonView } from '../render/dungeon/DungeonView';
+import type { DungeonView } from '../render/dungeon/DungeonView';
 import { PlayerView } from '../render/views/PlayerView';
 import { Viewmodel } from '../render/views/Viewmodel';
 import { WorldViews, enemyDef } from '../render/views/WorldViews';
@@ -590,6 +590,7 @@ export class App {
       if (DUNGEON_ID) {
         const def = getDungeon(DUNGEON_ID);
         sim.startDungeon(DUNGEON_ID);
+        const { DungeonView } = await import('../render/dungeon/DungeonView');
         this.dungeonView = new DungeonView(def);
         this.renderer.scene.add(this.dungeonView.root);
         this.dungeonView.applyLighting(this.renderer.scene);

@@ -25,7 +25,10 @@ describe('dialogue graphs', () => {
 
 describe('quest steps', () => {
   /** Where each enemy stands. */
-  const standing = (C.camps ?? []).flatMap((c) => c.members.map((m) => ({ def: m.def, x: c.pos[0] + m.at[0], z: c.pos[2] + m.at[1] })));
+  const standing = [
+    ...C.enemies.map((e) => ({ def: e.def, x: e.pos[0], z: e.pos[2] })),
+    ...(C.camps ?? []).flatMap((c) => c.members.map((m) => ({ def: m.def, x: c.pos[0] + m.at[0], z: c.pos[2] + m.at[1] }))),
+  ];
   const places = new Map<string, readonly number[]>([...C.triggers, ...C.npcs, ...C.chests, ...(C.objects ?? []), ...C.shrines].map((p) => [p.id, p.pos]));
   const droppers = (item: string) => Object.entries(DROPS).filter(([, d]) => d.items?.some((i) => i.item === item)).map(([id]) => id);
   const isTag = (def: string, tag: string) => def === tag || !!ENEMIES[def].tags?.includes(tag);
