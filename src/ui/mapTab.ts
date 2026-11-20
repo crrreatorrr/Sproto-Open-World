@@ -67,6 +67,16 @@ export const OVERWORLD_LABELS: Partial<Record<RegionId, readonly { name: string;
     { name: 'Lower Veil', x: 1420, z: 1606 },
     { name: 'Veil Spring', x: 1160, z: 2330 },
   ],
+  mountains: [
+    { name: 'Lowpine Meadow', x: 322, z: 1700 },
+    { name: 'Tarnhollow', x: 432, z: 1905 },
+    { name: 'Frost Tarn', x: 466, z: 1942 },
+    { name: 'Switchback Stair', x: 316, z: 2110 },
+    { name: 'Eyrie Shelf', x: 324, z: 2246 },
+    { name: 'Rope Bridge', x: 404, z: 2250 },
+    { name: 'The Rimecleft', x: 400, z: 2150 },
+    { name: 'The Old Watch', x: 472, z: 2262 },
+  ],
 };
 
 /** The picture a world point belongs on: its region's map, baked by tools/bake-map.mjs. */
