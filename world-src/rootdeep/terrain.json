@@ -4,7 +4,7 @@
   "seed": 20261118,
   "origin": [64, 0],
   "size": [8, 8],
-  "heightRange": {"min": -8, "max": 40},
+  "heightRange": {"min": -16, "max": 240},
   "base": {"height": 16, "noise": {"amplitude": 0, "scale": 64, "octaves": 1, "persistence": 0.5, "lacunarity": 2}},
   "noise": [],
   "raise": [],

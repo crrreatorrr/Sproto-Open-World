@@ -63,7 +63,7 @@ describe('baked Sproutvale', () => {
   });
 
   it('sets the fog, splat layers and horizon the plan asks for', () => {
-    expect(manifest.fog).toEqual({ near: 80, far: 180, farPlane: 450 });
+    expect(manifest.fog).toEqual({ near: 140, far: 820, farPlane: 2200 });
     expect(manifest.splatLayers).toEqual(['grass', 'dirt', 'rock', 'path']);
     expect(manifest.cellSize).toBe(CELL_SIZE);
     expect(fs.existsSync(path.join(PUBLIC, manifest.horizon))).toBe(true);
@@ -159,10 +159,15 @@ describe('baked Sproutvale', () => {
     const inSeam = (x: number, z: number) => Math.hypot(x - 388, z - 469) <= 31;
     for (let z = inner; z < D * CELL_SIZE - inner; z++) for (let x = inner; x < W * CELL_SIZE - inner; x++) if (!inSeam(x, z)) worstInside = Math.max(worstInside, quadSlope(x, z));
     expect(worstInside).toBeLessThanOrEqual(45);
-    // Every edge column/row climbs a cliff steeper than the controller's slide angle.
+    // Every wall edge climbs a cliff steeper than the controller's slide angle: the west and south
+    // edges, and the quarry corner's spans of the north and east edges (world-src/overworld.json's
+    // closed spans, past their 24 m taper). The rest of the north and east edges are open seams.
     const n = W * CELL_SIZE;
     for (let i = 0; i < n; i += 4) {
-      for (const [x, z] of [[2, i], [n - 3, i], [i, 2], [i, n - 3]]) expect(quadSlope(x, z), `edge ${x},${z}`).toBeGreaterThan(KCC.minSlideDeg);
+      const walls: number[][] = [[2, i], [i, 2]];
+      if (i >= 380 + 24) walls.push([i, n - 3]);
+      if (i >= 330 + 24) walls.push([n - 3, i]);
+      for (const [x, z] of walls) expect(quadSlope(x, z), `edge ${x},${z}`).toBeGreaterThan(KCC.minSlideDeg);
     }
   });
 

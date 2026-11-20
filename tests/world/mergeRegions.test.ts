@@ -5,9 +5,10 @@ import type { PropCollider, RegionManifest } from '../../src/content/world/forma
 import { mergeManifests } from '../../src/world/RegionManifest';
 
 /**
- * Quest 1: the cave's cells join Sproutvale's manifest. Origin, size and horizon stay the valley's,
- * so streaming, the horizon mask and the player start keep working. Both regions share one height
- * range; a prop both use keeps the larger baked capacity.
+ * The world's regions join into one manifest: cells joined, origin and size widened to cover every
+ * region (the horizon mask is built over it), player start and horizon kept from the first. All
+ * regions share one height range; a prop several use keeps the largest baked capacity; a river two
+ * regions list is kept once.
  */
 const PUBLIC = path.resolve(__dirname, '../../public');
 const readManifest = (region: string) =>
@@ -24,7 +25,7 @@ function withProp(key: string, capacity: number): RegionManifest {
     origin: [0, 0],
     size: [1, 1],
     cellSize: 64,
-    heightRange: { min: -8, max: 40 },
+    heightRange: { min: -16, max: 240 },
     cells: [],
     props: { [key]: { path: `models/props/${key}.glb`, collider: none, capacity } },
     playerStart: { pos: [0, 0, 0], yaw: 0 },
@@ -35,12 +36,19 @@ function withProp(key: string, capacity: number): RegionManifest {
 }
 
 describe('mergeManifests', () => {
-  it('joins the cells of both regions and keeps the first region\'s origin, size and horizon', () => {
+  it('joins the cells, covers both regions and keeps the first region\'s start and horizon', () => {
     const m = mergeManifests(sproutvale, rootdeep);
     expect(m.cells.length).toBe(sproutvale.cells.length + rootdeep.cells.length);
-    expect(m.origin).toEqual(sproutvale.origin);
-    expect(m.size).toEqual(sproutvale.size);
+    expect(m.origin).toEqual([0, 0]);
+    expect(m.size).toEqual([72, 8]);
     expect(m.horizon).toBe(sproutvale.horizon);
+    expect(m.playerStart).toEqual(sproutvale.playerStart);
+  });
+
+  it('keeps a river that two regions list once', () => {
+    const river = { id: 'r', kind: 'river' as const, points: [[0, 0, 1], [10, 0, 1]] as [number, number, number][], halfWidth: 3, flow: 1 };
+    const m = mergeManifests({ ...withProp('a', 1), water: [river] }, { ...withProp('b', 1), water: [river] });
+    expect(m.water).toHaveLength(1);
   });
 
   it('takes the larger capacity for a prop both regions use', () => {

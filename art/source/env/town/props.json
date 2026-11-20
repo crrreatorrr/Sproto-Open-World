@@ -1,0 +1,251 @@
+{
+  "town_house_blue": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        4.25,
+        3.23,
+        3.75
+      ]
+    },
+    "footprint": 6.5,
+    "size": [
+      9.5,
+      12.12,
+      8.62
+    ],
+    "notes": "Building. Front (door, dormer) faces +Z. Collider covers the walls up to the eaves (box centred at y = hy). Stone ground floor 3 m, eaves 6.45 m."
+  },
+  "town_house_red": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        3.6,
+        4.2,
+        4.3
+      ]
+    },
+    "footprint": 6.2,
+    "size": [
+      8.5,
+      13.77,
+      9.7
+    ],
+    "notes": "Building, front gable faces +Z; upper floors jetty 0.6 m out over the street. Collider to the eaves, centred at y = hy."
+  },
+  "town_house_narrow": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        2.55,
+        4.25,
+        3.65
+      ]
+    },
+    "footprint": 4.8,
+    "size": [
+      6.33,
+      12.88,
+      9.03
+    ],
+    "notes": "Narrow townhouse with a shop front and awning on +Z; line several up with ~5.2 m spacing for a street. Awning sticks 1.5 m out in front (not in the collider)."
+  },
+  "town_house_corner": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        5.2,
+        3.0,
+        4.2
+      ]
+    },
+    "footprint": 7.0,
+    "size": [
+      11.47,
+      10.68,
+      9.57
+    ],
+    "notes": "Wide L-shaped house: gable wing on the front left, market stall with awning on the front right (+Z). Good on a plaza corner. Collider is the full footprint."
+  },
+  "town_clock_tower": {
+    "landmark": true,
+    "collider": {
+      "kind": "box",
+      "half": [
+        3.6,
+        15.0,
+        3.6
+      ]
+    },
+    "footprint": 7.0,
+    "size": [
+      8.53,
+      31.4,
+      8.27
+    ],
+    "notes": "Landmark: place once on the main plaza, arched door facing the plaza (+Z). Visible from far away; keep 6 m clear around it."
+  },
+  "town_keep": {
+    "landmark": true,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 4.1,
+      "height": 14.3
+    },
+    "footprint": 6.0,
+    "size": [
+      8.94,
+      15.24,
+      9.63
+    ],
+    "notes": "Landmark: round watch tower for a distant hilltop, door faces +Z. Sink the battered base 0.3 m into the slope."
+  },
+  "town_bridge": {
+    "landmark": true,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 9.0,
+    "size": [
+      16.26,
+      4.49,
+      6.47
+    ],
+    "notes": "Landmark: stone arch bridge, deck runs along local x (16 m), canal flows along local z under the 8 m arch. Walkable: no collider; the terrain/walk mesh must carry the deck (3.5 m at the centre, 3.2 m at the ends) and the parapet tops (deck + 0.65 m) need thin walls if wanted."
+  },
+  "town_canal_wall": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        4.0,
+        1.5,
+        0.55
+      ]
+    },
+    "footprint": 4.2,
+    "size": [
+      8.0,
+      3.04,
+      1.4
+    ],
+    "notes": "Tiles every 8 m along its local x. Water side faces +Z; base at the canal bed, top 3 m above it, back flush with the bank."
+  },
+  "town_stairs": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 3.8,
+    "size": [
+      4.15,
+      3.67,
+      6.13
+    ],
+    "notes": "Walkable: no collider; the terrain must carry the steps. Rises 3 m from local -z (bottom) to +z (top) over 6 m, 4 m wide incl. 0.4 m cheek walls."
+  },
+  "town_market_stall": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        1.5,
+        1.3,
+        1.0
+      ]
+    },
+    "footprint": 2.2,
+    "size": [
+      3.2,
+      2.68,
+      2.67
+    ],
+    "notes": "Customer side faces +Z. Scatter in rows on the plaza, 3.5 m apart."
+  },
+  "town_lamp": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.2,
+      "height": 3.6
+    },
+    "footprint": 0.6,
+    "size": [
+      1.6,
+      3.71,
+      0.52
+    ],
+    "notes": "Street lamp; lantern glass uses fx_glow. Place every 10-14 m along streets, bridge ends and the plaza."
+  },
+  "town_planter": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        0.62,
+        0.4,
+        0.32
+      ]
+    },
+    "footprint": 0.8,
+    "size": [
+      1.38,
+      0.82,
+      0.78
+    ],
+    "notes": "Flower planter; scatter along walls, bridge parapets and the plaza edge."
+  },
+  "town_fence": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        1.5,
+        0.55,
+        0.1
+      ]
+    },
+    "footprint": 1.6,
+    "size": [
+      3.15,
+      1.14,
+      0.21
+    ],
+    "notes": "Tiles every 3 m along its local x (end posts coincide). Use along the winding hill road."
+  },
+  "town_props_cluster": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        1.5,
+        0.5,
+        0.95
+      ]
+    },
+    "footprint": 1.8,
+    "size": [
+      2.87,
+      1.13,
+      1.76
+    ],
+    "notes": "Barrels, crates and a bench; drop beside doors and stalls. Bench faces +Z."
+  },
+  "town_cobble_patch": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 0.0,
+    "size": [
+      8.0,
+      0.12,
+      8.0
+    ],
+    "notes": "Ground dressing: 8 x 8 m, 0.13 m tall. Tiles on a grid every 8 m over flat-ish terrain (plaza, streets); sink 0.02 m."
+  }
+}

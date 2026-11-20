@@ -1,0 +1,4421 @@
+{
+  "seed": 20261125,
+  "kinds": {
+    "wf_basalt_cliff": {
+      "model": "wf_basalt_cliff",
+      "collider": {
+        "kind": "box",
+        "half": [
+          13.83,
+          22.46,
+          4.45
+        ]
+      },
+      "footprint": 17,
+      "landmark": true,
+      "impostor": {
+        "shape": "box",
+        "color": [
+          0.19,
+          0.2,
+          0.22
+        ]
+      }
+    },
+    "wf_basalt_cliff_low": {
+      "model": "wf_basalt_cliff_low",
+      "collider": {
+        "kind": "box",
+        "half": [
+          11.55,
+          9.05,
+          4.78
+        ]
+      },
+      "footprint": 14,
+      "landmark": true,
+      "impostor": {
+        "shape": "box",
+        "color": [
+          0.22,
+          0.24,
+          0.23
+        ]
+      }
+    },
+    "wf_basalt_columns": {
+      "model": "wf_basalt_columns",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 2.1,
+        "height": 6.01
+      },
+      "footprint": 3
+    },
+    "wf_fall_tall": {
+      "model": "wf_fall_tall",
+      "collider": {
+        "kind": "none"
+      },
+      "footprint": 5,
+      "landmark": true,
+      "impostor": {
+        "shape": "box",
+        "color": [
+          0.8,
+          0.88,
+          0.92
+        ]
+      }
+    },
+    "wf_fall_mid": {
+      "model": "wf_fall_mid",
+      "collider": {
+        "kind": "none"
+      },
+      "footprint": 3.5,
+      "landmark": true,
+      "impostor": {
+        "shape": "box",
+        "color": [
+          0.8,
+          0.88,
+          0.92
+        ]
+      }
+    },
+    "wf_cascade_steps": {
+      "model": "wf_cascade_steps",
+      "collider": {
+        "kind": "box",
+        "half": [
+          5.7,
+          6.61,
+          5.28
+        ]
+      },
+      "footprint": 7,
+      "landmark": true,
+      "impostor": {
+        "shape": "box",
+        "color": [
+          0.34,
+          0.4,
+          0.42
+        ]
+      }
+    },
+    "wf_mist": {
+      "model": "wf_mist",
+      "collider": {
+        "kind": "none"
+      },
+      "footprint": 0
+    },
+    "wf_rainbow": {
+      "model": "wf_rainbow",
+      "collider": {
+        "kind": "none"
+      },
+      "footprint": 0
+    },
+    "wf_crystals": {
+      "model": "wf_crystals",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 0.38,
+        "height": 1.55
+      },
+      "footprint": 0.9
+    },
+    "wf_crystals_small": {
+      "model": "wf_crystals_small",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 0.22,
+        "height": 0.85
+      },
+      "footprint": 0.5
+    },
+    "wf_rim_slabs": {
+      "model": "wf_rim_slabs",
+      "collider": {
+        "kind": "box",
+        "half": [
+          2.85,
+          0.2,
+          1.26
+        ]
+      },
+      "footprint": 3.3
+    },
+    "wf_stone_steps": {
+      "model": "wf_stone_steps",
+      "collider": {
+        "kind": "none"
+      },
+      "footprint": 2.6
+    },
+    "wf_fern": {
+      "model": "wf_fern",
+      "collider": {
+        "kind": "none"
+      },
+      "footprint": 0.8
+    },
+    "wf_vines": {
+      "model": "wf_vines",
+      "collider": {
+        "kind": "none"
+      },
+      "footprint": 0
+    },
+    "wf_rope_bridge": {
+      "model": "wf_rope_bridge",
+      "collider": {
+        "kind": "none"
+      },
+      "footprint": 26,
+      "landmark": true,
+      "impostor": {
+        "shape": "box",
+        "color": [
+          0.4,
+          0.31,
+          0.22
+        ]
+      }
+    },
+    "wf_pine": {
+      "model": "wf_pine",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 0.45,
+        "height": 16
+      },
+      "footprint": 2.5
+    },
+    "wf_rim_paving": {
+      "model": "wf_rim_slabs",
+      "collider": {
+        "kind": "none"
+      },
+      "footprint": 2.6
+    },
+    "wf_columns_low": {
+      "model": "wf_basalt_columns",
+      "collider": {
+        "kind": "none"
+      },
+      "footprint": 2.2
+    },
+    "grove_boulder": {
+      "model": "grove_boulder",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 0.9,
+        "height": 1.6
+      },
+      "footprint": 1.2
+    },
+    "rock_outcrop": {
+      "model": "rock_outcrop",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 2.2,
+        "height": 3
+      },
+      "footprint": 2.8
+    },
+    "zen_rock_moss": {
+      "model": "zen_rock_moss",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 0.7,
+        "height": 1.8
+      },
+      "footprint": 1
+    },
+    "grove_stones": {
+      "model": "grove_stones",
+      "collider": {
+        "kind": "none"
+      },
+      "footprint": 1.5
+    },
+    "grove_pines": {
+      "model": "grove_pines",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 1.4,
+        "height": 22
+      },
+      "footprint": 5
+    },
+    "grove_reeds": {
+      "model": "grove_reeds",
+      "collider": {
+        "kind": "none"
+      },
+      "footprint": 0.8
+    }
+  },
+  "place": [
+    {
+      "_": "The Veilfalls amphitheatre: N1 and N2 carry the two tall falls (fed by veil_west and veil_main), N3 the vines and the bridge end; E1/E2 wall the east shelf."
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1172.5,
+        1756.81
+      ],
+      "yaw": 220,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.17
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1150,
+        1765
+      ],
+      "yaw": 180,
+      "scale": 1.25,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.11
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1126.91,
+        1759.55
+      ],
+      "yaw": 142,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.29
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1103.64,
+        1711.27
+      ],
+      "yaw": 68,
+      "scale": 1.3,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -50.65
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1121.32,
+        1689.04
+      ],
+      "yaw": 35,
+      "scale": 1.2,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -39.17
+    },
+    {
+      "key": "wf_fall_tall",
+      "at": [
+        1171.37,
+        1755.46
+      ],
+      "yaw": 220,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 1.16
+    },
+    {
+      "key": "wf_mist",
+      "at": [
+        1169.7,
+        1753.47
+      ],
+      "yaw": 220,
+      "scale": 1.26,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 1.51
+    },
+    {
+      "key": "wf_fall_tall",
+      "at": [
+        1150,
+        1763
+      ],
+      "yaw": 180,
+      "scale": 1.25,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 1.19
+    },
+    {
+      "key": "wf_mist",
+      "at": [
+        1150,
+        1760.4
+      ],
+      "yaw": 180,
+      "scale": 1.44,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 1.54
+    },
+    {
+      "key": "wf_rainbow",
+      "at": [
+        1155.79,
+        1750.19
+      ],
+      "yaw": -166.62,
+      "scale": 1.6,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 2.96
+    },
+    {
+      "_": "Side gorge (bearing 75): cascade into the pool, gorge pool and the stepped fall (G1), the rope bridge high over floor 1."
+    },
+    {
+      "key": "wf_cascade_steps",
+      "at": [
+        1112.33,
+        1740.09
+      ],
+      "yaw": 105,
+      "scale": 1.3,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -10.84
+    },
+    {
+      "key": "wf_mist",
+      "at": [
+        1120.44,
+        1737.92
+      ],
+      "yaw": 105,
+      "scale": 0.9,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 1.52
+    },
+    {
+      "key": "wf_basalt_columns",
+      "at": [
+        1116.42,
+        1749.56
+      ],
+      "yaw": 80,
+      "scale": 2.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.72
+    },
+    {
+      "key": "wf_basalt_columns",
+      "at": [
+        1109.02,
+        1750.92
+      ],
+      "yaw": 195,
+      "scale": 2.6,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -6
+    },
+    {
+      "key": "wf_basalt_columns",
+      "at": [
+        1111.14,
+        1729.85
+      ],
+      "yaw": 130,
+      "scale": 2.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.63
+    },
+    {
+      "key": "wf_basalt_columns",
+      "at": [
+        1104.05,
+        1732.37
+      ],
+      "yaw": 195,
+      "scale": 2.6,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -6
+    },
+    {
+      "key": "wf_basalt_cliff_low",
+      "at": [
+        1074.66,
+        1750.19
+      ],
+      "yaw": 105,
+      "scale": 1.3,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.42
+    },
+    {
+      "key": "wf_fall_mid",
+      "at": [
+        1075.7,
+        1744.53
+      ],
+      "yaw": 105,
+      "scale": 1.3,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 1.39
+    },
+    {
+      "key": "wf_mist",
+      "at": [
+        1077.82,
+        1743.96
+      ],
+      "yaw": 105,
+      "scale": 0.7,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 1.26
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1096.96,
+        1763.88
+      ],
+      "yaw": -165,
+      "scale": 0.82,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -40.82
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1066.05,
+        1772.16
+      ],
+      "yaw": -165,
+      "scale": 0.75,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -21.99
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1085.2,
+        1727.69
+      ],
+      "yaw": 15,
+      "scale": 0.85,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -36.8
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1052.35,
+        1736.49
+      ],
+      "yaw": 15,
+      "scale": 0.72,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -17.11
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1080.54,
+        1768.28
+      ],
+      "yaw": -165,
+      "scale": 0.78,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -35.73
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1067.81,
+        1732.35
+      ],
+      "yaw": 15,
+      "scale": 0.8,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -35.91
+    },
+    {
+      "key": "wf_rope_bridge",
+      "at": [
+        1088.18,
+        1746.56
+      ],
+      "yaw": 105,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 39.11
+    },
+    {
+      "_": "The Lowveil: a slimmer fall off the east terrace into its own pool, the escarpment dressed with low basalt cliffs."
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1420,
+        1616
+      ],
+      "yaw": 180,
+      "scale": 0.95,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 1.29
+    },
+    {
+      "key": "wf_fall_tall",
+      "at": [
+        1420,
+        1614.48
+      ],
+      "yaw": 180,
+      "scale": 0.95,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 1.54
+    },
+    {
+      "key": "wf_mist",
+      "at": [
+        1420,
+        1612.08
+      ],
+      "yaw": 180,
+      "scale": 0.9,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 1.86
+    },
+    {
+      "key": "wf_basalt_cliff_low",
+      "at": [
+        1386,
+        1624
+      ],
+      "yaw": 172,
+      "scale": 1.35,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -8.18
+    },
+    {
+      "key": "wf_basalt_cliff_low",
+      "at": [
+        1456,
+        1626
+      ],
+      "yaw": 186,
+      "scale": 1.3,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -13.65
+    },
+    {
+      "key": "wf_basalt_cliff_low",
+      "at": [
+        1352,
+        1630
+      ],
+      "yaw": 168,
+      "scale": 1.2,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -8.7
+    },
+    {
+      "key": "wf_basalt_cliff_low",
+      "at": [
+        1490,
+        1630
+      ],
+      "yaw": 192,
+      "scale": 1.25,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -10.54
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1030,
+        1646
+      ],
+      "yaw": 176,
+      "scale": 1.25,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -17.63
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1068,
+        1648
+      ],
+      "yaw": 184,
+      "scale": 1.3,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -32.08
+    },
+    {
+      "key": "wf_basalt_cliff_low",
+      "at": [
+        1236,
+        1646
+      ],
+      "yaw": 178,
+      "scale": 1.4,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -10.68
+    },
+    {
+      "key": "wf_basalt_cliff_low",
+      "at": [
+        1280,
+        1648
+      ],
+      "yaw": 186,
+      "scale": 1.35,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -11.24
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1182.22,
+        1748.6
+      ],
+      "yaw": -120,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.75
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1184.24,
+        1744.54
+      ],
+      "yaw": -113,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.74
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1185.76,
+        1740.25
+      ],
+      "yaw": -106,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.74
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1186.74,
+        1735.82
+      ],
+      "yaw": -99,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.74
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1187.18,
+        1731.3
+      ],
+      "yaw": -92,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.75
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1187.06,
+        1726.76
+      ],
+      "yaw": -85,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.75
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1186.39,
+        1722.27
+      ],
+      "yaw": -78,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.74
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1185.17,
+        1717.89
+      ],
+      "yaw": -71,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.74
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1183.44,
+        1713.69
+      ],
+      "yaw": -64,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.74
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1181.2,
+        1709.74
+      ],
+      "yaw": -57,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.74
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1178.5,
+        1706.09
+      ],
+      "yaw": -50,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.75
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1175.37,
+        1702.79
+      ],
+      "yaw": -43,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.74
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1171.87,
+        1699.9
+      ],
+      "yaw": -36,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.75
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1168.03,
+        1697.46
+      ],
+      "yaw": -29,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.75
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1163.94,
+        1695.51
+      ],
+      "yaw": -22,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.74
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1137.89,
+        1694.83
+      ],
+      "yaw": 19,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.89
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1133.69,
+        1696.56
+      ],
+      "yaw": 26,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.74
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1129.74,
+        1698.8
+      ],
+      "yaw": 33,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.74
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1126.09,
+        1701.5
+      ],
+      "yaw": 40,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.75
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1122.79,
+        1704.63
+      ],
+      "yaw": 47,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.74
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1119.9,
+        1708.13
+      ],
+      "yaw": 54,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.75
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1117.46,
+        1711.97
+      ],
+      "yaw": 61,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.75
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1115.51,
+        1716.06
+      ],
+      "yaw": 68,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.74
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1114.07,
+        1720.37
+      ],
+      "yaw": 75,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.75
+    },
+    {
+      "key": "wf_rim_paving",
+      "at": [
+        1113.16,
+        1724.82
+      ],
+      "yaw": 82,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.75
+    },
+    {
+      "key": "wf_crystals",
+      "at": [
+        1163.27,
+        1693.54
+      ],
+      "yaw": 1099,
+      "scale": 1.25,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.1
+    },
+    {
+      "key": "wf_crystals",
+      "at": [
+        1175.98,
+        1700.11
+      ],
+      "yaw": 952,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.1
+    },
+    {
+      "key": "wf_crystals_small",
+      "at": [
+        1184.57,
+        1712.39
+      ],
+      "yaw": 798,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.1
+    },
+    {
+      "key": "wf_crystals",
+      "at": [
+        1189.45,
+        1726.55
+      ],
+      "yaw": 644,
+      "scale": 1.25,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.1
+    },
+    {
+      "key": "wf_crystals",
+      "at": [
+        1187.1,
+        1741.34
+      ],
+      "yaw": 490,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.1
+    },
+    {
+      "key": "wf_crystals_small",
+      "at": [
+        1110.7,
+        1725.17
+      ],
+      "yaw": 1820,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.1
+    },
+    {
+      "key": "wf_crystals",
+      "at": [
+        1115.74,
+        1711.78
+      ],
+      "yaw": 1673,
+      "scale": 1.25,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.1
+    },
+    {
+      "key": "wf_crystals",
+      "at": [
+        1122.49,
+        1701.51
+      ],
+      "yaw": 1547,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.1
+    },
+    {
+      "key": "wf_crystals_small",
+      "at": [
+        1134.84,
+        1694.28
+      ],
+      "yaw": 1400,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.1
+    },
+    {
+      "key": "wf_crystals",
+      "at": [
+        1170.4,
+        1696.06
+      ],
+      "yaw": 1022,
+      "scale": 1.25,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.1
+    },
+    {
+      "key": "wf_crystals",
+      "at": [
+        1187.48,
+        1719.96
+      ],
+      "yaw": 714,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.1
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1136,
+        1696
+      ],
+      "yaw": 0,
+      "scale": 0.55,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -2.05
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1141.6,
+        1694.82
+      ],
+      "yaw": 47,
+      "scale": 0.55,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.82
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1147.2,
+        1694.1
+      ],
+      "yaw": 94,
+      "scale": 0.55,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.78
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1152.8,
+        1694.1
+      ],
+      "yaw": 141,
+      "scale": 0.55,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.78
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1158.4,
+        1694.82
+      ],
+      "yaw": 188,
+      "scale": 0.55,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.82
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1164,
+        1696
+      ],
+      "yaw": 235,
+      "scale": 0.55,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -2.06
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1171.26,
+        1682.59
+      ],
+      "yaw": -114.15,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.07
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1176.37,
+        1685.23
+      ],
+      "yaw": -120.5,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.32
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1181.17,
+        1688.42
+      ],
+      "yaw": -126.86,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.39
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1185.58,
+        1692.13
+      ],
+      "yaw": -133.21,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.17
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1189.55,
+        1696.3
+      ],
+      "yaw": -139.56,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.17
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1193.03,
+        1700.88
+      ],
+      "yaw": -145.91,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.15
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1195.99,
+        1705.82
+      ],
+      "yaw": -152.27,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.15
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1198.39,
+        1711.06
+      ],
+      "yaw": -158.62,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.16
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1200.18,
+        1716.53
+      ],
+      "yaw": -164.97,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.18
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1201.37,
+        1722.16
+      ],
+      "yaw": -171.33,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.16
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1201.92,
+        1727.9
+      ],
+      "yaw": -177.68,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.14
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1201.83,
+        1733.65
+      ],
+      "yaw": 175.97,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.17
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1201.11,
+        1739.37
+      ],
+      "yaw": 169.62,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.18
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1199.76,
+        1744.96
+      ],
+      "yaw": 163.26,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.14
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1197.8,
+        1750.38
+      ],
+      "yaw": 156.91,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.18
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1195.25,
+        1755.54
+      ],
+      "yaw": 150.56,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.14
+    },
+    {
+      "key": "wf_stone_steps",
+      "at": [
+        1192.15,
+        1760.39
+      ],
+      "yaw": 144.2,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.5
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1171.06,
+        1686.2
+      ],
+      "yaw": 2006.11,
+      "scale": 0.42,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.48
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1179.28,
+        1691.21
+      ],
+      "yaw": 1858.32,
+      "scale": 0.42,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.85
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1183.26,
+        1685.95
+      ],
+      "yaw": 714.74,
+      "scale": 1.2,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1186.35,
+        1697.75
+      ],
+      "yaw": 1710.53,
+      "scale": 0.42,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.69
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1194.72,
+        1697.64
+      ],
+      "yaw": 629.47,
+      "scale": 1.2,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1192,
+        1705.55
+      ],
+      "yaw": 1562.74,
+      "scale": 0.42,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.49
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1196,
+        1714.3
+      ],
+      "yaw": 1414.95,
+      "scale": 0.42,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.51
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1202.24,
+        1712.17
+      ],
+      "yaw": 544.21,
+      "scale": 1.2,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1198.19,
+        1723.68
+      ],
+      "yaw": 1267.16,
+      "scale": 0.42,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.64
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1205.17,
+        1728.28
+      ],
+      "yaw": 458.95,
+      "scale": 1.2,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1198.49,
+        1733.3
+      ],
+      "yaw": 1119.37,
+      "scale": 0.42,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.31
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1196.89,
+        1742.79
+      ],
+      "yaw": 971.58,
+      "scale": 0.42,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1203.25,
+        1744.53
+      ],
+      "yaw": 373.68,
+      "scale": 1.2,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_columns_low",
+      "at": [
+        1193.44,
+        1751.79
+      ],
+      "yaw": 823.79,
+      "scale": 0.42,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.29
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1196.65,
+        1759.51
+      ],
+      "yaw": 288.42,
+      "scale": 1.2,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1136.62,
+        1761.41
+      ],
+      "yaw": 142,
+      "scale": 1.4,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 46.49
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1132.29,
+        1758.03
+      ],
+      "yaw": 142,
+      "scale": 1.14,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 35.74
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1126.22,
+        1753.29
+      ],
+      "yaw": 142,
+      "scale": 1.33,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 48.07
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1121.89,
+        1749.9
+      ],
+      "yaw": 142,
+      "scale": 1.22,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 31.65
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1120.15,
+        1748.55
+      ],
+      "yaw": 142,
+      "scale": 1.4,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 42.92
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1178.03,
+        1746.29
+      ],
+      "yaw": 220,
+      "scale": 1.26,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 45.72
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1162.01,
+        1759.72
+      ],
+      "yaw": 220,
+      "scale": 1.22,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 38.36
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1159.49,
+        1761.84
+      ],
+      "yaw": 220,
+      "scale": 1.26,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 48.57
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1165,
+        1759.88
+      ],
+      "yaw": 180,
+      "scale": 1.26,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 53.89
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1136.25,
+        1759.88
+      ],
+      "yaw": 180,
+      "scale": 1.4,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 46.11
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1104.2,
+        1724.11
+      ],
+      "yaw": 68,
+      "scale": 1.22,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 51.78
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1111.5,
+        1706.03
+      ],
+      "yaw": 68,
+      "scale": 1.18,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 40.86
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1185.72,
+        1684.29
+      ],
+      "yaw": -38,
+      "scale": 0.95,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -14.58
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1176.58,
+        1682.09
+      ],
+      "yaw": -38,
+      "scale": 1.22,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 37.63
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1181.82,
+        1686.18
+      ],
+      "yaw": -38,
+      "scale": 1.37,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 27.56
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1187.81,
+        1690.86
+      ],
+      "yaw": -38,
+      "scale": 1.18,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 31.87
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1191.55,
+        1693.79
+      ],
+      "yaw": -38,
+      "scale": 1.4,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 17.63
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1203.28,
+        1707.39
+      ],
+      "yaw": -67,
+      "scale": 0.92,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -32.54
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1196.57,
+        1701.24
+      ],
+      "yaw": -67,
+      "scale": 1.22,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 36
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1199.08,
+        1707.17
+      ],
+      "yaw": -67,
+      "scale": 1.37,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 26.11
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1201.96,
+        1713.94
+      ],
+      "yaw": -67,
+      "scale": 1.18,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 30.45
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1203.76,
+        1718.18
+      ],
+      "yaw": -67,
+      "scale": 1.4,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 17.52
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1206.79,
+        1735.97
+      ],
+      "yaw": -96,
+      "scale": 0.75,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -18.6
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1204.44,
+        1728.93
+      ],
+      "yaw": -96,
+      "scale": 1.22,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 28.96
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1203.89,
+        1734.16
+      ],
+      "yaw": -96,
+      "scale": 1.37,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 20.98
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1203.26,
+        1740.12
+      ],
+      "yaw": -96,
+      "scale": 1.18,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 24.64
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1202.87,
+        1743.85
+      ],
+      "yaw": -96,
+      "scale": 1.4,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 13.53
+    },
+    {
+      "key": "wf_basalt_cliff",
+      "at": [
+        1190.94,
+        1727.85
+      ],
+      "yaw": -87,
+      "scale": 0.75,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0.08
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1187.64,
+        1723.52
+      ],
+      "yaw": -87,
+      "scale": 1.18,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 31.17
+    },
+    {
+      "key": "wf_vines",
+      "at": [
+        1188.07,
+        1731.76
+      ],
+      "yaw": -87,
+      "scale": 1.39,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 26.14
+    },
+    {
+      "key": "wf_basalt_cliff_low",
+      "at": [
+        1183.37,
+        1697.78
+      ],
+      "yaw": -46,
+      "scale": 0.61,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.61
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1184.13,
+        1692.1
+      ],
+      "yaw": 134,
+      "scale": 1.3,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -1.01
+    },
+    {
+      "key": "wf_basalt_cliff_low",
+      "at": [
+        1190.06,
+        1713
+      ],
+      "yaw": -67,
+      "scale": 1.05,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1195.44,
+        1706.85
+      ],
+      "yaw": 113,
+      "scale": 1.3,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.68
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1186.71,
+        1751.2
+      ],
+      "yaw": 660,
+      "scale": 1.29,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1189.96,
+        1748.21
+      ],
+      "yaw": 720.5,
+      "scale": 1.27,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1192.46,
+        1744.62
+      ],
+      "yaw": 781,
+      "scale": 1.09,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1193.55,
+        1740.45
+      ],
+      "yaw": 841.5,
+      "scale": 1.14,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1193.2,
+        1736.07
+      ],
+      "yaw": 902,
+      "scale": 1.28,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1192.06,
+        1731.84
+      ],
+      "yaw": 962.5,
+      "scale": 1.27,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1191.05,
+        1727.85
+      ],
+      "yaw": 1023,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1190.76,
+        1723.91
+      ],
+      "yaw": 1083.5,
+      "scale": 1.13,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1191.1,
+        1719.75
+      ],
+      "yaw": 1144,
+      "scale": 1.28,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1191.36,
+        1715.35
+      ],
+      "yaw": 1204.5,
+      "scale": 1.27,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1190.68,
+        1711.03
+      ],
+      "yaw": 1265,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1188.6,
+        1707.26
+      ],
+      "yaw": 1325.5,
+      "scale": 1.13,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1185.32,
+        1704.34
+      ],
+      "yaw": 1386,
+      "scale": 1.28,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1181.56,
+        1702.08
+      ],
+      "yaw": 1446.5,
+      "scale": 1.27,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1178.04,
+        1699.93
+      ],
+      "yaw": 1507,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1175.08,
+        1697.32
+      ],
+      "yaw": 1567.5,
+      "scale": 1.13,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1172.43,
+        1694.11
+      ],
+      "yaw": 1628,
+      "scale": 1.28,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1169.57,
+        1690.76
+      ],
+      "yaw": 1688.5,
+      "scale": 1.27,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1166.08,
+        1688.1
+      ],
+      "yaw": 1749,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1139.72,
+        1688.76
+      ],
+      "yaw": 1358,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1135.46,
+        1690.06
+      ],
+      "yaw": 1400,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1131.37,
+        1691.8
+      ],
+      "yaw": 1442,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1127.48,
+        1693.96
+      ],
+      "yaw": 1484,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1123.83,
+        1696.51
+      ],
+      "yaw": 1526,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1120.48,
+        1699.43
+      ],
+      "yaw": 1568,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1117.44,
+        1702.68
+      ],
+      "yaw": 1610,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1114.77,
+        1706.23
+      ],
+      "yaw": 1652,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1112.47,
+        1710.05
+      ],
+      "yaw": 1694,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1110.59,
+        1714.08
+      ],
+      "yaw": 1736,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1109.15,
+        1718.29
+      ],
+      "yaw": 1778,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_fern",
+      "at": [
+        1108.15,
+        1722.62
+      ],
+      "yaw": 1820,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": 0
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1114.31,
+        1672.88
+      ],
+      "yaw": 0,
+      "scale": 0.95,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1118.08,
+        1687.64
+      ],
+      "yaw": 37,
+      "scale": 1.3,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1108.64,
+        1682.42
+      ],
+      "yaw": 74,
+      "scale": 1.04,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1109.45,
+        1690.84
+      ],
+      "yaw": 111,
+      "scale": 1.27,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1099.16,
+        1687.34
+      ],
+      "yaw": 148,
+      "scale": 1.12,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1101.88,
+        1696.31
+      ],
+      "yaw": 185,
+      "scale": 1.23,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1091.08,
+        1694.6
+      ],
+      "yaw": 222,
+      "scale": 1.19,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1101.44,
+        1706.32
+      ],
+      "yaw": 259,
+      "scale": 1.17,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1090.63,
+        1706.01
+      ],
+      "yaw": 296,
+      "scale": 1.25,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1097.96,
+        1714.09
+      ],
+      "yaw": 333,
+      "scale": 1.09,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1087.24,
+        1715.51
+      ],
+      "yaw": 370,
+      "scale": 1.29,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1091.67,
+        1721.8
+      ],
+      "yaw": 407,
+      "scale": 1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1081.27,
+        1725.19
+      ],
+      "yaw": 444,
+      "scale": 1.3,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1107.53,
+        1762.01
+      ],
+      "yaw": 481,
+      "scale": 0.99,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1102.32,
+        1771.45
+      ],
+      "yaw": 518,
+      "scale": 1.29,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1111.21,
+        1770.17
+      ],
+      "yaw": 555,
+      "scale": 1.08,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1107.68,
+        1780.44
+      ],
+      "yaw": 592,
+      "scale": 1.26,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1116.21,
+        1778.26
+      ],
+      "yaw": 629,
+      "scale": 1.15,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1114.51,
+        1789.07
+      ],
+      "yaw": 666,
+      "scale": 1.2,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1126.13,
+        1778.95
+      ],
+      "yaw": 703,
+      "scale": 1.22,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1125.85,
+        1789.76
+      ],
+      "yaw": 740,
+      "scale": 1.14,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1134.22,
+        1781.63
+      ],
+      "yaw": 777,
+      "scale": 1.27,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1135.61,
+        1792.35
+      ],
+      "yaw": 814,
+      "scale": 1.05,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1141.83,
+        1788.15
+      ],
+      "yaw": 851,
+      "scale": 1.29,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1145.21,
+        1798.55
+      ],
+      "yaw": 888,
+      "scale": 0.96,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1159.21,
+        1782.23
+      ],
+      "yaw": 925,
+      "scale": 1.3,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1165.25,
+        1791.16
+      ],
+      "yaw": 962,
+      "scale": 1.03,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1168.66,
+        1784.19
+      ],
+      "yaw": 999,
+      "scale": 1.28,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1176.3,
+        1791.96
+      ],
+      "yaw": 1036,
+      "scale": 1.11,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1177.32,
+        1781.39
+      ],
+      "yaw": 1073,
+      "scale": 1.24,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1186.14,
+        1787.84
+      ],
+      "yaw": 1110,
+      "scale": 1.18,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1189.79,
+        1768.43
+      ],
+      "yaw": 1147,
+      "scale": 1.18,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1200.03,
+        1771.98
+      ],
+      "yaw": 1184,
+      "scale": 1.24,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1198.32,
+        1763.84
+      ],
+      "yaw": 1221,
+      "scale": 1.1,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1209.14,
+        1765.53
+      ],
+      "yaw": 1258,
+      "scale": 1.28,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1199.38,
+        1754.08
+      ],
+      "yaw": 1295,
+      "scale": 1.02,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1210.21,
+        1754.33
+      ],
+      "yaw": 1332,
+      "scale": 1.3,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.2
+    },
+    {
+      "key": "wf_pine",
+      "at": [
+        1169.15,
+        1782.62
+      ],
+      "yaw": 20,
+      "scale": 1.6,
+      "ground": "center",
+      "groundRadius": 0,
+      "dy": -0.3
+    }
+  ],
+  "lines": [],
+  "zones": {
+    "amph_inner": {
+      "circle": [
+        1150,
+        1730,
+        54
+      ]
+    },
+    "amph_ring": {
+      "circle": [
+        1150,
+        1730,
+        120
+      ]
+    },
+    "gorge": {
+      "circle": [
+        1067.8963047654292,
+        1751.9996188337143,
+        46
+      ]
+    },
+    "stair_top": {
+      "circle": [
+        1240,
+        1724,
+        46
+      ],
+      "falloff": 10
+    },
+    "stair_area": {
+      "circle": [
+        1211.058080686757,
+        1719.2338129846503,
+        22
+      ]
+    },
+    "plateau": {
+      "rect": [
+        800,
+        1790,
+        1500,
+        2520
+      ],
+      "falloff": 24
+    },
+    "plateau_north": {
+      "rect": [
+        800,
+        2200,
+        1500,
+        2520
+      ],
+      "falloff": 30
+    },
+    "nw_slope": {
+      "rect": [
+        790,
+        1700,
+        1040,
+        2100
+      ],
+      "falloff": 30
+    },
+    "lowland": {
+      "rect": [
+        790,
+        1550,
+        1520,
+        1640
+      ],
+      "falloff": 20
+    },
+    "valley": {
+      "rect": [
+        1070,
+        1560,
+        1210,
+        1690
+      ],
+      "falloff": 10
+    },
+    "east_terrace": {
+      "rect": [
+        1340,
+        1660,
+        1520,
+        1980
+      ],
+      "falloff": 16
+    },
+    "spring": {
+      "circle": [
+        1160,
+        2330,
+        40
+      ]
+    },
+    "tarn": {
+      "circle": [
+        1254,
+        1900,
+        30
+      ]
+    },
+    "lowveil": {
+      "circle": [
+        1420,
+        1606,
+        30
+      ]
+    },
+    "basalt_nw": {
+      "circle": [
+        930,
+        2150,
+        74
+      ]
+    },
+    "basalt_e": {
+      "circle": [
+        1480,
+        1770,
+        52
+      ]
+    },
+    "basalt_sw": {
+      "circle": [
+        900,
+        1596,
+        44
+      ]
+    },
+    "basalt_n": {
+      "circle": [
+        1340,
+        2400,
+        46
+      ]
+    },
+    "glade_n": {
+      "circle": [
+        1000,
+        2380,
+        50
+      ]
+    },
+    "glade_e": {
+      "circle": [
+        1330,
+        2140,
+        44
+      ]
+    },
+    "bridge_pads": {
+      "circle": [
+        1088.1807471174995,
+        1746.5644188865613,
+        34
+      ]
+    },
+    "wet_pool": {
+      "circle": [
+        1150,
+        1730,
+        39
+      ]
+    },
+    "wet_spring": {
+      "circle": [
+        1160,
+        2330,
+        22
+      ]
+    },
+    "wet_tarn": {
+      "circle": [
+        1254,
+        1900,
+        17
+      ]
+    },
+    "wet_lowveil": {
+      "circle": [
+        1420,
+        1606,
+        16
+      ]
+    },
+    "wet_gorge": {
+      "circle": [
+        1075.6977633058536,
+        1744.5257881798902,
+        8
+      ]
+    }
+  },
+  "scatter": [
+    {
+      "key": "wf_pine",
+      "perHectare": 34,
+      "scale": [
+        0.85,
+        1.35
+      ],
+      "maxSlope": 30,
+      "clearPaths": 3.5,
+      "minBorder": 10,
+      "in": [
+        "plateau"
+      ],
+      "avoid": [
+        "amph_inner",
+        "spring",
+        "tarn",
+        "basalt_nw",
+        "basalt_n",
+        "glade_n",
+        "glade_e",
+        "gorge",
+        "bridge_pads",
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          9
+        ],
+        [
+          "veil_west",
+          8
+        ],
+        [
+          "lowveil_upper",
+          7
+        ],
+        [
+          "lowveil_out",
+          6
+        ],
+        [
+          "gorge_upper",
+          7
+        ],
+        [
+          "willowrun",
+          10
+        ],
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "grove_pines",
+      "perHectare": 6,
+      "scale": [
+        0.8,
+        1.1
+      ],
+      "maxSlope": 28,
+      "clearPaths": 5,
+      "minBorder": 10,
+      "in": [
+        "plateau_north",
+        "nw_slope"
+      ],
+      "avoid": [
+        "spring",
+        "basalt_nw",
+        "basalt_n",
+        "glade_n",
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          9
+        ],
+        [
+          "veil_west",
+          8
+        ],
+        [
+          "lowveil_upper",
+          7
+        ],
+        [
+          "lowveil_out",
+          6
+        ],
+        [
+          "gorge_upper",
+          7
+        ],
+        [
+          "willowrun",
+          10
+        ],
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "wf_pine",
+      "perHectare": 40,
+      "scale": [
+        0.9,
+        1.4
+      ],
+      "maxSlope": 28,
+      "clearPaths": 3,
+      "minBorder": 10,
+      "in": [
+        "stair_top"
+      ],
+      "avoid": [
+        "amph_inner",
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "wf_pine",
+      "perHectare": 22,
+      "scale": [
+        0.8,
+        1.25
+      ],
+      "maxSlope": 32,
+      "clearPaths": 3,
+      "minBorder": 10,
+      "in": [
+        "nw_slope",
+        "east_terrace"
+      ],
+      "avoid": [
+        "basalt_e",
+        "tarn",
+        "lowveil",
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          9
+        ],
+        [
+          "veil_west",
+          8
+        ],
+        [
+          "lowveil_upper",
+          7
+        ],
+        [
+          "lowveil_out",
+          6
+        ],
+        [
+          "gorge_upper",
+          7
+        ],
+        [
+          "willowrun",
+          10
+        ],
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "wf_pine",
+      "perHectare": 5,
+      "scale": [
+        0.8,
+        1.2
+      ],
+      "maxSlope": 30,
+      "clearPaths": 4,
+      "minBorder": 10,
+      "in": [
+        "lowland"
+      ],
+      "avoid": [
+        "valley",
+        "lowveil",
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          9
+        ],
+        [
+          "veil_west",
+          8
+        ],
+        [
+          "lowveil_upper",
+          7
+        ],
+        [
+          "lowveil_out",
+          6
+        ],
+        [
+          "gorge_upper",
+          7
+        ],
+        [
+          "willowrun",
+          10
+        ],
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "wf_basalt_columns",
+      "perHectare": 70,
+      "scale": [
+        0.7,
+        1.8
+      ],
+      "maxSlope": 40,
+      "clearPaths": 2,
+      "minBorder": 6,
+      "in": [
+        "basalt_nw",
+        "basalt_e",
+        "basalt_sw",
+        "basalt_n"
+      ],
+      "avoid": [
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "wf_crystals_small",
+      "perHectare": 14,
+      "scale": [
+        0.8,
+        1.3
+      ],
+      "maxSlope": 35,
+      "clearPaths": 1,
+      "minBorder": 10,
+      "in": [
+        "basalt_nw",
+        "basalt_e",
+        "basalt_n"
+      ],
+      "avoid": [
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "wf_crystals",
+      "perHectare": 16,
+      "scale": [
+        0.8,
+        1.2
+      ],
+      "maxSlope": 40,
+      "clearPaths": 1,
+      "minBorder": 4,
+      "in": [
+        "gorge",
+        "lowveil"
+      ],
+      "avoid": [
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "wf_basalt_columns",
+      "perHectare": 5,
+      "scale": [
+        0.9,
+        2.2
+      ],
+      "maxSlope": 60,
+      "clearPaths": 3,
+      "minBorder": 10,
+      "in": [
+        "amph_ring",
+        "lowland"
+      ],
+      "avoid": [
+        "amph_inner",
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          9
+        ],
+        [
+          "veil_west",
+          8
+        ],
+        [
+          "lowveil_upper",
+          7
+        ],
+        [
+          "lowveil_out",
+          6
+        ],
+        [
+          "gorge_upper",
+          7
+        ],
+        [
+          "willowrun",
+          10
+        ],
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "wf_fern",
+      "perHectare": 120,
+      "scale": [
+        0.8,
+        1.4
+      ],
+      "maxSlope": 35,
+      "clearPaths": 1,
+      "minBorder": 10,
+      "near": [
+        "veil_main",
+        4,
+        16
+      ],
+      "avoid": [
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "wf_fern",
+      "perHectare": 120,
+      "scale": [
+        0.8,
+        1.4
+      ],
+      "maxSlope": 35,
+      "clearPaths": 1,
+      "minBorder": 10,
+      "near": [
+        "veil_west",
+        4,
+        14
+      ],
+      "avoid": [
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "wf_fern",
+      "perHectare": 140,
+      "scale": [
+        0.8,
+        1.4
+      ],
+      "maxSlope": 40,
+      "clearPaths": 1,
+      "minBorder": 10,
+      "near": [
+        "gorge_upper",
+        3,
+        12
+      ],
+      "avoid": [
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "wf_fern",
+      "perHectare": 100,
+      "scale": [
+        0.8,
+        1.3
+      ],
+      "maxSlope": 35,
+      "clearPaths": 1,
+      "minBorder": 10,
+      "near": [
+        "lowveil_out",
+        3,
+        12
+      ],
+      "avoid": [
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "wf_fern",
+      "perHectare": 90,
+      "scale": [
+        0.8,
+        1.4
+      ],
+      "maxSlope": 35,
+      "clearPaths": 1,
+      "minBorder": 10,
+      "near": [
+        "willowrun",
+        9.5,
+        22
+      ],
+      "avoid": [
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "wf_fern",
+      "perHectare": 14,
+      "scale": [
+        0.8,
+        1.3
+      ],
+      "maxSlope": 30,
+      "clearPaths": 3,
+      "minBorder": 10,
+      "in": [
+        "plateau",
+        "nw_slope",
+        "east_terrace"
+      ],
+      "avoid": [
+        "amph_inner",
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          9
+        ],
+        [
+          "veil_west",
+          8
+        ],
+        [
+          "lowveil_upper",
+          7
+        ],
+        [
+          "lowveil_out",
+          6
+        ],
+        [
+          "gorge_upper",
+          7
+        ],
+        [
+          "willowrun",
+          10
+        ],
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "wf_fern",
+      "perHectare": 60,
+      "scale": [
+        0.8,
+        1.3
+      ],
+      "maxSlope": 40,
+      "clearPaths": 1,
+      "minBorder": 10,
+      "in": [
+        "amph_ring"
+      ],
+      "avoid": [
+        "amph_inner",
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          9
+        ],
+        [
+          "veil_west",
+          8
+        ],
+        [
+          "lowveil_upper",
+          7
+        ],
+        [
+          "lowveil_out",
+          6
+        ],
+        [
+          "gorge_upper",
+          7
+        ],
+        [
+          "willowrun",
+          10
+        ],
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "grove_reeds",
+      "perHectare": 80,
+      "scale": [
+        0.8,
+        1.2
+      ],
+      "maxSlope": 20,
+      "clearPaths": 1,
+      "minBorder": 10,
+      "near": [
+        "willowrun",
+        7,
+        11
+      ],
+      "avoid": [
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "grove_reeds",
+      "perHectare": 60,
+      "scale": [
+        0.8,
+        1.2
+      ],
+      "maxSlope": 20,
+      "clearPaths": 1,
+      "minBorder": 10,
+      "in": [
+        "tarn",
+        "spring",
+        "lowveil"
+      ],
+      "avoid": [
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "zen_rock_moss",
+      "perHectare": 6,
+      "scale": [
+        0.8,
+        1.8
+      ],
+      "maxSlope": 35,
+      "clearPaths": 3,
+      "minBorder": 10,
+      "in": [
+        "plateau",
+        "nw_slope",
+        "amph_ring"
+      ],
+      "avoid": [
+        "amph_inner",
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          9
+        ],
+        [
+          "veil_west",
+          8
+        ],
+        [
+          "lowveil_upper",
+          7
+        ],
+        [
+          "lowveil_out",
+          6
+        ],
+        [
+          "gorge_upper",
+          7
+        ],
+        [
+          "willowrun",
+          10
+        ],
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    },
+    {
+      "key": "grove_boulder",
+      "perHectare": 6,
+      "scale": [
+        0.8,
+        1.6
+      ],
+      "maxSlope": 30,
+      "clearPaths": 3,
+      "minBorder": 10,
+      "in": [
+        "lowland",
+        "valley",
+        "nw_slope"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          9
+        ],
+        [
+          "veil_west",
+          8
+        ],
+        [
+          "lowveil_upper",
+          7
+        ],
+        [
+          "lowveil_out",
+          6
+        ],
+        [
+          "gorge_upper",
+          7
+        ],
+        [
+          "willowrun",
+          10
+        ],
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ],
+      "avoid": [
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ]
+    },
+    {
+      "key": "rock_outcrop",
+      "perHectare": 1.2,
+      "scale": [
+        0.9,
+        1.8
+      ],
+      "maxSlope": 40,
+      "clearPaths": 4,
+      "minBorder": 10,
+      "in": [
+        "plateau",
+        "nw_slope",
+        "lowland"
+      ],
+      "avoid": [
+        "amph_inner",
+        "gorge",
+        "wet_pool",
+        "wet_spring",
+        "wet_tarn",
+        "wet_lowveil",
+        "wet_gorge"
+      ],
+      "avoidSplines": [
+        [
+          "veil_main",
+          9
+        ],
+        [
+          "veil_west",
+          8
+        ],
+        [
+          "lowveil_upper",
+          7
+        ],
+        [
+          "lowveil_out",
+          6
+        ],
+        [
+          "gorge_upper",
+          7
+        ],
+        [
+          "willowrun",
+          10
+        ],
+        [
+          "veil_main",
+          4.8
+        ],
+        [
+          "veil_west",
+          4
+        ],
+        [
+          "lowveil_upper",
+          3.8
+        ],
+        [
+          "lowveil_out",
+          3.5
+        ],
+        [
+          "gorge_upper",
+          3.5
+        ],
+        [
+          "gorge_lower",
+          4
+        ],
+        [
+          "willowrun",
+          9
+        ]
+      ]
+    }
+  ],
+  "marks": [
+    {
+      "id": "waterfalls_start",
+      "kind": "playerStart",
+      "at": [
+        1112,
+        1680
+      ],
+      "yaw": 20,
+      "clear": 3
+    }
+  ]
+}

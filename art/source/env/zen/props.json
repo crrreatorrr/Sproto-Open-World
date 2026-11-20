@@ -1,0 +1,291 @@
+{
+  "zen_torii": {
+    "landmark": true,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 4.6,
+    "size": [
+      8.66,
+      8.49,
+      1.35
+    ],
+    "notes": "Gate: walk through along game Z. Two pillar cylinders (r 0.56, h 7.2) at x=+-2.35 would be the right collider; a single box would block the opening, so none."
+  },
+  "zen_lantern": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        0.5,
+        1.2,
+        0.5
+      ]
+    },
+    "footprint": 1.0,
+    "size": [
+      1.46,
+      2.4,
+      1.27
+    ],
+    "notes": "Stone toro lantern; pairs either side of paths, gates and the temple steps."
+  },
+  "zen_temple": {
+    "landmark": true,
+    "collider": {
+      "kind": "box",
+      "half": [
+        6.9,
+        4.8,
+        4.6
+      ]
+    },
+    "footprint": 9.5,
+    "size": [
+      17.14,
+      10.42,
+      13.16
+    ],
+    "notes": "Hall with veranda; front steps reach game z=+6.3 (toward the player). The box covers the plinth and hall, not the steps or eaves."
+  },
+  "zen_pagoda": {
+    "landmark": true,
+    "collider": {
+      "kind": "box",
+      "half": [
+        4.0,
+        12.0,
+        4.0
+      ]
+    },
+    "footprint": 6.5,
+    "size": [
+      11.71,
+      25.9,
+      11.75
+    ],
+    "notes": "Five-roof pagoda on an 8 m plinth; eaves reach 5.6 m out. Stand it behind the temple, uphill."
+  },
+  "zen_bridge": {
+    "landmark": true,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 5.0,
+    "size": [
+      9.17,
+      3.38,
+      2.72
+    ],
+    "notes": "Taiko drum bridge spanning game X (9 m), deck 2.2 m wide, arch top 1.8 m. Walkable: needs a trimesh or a ramp pair, not a box. Place over a pond; piers go 0.6 m below."
+  },
+  "zen_maple_red": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.35,
+      "height": 3.0
+    },
+    "footprint": 3.5,
+    "size": [
+      8.43,
+      7.03,
+      8.08
+    ],
+    "notes": "Crimson Japanese maple; trunk collider only. Lean over gravel, gates and ponds."
+  },
+  "zen_maple_orange": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.35,
+      "height": 3.0
+    },
+    "footprint": 3.5,
+    "size": [
+      8.79,
+      7.2,
+      8.1
+    ],
+    "notes": "Orange/amber maple with red accents; beside the temple and the fence line."
+  },
+  "zen_bamboo": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 1.2,
+      "height": 9.0
+    },
+    "footprint": 2.0,
+    "size": [
+      4.91,
+      9.99,
+      4.66
+    ],
+    "notes": "Cluster of 10 culms; repeat in clumps (random yaw) for a dense grove behind fences."
+  },
+  "zen_bamboo_fence": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        2.0,
+        1.2,
+        0.1
+      ]
+    },
+    "footprint": 2.1,
+    "size": [
+      4.15,
+      2.45,
+      0.22
+    ],
+    "notes": "4 m segment along game X; tiles end to end (shared end posts at x=+-2)."
+  },
+  "zen_shrub": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.8,
+      "height": 1.4
+    },
+    "footprint": 1.1,
+    "size": [
+      2.16,
+      1.49,
+      2.17
+    ],
+    "notes": "Clipped round shrub; along the fence, the veranda and gravel edges."
+  },
+  "zen_azalea": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.7,
+      "height": 1.2
+    },
+    "footprint": 1.0,
+    "size": [
+      1.73,
+      1.32,
+      1.75
+    ],
+    "notes": "Pink-flowering azalea; pair with zen_shrub, sparingly."
+  },
+  "zen_rock_moss": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.6,
+      "height": 2.0
+    },
+    "footprint": 1.4,
+    "size": [
+      1.79,
+      1.91,
+      1.41
+    ],
+    "notes": "Standing rock; set in the centre gap of zen_gravel_ripples."
+  },
+  "zen_rock_low": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        0.9,
+        0.45,
+        0.65
+      ]
+    },
+    "footprint": 1.2,
+    "size": [
+      1.91,
+      0.81,
+      1.38
+    ],
+    "notes": "Low flat-topped mossy rock; ripple centres, pond edges."
+  },
+  "zen_gravel_ripples": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 5.0,
+    "size": [
+      10.0,
+      0.12,
+      10.0
+    ],
+    "notes": "Ground dressing, 0.12 m max. 2 m central gap for a rock. Lay on flat ground slightly above the terrain (+0.01)."
+  },
+  "zen_gravel_lines": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 5.0,
+    "size": [
+      10.0,
+      0.12,
+      6.0
+    ],
+    "notes": "10 x 6 m raked rectangle, ridges along game X; tiles end to end along X."
+  },
+  "zen_stepping_stones": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 3.0,
+    "size": [
+      6.2,
+      0.25,
+      1.79
+    ],
+    "notes": "Five mossy stones on a gentle S-curve along game X; walkable dressing."
+  },
+  "zen_terrace_wall": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        4.0,
+        1.0,
+        0.6
+      ]
+    },
+    "footprint": 4.0,
+    "size": [
+      8.0,
+      2.12,
+      1.38
+    ],
+    "notes": "Retaining wall, face toward +Z (the player), 8 m along X; tiles end to end. Terrain behind sits at the 2 m top."
+  },
+  "zen_koi": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 1.0,
+    "size": [
+      2.38,
+      0.23,
+      1.25
+    ],
+    "notes": "Decorative: pivot is the water surface; fish sit 0.1 m below it. Place at the pond water level, under the water sheet."
+  },
+  "zen_temple_steps": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 2.0,
+    "size": [
+      3.68,
+      1.73,
+      3.04
+    ],
+    "notes": "3 m wide, rises 1.5 m over 3 m toward game -Z (bottom step faces +Z). Walkable: use a ramp collider."
+  }
+}

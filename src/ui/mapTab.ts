@@ -1,4 +1,6 @@
-import { RD_X, isRootdeep } from '../content/packs/rootdeep';
+import { isRootdeep } from '../content/packs/rootdeep';
+import { CELL_SIZE } from '../content/world/format';
+import { regionAt, type RegionId } from '../content/world/regions';
 import type { QuestOffer } from '../content/quests';
 import type { Entity, Progress } from '../sim/entity';
 import type { ReadonlySimView } from '../sim/view';
@@ -17,10 +19,56 @@ const REGIONS = SURFACE_AREAS;
 
 const CAVE_REGIONS = CAVE_AREAS;
 
-/** Which picture a world x belongs on. The cave sits at x 4096, the same 512 m square as the valley. */
-export function mapBounds(x: number): { minX: number; size: number; image: string } {
-  if (isRootdeep(x)) return { minX: RD_X, size: MAP_SIZE, image: 'world/rootdeep/map.webp' };
-  return { minX: 0, size: MAP_SIZE, image: MAP_IMAGE };
+/** Named places on the new regions' maps (world x, z). */
+export const OVERWORLD_LABELS: Partial<Record<RegionId, readonly { name: string; x: number; z: number }[]>> = {
+  town: [
+    { name: 'Bell Plaza', x: 760, z: 232 },
+    { name: 'Bell Canal', x: 816, z: 330 },
+    { name: 'Bellmere Harbour', x: 1110, z: 96 },
+  ],
+  zen: [
+    { name: 'Maple Gate', x: 252, z: 925 },
+    { name: 'Maple Temple', x: 246, z: 1010 },
+    { name: 'Koi Ponds', x: 212, z: 958 },
+    { name: 'East Court', x: 419, z: 1170 },
+  ],
+  river: [
+    { name: 'Willowrun Mill', x: 1100, z: 950 },
+    { name: 'Mill Pond', x: 952, z: 992 },
+    { name: 'Hollow Brook', x: 720, z: 1280 },
+  ],
+  waterfalls: [
+    { name: 'The Veilfalls', x: 1150, z: 1730 },
+    { name: 'The Gorge', x: 1030, z: 1790 },
+    { name: 'Veil Tarn', x: 1254, z: 1900 },
+    { name: 'Lower Veil', x: 1420, z: 1606 },
+    { name: 'Veil Spring', x: 1160, z: 2330 },
+  ],
+  mountains: [
+    { name: 'Lowpine Meadow', x: 322, z: 1700 },
+    { name: 'Tarnhollow', x: 432, z: 1905 },
+    { name: 'Frost Tarn', x: 466, z: 1942 },
+    { name: 'Switchback Stair', x: 316, z: 2110 },
+    { name: 'Eyrie Shelf', x: 324, z: 2246 },
+    { name: 'Rope Bridge', x: 404, z: 2250 },
+    { name: 'The Rimecleft', x: 400, z: 2150 },
+    { name: 'The Old Watch', x: 472, z: 2262 },
+  ],
+};
+
+/** The picture a world point belongs on: its region's map, baked by tools/bake-map.mjs. */
+export function mapBounds(x: number, z = 0): { region: RegionId; name: string; minX: number; minZ: number; size: number; sizeZ: number; image: string } {
+  const r = regionAt(x, z);
+  if (r.id === 'sproutvale') return { region: r.id, name: r.name, minX: 0, minZ: 0, size: MAP_SIZE, sizeZ: MAP_SIZE, image: MAP_IMAGE };
+  return {
+    region: r.id,
+    name: r.name,
+    minX: r.origin[0] * CELL_SIZE,
+    minZ: r.origin[1] * CELL_SIZE,
+    size: r.size[0] * CELL_SIZE,
+    sizeZ: r.size[1] * CELL_SIZE,
+    image: `world/${r.id}/map.webp`,
+  };
 }
 
 export { shrineLabel };
@@ -29,9 +77,9 @@ export { shrineLabel };
  * A world point on the picture, in percent. North (+z) is up and the world is seen from above, so +x
  * is on the left: the compass calls that side west, and turning right in play turns right here.
  */
-export function mapPoint(x: number, z: number, minX = 0, size = MAP_SIZE): { left: number; top: number } {
+export function mapPoint(x: number, z: number, minX = 0, size = MAP_SIZE, minZ = 0, sizeZ = size): { left: number; top: number } {
   const clamp = (v: number) => Math.min(100, Math.max(0, v));
-  return { left: clamp((1 - (x - minX) / size) * 100), top: clamp((1 - z / size) * 100) };
+  return { left: clamp((1 - (x - minX) / size) * 100), top: clamp((1 - (z - minZ) / sizeZ) * 100) };
 }
 
 type PinKind = 'player' | 'quest' | 'shrine';
@@ -97,7 +145,7 @@ function mapPins(view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<
 export function mapSignature(view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<Progress>, lead: QuestOffer | null = null): string {
   const quest = mapQuest(p, lead);
   const steps = quest ? `${quest.id}:${quest.steps.map((s) => s.state[0] + s.lines.map((l) => l.text).join(',')).join(';')}` : '';
-  return mapBounds(e.tf.pos.x).image + '|' + steps + '|' + mapPins(view, e, p, quest).map((q) => `${q.key}:${Math.round(q.x)},${Math.round(q.z)}:${q.detail}`).join('|') + `|${e.tf.yaw.toFixed(2)}`;
+  return mapBounds(e.tf.pos.x, e.tf.pos.z).image + '|' + steps + '|' + mapPins(view, e, p, quest).map((q) => `${q.key}:${Math.round(q.x)},${Math.round(q.z)}:${q.detail}`).join('|') + `|${e.tf.yaw.toFixed(2)}`;
 }
 
 /** The followed quest's steps: ticked off, the one you are on (with what is left of it), and what comes next. */
@@ -126,17 +174,22 @@ function stepList(quest: MapQuest): HTMLElement {
 export function renderMap(body: HTMLElement, view: ReadonlySimView | null, e: Readonly<Entity>, p: Readonly<Progress>, openQuests: () => void, lead: QuestOffer | null = null): void {
   const quest = mapQuest(p, lead);
   const pins = mapPins(view, e, p, quest);
-  const bounds = mapBounds(e.tf.pos.x);
-  const cave = isRootdeep(e.tf.pos.x);
+  const bounds = mapBounds(e.tf.pos.x, e.tf.pos.z);
+  const labels = bounds.region === 'rootdeep' ? CAVE_REGIONS : bounds.region === 'sproutvale' ? REGIONS : OVERWORLD_LABELS[bounds.region] ?? [];
   const wrap = el('div', 'map-tab');
   const frame = el('div', 'map-frame');
+  // Regions are not all square: the frame takes the region's shape and keeps the square's longer side.
+  if (bounds.size !== bounds.sizeZ) {
+    frame.style.aspectRatio = `${bounds.size} / ${bounds.sizeZ}`;
+    if (bounds.sizeZ > bounds.size) frame.style.width = `calc(min(66vh, 92vw, 560px) * ${bounds.size / bounds.sizeZ})`;
+  }
   const img = el('img', 'map-image');
   img.src = publicUrl(bounds.image);
-  img.alt = cave ? 'Map of the Rootdeep' : 'Map of Sproutvale';
+  img.alt = `Map of ${bounds.name}`;
   img.draggable = false;
   frame.append(img, el('span', 'map-north', 'N'));
-  for (const r of cave ? CAVE_REGIONS : REGIONS) {
-    const at = mapPoint(r.x, r.z, bounds.minX, bounds.size);
+  for (const r of labels) {
+    const at = mapPoint(r.x, r.z, bounds.minX, bounds.size, bounds.minZ, bounds.sizeZ);
     const label = el('span', 'map-region', r.name);
     label.style.left = `${at.left}%`;
     label.style.top = `${at.top}%`;
@@ -146,9 +199,10 @@ export function renderMap(body: HTMLElement, view: ReadonlySimView | null, e: Re
   // Drawn last to first, so you stay on top of a shrine you are standing at.
   // Mouths are never pins: a sealed one must show nothing, and an open one is the passage itself.
   for (const pin of [...pins].reverse()) {
-    // A place in the other map (the valley seen from the cave) is listed, not pinned on the edge.
-    if (isRootdeep(pin.x) !== cave) continue;
-    const at = mapPoint(pin.x, pin.z, bounds.minX, bounds.size);
+    // A place on another region's map (the valley seen from the cave, Bellmere from Sproutvale) is
+    // listed, not pinned on the edge.
+    if (mapBounds(pin.x, pin.z).region !== bounds.region) continue;
+    const at = mapPoint(pin.x, pin.z, bounds.minX, bounds.size, bounds.minZ, bounds.sizeZ);
     const mark = el('i', `map-pin ${pin.kind}`);
     mark.style.left = `${at.left}%`;
     mark.style.top = `${at.top}%`;

@@ -1,0 +1,240 @@
+{
+  "mtn_peak_a": {
+    "landmark": true,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 22.0,
+      "height": 60.0
+    },
+    "footprint": 38.0,
+    "size": [
+      80.2,
+      96.65,
+      71.17
+    ],
+    "notes": "Snow-capped mountain, 90 m to a summit ridge that steps down to the south-east, ~74 x 64 m at the ground (aretes reach ~80 x 71 m just below it). Big flat violet facets, aretes and snow-filled couloirs; snow over the upward faces of the upper half. Backdrop landmark; the base sinks ~6 m below the pivot, so it sits on rough or sloping ground. Turn it freely: colours assume no sun direction. The cylinder is the solid core only; keep the player off the flanks with terrain."
+  },
+  "mtn_peak_b": {
+    "landmark": true,
+    "collider": {
+      "kind": "box",
+      "half": [
+        38.0,
+        24.0,
+        20.0
+      ]
+    },
+    "footprint": 50.0,
+    "size": [
+      105.92,
+      76.83,
+      69.68
+    ],
+    "notes": "Broad double-summit massif: 70 m west summit, 61 m east summit, a snowy saddle at ~45 m between, ~100 x 66 m at the ground, long axis on X. Backdrop landmark; base sinks ~6 m. The box is the solid core."
+  },
+  "mtn_cliff_a": {
+    "landmark": true,
+    "collider": {
+      "kind": "box",
+      "half": [
+        15.0,
+        11.0,
+        5.5
+      ]
+    },
+    "footprint": 18.0,
+    "size": [
+      35.72,
+      27.51,
+      16.64
+    ],
+    "notes": "Faceted violet-grey cliff wall chunk, front faces -Y (glTF +Z): three broad back masses (the middle one 25 m with a snow cap) and three lower front masses whose tops are grass ledges with turf lips. Lay it against steep terrain with its back (+Y) in the slope; base sinks 2 m. Several side by side, rotated and scaled 0.8-1.3, make a long wall. The front masses and scree stand ~2 m proud of the box."
+  },
+  "mtn_cliff_b": {
+    "landmark": true,
+    "collider": {
+      "kind": "box",
+      "half": [
+        7.0,
+        16.0,
+        5.5
+      ]
+    },
+    "footprint": 10.0,
+    "size": [
+      16.72,
+      38.0,
+      15.23
+    ],
+    "notes": "Tall crag or buttress, 35 m, a leaning pointed wedge with two shoulders and a grassy front ledge; front faces -Y. Use at gorge rims and as a vertical accent among mtn_cliff_a walls; base sinks 2-3 m."
+  },
+  "mtn_rock_large": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        3.6,
+        2.8,
+        2.4
+      ]
+    },
+    "footprint": 5.0,
+    "size": [
+      8.35,
+      6.25,
+      5.61
+    ],
+    "notes": "Pale faceted outcrop of four chunky blocks, like the concept's foreground rocks. Beside trails and on meadow edges; base sinks 0.6 m."
+  },
+  "mtn_boulder": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 1.05,
+      "height": 1.55
+    },
+    "footprint": 1.8,
+    "size": [
+      2.45,
+      1.82,
+      2.07
+    ],
+    "notes": "Rounded-faceted meadow boulder ~2.5 m across. Scatter in loose groups of 2-5 at mixed scale (0.4-1.3) and yaw over meadows; base sinks 0.25 m."
+  },
+  "mtn_boulder_flat": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        1.4,
+        0.45,
+        0.9
+      ]
+    },
+    "footprint": 2.0,
+    "size": [
+      2.99,
+      1.13,
+      1.98
+    ],
+    "notes": "Low chamfered slab 3 x 2 x 1 m. Mix with mtn_boulder in meadows and at path edges; also works as a stepping stone. Base sinks 0.2 m."
+  },
+  "mtn_pine": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.35,
+      "height": 14.0
+    },
+    "footprint": 2.5,
+    "size": [
+      6.13,
+      14.2,
+      6.07
+    ],
+    "notes": "Tall layered conifer, 14 m, olive-topped tiers with dark undersides. Scatter in loose stands on slopes and along the trail; vary yaw and scale 0.8-1.25. Collider is the trunk."
+  },
+  "mtn_pine_small": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.2,
+      "height": 7.0
+    },
+    "footprint": 1.5,
+    "size": [
+      3.45,
+      7.2,
+      3.59
+    ],
+    "notes": "Young conifer, 7 m. Mix with mtn_pine at stand edges and on cliff ledges."
+  },
+  "mtn_rope_bridge": {
+    "landmark": true,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 4.0,
+    "size": [
+      45.14,
+      5.47,
+      3.28
+    ],
+    "notes": "Sagging rope suspension bridge spanning X: 40 m between the two post pairs at x = +-20.15 (planks run on 1.4 m past each), deck 1.6 m wide, 2 m sag at mid-span, hand rails 1.05 m above the deck. The pivot is at deck level at the ends: put both ends on the gorge rims at the same height. Walk surface: not carried by a collider; the game must supply one (a deck ribbon following y = -2 * (1 - (x / 20)^2), |x| <= 20, width 1.6). Post colliders (r 0.15 at x = +-20.15, z = +-0.98) are optional."
+  },
+  "mtn_watchtower_ruin": {
+    "landmark": true,
+    "collider": {
+      "kind": "box",
+      "half": [
+        3.3,
+        7.0,
+        3.3
+      ]
+    },
+    "footprint": 6.5,
+    "size": [
+      11.26,
+      15.41,
+      9.39
+    ],
+    "notes": "Ruined stone watchtower ~6.5 m wide, 14-15 m tall, broken crenellated top (high at the back left), arched door and two steps on the front (-Y), rubble at the base out to ~5 m. Place on a grassy cliff ledge with the door facing the path. The door is closed; the box is the tower body, rubble has no collider."
+  },
+  "mtn_fence": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        1.5,
+        0.55,
+        0.08
+      ]
+    },
+    "footprint": 0.0,
+    "size": [
+      3.15,
+      1.38,
+      0.24
+    ],
+    "notes": "Post-and-rail fence segment, 3 m along X, 1.1 m tall. Posts at x = -1.5 and 0; tile segments end to end every 3 m along X (the next segment's first post closes the joint) and finish a run with one more post-only segment or leave it open. Rails sit on the -Y side: put that side toward the path. Small yaw changes at joints follow a curving path."
+  },
+  "mtn_steps": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 0.0,
+    "size": [
+      2.15,
+      1.89,
+      3.09
+    ],
+    "notes": "Wooden-edged earth steps, 2 m wide, six 0.25 m risers rising 1.5 m over 3 m toward +Y (bottom step at -Y). Walk surface: shape the terrain (or a ramp collider) to the 1:2 slope under it; the steps are visual. Chain them up a trail, each 1.5 m higher and 3 m further."
+  },
+  "mtn_wildflowers": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 0.0,
+    "size": [
+      2.97,
+      0.63,
+      3.0
+    ],
+    "notes": "3 x 3 m ground patch of grass tufts with drifts of white daisies, yellow buttercups, orange poppies and blue spikes. Decal-like: scatter many over meadows and trail edges at any yaw and scale 0.7-1.4; no base, so it sits on any terrain."
+  },
+  "mtn_snow_drift": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 0.0,
+    "size": [
+      6.07,
+      1.22,
+      3.76
+    ],
+    "notes": "Low faceted wind-blown snow mound, 6 x 3.5 x 1 m, with two rock tips poking through; the crest leans to +Y (lee side). Scatter above the tree line and at cliff feet; base sinks 0.25 m. Walkable: terrain carries the player."
+  }
+}

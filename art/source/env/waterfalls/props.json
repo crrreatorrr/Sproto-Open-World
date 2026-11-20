@@ -1,0 +1,238 @@
+{
+  "wf_basalt_cliff": {
+    "landmark": true,
+    "collider": {
+      "kind": "box",
+      "half": [
+        13.83,
+        22.46,
+        4.45
+      ]
+    },
+    "footprint": 17.0,
+    "size": [
+      30.06,
+      44.92,
+      10.47
+    ],
+    "notes": "Cliff of faceted basalt columns, front faces -Y (glTF +Z); place over steep terrain, base sinks 3 m below the pivot for slopes. Notch at x -4.4..4.4 with a lip slab at z 40 (front edge y -3.1): put wf_fall_tall at cliff-local (0, -1.6, 0), same yaw, wf_mist and wf_rainbow in front of it."
+  },
+  "wf_basalt_cliff_low": {
+    "landmark": true,
+    "collider": {
+      "kind": "box",
+      "half": [
+        11.55,
+        9.05,
+        4.78
+      ]
+    },
+    "footprint": 14.0,
+    "size": [
+      25.11,
+      18.11,
+      11.26
+    ],
+    "notes": "Lower cliff with a stepped top (high on -X, low on +X), front faces -Y; base sinks 3 m. Notch at x 1.3..6.7 with a lip slab at z 16 (front edge y -3.1): put wf_fall_mid at cliff-local (4.0, -1.9, 0)."
+  },
+  "wf_basalt_columns": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 2.1,
+      "height": 6.01
+    },
+    "footprint": 3.0,
+    "size": [
+      4.43,
+      6.01,
+      5.06
+    ],
+    "notes": "Cluster of 9 basalt columns 0.5-6 m tall for pool edges and stepping; pivot at the cluster centre, base sinks 1 m."
+  },
+  "wf_fall_tall": {
+    "landmark": true,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 5.0,
+    "size": [
+      10.42,
+      40.12,
+      4.51
+    ],
+    "notes": "Tall fall sheet, front faces -Y. Pivot is the bottom centre at the pool surface (z 0); the lip is at z 40, 1.5 m toward -Y. fx_water UVs: V 0 at the lip, 4 repeats to the bottom (scroll V). Foam skirt at the base. Pair with wf_basalt_cliff (see its notes) and wf_mist."
+  },
+  "wf_fall_mid": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 3.5,
+    "size": [
+      6.74,
+      16.12,
+      3.96
+    ],
+    "notes": "Mid fall, 5 m wide and 16 m tall, front faces -Y. Pivot bottom centre at the pool surface; lip at z 16, 1.2 m toward -Y. V 0 at the lip, 10 m per V. Pairs with wf_basalt_cliff_low."
+  },
+  "wf_cascade_steps": {
+    "landmark": true,
+    "collider": {
+      "kind": "box",
+      "half": [
+        5.7,
+        6.61,
+        5.28
+      ]
+    },
+    "footprint": 7.0,
+    "size": [
+      12.4,
+      13.22,
+      12.42
+    ],
+    "notes": "Five basalt ledges (2.4 m rise, 2 m deep) with water spilling forward toward -Y into the pool at z 0; top ledge at z 12 at the back (+Y). Box collider covers the whole rock mass; base sinks 2 m."
+  },
+  "wf_mist": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 0.0,
+    "size": [
+      11.6,
+      4.92,
+      6.39
+    ],
+    "notes": "Soft mist mound for the base of a fall (fx_water, pale; V = 0 at the top, 1 at the pool, so a scroll drifts it slowly). Pivot on the pool surface; place under the fall with its back (+Y) against the sheet. Decorative."
+  },
+  "wf_rainbow": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 0.0,
+    "size": [
+      16.2,
+      10.0,
+      0.2
+    ],
+    "notes": "Purely decorative: a thin 7-band rainbow arc (fx_glow), 16 m wide, 10 m tall, in the XZ plane facing -Y. Ends dip 0.6 m below the pivot so they vanish into mist; place in the spray in front of a fall."
+  },
+  "wf_crystals": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.38,
+      "height": 1.55
+    },
+    "footprint": 0.9,
+    "size": [
+      1.28,
+      1.55,
+      1.26
+    ],
+    "notes": "Glowing blue crystal cluster (fx_glow) on a dark slate seat, 1.5 m tall. Pool edges, between rim slabs."
+  },
+  "wf_crystals_small": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.22,
+      "height": 0.85
+    },
+    "footprint": 0.5,
+    "size": [
+      0.7,
+      0.85,
+      0.73
+    ],
+    "notes": "Small glowing crystal cluster, 0.8 m tall."
+  },
+  "wf_rim_slabs": {
+    "landmark": false,
+    "collider": {
+      "kind": "box",
+      "half": [
+        2.85,
+        0.2,
+        1.26
+      ]
+    },
+    "footprint": 3.3,
+    "size": [
+      6.2,
+      0.57,
+      2.96
+    ],
+    "notes": "Flat irregular stone slabs edging a pool, 6 x 3 m, ~0.4 m tall; the pool side is -Y. Walkable: the box is low (0.4 m) so use it only if the controller steps up 0.4 m, otherwise treat as ground."
+  },
+  "wf_stone_steps": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 2.6,
+    "size": [
+      4.1,
+      2.82,
+      4.15
+    ],
+    "notes": "Stone-slab stair, 2.5 m wide, rising 2.5 m over 4 m from -Y (bottom, front) to +Y (top), with mossy kerb stones. No collider: give it a ramp collider or let the terrain carry the slope."
+  },
+  "wf_fern": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 0.8,
+    "size": [
+      1.63,
+      0.63,
+      1.55
+    ],
+    "notes": "Fern clump ~1.6 m across with arching fronds. Ledges, pool edges, cliff bases."
+  },
+  "wf_vines": {
+    "landmark": false,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 0.0,
+    "size": [
+      3.29,
+      5.26,
+      0.73
+    ],
+    "notes": "Curtain of hanging vines 3 m wide, up to 5 m long. Pivot at the TOP (the mossy roll that sits on a ledge edge); hangs down -Z with leaves facing -Y. Place on cliff ledges."
+  },
+  "wf_rope_bridge": {
+    "landmark": true,
+    "collider": {
+      "kind": "none"
+    },
+    "footprint": 26.0,
+    "size": [
+      54.76,
+      4.64,
+      2.66
+    ],
+    "notes": "Rope-and-plank suspension bridge spanning X: end posts at x +-25, deck 1.8 m wide, sagging 3 m to z -3 at mid-span. Pivot at the middle of the span at anchor height (deck ends at z 0); anchor stakes at x +-27.2. No collider: build a walk collider along the deck curve z = -3 * (1 - (x / 25)^2)."
+  },
+  "wf_pine": {
+    "landmark": false,
+    "collider": {
+      "kind": "cylinder",
+      "radius": 0.45,
+      "height": 16.0
+    },
+    "footprint": 2.5,
+    "size": [
+      5.85,
+      16.0,
+      6.28
+    ],
+    "notes": "Tall slender cliff-top pine, 16 m; cylinder collider is the trunk."
+  }
+}

@@ -601,7 +601,8 @@ export class App {
       this.godPending = this.godWanted && GOD_ALLOWED && !!this.stream;
       this.rpgHud.clearFeed();
       this.state = 'playing';
-      if (this.groundWait) this.showGroundVeil(entity.tf.pos.x);
+      this.stream?.loadFarHorizons();
+      if (this.groundWait) this.showGroundVeil(entity.tf.pos.x, entity.tf.pos.z);
       else this.panels.hideVeil();
       this.hud.visible = !this.groundWait;
       this.input.requestLock();
@@ -1116,10 +1117,10 @@ export class App {
 
   /**
    * Hold the player behind the loading veil. The line names the region they are entering
-   * (Sproutvale on the surface, the Rootdeep in the cave).
+   * (src/content/world/regions.ts).
    */
-  private showGroundVeil(x: number): void {
-    this.panels.showVeil(loadingVeilText(x));
+  private showGroundVeil(x: number, z?: number): void {
+    this.panels.showVeil(loadingVeilText(x, z ?? this.sim?.playerEntity(LOCAL_PLAYER)?.tf.pos.z ?? 0));
   }
 
   /**
@@ -1145,7 +1146,7 @@ export class App {
     if (!this.groundWait) {
       this.groundWait = true;
       this.hud.visible = false;
-      this.showGroundVeil(p.tf.pos.x);
+      this.showGroundVeil(p.tf.pos.x, p.tf.pos.z);
     }
     if (ground === 'timeout') this.groundTimeout();
     return true;
@@ -1309,7 +1310,7 @@ export class App {
         if (this.stream) {
           this.groundWait = true;
           this.hud.visible = false;
-          this.showGroundVeil(who.tf.pos.x);
+          this.showGroundVeil(who.tf.pos.x, who.tf.pos.z);
         }
         return;
       }

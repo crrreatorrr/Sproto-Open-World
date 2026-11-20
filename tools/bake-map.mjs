@@ -30,6 +30,11 @@ const TREE = [58, 92, 50];
 const BUILT = [96, 74, 54];
 const TREES = new Set(['grove_tree', 'grove_pines']);
 const BUILDINGS = new Set(['market_stall', 'fountain', 'grove_shed', 'grove_barn_roof', 'grove_silo', 'grove_water_tower', 'grove_tower', 'well', 'grove_bridge']);
+/** The environment kits' props by name (art/tools/env). */
+const KIT_TREE = /_(pine|pine_small|maple_red|maple_orange|willow|birch|birch_pair|bamboo)$/;
+const KIT_BUILT = /_(house_[a-z]+|clock_tower|keep|mill|temple|pagoda|torii|bridge|market_stall|watchtower_ruin|dock|rope_bridge)$/;
+const KIT_ROCK = /_(peak_[ab]|cliff_[ab]|basalt_cliff|basalt_cliff_low|rock_large)$/;
+const ROCK = [118, 112, 128];
 const CONTOUR_M = 4;
 
 const heights = new Float32Array(W * H);
@@ -59,9 +64,10 @@ for (const c of manifest.cells) {
   }
   const json = JSON.parse(fs.readFileSync(path.resolve('public', c.json), 'utf8'));
   for (const [kind, packed] of Object.entries(json.props ?? {})) {
-    const paint = TREES.has(kind) ? TREE : BUILDINGS.has(kind) ? BUILT : null;
+    const tree = TREES.has(kind) || KIT_TREE.test(kind), built = BUILDINGS.has(kind) || KIT_BUILT.test(kind), rock = KIT_ROCK.test(kind);
+    const paint = tree ? TREE : built ? BUILT : rock ? ROCK : null;
     if (!paint) continue;
-    const r = kind === 'grove_pines' ? 3 : TREES.has(kind) ? 1.8 : 2.4;
+    const r = kind === 'grove_pines' ? 3 : /peak/.test(kind) ? 26 : /cliff/.test(kind) ? 10 : /house|temple|mill|clock|keep|pagoda/.test(kind) ? 4.5 : tree ? 1.8 : 2.4;
     for (let p = 0; p + 4 < packed.length; p += 5) placed.push({ x: packed[p] - ox, z: packed[p + 2] - oz, r: r * Math.sqrt(packed[p + 4]), paint });
   }
 }
@@ -78,14 +84,15 @@ function toLine(points, x, z) {
   return best;
 }
 
-const rivers = (terrain.carve ?? []).filter((c) => c.id === 'river');
+const rivers = (terrain.carve ?? []).filter((c) => c.id === 'river').map((c) => ({ points: c.points, half: c.bedHalfWidth + 1.5 }));
+// The water the renderer draws (manifest.water): rivers by their ribbon, pools by their disc.
+for (const w of manifest.water ?? []) if (w.kind === 'river') rivers.push({ points: w.points, half: w.halfWidth });
+const pools = (manifest.water ?? []).filter((w) => w.kind === 'pool');
 for (let z = 0; z < H; z++) {
   for (let x = 0; x < W; x++) {
     const i = at(x, z);
-    for (const r of rivers) {
-      if (toLine(r.points, x + ox, z + oz) > r.bedHalfWidth + 1.5) continue;
-      for (let k = 0; k < 3; k++) rgb[i * 3 + k] = WATER[k];
-    }
+    const wet = rivers.some((r) => toLine(r.points, x + ox, z + oz) <= r.half) || pools.some((p) => Math.hypot(x + ox - p.center[0], z + oz - p.center[1]) <= p.radius);
+    if (wet) for (let k = 0; k < 3; k++) rgb[i * 3 + k] = WATER[k];
   }
 }
 
@@ -101,6 +108,13 @@ for (const p of placed) {
   }
 }
 
+let lo = Infinity, hi = -Infinity;
+for (const h of heights) {
+  lo = Math.min(lo, h);
+  hi = Math.max(hi, h);
+}
+// Contours every 4 m in the lowlands; a mountain region would turn brown with lines, so space them by its relief.
+const contour = Math.max(CONTOUR_M, Math.round((hi - lo) / 12 / 2) * 2);
 const out = Buffer.alloc(W * H * 3);
 for (let z = 0; z < H; z++) {
   for (let x = 0; x < W; x++) {
@@ -109,9 +123,9 @@ for (let z = 0; z < H; z++) {
     const du = (heights[at(x - 1, z)] - heights[at(x + 1, z)]) / 2;
     const dv = (heights[at(x, z - 1)] - heights[at(x, z + 1)]) / 2;
     const shade = Math.max(0.55, Math.min(1.35, 1 + 0.55 * (du + dv)));
-    const band = Math.floor(heights[i] / CONTOUR_M);
-    const edge = band !== Math.floor(heights[at(x + 1, z)] / CONTOUR_M) || band !== Math.floor(heights[at(x, z + 1)] / CONTOUR_M);
-    const lift = 0.92 + 0.16 * ((heights[i] - manifest.heightRange.min) / span);
+    const band = Math.floor(heights[i] / contour);
+    const edge = band !== Math.floor(heights[at(x + 1, z)] / contour) || band !== Math.floor(heights[at(x, z + 1)] / contour);
+    const lift = 0.92 + 0.16 * ((heights[i] - lo) / Math.max(1, hi - lo));
     const o = ((H - 1 - z) * W + (W - 1 - x)) * 3;
     for (let k = 0; k < 3; k++) out[o + k] = Math.max(0, Math.min(255, rgb[i * 3 + k] * shade * lift * (edge ? 0.86 : 1)));
   }

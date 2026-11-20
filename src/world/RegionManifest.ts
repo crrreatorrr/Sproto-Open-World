@@ -1,10 +1,16 @@
 import { CELL_SIZE, cellKey, type CellEntry, type RegionManifest } from '../content/world/format';
+import { REGIONS } from '../content/world/regions';
 
 /** Where Sproutvale's manifest lives (under public/). */
 export const SPROUTVALE = 'world/sproutvale/region.json';
 
 /** Where the Rootdeep's manifest lives (under public/). */
 export const ROOTDEEP = 'world/rootdeep/region.json';
+
+/** The merged world's extras: every overworld region's horizon (the cave's is never drawn). */
+export interface WorldManifest extends RegionManifest {
+  horizons: string[];
+}
 
 /** A public/ path as a URL the page can fetch (the build uses a relative base). */
 export function publicUrl(path: string): string {
@@ -57,26 +63,54 @@ export async function loadRegion(path = SPROUTVALE, signal?: AbortSignal): Promi
 }
 
 /**
- * One streamed world from two baked regions. Cells and props are joined; everything else (origin,
- * size, horizon, player start, fog, height range) stays the first region's, which is what the
- * streamer and the horizon mask are built around. A prop both regions place keeps the larger
- * capacity so neither InstancedMesh is short.
+ * One streamed world from baked regions. Cells, props and water are joined. Origin and size become
+ * the bounding box of every region's cells (the horizon mask is built over it); player start, fog
+ * and height range stay the first region's. A prop several regions use keeps the largest capacity
+ * so no InstancedMesh is short. `overworld` lists which manifests draw their horizon.
  */
-export function mergeManifests(a: RegionManifest, b: RegionManifest): RegionManifest {
-  if (a.heightRange.min !== b.heightRange.min || a.heightRange.max !== b.heightRange.max) {
-    throw new Error(`heightRange ${a.heightRange.min}..${a.heightRange.max} != ${b.heightRange.min}..${b.heightRange.max}`);
-  }
-  const props: RegionManifest['props'] = { ...a.props };
-  for (const [key, kind] of Object.entries(b.props)) {
-    const have = props[key];
-    if (!have) props[key] = kind;
-    else if (kind.capacity > have.capacity) props[key] = { ...have, capacity: kind.capacity };
-  }
-  return { ...a, cells: [...a.cells, ...b.cells], props };
+export function mergeManifests(first: RegionManifest, ...rest: RegionManifest[]): WorldManifest;
+export function mergeManifests(...all: RegionManifest[]): WorldManifest {
+  return mergeWorld(all, all.map(() => true));
 }
 
-/** Sproutvale plus the Rootdeep, checked the same way as either manifest on its own. */
+export function mergeWorld(all: RegionManifest[], overworld: boolean[]): WorldManifest {
+  const [a] = all;
+  for (const b of all.slice(1)) {
+    if (a.heightRange.min !== b.heightRange.min || a.heightRange.max !== b.heightRange.max) {
+      throw new Error(`heightRange ${a.heightRange.min}..${a.heightRange.max} != ${b.heightRange.min}..${b.heightRange.max} (${b.id})`);
+    }
+  }
+  const props: RegionManifest['props'] = { ...a.props };
+  for (const b of all.slice(1)) {
+    for (const [key, kind] of Object.entries(b.props)) {
+      const have = props[key];
+      if (!have) props[key] = kind;
+      else if (kind.capacity > have.capacity) props[key] = { ...have, capacity: kind.capacity };
+    }
+  }
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (const m of all) {
+    x0 = Math.min(x0, m.origin[0]);
+    z0 = Math.min(z0, m.origin[1]);
+    x1 = Math.max(x1, m.origin[0] + m.size[0]);
+    z1 = Math.max(z1, m.origin[1] + m.size[1]);
+  }
+  // A river that crosses a seam is in both regions' manifests: keep it once.
+  const seen = new Set<string>();
+  const water = all.flatMap((m) => m.water ?? []).filter((w) => !seen.has(w.id) && Boolean(seen.add(w.id)));
+  return {
+    ...a,
+    origin: [x0, z0],
+    size: [x1 - x0, z1 - z0],
+    cells: all.flatMap((m) => m.cells),
+    props,
+    ...(water.length ? { water } : {}),
+    horizons: all.filter((_, i) => overworld[i]).map((m) => m.horizon),
+  };
+}
+
+/** Every region in the registry (src/content/world/regions.ts), checked one by one, as one world. */
 export async function loadWorld(signal?: AbortSignal): Promise<Region> {
-  const [sproutvale, rootdeep] = await Promise.all([loadRegion(SPROUTVALE, signal), loadRegion(ROOTDEEP, signal)]);
-  return new Region(mergeManifests(sproutvale.manifest, rootdeep.manifest));
+  const loaded = await Promise.all(REGIONS.map((r) => loadRegion(r.manifest, signal)));
+  return new Region(mergeWorld(loaded.map((r) => r.manifest), REGIONS.map((r) => r.overworld)));
 }

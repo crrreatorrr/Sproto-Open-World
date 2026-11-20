@@ -186,7 +186,7 @@ describe('baked Rootdeep', () => {
   it('has 64 cells at origin [64, 0] and shares Sproutvale\'s height range', () => {
     expect(manifest.cells.length).toBe(64);
     expect(manifest.origin).toEqual([64, 0]);
-    expect(manifest.heightRange).toEqual({ min: -8, max: 40 });
+    expect(manifest.heightRange).toEqual({ min: -16, max: 240 });
   });
 
   it('connects all 21 chambers', () => {

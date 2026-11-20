@@ -4,8 +4,9 @@
  *   - Title shell (index.html + CSS + entry JS, gzip): ≤ 150 KiB.
  *   - Critical transfer to playable in the world (all JS, the player, the small boot staff, the terrain textures, the combat sounds,
  *     the village's villagers, shrine, chests, pickups and square props,
- *     Sproutvale's region.json, the village cells (3–4, 0–1) and their ring, every prop those cells place (LOD0 + LOD1) and
- *     horizon.glb), as served (JS gzip; GLB/JPG/WebM already compressed; cell .bin/.json counted raw): ≤ 6 MiB.
+ *     every region's region.json, the village cells (3–4, 0–1) and their ring, every prop those cells place (LOD0 + LOD1) and
+ *     the start region's horizon.glb), as served (JS and region.json gzip; GLB/JPG/WebM already compressed; cell .bin/.json
+ *     counted raw): ≤ 6 MiB. The other overworld horizons load after Play, at low priority.
  *     Enemies, other staffs and the full starter staff load later, by distance or when calm, so they don't count.
  *     Each class (content/classes.ts) boots with its own body and weapon, so the budget holds for each: the
  *     Wizard's player.glb and small staff, the Soldier's and Pepe's bodies with the Toy MG.
@@ -60,8 +61,13 @@ for (const key of [...villageProps].sort()) {
   critical.push(`assets/${k.path}`);
   if (k.lod1Path) critical.push(`assets/${k.lod1Path}`);
 }
-critical.push('world/sproutvale/region.json', region.horizon);
-const sharedBytes = allJs + [...new Set(critical)].reduce((n, f) => n + size(path.join(DIST, f)), 0);
+// The start region's horizon is on the way to Play; the other overworld horizons load behind it at
+// low priority (src/app/WorldSession.ts), so they don't count.
+critical.push(region.horizon);
+// The world loads every region's manifest before Play (src/content/world/regions.ts). JSON is
+// served compressed, so the manifests count gzipped, like the JS.
+const manifests = fs.readdirSync(WORLD).sort().map((id) => path.join(WORLD, id, 'region.json')).filter((m) => fs.existsSync(m));
+const sharedBytes = allJs + manifests.reduce((n, f) => n + gz(f), 0) + [...new Set(critical)].reduce((n, f) => n + size(path.join(DIST, f)), 0);
 // A class whose art isn't built yet counts as missing, and fails.
 const classRows = Object.entries(CLASS_BOOT).map(([cls, boot]) => {
   const missing = boot.filter((f) => !fs.existsSync(path.join(DIST, f)));
