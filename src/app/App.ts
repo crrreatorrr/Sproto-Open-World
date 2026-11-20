@@ -30,6 +30,7 @@ import { freshDigitChord, godChordPressed } from '../input/godChord';
 import { CommandBuilder } from '../input/CommandBuilder';
 import { applyControlPrefs, loadControlPrefs, saveControlPrefs } from '../input/controlPrefs';
 import { promptLabel } from '../input/glyphs';
+import { aimAssist, assistTargetsFromView } from '../input/aimAssist';
 import { Input } from '../input/Input';
 import { CAMERA_KICK, HIT_FEEL, RUMBLE, TRAUMA, hitTier, kickScale } from '../render/fx/feedback';
 import { HitFx, type SparkStyle } from '../render/fx/HitFx';
@@ -37,6 +38,7 @@ import { isSoftPowerHit, powerSpark } from '../render/fx/powers';
 import { PortraitStudio } from '../render/PortraitStudio';
 import { Renderer } from '../render/Renderer';
 import { PlayerView } from '../render/views/PlayerView';
+import { Viewmodel } from '../render/views/Viewmodel';
 import { WorldViews, enemyDef } from '../render/views/WorldViews';
 import { newerSave, readDiskSave, writeDiskSave } from '../save/DiskSave';
 import { holdForHubVisit, loadSave, saveSlot, writeSave } from '../save/slot';
@@ -61,7 +63,7 @@ import { RpgHud, type HudRpgState } from '../ui/RpgHud';
 import { RpgMenus } from '../ui/rpgMenus';
 import { compassOffset, gallopLabel, headingTo, interactLabel, leadLine, trackedQuest } from '../ui/rpgText';
 import { loadSettings, motionScale, saveSettings, type Settings } from '../ui/settings';
-import { gunDef, type FixedGunDef } from '../content/guns';
+import { gunDef, gunRange, type FixedGunDef } from '../content/guns';
 import { SurgeMeter } from '../ui/SurgeMeter';
 import { WeaponBarHud, type WeaponSlotView } from '../ui/WeaponBarHud';
 import { FixedLoop } from './loop';
@@ -188,6 +190,7 @@ export class App {
   /** The boss bar, its intro card and the end card (M5). */
   readonly bossHud: BossHud;
   readonly weaponBar: WeaponBarHud;
+  readonly viewmodel: Viewmodel;
   /** The last quest is done: the end card shows once any open menu has closed. */
   private endCardPending = false;
   /** Seconds left of a phase change's pull-back (the phase camera moment). */
@@ -241,6 +244,7 @@ export class App {
     this.world = new WorldViews(this.assets, this.fx);
     this.renderer.scene.add(this.world.root, this.fx.root);
     this.rig = new CameraRig(this.renderer.camera);
+    this.viewmodel = new Viewmodel(this.renderer.camera, this.assets);
     this.commands = new CommandBuilder(this.input);
     this.settings = loadSettings();
     const prefs = loadControlPrefs();
@@ -821,7 +825,26 @@ export class App {
     const m = this.input.consumeMouseDelta();
     if (!menu) {
       if (m.x || m.y) this.rig.rotateMouse(locked ? 0 : m.x, m.y);
-      if (pad.look.x || pad.look.y) this.rig.rotatePad(locked ? 0 : pad.look.x, pad.look.y, dt);
+      const curP = sim.playerEntity(LOCAL_PLAYER);
+      const curGun = curP?.progress ? gunDef(curP.progress.equipment.staff) ?? null : null;
+      if (pad.device === 'gamepad' && !locked && curGun && curP) {
+        const camPos = this.renderer.camera.position;
+        const assist = aimAssist({
+          eye: { x: camPos.x, y: camPos.y, z: camPos.z },
+          yaw: this.rig.yaw,
+          pitch: this.rig.pitch,
+          targets: assistTargetsFromView(simView),
+          aiming: pad.isDown(PAD.block),
+          input: Math.max(Math.hypot(pad.look.x, pad.look.y), Math.hypot(pad.move.x, pad.move.y)),
+          dt,
+          device: 'gamepad',
+          range: gunRange(curGun.id).max,
+        });
+        if (pad.look.x || pad.look.y) this.rig.rotatePad(pad.look.x * assist.slow, pad.look.y * assist.slow, dt);
+        if (assist.dYaw || assist.dPitch) this.rig.rotateMouse(-assist.dYaw * 200, -assist.dPitch * 200);
+      } else if (pad.look.x || pad.look.y) {
+        this.rig.rotatePad(locked ? 0 : pad.look.x, pad.look.y, dt);
+      }
     }
 
     if (menu) {
@@ -885,6 +908,7 @@ export class App {
     this.rig.flight = p.riding?.flight ? { yaw: p.tf.yaw, pitch: p.riding.flight.pitch } : null;
     this.rig.occluders = this.cameraOccluders(simView, p);
     this.rig.update(dt, this.target, simView, p.loco?.sprinting ?? false, this.speakerPoint(simView, p) ?? this.lockPoint(simView, p));
+    this.viewmodel.update(dt, Viewmodel.stateFromView(simView, LOCAL_PLAYER, this.rig.mode, activeGun?.itemId ?? null, null, m.x * 0.002, m.y * 0.002));
     this.renderer.follow(this.target);
     // Screen-space UI projects through this frame's camera.
     this.renderer.camera.updateMatrixWorld();

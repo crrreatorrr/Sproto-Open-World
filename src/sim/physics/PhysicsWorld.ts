@@ -1,9 +1,11 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { KCC } from '../../content/tuning';
+import type { DungeonDef } from '../../content/dungeons/types';
 import type { LevelDef } from '../../content/sandbox';
 import { CELL_RES, CELL_SIZE, type CellColliders, type ColliderShape } from '../../content/world/format';
 import type { Body, EntityId, Obstacle } from '../entity';
 import type { Vec3 } from '../math';
+import { compileDungeonColliders, type CompiledDungeonColliders } from './dungeonColliders';
 
 type ObstacleShape = Obstacle['shape'];
 
@@ -402,7 +404,27 @@ export class PhysicsWorld {
     return { distance: hit.time_of_impact, normal: { x: n.x, y: n.y, z: n.z } };
   }
 
+  private dungeonColliders: CompiledDungeonColliders | null = null;
+
+  /** Compile a Campaign Dungeon's static geometry, terrain, and lockdown doors into Rapier3D. */
+  loadDungeon(dungeon: DungeonDef, initialSealedDoors?: readonly string[]): void {
+    this.unloadDungeon();
+    this.dungeonColliders = compileDungeonColliders(this.world, dungeon, initialSealedDoors);
+  }
+
+  /** Seal or unseal a dungeon lockdown door collider. */
+  setDungeonDoorSealed(doorId: string, sealed: boolean): void {
+    this.dungeonColliders?.setDoorSealed(doorId, sealed);
+  }
+
+  /** Remove all compiled dungeon colliders from the Rapier world. */
+  unloadDungeon(): void {
+    this.dungeonColliders?.dispose();
+    this.dungeonColliders = null;
+  }
+
   dispose(): void {
+    this.unloadDungeon();
     this.world.free();
   }
 }

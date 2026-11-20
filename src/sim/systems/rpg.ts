@@ -19,6 +19,7 @@ import { defaultAbilities, defaultAmmo, type Entity, type InteractKind, type Pro
 import type { SimEvent } from '../events';
 import type { Vec3 } from '../math';
 import { affixXp } from './affixes';
+import { computeClassModifiers } from './classSkills';
 import { setGod } from './god';
 import { fastTravel, godWarp, openPhone } from './travel';
 import { equipSpell, gearLocked, grantSkillPoints, learnIntoLoadout, respecSkills, spendSkill } from './loadout';
@@ -102,7 +103,9 @@ export function recompute(e: Entity): void {
   if (!p || !v || !c) return;
   const above = p.level - 1;
   const sk = p.skills;
-  const hpMax = PLAYER_STATS.hp + GROWTH.hpPerLevel * above + SKILL_EFFECT.defenseHp * sk.defense;
+  const mods = computeClassModifiers(p.class, sk);
+  const baseHp = PLAYER_STATS.hp + GROWTH.hpPerLevel * above + SKILL_EFFECT.defenseHp * sk.defense;
+  const hpMax = Math.round(baseHp * mods.maxHpMult);
   const stMax = PLAYER_STATS.stamina + GROWTH.staminaPerLevel * above + SKILL_EFFECT.staminaMax * sk.stamina;
   const mpMax = PLAYER_STATS.mana + GROWTH.manaPerLevel * above + SKILL_EFFECT.focusMana * sk.focus;
   // Growing a maximum grows the current value with it (a level-up feels like one). The dead stay at 0.
