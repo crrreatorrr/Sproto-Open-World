@@ -1,0 +1,2486 @@
+{
+  "id": "town",
+  "version": 1,
+  "origin": [
+    8,
+    0
+  ],
+  "size": [
+    16,
+    8
+  ],
+  "cellSize": 64,
+  "heightRange": {
+    "min": -16,
+    "max": 240
+  },
+  "cells": [
+    {
+      "cx": 8,
+      "cz": 0,
+      "bin": "world/town/cells/c_8_0.bin",
+      "json": "world/town/cells/c_8_0.json",
+      "bytes": 27447
+    },
+    {
+      "cx": 9,
+      "cz": 0,
+      "bin": "world/town/cells/c_9_0.bin",
+      "json": "world/town/cells/c_9_0.json",
+      "bytes": 28941
+    },
+    {
+      "cx": 10,
+      "cz": 0,
+      "bin": "world/town/cells/c_10_0.bin",
+      "json": "world/town/cells/c_10_0.json",
+      "bytes": 28431
+    },
+    {
+      "cx": 11,
+      "cz": 0,
+      "bin": "world/town/cells/c_11_0.bin",
+      "json": "world/town/cells/c_11_0.json",
+      "bytes": 25818
+    },
+    {
+      "cx": 12,
+      "cz": 0,
+      "bin": "world/town/cells/c_12_0.bin",
+      "json": "world/town/cells/c_12_0.json",
+      "bytes": 25602
+    },
+    {
+      "cx": 13,
+      "cz": 0,
+      "bin": "world/town/cells/c_13_0.bin",
+      "json": "world/town/cells/c_13_0.json",
+      "bytes": 25378
+    },
+    {
+      "cx": 14,
+      "cz": 0,
+      "bin": "world/town/cells/c_14_0.bin",
+      "json": "world/town/cells/c_14_0.json",
+      "bytes": 25378
+    },
+    {
+      "cx": 15,
+      "cz": 0,
+      "bin": "world/town/cells/c_15_0.bin",
+      "json": "world/town/cells/c_15_0.json",
+      "bytes": 25378
+    },
+    {
+      "cx": 16,
+      "cz": 0,
+      "bin": "world/town/cells/c_16_0.bin",
+      "json": "world/town/cells/c_16_0.json",
+      "bytes": 25709
+    },
+    {
+      "cx": 17,
+      "cz": 0,
+      "bin": "world/town/cells/c_17_0.bin",
+      "json": "world/town/cells/c_17_0.json",
+      "bytes": 25732
+    },
+    {
+      "cx": 18,
+      "cz": 0,
+      "bin": "world/town/cells/c_18_0.bin",
+      "json": "world/town/cells/c_18_0.json",
+      "bytes": 25422
+    },
+    {
+      "cx": 19,
+      "cz": 0,
+      "bin": "world/town/cells/c_19_0.bin",
+      "json": "world/town/cells/c_19_0.json",
+      "bytes": 25546
+    },
+    {
+      "cx": 20,
+      "cz": 0,
+      "bin": "world/town/cells/c_20_0.bin",
+      "json": "world/town/cells/c_20_0.json",
+      "bytes": 25545
+    },
+    {
+      "cx": 21,
+      "cz": 0,
+      "bin": "world/town/cells/c_21_0.bin",
+      "json": "world/town/cells/c_21_0.json",
+      "bytes": 25477
+    },
+    {
+      "cx": 22,
+      "cz": 0,
+      "bin": "world/town/cells/c_22_0.bin",
+      "json": "world/town/cells/c_22_0.json",
+      "bytes": 25378
+    },
+    {
+      "cx": 23,
+      "cz": 0,
+      "bin": "world/town/cells/c_23_0.bin",
+      "json": "world/town/cells/c_23_0.json",
+      "bytes": 25378
+    },
+    {
+      "cx": 8,
+      "cz": 1,
+      "bin": "world/town/cells/c_8_1.bin",
+      "json": "world/town/cells/c_8_1.json",
+      "bytes": 27340
+    },
+    {
+      "cx": 9,
+      "cz": 1,
+      "bin": "world/town/cells/c_9_1.bin",
+      "json": "world/town/cells/c_9_1.json",
+      "bytes": 28675
+    },
+    {
+      "cx": 10,
+      "cz": 1,
+      "bin": "world/town/cells/c_10_1.bin",
+      "json": "world/town/cells/c_10_1.json",
+      "bytes": 28256
+    },
+    {
+      "cx": 11,
+      "cz": 1,
+      "bin": "world/town/cells/c_11_1.bin",
+      "json": "world/town/cells/c_11_1.json",
+      "bytes": 26042
+    },
+    {
+      "cx": 12,
+      "cz": 1,
+      "bin": "world/town/cells/c_12_1.bin",
+      "json": "world/town/cells/c_12_1.json",
+      "bytes": 25587
+    },
+    {
+      "cx": 13,
+      "cz": 1,
+      "bin": "world/town/cells/c_13_1.bin",
+      "json": "world/town/cells/c_13_1.json",
+      "bytes": 25378
+    },
+    {
+      "cx": 14,
+      "cz": 1,
+      "bin": "world/town/cells/c_14_1.bin",
+      "json": "world/town/cells/c_14_1.json",
+      "bytes": 26632
+    },
+    {
+      "cx": 15,
+      "cz": 1,
+      "bin": "world/town/cells/c_15_1.bin",
+      "json": "world/town/cells/c_15_1.json",
+      "bytes": 26340
+    },
+    {
+      "cx": 16,
+      "cz": 1,
+      "bin": "world/town/cells/c_16_1.bin",
+      "json": "world/town/cells/c_16_1.json",
+      "bytes": 26667
+    },
+    {
+      "cx": 17,
+      "cz": 1,
+      "bin": "world/town/cells/c_17_1.bin",
+      "json": "world/town/cells/c_17_1.json",
+      "bytes": 26172
+    },
+    {
+      "cx": 18,
+      "cz": 1,
+      "bin": "world/town/cells/c_18_1.bin",
+      "json": "world/town/cells/c_18_1.json",
+      "bytes": 26134
+    },
+    {
+      "cx": 19,
+      "cz": 1,
+      "bin": "world/town/cells/c_19_1.bin",
+      "json": "world/town/cells/c_19_1.json",
+      "bytes": 25582
+    },
+    {
+      "cx": 20,
+      "cz": 1,
+      "bin": "world/town/cells/c_20_1.bin",
+      "json": "world/town/cells/c_20_1.json",
+      "bytes": 25548
+    },
+    {
+      "cx": 21,
+      "cz": 1,
+      "bin": "world/town/cells/c_21_1.bin",
+      "json": "world/town/cells/c_21_1.json",
+      "bytes": 25632
+    },
+    {
+      "cx": 22,
+      "cz": 1,
+      "bin": "world/town/cells/c_22_1.bin",
+      "json": "world/town/cells/c_22_1.json",
+      "bytes": 25529
+    },
+    {
+      "cx": 23,
+      "cz": 1,
+      "bin": "world/town/cells/c_23_1.bin",
+      "json": "world/town/cells/c_23_1.json",
+      "bytes": 25559
+    },
+    {
+      "cx": 8,
+      "cz": 2,
+      "bin": "world/town/cells/c_8_2.bin",
+      "json": "world/town/cells/c_8_2.json",
+      "bytes": 28801
+    },
+    {
+      "cx": 9,
+      "cz": 2,
+      "bin": "world/town/cells/c_9_2.bin",
+      "json": "world/town/cells/c_9_2.json",
+      "bytes": 26729
+    },
+    {
+      "cx": 10,
+      "cz": 2,
+      "bin": "world/town/cells/c_10_2.bin",
+      "json": "world/town/cells/c_10_2.json",
+      "bytes": 26602
+    },
+    {
+      "cx": 11,
+      "cz": 2,
+      "bin": "world/town/cells/c_11_2.bin",
+      "json": "world/town/cells/c_11_2.json",
+      "bytes": 26452
+    },
+    {
+      "cx": 12,
+      "cz": 2,
+      "bin": "world/town/cells/c_12_2.bin",
+      "json": "world/town/cells/c_12_2.json",
+      "bytes": 26841
+    },
+    {
+      "cx": 13,
+      "cz": 2,
+      "bin": "world/town/cells/c_13_2.bin",
+      "json": "world/town/cells/c_13_2.json",
+      "bytes": 27418
+    },
+    {
+      "cx": 14,
+      "cz": 2,
+      "bin": "world/town/cells/c_14_2.bin",
+      "json": "world/town/cells/c_14_2.json",
+      "bytes": 27911
+    },
+    {
+      "cx": 15,
+      "cz": 2,
+      "bin": "world/town/cells/c_15_2.bin",
+      "json": "world/town/cells/c_15_2.json",
+      "bytes": 27701
+    },
+    {
+      "cx": 16,
+      "cz": 2,
+      "bin": "world/town/cells/c_16_2.bin",
+      "json": "world/town/cells/c_16_2.json",
+      "bytes": 26925
+    },
+    {
+      "cx": 17,
+      "cz": 2,
+      "bin": "world/town/cells/c_17_2.bin",
+      "json": "world/town/cells/c_17_2.json",
+      "bytes": 26896
+    },
+    {
+      "cx": 18,
+      "cz": 2,
+      "bin": "world/town/cells/c_18_2.bin",
+      "json": "world/town/cells/c_18_2.json",
+      "bytes": 26029
+    },
+    {
+      "cx": 19,
+      "cz": 2,
+      "bin": "world/town/cells/c_19_2.bin",
+      "json": "world/town/cells/c_19_2.json",
+      "bytes": 25914
+    },
+    {
+      "cx": 20,
+      "cz": 2,
+      "bin": "world/town/cells/c_20_2.bin",
+      "json": "world/town/cells/c_20_2.json",
+      "bytes": 25991
+    },
+    {
+      "cx": 21,
+      "cz": 2,
+      "bin": "world/town/cells/c_21_2.bin",
+      "json": "world/town/cells/c_21_2.json",
+      "bytes": 26080
+    },
+    {
+      "cx": 22,
+      "cz": 2,
+      "bin": "world/town/cells/c_22_2.bin",
+      "json": "world/town/cells/c_22_2.json",
+      "bytes": 25703
+    },
+    {
+      "cx": 23,
+      "cz": 2,
+      "bin": "world/town/cells/c_23_2.bin",
+      "json": "world/town/cells/c_23_2.json",
+      "bytes": 25617
+    },
+    {
+      "cx": 8,
+      "cz": 3,
+      "bin": "world/town/cells/c_8_3.bin",
+      "json": "world/town/cells/c_8_3.json",
+      "bytes": 25995
+    },
+    {
+      "cx": 9,
+      "cz": 3,
+      "bin": "world/town/cells/c_9_3.bin",
+      "json": "world/town/cells/c_9_3.json",
+      "bytes": 25994
+    },
+    {
+      "cx": 10,
+      "cz": 3,
+      "bin": "world/town/cells/c_10_3.bin",
+      "json": "world/town/cells/c_10_3.json",
+      "bytes": 26010
+    },
+    {
+      "cx": 11,
+      "cz": 3,
+      "bin": "world/town/cells/c_11_3.bin",
+      "json": "world/town/cells/c_11_3.json",
+      "bytes": 27966
+    },
+    {
+      "cx": 12,
+      "cz": 3,
+      "bin": "world/town/cells/c_12_3.bin",
+      "json": "world/town/cells/c_12_3.json",
+      "bytes": 28154
+    },
+    {
+      "cx": 13,
+      "cz": 3,
+      "bin": "world/town/cells/c_13_3.bin",
+      "json": "world/town/cells/c_13_3.json",
+      "bytes": 26951
+    },
+    {
+      "cx": 14,
+      "cz": 3,
+      "bin": "world/town/cells/c_14_3.bin",
+      "json": "world/town/cells/c_14_3.json",
+      "bytes": 26835
+    },
+    {
+      "cx": 15,
+      "cz": 3,
+      "bin": "world/town/cells/c_15_3.bin",
+      "json": "world/town/cells/c_15_3.json",
+      "bytes": 27174
+    },
+    {
+      "cx": 16,
+      "cz": 3,
+      "bin": "world/town/cells/c_16_3.bin",
+      "json": "world/town/cells/c_16_3.json",
+      "bytes": 27579
+    },
+    {
+      "cx": 17,
+      "cz": 3,
+      "bin": "world/town/cells/c_17_3.bin",
+      "json": "world/town/cells/c_17_3.json",
+      "bytes": 25956
+    },
+    {
+      "cx": 18,
+      "cz": 3,
+      "bin": "world/town/cells/c_18_3.bin",
+      "json": "world/town/cells/c_18_3.json",
+      "bytes": 26101
+    },
+    {
+      "cx": 19,
+      "cz": 3,
+      "bin": "world/town/cells/c_19_3.bin",
+      "json": "world/town/cells/c_19_3.json",
+      "bytes": 26253
+    },
+    {
+      "cx": 20,
+      "cz": 3,
+      "bin": "world/town/cells/c_20_3.bin",
+      "json": "world/town/cells/c_20_3.json",
+      "bytes": 27045
+    },
+    {
+      "cx": 21,
+      "cz": 3,
+      "bin": "world/town/cells/c_21_3.bin",
+      "json": "world/town/cells/c_21_3.json",
+      "bytes": 26072
+    },
+    {
+      "cx": 22,
+      "cz": 3,
+      "bin": "world/town/cells/c_22_3.bin",
+      "json": "world/town/cells/c_22_3.json",
+      "bytes": 25793
+    },
+    {
+      "cx": 23,
+      "cz": 3,
+      "bin": "world/town/cells/c_23_3.bin",
+      "json": "world/town/cells/c_23_3.json",
+      "bytes": 25580
+    },
+    {
+      "cx": 8,
+      "cz": 4,
+      "bin": "world/town/cells/c_8_4.bin",
+      "json": "world/town/cells/c_8_4.json",
+      "bytes": 26651
+    },
+    {
+      "cx": 9,
+      "cz": 4,
+      "bin": "world/town/cells/c_9_4.bin",
+      "json": "world/town/cells/c_9_4.json",
+      "bytes": 27173
+    },
+    {
+      "cx": 10,
+      "cz": 4,
+      "bin": "world/town/cells/c_10_4.bin",
+      "json": "world/town/cells/c_10_4.json",
+      "bytes": 26725
+    },
+    {
+      "cx": 11,
+      "cz": 4,
+      "bin": "world/town/cells/c_11_4.bin",
+      "json": "world/town/cells/c_11_4.json",
+      "bytes": 27258
+    },
+    {
+      "cx": 12,
+      "cz": 4,
+      "bin": "world/town/cells/c_12_4.bin",
+      "json": "world/town/cells/c_12_4.json",
+      "bytes": 27006
+    },
+    {
+      "cx": 13,
+      "cz": 4,
+      "bin": "world/town/cells/c_13_4.bin",
+      "json": "world/town/cells/c_13_4.json",
+      "bytes": 27053
+    },
+    {
+      "cx": 14,
+      "cz": 4,
+      "bin": "world/town/cells/c_14_4.bin",
+      "json": "world/town/cells/c_14_4.json",
+      "bytes": 26207
+    },
+    {
+      "cx": 15,
+      "cz": 4,
+      "bin": "world/town/cells/c_15_4.bin",
+      "json": "world/town/cells/c_15_4.json",
+      "bytes": 27358
+    },
+    {
+      "cx": 16,
+      "cz": 4,
+      "bin": "world/town/cells/c_16_4.bin",
+      "json": "world/town/cells/c_16_4.json",
+      "bytes": 26867
+    },
+    {
+      "cx": 17,
+      "cz": 4,
+      "bin": "world/town/cells/c_17_4.bin",
+      "json": "world/town/cells/c_17_4.json",
+      "bytes": 26740
+    },
+    {
+      "cx": 18,
+      "cz": 4,
+      "bin": "world/town/cells/c_18_4.bin",
+      "json": "world/town/cells/c_18_4.json",
+      "bytes": 26676
+    },
+    {
+      "cx": 19,
+      "cz": 4,
+      "bin": "world/town/cells/c_19_4.bin",
+      "json": "world/town/cells/c_19_4.json",
+      "bytes": 25883
+    },
+    {
+      "cx": 20,
+      "cz": 4,
+      "bin": "world/town/cells/c_20_4.bin",
+      "json": "world/town/cells/c_20_4.json",
+      "bytes": 26474
+    },
+    {
+      "cx": 21,
+      "cz": 4,
+      "bin": "world/town/cells/c_21_4.bin",
+      "json": "world/town/cells/c_21_4.json",
+      "bytes": 26759
+    },
+    {
+      "cx": 22,
+      "cz": 4,
+      "bin": "world/town/cells/c_22_4.bin",
+      "json": "world/town/cells/c_22_4.json",
+      "bytes": 25870
+    },
+    {
+      "cx": 23,
+      "cz": 4,
+      "bin": "world/town/cells/c_23_4.bin",
+      "json": "world/town/cells/c_23_4.json",
+      "bytes": 25598
+    },
+    {
+      "cx": 8,
+      "cz": 5,
+      "bin": "world/town/cells/c_8_5.bin",
+      "json": "world/town/cells/c_8_5.json",
+      "bytes": 26393
+    },
+    {
+      "cx": 9,
+      "cz": 5,
+      "bin": "world/town/cells/c_9_5.bin",
+      "json": "world/town/cells/c_9_5.json",
+      "bytes": 27009
+    },
+    {
+      "cx": 10,
+      "cz": 5,
+      "bin": "world/town/cells/c_10_5.bin",
+      "json": "world/town/cells/c_10_5.json",
+      "bytes": 26939
+    },
+    {
+      "cx": 11,
+      "cz": 5,
+      "bin": "world/town/cells/c_11_5.bin",
+      "json": "world/town/cells/c_11_5.json",
+      "bytes": 27432
+    },
+    {
+      "cx": 12,
+      "cz": 5,
+      "bin": "world/town/cells/c_12_5.bin",
+      "json": "world/town/cells/c_12_5.json",
+      "bytes": 26506
+    },
+    {
+      "cx": 13,
+      "cz": 5,
+      "bin": "world/town/cells/c_13_5.bin",
+      "json": "world/town/cells/c_13_5.json",
+      "bytes": 27117
+    },
+    {
+      "cx": 14,
+      "cz": 5,
+      "bin": "world/town/cells/c_14_5.bin",
+      "json": "world/town/cells/c_14_5.json",
+      "bytes": 26710
+    },
+    {
+      "cx": 15,
+      "cz": 5,
+      "bin": "world/town/cells/c_15_5.bin",
+      "json": "world/town/cells/c_15_5.json",
+      "bytes": 27334
+    },
+    {
+      "cx": 16,
+      "cz": 5,
+      "bin": "world/town/cells/c_16_5.bin",
+      "json": "world/town/cells/c_16_5.json",
+      "bytes": 25896
+    },
+    {
+      "cx": 17,
+      "cz": 5,
+      "bin": "world/town/cells/c_17_5.bin",
+      "json": "world/town/cells/c_17_5.json",
+      "bytes": 26658
+    },
+    {
+      "cx": 18,
+      "cz": 5,
+      "bin": "world/town/cells/c_18_5.bin",
+      "json": "world/town/cells/c_18_5.json",
+      "bytes": 26429
+    },
+    {
+      "cx": 19,
+      "cz": 5,
+      "bin": "world/town/cells/c_19_5.bin",
+      "json": "world/town/cells/c_19_5.json",
+      "bytes": 27028
+    },
+    {
+      "cx": 20,
+      "cz": 5,
+      "bin": "world/town/cells/c_20_5.bin",
+      "json": "world/town/cells/c_20_5.json",
+      "bytes": 26019
+    },
+    {
+      "cx": 21,
+      "cz": 5,
+      "bin": "world/town/cells/c_21_5.bin",
+      "json": "world/town/cells/c_21_5.json",
+      "bytes": 25902
+    },
+    {
+      "cx": 22,
+      "cz": 5,
+      "bin": "world/town/cells/c_22_5.bin",
+      "json": "world/town/cells/c_22_5.json",
+      "bytes": 25720
+    },
+    {
+      "cx": 23,
+      "cz": 5,
+      "bin": "world/town/cells/c_23_5.bin",
+      "json": "world/town/cells/c_23_5.json",
+      "bytes": 25758
+    },
+    {
+      "cx": 8,
+      "cz": 6,
+      "bin": "world/town/cells/c_8_6.bin",
+      "json": "world/town/cells/c_8_6.json",
+      "bytes": 26493
+    },
+    {
+      "cx": 9,
+      "cz": 6,
+      "bin": "world/town/cells/c_9_6.bin",
+      "json": "world/town/cells/c_9_6.json",
+      "bytes": 26587
+    },
+    {
+      "cx": 10,
+      "cz": 6,
+      "bin": "world/town/cells/c_10_6.bin",
+      "json": "world/town/cells/c_10_6.json",
+      "bytes": 26513
+    },
+    {
+      "cx": 11,
+      "cz": 6,
+      "bin": "world/town/cells/c_11_6.bin",
+      "json": "world/town/cells/c_11_6.json",
+      "bytes": 26669
+    },
+    {
+      "cx": 12,
+      "cz": 6,
+      "bin": "world/town/cells/c_12_6.bin",
+      "json": "world/town/cells/c_12_6.json",
+      "bytes": 26757
+    },
+    {
+      "cx": 13,
+      "cz": 6,
+      "bin": "world/town/cells/c_13_6.bin",
+      "json": "world/town/cells/c_13_6.json",
+      "bytes": 26224
+    },
+    {
+      "cx": 14,
+      "cz": 6,
+      "bin": "world/town/cells/c_14_6.bin",
+      "json": "world/town/cells/c_14_6.json",
+      "bytes": 27199
+    },
+    {
+      "cx": 15,
+      "cz": 6,
+      "bin": "world/town/cells/c_15_6.bin",
+      "json": "world/town/cells/c_15_6.json",
+      "bytes": 27160
+    },
+    {
+      "cx": 16,
+      "cz": 6,
+      "bin": "world/town/cells/c_16_6.bin",
+      "json": "world/town/cells/c_16_6.json",
+      "bytes": 26822
+    },
+    {
+      "cx": 17,
+      "cz": 6,
+      "bin": "world/town/cells/c_17_6.bin",
+      "json": "world/town/cells/c_17_6.json",
+      "bytes": 26664
+    },
+    {
+      "cx": 18,
+      "cz": 6,
+      "bin": "world/town/cells/c_18_6.bin",
+      "json": "world/town/cells/c_18_6.json",
+      "bytes": 26346
+    },
+    {
+      "cx": 19,
+      "cz": 6,
+      "bin": "world/town/cells/c_19_6.bin",
+      "json": "world/town/cells/c_19_6.json",
+      "bytes": 27934
+    },
+    {
+      "cx": 20,
+      "cz": 6,
+      "bin": "world/town/cells/c_20_6.bin",
+      "json": "world/town/cells/c_20_6.json",
+      "bytes": 26409
+    },
+    {
+      "cx": 21,
+      "cz": 6,
+      "bin": "world/town/cells/c_21_6.bin",
+      "json": "world/town/cells/c_21_6.json",
+      "bytes": 25899
+    },
+    {
+      "cx": 22,
+      "cz": 6,
+      "bin": "world/town/cells/c_22_6.bin",
+      "json": "world/town/cells/c_22_6.json",
+      "bytes": 25859
+    },
+    {
+      "cx": 23,
+      "cz": 6,
+      "bin": "world/town/cells/c_23_6.bin",
+      "json": "world/town/cells/c_23_6.json",
+      "bytes": 25615
+    },
+    {
+      "cx": 8,
+      "cz": 7,
+      "bin": "world/town/cells/c_8_7.bin",
+      "json": "world/town/cells/c_8_7.json",
+      "bytes": 25855
+    },
+    {
+      "cx": 9,
+      "cz": 7,
+      "bin": "world/town/cells/c_9_7.bin",
+      "json": "world/town/cells/c_9_7.json",
+      "bytes": 26079
+    },
+    {
+      "cx": 10,
+      "cz": 7,
+      "bin": "world/town/cells/c_10_7.bin",
+      "json": "world/town/cells/c_10_7.json",
+      "bytes": 25870
+    },
+    {
+      "cx": 11,
+      "cz": 7,
+      "bin": "world/town/cells/c_11_7.bin",
+      "json": "world/town/cells/c_11_7.json",
+      "bytes": 25583
+    },
+    {
+      "cx": 12,
+      "cz": 7,
+      "bin": "world/town/cells/c_12_7.bin",
+      "json": "world/town/cells/c_12_7.json",
+      "bytes": 28777
+    },
+    {
+      "cx": 13,
+      "cz": 7,
+      "bin": "world/town/cells/c_13_7.bin",
+      "json": "world/town/cells/c_13_7.json",
+      "bytes": 30443
+    },
+    {
+      "cx": 14,
+      "cz": 7,
+      "bin": "world/town/cells/c_14_7.bin",
+      "json": "world/town/cells/c_14_7.json",
+      "bytes": 30114
+    },
+    {
+      "cx": 15,
+      "cz": 7,
+      "bin": "world/town/cells/c_15_7.bin",
+      "json": "world/town/cells/c_15_7.json",
+      "bytes": 27839
+    },
+    {
+      "cx": 16,
+      "cz": 7,
+      "bin": "world/town/cells/c_16_7.bin",
+      "json": "world/town/cells/c_16_7.json",
+      "bytes": 25998
+    },
+    {
+      "cx": 17,
+      "cz": 7,
+      "bin": "world/town/cells/c_17_7.bin",
+      "json": "world/town/cells/c_17_7.json",
+      "bytes": 29110
+    },
+    {
+      "cx": 18,
+      "cz": 7,
+      "bin": "world/town/cells/c_18_7.bin",
+      "json": "world/town/cells/c_18_7.json",
+      "bytes": 28879
+    },
+    {
+      "cx": 19,
+      "cz": 7,
+      "bin": "world/town/cells/c_19_7.bin",
+      "json": "world/town/cells/c_19_7.json",
+      "bytes": 29138
+    },
+    {
+      "cx": 20,
+      "cz": 7,
+      "bin": "world/town/cells/c_20_7.bin",
+      "json": "world/town/cells/c_20_7.json",
+      "bytes": 27482
+    },
+    {
+      "cx": 21,
+      "cz": 7,
+      "bin": "world/town/cells/c_21_7.bin",
+      "json": "world/town/cells/c_21_7.json",
+      "bytes": 25689
+    },
+    {
+      "cx": 22,
+      "cz": 7,
+      "bin": "world/town/cells/c_22_7.bin",
+      "json": "world/town/cells/c_22_7.json",
+      "bytes": 25599
+    },
+    {
+      "cx": 23,
+      "cz": 7,
+      "bin": "world/town/cells/c_23_7.bin",
+      "json": "world/town/cells/c_23_7.json",
+      "bytes": 25648
+    }
+  ],
+  "props": {
+    "bench": {
+      "path": "models/props/bench.glb",
+      "lod1Path": "models/props/bench-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          0.9,
+          0.55,
+          0.3
+        ]
+      },
+      "capacity": 29
+    },
+    "cart": {
+      "path": "models/props/cart.glb",
+      "lod1Path": "models/props/cart-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          1.7,
+          0.7,
+          0.9
+        ]
+      },
+      "capacity": 19
+    },
+    "fountain": {
+      "path": "models/props/fountain.glb",
+      "lod1Path": "models/props/fountain-lod1.glb",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 2,
+        "height": 2
+      },
+      "capacity": 1
+    },
+    "grove_barn_roof": {
+      "path": "models/props/grove_barn_roof.glb",
+      "lod1Path": "models/props/grove_barn_roof-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          9.88,
+          1.36,
+          6.39
+        ]
+      },
+      "capacity": 1
+    },
+    "grove_boulder": {
+      "path": "models/props/grove_boulder.glb",
+      "lod1Path": "models/props/grove_boulder-lod1.glb",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 0.9,
+        "height": 1.6
+      },
+      "capacity": 37
+    },
+    "grove_crops": {
+      "path": "models/props/grove_crops.glb",
+      "lod1Path": "models/props/grove_crops-lod1.glb",
+      "collider": {
+        "kind": "none"
+      },
+      "capacity": 644
+    },
+    "grove_hay": {
+      "path": "models/props/grove_hay.glb",
+      "lod1Path": "models/props/grove_hay-lod1.glb",
+      "collider": {
+        "kind": "none"
+      },
+      "capacity": 6
+    },
+    "grove_hedge": {
+      "path": "models/props/grove_hedge.glb",
+      "lod1Path": "models/props/grove_hedge-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          1,
+          1,
+          1
+        ]
+      },
+      "capacity": 412
+    },
+    "grove_pines": {
+      "path": "models/props/grove_pines.glb",
+      "lod1Path": "models/props/grove_pines-lod1.glb",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 1.4,
+        "height": 22
+      },
+      "capacity": 51
+    },
+    "grove_pumpkin": {
+      "path": "models/props/grove_pumpkin.glb",
+      "lod1Path": "models/props/grove_pumpkin-lod1.glb",
+      "collider": {
+        "kind": "none"
+      },
+      "capacity": 9
+    },
+    "grove_reeds": {
+      "path": "models/props/grove_reeds.glb",
+      "lod1Path": "models/props/grove_reeds-lod1.glb",
+      "collider": {
+        "kind": "none"
+      },
+      "capacity": 25
+    },
+    "grove_scarecrow": {
+      "path": "models/props/grove_scarecrow.glb",
+      "lod1Path": "models/props/grove_scarecrow-lod1.glb",
+      "collider": {
+        "kind": "none"
+      },
+      "capacity": 1
+    },
+    "grove_shed": {
+      "path": "models/props/grove_shed.glb",
+      "lod1Path": "models/props/grove_shed-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          3.35,
+          1.84,
+          2.85
+        ]
+      },
+      "capacity": 4
+    },
+    "grove_silo": {
+      "path": "models/props/grove_silo.glb",
+      "lod1Path": "models/props/grove_silo-lod1.glb",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 4.25,
+        "height": 17
+      },
+      "landmark": true,
+      "capacity": 1
+    },
+    "grove_stones": {
+      "path": "models/props/grove_stones.glb",
+      "lod1Path": "models/props/grove_stones-lod1.glb",
+      "collider": {
+        "kind": "none"
+      },
+      "capacity": 16
+    },
+    "grove_tree": {
+      "path": "models/props/grove_tree.glb",
+      "lod1Path": "models/props/grove_tree-lod1.glb",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 0.45,
+        "height": 10
+      },
+      "capacity": 255
+    },
+    "lantern_post": {
+      "path": "models/props/lantern_post.glb",
+      "lod1Path": "models/props/lantern_post-lod1.glb",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 0.18,
+        "height": 3.4
+      },
+      "capacity": 17
+    },
+    "market_stall": {
+      "path": "models/props/market_stall.glb",
+      "lod1Path": "models/props/market_stall-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          1.35,
+          1.2,
+          0.85
+        ]
+      },
+      "capacity": 12
+    },
+    "rock_outcrop": {
+      "path": "models/props/rock_outcrop.glb",
+      "lod1Path": "models/props/rock_outcrop-lod1.glb",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 2.2,
+        "height": 3
+      },
+      "capacity": 6
+    },
+    "town_bridge": {
+      "path": "models/props/town_bridge.glb",
+      "lod1Path": "models/props/town_bridge-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          8.13,
+          1.65,
+          2.9
+        ]
+      },
+      "landmark": true,
+      "capacity": 4
+    },
+    "town_canal_wall": {
+      "path": "models/props/town_canal_wall.glb",
+      "lod1Path": "models/props/town_canal_wall-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          4,
+          1.5,
+          0.55
+        ]
+      },
+      "capacity": 194
+    },
+    "town_clock_tower": {
+      "path": "models/props/town_clock_tower.glb",
+      "lod1Path": "models/props/town_clock_tower-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          3.6,
+          15,
+          3.6
+        ]
+      },
+      "landmark": true,
+      "capacity": 1
+    },
+    "town_cobble_patch": {
+      "path": "models/props/town_cobble_patch.glb",
+      "lod1Path": "models/props/town_cobble_patch-lod1.glb",
+      "collider": {
+        "kind": "none"
+      },
+      "capacity": 261
+    },
+    "town_fence": {
+      "path": "models/props/town_fence.glb",
+      "lod1Path": "models/props/town_fence-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          1.5,
+          0.55,
+          0.1
+        ]
+      },
+      "capacity": 157
+    },
+    "town_house_blue": {
+      "path": "models/props/town_house_blue.glb",
+      "lod1Path": "models/props/town_house_blue-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          4.25,
+          3.23,
+          3.75
+        ]
+      },
+      "capacity": 82
+    },
+    "town_house_corner": {
+      "path": "models/props/town_house_corner.glb",
+      "lod1Path": "models/props/town_house_corner-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          5.2,
+          3,
+          4.2
+        ]
+      },
+      "capacity": 28
+    },
+    "town_house_narrow": {
+      "path": "models/props/town_house_narrow.glb",
+      "lod1Path": "models/props/town_house_narrow-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          2.55,
+          4.25,
+          3.65
+        ]
+      },
+      "capacity": 70
+    },
+    "town_house_red": {
+      "path": "models/props/town_house_red.glb",
+      "lod1Path": "models/props/town_house_red-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          3.6,
+          4.2,
+          4.3
+        ]
+      },
+      "capacity": 99
+    },
+    "town_keep": {
+      "path": "models/props/town_keep.glb",
+      "lod1Path": "models/props/town_keep-lod1.glb",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 4.1,
+        "height": 14.3
+      },
+      "landmark": true,
+      "capacity": 1
+    },
+    "town_lamp": {
+      "path": "models/props/town_lamp.glb",
+      "lod1Path": "models/props/town_lamp-lod1.glb",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 0.2,
+        "height": 3.6
+      },
+      "capacity": 179
+    },
+    "town_lm_house_blue": {
+      "path": "models/props/town_house_blue.glb",
+      "lod1Path": "models/props/town_house_blue-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          4.25,
+          3.23,
+          3.75
+        ]
+      },
+      "landmark": true,
+      "capacity": 25
+    },
+    "town_lm_house_corner": {
+      "path": "models/props/town_house_corner.glb",
+      "lod1Path": "models/props/town_house_corner-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          5.2,
+          3,
+          4.2
+        ]
+      },
+      "landmark": true,
+      "capacity": 16
+    },
+    "town_lm_house_narrow": {
+      "path": "models/props/town_house_narrow.glb",
+      "lod1Path": "models/props/town_house_narrow-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          2.55,
+          4.25,
+          3.65
+        ]
+      },
+      "landmark": true,
+      "capacity": 23
+    },
+    "town_lm_house_red": {
+      "path": "models/props/town_house_red.glb",
+      "lod1Path": "models/props/town_house_red-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          3.6,
+          4.2,
+          4.3
+        ]
+      },
+      "landmark": true,
+      "capacity": 30
+    },
+    "town_market_stall": {
+      "path": "models/props/town_market_stall.glb",
+      "lod1Path": "models/props/town_market_stall-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          1.5,
+          1.3,
+          1
+        ]
+      },
+      "capacity": 24
+    },
+    "town_planter": {
+      "path": "models/props/town_planter.glb",
+      "lod1Path": "models/props/town_planter-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          0.62,
+          0.4,
+          0.32
+        ]
+      },
+      "capacity": 324
+    },
+    "town_props_cluster": {
+      "path": "models/props/town_props_cluster.glb",
+      "lod1Path": "models/props/town_props_cluster-lod1.glb",
+      "collider": {
+        "kind": "box",
+        "half": [
+          1.5,
+          0.5,
+          0.95
+        ]
+      },
+      "capacity": 101
+    },
+    "town_stairs": {
+      "path": "models/props/town_stairs.glb",
+      "lod1Path": "models/props/town_stairs-lod1.glb",
+      "collider": {
+        "kind": "none"
+      },
+      "capacity": 13
+    },
+    "well": {
+      "path": "models/props/well.glb",
+      "lod1Path": "models/props/well-lod1.glb",
+      "collider": {
+        "kind": "cylinder",
+        "radius": 1.5,
+        "height": 3
+      },
+      "capacity": 2
+    },
+    "zen_azalea": {
+      "path": "models/props/zen_azalea.glb",
+      "lod1Path": "models/props/zen_azalea-lod1.glb",
+      "collider": {
+        "kind": "none"
+      },
+      "capacity": 126
+    },
+    "zen_shrub": {
+      "path": "models/props/zen_shrub.glb",
+      "lod1Path": "models/props/zen_shrub-lod1.glb",
+      "collider": {
+        "kind": "none"
+      },
+      "capacity": 111
+    }
+  },
+  "playerStart": {
+    "pos": [
+      760,
+      14.5,
+      224
+    ],
+    "yaw": 0
+  },
+  "horizon": "world/town/horizon.glb",
+  "splatLayers": [
+    "grass",
+    "dirt",
+    "rock",
+    "path"
+  ],
+  "fog": {
+    "near": 140,
+    "far": 820,
+    "farPlane": 2200
+  },
+  "water": [
+    {
+      "id": "bell_canal",
+      "kind": "river",
+      "points": [
+        [
+          816,
+          318,
+          12.91
+        ],
+        [
+          815.69,
+          316.02,
+          12.89
+        ],
+        [
+          815.28,
+          313.42,
+          12.87
+        ],
+        [
+          814.79,
+          310.33,
+          12.85
+        ],
+        [
+          814.25,
+          306.88,
+          12.84
+        ],
+        [
+          813.68,
+          303.19,
+          12.82
+        ],
+        [
+          813.09,
+          299.39,
+          12.8
+        ],
+        [
+          812.53,
+          295.62,
+          12.78
+        ],
+        [
+          812,
+          292,
+          12.76
+        ],
+        [
+          811.47,
+          288.44,
+          12.7
+        ],
+        [
+          810.91,
+          284.78,
+          12.63
+        ],
+        [
+          810.32,
+          281.04,
+          12.57
+        ],
+        [
+          809.75,
+          277.25,
+          12.51
+        ],
+        [
+          809.21,
+          273.43,
+          12.44
+        ],
+        [
+          808.72,
+          269.59,
+          12.38
+        ],
+        [
+          808.31,
+          265.78,
+          12.31
+        ],
+        [
+          808,
+          262,
+          12.25
+        ],
+        [
+          807.79,
+          258.23,
+          12.23
+        ],
+        [
+          807.67,
+          254.43,
+          12.21
+        ],
+        [
+          807.62,
+          250.62,
+          12.19
+        ],
+        [
+          807.63,
+          246.81,
+          12.18
+        ],
+        [
+          807.68,
+          243.03,
+          12.16
+        ],
+        [
+          807.77,
+          239.29,
+          12.14
+        ],
+        [
+          807.88,
+          235.61,
+          12.12
+        ],
+        [
+          808,
+          232,
+          12.1
+        ],
+        [
+          808.09,
+          228.46,
+          12.07
+        ],
+        [
+          808.15,
+          224.97,
+          12.04
+        ],
+        [
+          808.21,
+          221.52,
+          12.01
+        ],
+        [
+          808.31,
+          218.13,
+          11.98
+        ],
+        [
+          808.5,
+          214.77,
+          11.95
+        ],
+        [
+          808.82,
+          211.47,
+          11.92
+        ],
+        [
+          809.31,
+          208.21,
+          11.89
+        ],
+        [
+          810,
+          205,
+          11.86
+        ],
+        [
+          810.83,
+          201.82,
+          11.71
+        ],
+        [
+          811.74,
+          198.67,
+          11.55
+        ],
+        [
+          812.76,
+          195.56,
+          11.4
+        ],
+        [
+          813.94,
+          192.5,
+          11.25
+        ],
+        [
+          815.31,
+          189.5,
+          11.09
+        ],
+        [
+          816.91,
+          186.58,
+          10.94
+        ],
+        [
+          818.8,
+          183.74,
+          10.78
+        ],
+        [
+          821,
+          181,
+          10.63
+        ],
+        [
+          823.45,
+          178.34,
+          10.47
+        ],
+        [
+          826.09,
+          175.73,
+          10.31
+        ],
+        [
+          828.94,
+          173.2,
+          10.15
+        ],
+        [
+          832.06,
+          170.75,
+          9.99
+        ],
+        [
+          835.49,
+          168.39,
+          9.83
+        ],
+        [
+          839.26,
+          166.14,
+          9.67
+        ],
+        [
+          843.42,
+          164.01,
+          9.51
+        ],
+        [
+          848,
+          162,
+          9.35
+        ],
+        [
+          853.14,
+          160.07,
+          9.12
+        ],
+        [
+          858.84,
+          158.18,
+          8.89
+        ],
+        [
+          864.98,
+          156.37,
+          8.65
+        ],
+        [
+          871.44,
+          154.69,
+          8.42
+        ],
+        [
+          878.09,
+          153.17,
+          8.19
+        ],
+        [
+          884.82,
+          151.85,
+          7.96
+        ],
+        [
+          891.5,
+          150.78,
+          7.72
+        ],
+        [
+          898,
+          150,
+          7.49
+        ],
+        [
+          904.45,
+          149.49,
+          7.43
+        ],
+        [
+          911.02,
+          149.21,
+          7.37
+        ],
+        [
+          917.66,
+          149.15,
+          7.3
+        ],
+        [
+          924.31,
+          149.31,
+          7.24
+        ],
+        [
+          930.92,
+          149.68,
+          7.18
+        ],
+        [
+          937.45,
+          150.26,
+          7.12
+        ],
+        [
+          943.82,
+          151.03,
+          7.05
+        ],
+        [
+          950,
+          152,
+          6.99
+        ],
+        [
+          956.03,
+          153.21,
+          6.97
+        ],
+        [
+          961.98,
+          154.7,
+          6.95
+        ],
+        [
+          967.83,
+          156.41,
+          6.93
+        ],
+        [
+          973.56,
+          158.31,
+          6.92
+        ],
+        [
+          979.17,
+          160.36,
+          6.9
+        ],
+        [
+          984.62,
+          162.52,
+          6.88
+        ],
+        [
+          989.9,
+          164.75,
+          6.86
+        ],
+        [
+          995,
+          167,
+          6.84
+        ],
+        [
+          999.91,
+          169.36,
+          6.82
+        ],
+        [
+          1004.64,
+          171.9,
+          6.8
+        ],
+        [
+          1009.21,
+          174.57,
+          6.78
+        ],
+        [
+          1013.63,
+          177.31,
+          6.77
+        ],
+        [
+          1017.9,
+          180.08,
+          6.75
+        ],
+        [
+          1022.05,
+          182.82,
+          6.73
+        ],
+        [
+          1026.08,
+          185.48,
+          6.71
+        ],
+        [
+          1030,
+          188,
+          6.69
+        ],
+        [
+          1033.94,
+          190.52,
+          6.56
+        ],
+        [
+          1037.95,
+          193.13,
+          6.42
+        ],
+        [
+          1041.9,
+          195.76,
+          6.29
+        ],
+        [
+          1045.69,
+          198.31,
+          6.16
+        ],
+        [
+          1049.2,
+          200.7,
+          6.02
+        ],
+        [
+          1052.34,
+          202.84,
+          5.89
+        ],
+        [
+          1054.97,
+          204.63,
+          5.75
+        ],
+        [
+          1057,
+          206,
+          5.62
+        ]
+      ],
+      "halfWidth": 4.88,
+      "flow": 0.9
+    },
+    {
+      "id": "willowrun",
+      "kind": "river",
+      "points": [
+        [
+          1150,
+          1700,
+          21.5
+        ],
+        [
+          1147.89,
+          1692.04,
+          20.88
+        ],
+        [
+          1145.31,
+          1681.19,
+          20.25
+        ],
+        [
+          1142.27,
+          1668.24,
+          19.63
+        ],
+        [
+          1138.75,
+          1654,
+          19
+        ],
+        [
+          1134.77,
+          1639.26,
+          18.38
+        ],
+        [
+          1130.31,
+          1624.81,
+          17.75
+        ],
+        [
+          1125.39,
+          1611.46,
+          17.13
+        ],
+        [
+          1120,
+          1600,
+          16.5
+        ],
+        [
+          1114.07,
+          1590.5,
+          16.01
+        ],
+        [
+          1107.58,
+          1582.22,
+          15.53
+        ],
+        [
+          1100.58,
+          1574.77,
+          15.04
+        ],
+        [
+          1093.13,
+          1567.75,
+          14.55
+        ],
+        [
+          1085.28,
+          1560.76,
+          14.06
+        ],
+        [
+          1077.11,
+          1553.41,
+          13.58
+        ],
+        [
+          1068.66,
+          1545.29,
+          13.09
+        ],
+        [
+          1060,
+          1536,
+          12.6
+        ],
+        [
+          1050.96,
+          1525.7,
+          12.45
+        ],
+        [
+          1041.41,
+          1514.81,
+          12.3
+        ],
+        [
+          1031.46,
+          1503.4,
+          12.15
+        ],
+        [
+          1021.25,
+          1491.5,
+          12
+        ],
+        [
+          1010.88,
+          1479.16,
+          11.85
+        ],
+        [
+          1000.47,
+          1466.44,
+          11.7
+        ],
+        [
+          990.14,
+          1453.37,
+          11.55
+        ],
+        [
+          980,
+          1440,
+          11.4
+        ],
+        [
+          969.04,
+          1426.29,
+          11.2
+        ],
+        [
+          956.72,
+          1412.16,
+          11
+        ],
+        [
+          943.85,
+          1397.64,
+          10.8
+        ],
+        [
+          931.25,
+          1382.75,
+          10.6
+        ],
+        [
+          919.75,
+          1367.52,
+          10.4
+        ],
+        [
+          910.16,
+          1351.97,
+          10.2
+        ],
+        [
+          903.3,
+          1336.12,
+          10
+        ],
+        [
+          900,
+          1320,
+          9.8
+        ],
+        [
+          900.39,
+          1303.32,
+          9.65
+        ],
+        [
+          903.75,
+          1285.94,
+          9.5
+        ],
+        [
+          909.61,
+          1268.09,
+          9.35
+        ],
+        [
+          917.5,
+          1250,
+          9.2
+        ],
+        [
+          926.95,
+          1231.91,
+          9.05
+        ],
+        [
+          937.5,
+          1214.06,
+          8.9
+        ],
+        [
+          948.67,
+          1196.68,
+          8.75
+        ],
+        [
+          960,
+          1180,
+          8.6
+        ],
+        [
+          972.68,
+          1164.18,
+          8.5
+        ],
+        [
+          987.66,
+          1149.06,
+          8.4
+        ],
+        [
+          1004.12,
+          1134.41,
+          8.3
+        ],
+        [
+          1021.25,
+          1120,
+          8.2
+        ],
+        [
+          1038.22,
+          1105.59,
+          8.1
+        ],
+        [
+          1054.22,
+          1090.94,
+          8
+        ],
+        [
+          1068.42,
+          1075.82,
+          7.9
+        ],
+        [
+          1080,
+          1060,
+          7.8
+        ],
+        [
+          1089.79,
+          1043.32,
+          7.78
+        ],
+        [
+          1098.91,
+          1025.94,
+          7.75
+        ],
+        [
+          1107.01,
+          1008.09,
+          7.73
+        ],
+        [
+          1113.75,
+          990,
+          7.7
+        ],
+        [
+          1118.77,
+          971.91,
+          7.68
+        ],
+        [
+          1121.72,
+          954.06,
+          7.65
+        ],
+        [
+          1122.25,
+          936.68,
+          7.63
+        ],
+        [
+          1120,
+          920,
+          7.6
+        ],
+        [
+          1114.34,
+          903.91,
+          7.57
+        ],
+        [
+          1105.31,
+          888.13,
+          7.55
+        ],
+        [
+          1093.63,
+          872.66,
+          7.53
+        ],
+        [
+          1080,
+          857.5,
+          7.5
+        ],
+        [
+          1065.12,
+          842.66,
+          7.48
+        ],
+        [
+          1049.69,
+          828.13,
+          7.45
+        ],
+        [
+          1034.41,
+          813.91,
+          7.43
+        ],
+        [
+          1020,
+          800,
+          7.4
+        ],
+        [
+          1005.27,
+          786.54,
+          7.38
+        ],
+        [
+          989.06,
+          773.59,
+          7.35
+        ],
+        [
+          972.07,
+          761.04,
+          7.33
+        ],
+        [
+          955,
+          748.75,
+          7.3
+        ],
+        [
+          938.55,
+          736.62,
+          7.28
+        ],
+        [
+          923.44,
+          724.53,
+          7.25
+        ],
+        [
+          910.35,
+          712.36,
+          7.23
+        ],
+        [
+          900,
+          700,
+          7.2
+        ],
+        [
+          892.3,
+          687.42,
+          7.18
+        ],
+        [
+          886.56,
+          674.72,
+          7.15
+        ],
+        [
+          882.54,
+          661.97,
+          7.13
+        ],
+        [
+          880,
+          649.25,
+          7.1
+        ],
+        [
+          878.71,
+          636.62,
+          7.08
+        ],
+        [
+          878.44,
+          624.16,
+          7.05
+        ],
+        [
+          878.95,
+          611.93,
+          7.03
+        ],
+        [
+          880,
+          600,
+          7
+        ],
+        [
+          882.13,
+          588.45,
+          6.98
+        ],
+        [
+          885.78,
+          577.25,
+          6.95
+        ],
+        [
+          890.61,
+          566.3,
+          6.93
+        ],
+        [
+          896.25,
+          555.5,
+          6.9
+        ],
+        [
+          902.36,
+          544.77,
+          6.88
+        ],
+        [
+          908.59,
+          534,
+          6.85
+        ],
+        [
+          914.59,
+          523.11,
+          6.83
+        ],
+        [
+          920,
+          512,
+          6.8
+        ],
+        [
+          925,
+          500.88,
+          6.75
+        ],
+        [
+          930,
+          489.94,
+          6.7
+        ],
+        [
+          935,
+          479.02,
+          6.65
+        ],
+        [
+          940,
+          468,
+          6.6
+        ],
+        [
+          945,
+          456.73,
+          6.55
+        ],
+        [
+          950,
+          445.06,
+          6.5
+        ],
+        [
+          955,
+          432.87,
+          6.45
+        ],
+        [
+          960,
+          420,
+          6.4
+        ],
+        [
+          964.86,
+          406.2,
+          6.35
+        ],
+        [
+          969.53,
+          391.5,
+          6.3
+        ],
+        [
+          974.12,
+          376.17,
+          6.25
+        ],
+        [
+          978.75,
+          360.5,
+          6.2
+        ],
+        [
+          983.54,
+          344.77,
+          6.15
+        ],
+        [
+          988.59,
+          329.25,
+          6.1
+        ],
+        [
+          994.04,
+          314.23,
+          6.05
+        ],
+        [
+          1000,
+          300,
+          6
+        ],
+        [
+          1006.68,
+          286.41,
+          5.95
+        ],
+        [
+          1014.06,
+          273.13,
+          5.9
+        ],
+        [
+          1021.91,
+          260.16,
+          5.85
+        ],
+        [
+          1030,
+          247.5,
+          5.8
+        ],
+        [
+          1038.09,
+          235.16,
+          5.75
+        ],
+        [
+          1045.94,
+          223.13,
+          5.7
+        ],
+        [
+          1053.32,
+          211.41,
+          5.65
+        ],
+        [
+          1060,
+          200,
+          5.6
+        ],
+        [
+          1066.23,
+          188.5,
+          5.56
+        ],
+        [
+          1072.34,
+          176.72,
+          5.53
+        ],
+        [
+          1078.22,
+          165.02,
+          5.49
+        ],
+        [
+          1083.75,
+          153.75,
+          5.45
+        ],
+        [
+          1088.81,
+          143.26,
+          5.41
+        ],
+        [
+          1093.28,
+          133.91,
+          5.38
+        ],
+        [
+          1097.05,
+          126.04,
+          5.34
+        ],
+        [
+          1100,
+          120,
+          5.3
+        ]
+      ],
+      "halfWidth": 9.1,
+      "flow": 1.4
+    },
+    {
+      "id": "bell_basin",
+      "kind": "pool",
+      "center": [
+        816,
+        324
+      ],
+      "radius": 9.88,
+      "y": 12.96
+    },
+    {
+      "id": "bellmere_harbour",
+      "kind": "pool",
+      "center": [
+        1110,
+        96
+      ],
+      "radius": 40.8,
+      "y": 5.2
+    }
+  ]
+}
