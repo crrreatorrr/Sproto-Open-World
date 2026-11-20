@@ -14,10 +14,10 @@ const args = process.argv.slice(2);
 const shots = args.includes('--shots') ? args[args.indexOf('--shots') + 1] : null;
 if (shots) mkdirSync(shots, { recursive: true });
 const CLASS = args.includes('--class') ? args[args.indexOf('--class') + 1] : 'wizard';
-const CLASS_ORDER = ['wizard', 'soldier', 'pepe'];
+const CLASS_ORDER = ['wizard', 'soldier', 'pepe_warrior', 'pepe'];
 if (!CLASS_ORDER.includes(CLASS)) throw new Error(`--class must be one of ${CLASS_ORDER.join(', ')}`);
 /** What slot 1 casts for the class. */
-const SLOT1 = CLASS === 'wizard' ? 'bolt' : 'gunfire';
+const SLOT1 = CLASS === 'wizard' || CLASS === 'pepe_warrior' ? 'bolt' : 'gunfire';
 
 const server = await createServer({ server: { port: 5195, strictPort: false, hmr: false }, logLevel: 'error' });
 await server.listen();

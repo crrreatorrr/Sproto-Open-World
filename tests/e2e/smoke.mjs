@@ -133,7 +133,7 @@ try {
   s = await state();
   check(s.screen === 'screen-classes', 'A on Play opens the class picker', s.screen);
   const classes = await page.evaluate(() => [...document.querySelectorAll('#screen-classes .class-card')].map((b) => b.dataset.class));
-  check(classes.join(',') === 'wizard,soldier,pepe', 'the picker offers the Wizard, the Soldier and Pepe', classes.join(','));
+  check(classes.join(',') === 'wizard,soldier,pepe_warrior,pepe', 'the picker offers the Wizard, the Soldier, Pepe Warrior and Pepe', classes.join(','));
   check(s.focused?.startsWith('Wizard Sproto'), 'the Wizard is focused first', JSON.stringify(s.focused));
   await press('down');
   s = await state();
