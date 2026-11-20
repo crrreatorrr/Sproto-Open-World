@@ -19,7 +19,7 @@ import type { SimEvent } from '../events';
 import type { Vec3 } from '../math';
 import { affixXp } from './affixes';
 import { setGod } from './god';
-import { fastTravel, godWarp } from './travel';
+import { fastTravel, godWarp, openPhone } from './travel';
 import { equipSpell, gearLocked, grantSkillPoints, learnIntoLoadout, respecSkills, spendSkill } from './loadout';
 import { clearRelic, equipRelic, equipTotem, grantKeepsake, holdTotem, onShrineRest, grantFlagKeepsakes } from './relics';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
@@ -524,6 +524,7 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
       case 'closeMenu':
         p.shop = null;
         p.atShrine = null;
+        delete p.phone;
         if (p.dialogue) {
           ctx.events.push({ type: 'dialogueEnd', entity: e.id, npc: p.dialogue.npc });
           p.dialogue = null;
@@ -543,7 +544,7 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
         break;
     }
   }
-  const busy = !!(p.dialogue || p.shop || p.atShrine);
+  const busy = !!(p.dialogue || p.shop || p.atShrine || p.phone);
   if (dead || busy) return busy;
 
   if (pressed & BTN.interact) {
@@ -559,9 +560,11 @@ export function playerRpg(ctx: RpgCtx, e: Entity, pressed: number, ui: readonly 
       ctx.events.push({ type: 'interact', entity: e.id, object: t.id, kind: 'shrine' });
     }
   }
-  holdTotem(ctx, e, (held & BTN.interact) !== 0, !!(p.dialogue || p.shop || p.atShrine) || !!interactTarget(e, ctx.entities));
-  if ((pressed & BTN.potion) && !e.combat?.action) drinkTonic(ctx, e);
-  return !!(p.dialogue || p.shop || p.atShrine);
+  // The Brick Phone in hand: Light attack opens it instead of swinging (the tick goes idle below).
+  if ((pressed & BTN.light) && !p.dialogue && !p.shop && !p.atShrine) openPhone(ctx, e);
+  holdTotem(ctx, e, (held & BTN.interact) !== 0, !!(p.dialogue || p.shop || p.atShrine || p.phone) || !!interactTarget(e, ctx.entities));
+  if ((pressed & BTN.potion) && !e.combat?.action && !p.phone) drinkTonic(ctx, e);
+  return !!(p.dialogue || p.shop || p.atShrine || p.phone);
 }
 
 function drinkTonic(ctx: RpgCtx, e: Entity): void {

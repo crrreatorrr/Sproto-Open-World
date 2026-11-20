@@ -99,6 +99,7 @@ describe('every quest, start to finish, on the baked world', () => {
     prog(w).sprouts += 1000;
     buy(w, 'tome_seeker_swarm');
     buy(w, 'staff_nobu');
+    buy(w, 'staff_brick_phone');
     const p = prog(w);
     expect([...p.spells].sort()).toEqual(Object.keys(SPELLS).sort());
     // Alien Ray is held for area 2. Rootcleaver is the vault sword: nothing grants it until that chest exists.
