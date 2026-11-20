@@ -10,6 +10,7 @@ import { MOUNT } from '../content/mounts';
 import { NPCS } from '../content/npcs';
 import { OBJECTS, usedFlag } from '../content/objects';
 import { AFFIXES, CAMP_GENERATION_FLAG } from '../content/packs/c4';
+import { DUNGEON_PORTAL_BY_PORTAL_ID } from '../content/packs/overworldMix';
 import { ROOTDEEP_PORTALS, isRootdeep, portalUsable } from '../content/packs/rootdeep';
 import type { ObstaclePlacement, RegionContent } from '../content/world/sproutvaleContent';
 import { SAVE_SCHEMA, type SaveFile } from '../save/schema';
@@ -822,7 +823,7 @@ export class SimWorld {
         if (this.streamed) who.settle = true;
         continue;
       }
-      if (ev.type !== 'portalTravel') continue;
+      if (ev.type !== 'portalTravel' || ev.to.startsWith('dungeon:')) continue;
       const who = this.byId.get(ev.entity);
       const dest = ROOTDEEP_PORTALS[ev.to];
       if (!who || who.owner === undefined || !dest || who.riding) continue;
@@ -1107,6 +1108,10 @@ export class SimWorld {
     for (const e of this.entities) {
       const ia = e.interactable;
       if (ia?.kind !== 'portal') continue;
+      if (DUNGEON_PORTAL_BY_PORTAL_ID[ia.id]) {
+        ia.used = false;
+        continue;
+      }
       const def = ROOTDEEP_PORTALS[ia.id];
       if (!def) continue;
       ia.used = !portalUsable(def, this.world.flags);

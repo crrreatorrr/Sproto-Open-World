@@ -47,9 +47,9 @@ const WRITE_RULES: [string, RegExp][] = [
 
 /** SimWorld members a client may use: lifecycle, streaming, save, the dev teleport, and reads. */
 const ALLOWED_SIM = new Set([
-  'tick', 'loadCell', 'unloadCell', 'populate', 'populateWorld', 'startWaves', 'toSave', 'applySave', 'spawnPlayer', 'teleportPlayer', 'view', 'dispose',
+  'tick', 'loadCell', 'unloadCell', 'populate', 'populateWorld', 'startWaves', 'startDungeon', 'toSave', 'applySave', 'spawnPlayer', 'teleportPlayer', 'view', 'dispose',
   // read-only
-  'now', 'entities', 'events', 'get', 'playerEntity', 'hash', 'cellReady', 'cellAnchors', 'waitingForGround', 'world', 'wave', 'locate', 'level', 'seed', 'streamed',
+  'now', 'entities', 'events', 'get', 'playerEntity', 'hash', 'cellReady', 'cellAnchors', 'waitingForGround', 'world', 'wave', 'locate', 'level', 'seed', 'streamed', 'gunRuntime', 'dungeonEvents',
 ]);
 
 describe('every gameplay mutation goes through a command (M3 acceptance 4)', () => {

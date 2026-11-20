@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DUNGEON_PORTALS } from '../../src/content/packs/overworldMix';
 import { DOOR_REVEALED_FLAG, ROOTDEEP_PORTALS, portalOpenFlag } from '../../src/content/packs/rootdeep';
 import { portalShown } from '../../src/render/portalShown';
 
@@ -25,5 +26,11 @@ describe('portal drawing', () => {
     expect(portalShown(north.id, false, open, at, { x: 0, z: 0 })).toBe('opening');
     expect(portalShown(south.id, false, { [portalOpenFlag(south.key)]: 1 }, { x: south.pos[0], z: south.pos[2] }, undefined)).toBe('opening');
     expect(portalShown(cave.id, false, {}, { x: cave.pos[0], z: cave.pos[2] }, undefined)).toBe('column');
+  });
+
+  it('draws campaign dungeon portals as columns when open and nothing when sealed', () => {
+    const l01 = DUNGEON_PORTALS[0]!;
+    expect(portalShown(l01.id, false, {}, { x: l01.pos[0], z: l01.pos[2] }, undefined)).toBe('column');
+    expect(portalShown(l01.id, true, {}, { x: l01.pos[0], z: l01.pos[2] }, undefined)).toBeNull();
   });
 });
