@@ -600,3 +600,7 @@ export const DUNGEON_PORTALS: readonly DungeonPortalDef[] = [
 export const DUNGEON_PORTAL_BY_ID: Readonly<Record<DungeonId, DungeonPortalDef>> = Object.fromEntries(
   DUNGEON_PORTALS.map((p) => [p.dungeonId, p]),
 ) as Readonly<Record<DungeonId, DungeonPortalDef>>;
+
+export const DUNGEON_PORTAL_BY_PORTAL_ID: Readonly<Record<string, DungeonPortalDef>> = Object.fromEntries(
+  DUNGEON_PORTALS.map((p) => [p.id, p]),
+);

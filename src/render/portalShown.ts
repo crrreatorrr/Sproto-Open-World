@@ -1,3 +1,4 @@
+import { DUNGEON_PORTAL_BY_PORTAL_ID } from '../content/packs/overworldMix';
 import { DOOR_REVEALED_FLAG, ROOTDEEP_PORTALS, portalOpenFlag } from '../content/packs/rootdeep';
 
 /** What a portal draws. Null means draw nothing, and the caller must not cache a view. */
@@ -18,6 +19,7 @@ export function portalShown(
   at: { x: number; z: number },
   player: { x: number; z: number } | undefined,
 ): PortalDraw | null {
+  if (DUNGEON_PORTAL_BY_PORTAL_ID[id]) return used ? null : 'column';
   const def = ROOTDEEP_PORTALS[id];
   if (!def) return null;
   if (def.side === 'cave') return 'column';

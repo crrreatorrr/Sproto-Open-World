@@ -1421,6 +1421,13 @@ export class App {
         // The sim has already moved the body. Snap the camera the way a debug teleport does, or it
         // eases across the whole valley, and cover the jump with the veil until the new ground is up.
         if (e.entity !== me) return;
+        if (e.type === 'portalTravel' && e.to.startsWith('dungeon:')) {
+          this.writeSaveNow();
+          const url = new URL(window.location.href);
+          url.searchParams.set('dungeon', e.to.slice('dungeon:'.length));
+          window.location.assign(url.toString());
+          return;
+        }
         const who = view.get(e.entity);
         if (!who) return;
         this.target.set(who.tf.pos.x, who.tf.pos.y, who.tf.pos.z);

@@ -9,6 +9,7 @@ import { MOUNT } from '../../content/mounts';
 import { NPCS } from '../../content/npcs';
 import { OBJECTS, usedFlag } from '../../content/objects';
 import { LENS_PREVIEW_FLAG, LENS_PREVIEW_TICKS, SEAL_HOOK } from '../../content/packs/encounterTune';
+import { DUNGEON_PORTAL_BY_PORTAL_ID } from '../../content/packs/overworldMix';
 import { ROOTDEEP_PORTALS, portalOpenFlag } from '../../content/packs/rootdeep';
 import { GROWTH, LEVEL_CAP, SKILL_EFFECT, SKILL_POINTS_PER_LEVEL, noSkills, xpForLevel } from '../../content/progression';
 import { QUESTS, type Condition, type Effect, type Objective, type QuestOffer } from '../../content/quests';
@@ -390,7 +391,7 @@ export function interactTarget(player: Entity, entities: readonly Entity[]): { e
       kind = e.interactable.kind;
       id = e.interactable.id;
       name = kind === 'shrine' ? shrineName(id)
-        : kind === 'portal' ? (ROOTDEEP_PORTALS[id]?.verb ?? 'Enter')
+        : kind === 'portal' ? (ROOTDEEP_PORTALS[id]?.verb ?? (DUNGEON_PORTAL_BY_PORTAL_ID[id] ? `Enter ${DUNGEON_PORTAL_BY_PORTAL_ID[id].name}` : 'Enter'))
           : kind === 'object' ? `${OBJECTS[id]?.verb ?? 'Use'} ${OBJECTS[id]?.name ?? id}`
             : 'Old chest';
     } else continue;
@@ -492,11 +493,19 @@ function openChest(ctx: RpgCtx, e: Entity, chest: Entity, contents: { items: { i
   }
 }
 
-/** Step through a cave mouth: remember it is open, and tell SimWorld to move the player. */
+/** Step through a cave mouth or dungeon portal: remember discovery, and emit portalTravel. */
 function usePortal(ctx: RpgCtx, e: Entity, portal: Entity): void {
   const ia = portal.interactable;
-  const def = ia ? ROOTDEEP_PORTALS[ia.id] : undefined;
-  if (!ia || !def) return;
+  if (!ia) return;
+  const dp = DUNGEON_PORTAL_BY_PORTAL_ID[ia.id];
+  if (dp) {
+    ctx.world.flags[dp.fastTravel.discoverFlag] = 1;
+    ctx.events.push({ type: 'interact', entity: e.id, object: ia.id, kind: 'portal' });
+    ctx.events.push({ type: 'portalTravel', entity: e.id, portal: dp.id, to: `dungeon:${dp.dungeonId}` });
+    return;
+  }
+  const def = ROOTDEEP_PORTALS[ia.id];
+  if (!def) return;
   ctx.world.flags[portalOpenFlag(def.key)] = 1;
   ctx.events.push({ type: 'interact', entity: e.id, object: ia.id, kind: 'portal' });
   ctx.events.push({ type: 'portalTravel', entity: e.id, portal: def.id, to: def.to });
