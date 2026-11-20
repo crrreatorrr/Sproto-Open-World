@@ -10,7 +10,7 @@ import { bakedWorld, buy, die, hunt, playQuest, prog, reload, rest, statusOf, ta
 
 /** The order a player meets them in: every quest in the game, from a fresh save. */
 const ORDER = [
-  'q_wake_up', 'q_pest_control', 'q_pumpkins', 'q_watchtower', 'q_mill', 'q_relics', 'q_rivet_volley', 'q_lens_flare', 'q_iron_gallery',
+  'q_wake_up', 'q_pest_control', 'q_pumpkins', 'q_watchtower', 'q_mill', 'q_relics', 'q_collectors_map', 'q_rootdeep', 'q_rivet_volley', 'q_lens_flare', 'q_iron_gallery',
   'q_pumpkin_strength', 'q_thornwood', 'q_hollow_giant', 'q_scrapjaw', 'q_elders_garden', 'q_weavers_thorns', 'q_tremors', 'q_deep_seam',
   'q_smoke_hills', 'q_bait', 'q_skyfire',
 ];
@@ -101,8 +101,8 @@ describe('every quest, start to finish, on the baked world', () => {
     buy(w, 'staff_nobu');
     const p = prog(w);
     expect([...p.spells].sort()).toEqual(Object.keys(SPELLS).sort());
-    // Alien Ray is held for area 2. Rootcleaver is the vault sword: nothing grants it until that chest exists.
-    const staffs = Object.values(ITEMS).filter((i) => i.kind === 'staff' && i.id !== 'staff_alien_ray' && i.id !== 'staff_rootcleaver');
+    // Alien Ray is held for area 2. Rootcleaver is paid by the vault chest, opened while playing The Rootdeep above.
+    const staffs = Object.values(ITEMS).filter((i) => i.kind === 'staff' && i.id !== 'staff_alien_ray');
     for (const s of staffs) expect(p.inventory[s.id], s.id).toBeGreaterThan(0);
     w.dispose();
   }, 300_000);

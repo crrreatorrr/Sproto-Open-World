@@ -6,6 +6,7 @@ import { C4_QUESTS } from './packs/c4';
 import { C5_QUESTS } from './packs/c5';
 import { C6_QUESTS } from './packs/c6';
 import { registerScrapjawQuest } from './packs/m5';
+import { ROOTDEEP_QUESTS } from './packs/rootdeep';
 import type { SpellId } from './spells';
 
 export type Objective =
@@ -218,6 +219,7 @@ export const QUESTS: Record<string, QuestDef> = {
 Object.assign(QUESTS, C4_QUESTS);
 Object.assign(QUESTS, C5_QUESTS);
 Object.assign(QUESTS, C6_QUESTS);
+Object.assign(QUESTS, ROOTDEEP_QUESTS);
 registerScrapjawQuest(QUESTS);
 
 /**

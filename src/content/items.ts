@@ -6,6 +6,7 @@ import { C2_ITEMS } from './packs/c2';
 import { C4_ITEMS } from './packs/c4';
 import { C5_ITEMS } from './packs/c5';
 import { C6_ITEMS } from './packs/c6';
+import { ROOTDEEP_ITEMS } from './packs/rootdeep';
 import type { SpellId } from './spells';
 
 export type ItemKind = 'staff' | 'robe' | 'charm' | 'consumable' | 'quest';
@@ -84,6 +85,7 @@ export const ITEMS: Record<string, ItemDef> = {
 Object.assign(ITEMS, C4_ITEMS);
 Object.assign(ITEMS, C5_ITEMS);
 Object.assign(ITEMS, C6_ITEMS);
+Object.assign(ITEMS, ROOTDEEP_ITEMS);
 
 /** The fast-travel device. */
 export const WAYSTONE = 'waystone';
