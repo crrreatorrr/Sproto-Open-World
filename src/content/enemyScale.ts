@@ -11,11 +11,15 @@ import { MOVE, PLAYER_BODY, TICK_HZ } from './tuning';
 /** Every elite and boss, by how many times its authored size it is drawn and fought at. */
 export const ENEMY_SIZES: Readonly<Record<string, number>> = {
   brute: 1.5,
+  /** The Rootdeep's Brute. Same authored body as `brute`, so the same scale. */
+  rd_brute: 1.5,
   gatekeeper: 1.5,
   rivet_gunner: 1.5,
   lens_warden: 1.5,
   bramble_colossus: 1.5,
   hollow_giant: 1.5,
+  /** The Deep Warden. Same authored body as `hollow_giant`, so the same scale. */
+  deep_warden: 1.5,
   scrapjaw: 1.6,
   burrowmother: 1.6,
   skyfire_drake: 1.8,

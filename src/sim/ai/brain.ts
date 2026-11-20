@@ -2,6 +2,7 @@ import { ENEMIES, type EnemyDef, type EnemyMoveDef } from '../../content/enemies
 import { aiStyle, type AiStyle } from '../../content/packs/aiStyles';
 import { DT } from '../../content/tuning';
 import { flatDist, toWorld, yawTo } from '../combat/geometry';
+import { lineOfSight } from '../combat/hits';
 import type { CombatCtx } from '../combat/playerCombat';
 import { clockTicks, moveScale } from '../combat/statuses';
 import type { Entity, EntityId } from '../entity';
@@ -65,7 +66,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
 
     // The Skyfire Drake flies its whole fight itself (expansion plan §3.5).
     if (def.drake && bossHost) {
-      drakeTick(ctx, e, def, physics, rng, bossHost, { target: () => pickTarget(ctx, e, def, duels), start: startAttack, run: (t) => runAttack(ctx, e, def, t, spawnProjectile, rng) });
+      drakeTick(ctx, e, def, physics, rng, bossHost, { target: () => pickTarget(ctx, e, def, duels, physics), start: startAttack, run: (t) => runAttack(ctx, e, def, t, spawnProjectile, rng) });
       continue;
     }
 
@@ -104,7 +105,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
       continue;
     }
 
-    const target = pickTarget(ctx, e, def, duels);
+    const target = pickTarget(ctx, e, def, duels, physics);
     b.target = target?.id ?? null;
     const boss = def.boss && bossHost ? bossHost : null;
     if (boss) bossPreTick(ctx, e, def, target, rng, boss);
@@ -133,10 +134,11 @@ function inDuel(p: Entity, duels: readonly Entity[]): boolean {
   return duels.some((b) => flatDist(p.tf.pos, b.brain!.home) <= ENEMIES[b.brain!.def].boss!.arenaRadius + 1);
 }
 
-function pickTarget(ctx: CombatCtx, e: Entity, def: EnemyDef, duels: readonly Entity[]): Entity | null {
+function pickTarget(ctx: CombatCtx, e: Entity, def: EnemyDef, duels: readonly Entity[], physics: PhysicsWorld): Entity | null {
   let best: Entity | null = null;
   // Hurt by someone beyond its sight: it comes for them, anywhere inside its leash.
-  let bestD = !def.dummy && e.vitals!.hp < e.vitals!.hpMax ? Infinity : def.aggroRange;
+  const hurt = !def.dummy && e.vitals!.hp < e.vitals!.hpMax;
+  let bestD = hurt ? Infinity : def.aggroRange;
   const outsider = !e.boss && !e.brain!.summoned;
   for (const p of ctx.entities) {
     if (p.kind !== 'player' || p.combat?.action?.kind === 'dead') continue;
@@ -144,8 +146,11 @@ function pickTarget(ctx: CombatCtx, e: Entity, def: EnemyDef, duels: readonly En
     const fromHome = flatDist(p.tf.pos, e.brain!.home);
     if (fromHome > def.leashRange) continue;
     const d = flatDist(p.tf.pos, e.tf.pos);
+    const engaged = e.brain!.target === p.id && e.brain!.state === 'engage';
+    // Cave enemies do not notice a player through rock. A hit, or a chase already started, still draws them on.
+    if (def.needsSight && !hurt && !engaged && !lineOfSight(physics, e, p)) continue;
     // Already engaged: keep chasing anywhere inside the leash.
-    if (d <= bestD || (e.brain!.target === p.id && e.brain!.state === 'engage')) {
+    if (d <= bestD || engaged) {
       bestD = d;
       best = p;
     }

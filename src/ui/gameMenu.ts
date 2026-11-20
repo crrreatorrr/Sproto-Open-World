@@ -524,6 +524,6 @@ export class GameMenu {
       button('Settings', () => this.src.openSettings()),
       button('Quit to title', () => this.src.quitToTitle()),
     );
-    body.append(list, el('p', 'hint', 'The game saves itself at shrines, on quest steps and level-ups.'));
+    body.append(list, el('p', 'hint', 'The game saves itself at shrines, on quest steps and level-ups. Press N twice to send feedback.'));
   }
 }

@@ -199,5 +199,18 @@ export const AI_STYLES: Record<string, AiStyle> = {
   },
 };
 
+/**
+ * Rootdeep ids are new, so `aiStyle` would otherwise hand them the grunt default. A Slinger that
+ * walks like a Grunt charges into melee. Each variant fights like the enemy it was copied from.
+ */
+Object.assign(AI_STYLES, {
+  rd_grunt: AI_STYLES.grunt_vet,
+  rd_slinger: AI_STYLES.slinger,
+  rd_wisp: AI_STYLES.wisp,
+  rd_brute: AI_STYLES.brute,
+  rootdeep_digger: AI_STYLES.grunt_vet,
+  deep_warden: AI_STYLES.hollow_giant,
+});
+
 /** The style of an enemy type. */
 export const aiStyle = (id: string): AiStyle => AI_STYLES[id] ?? DEFAULT_AI_STYLE;
