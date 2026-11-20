@@ -20,6 +20,7 @@ export const KEYS = {
   block: ['KeyQ'],
   lock: ['Mouse1', 'KeyT'],
   spell1: ['Digit1', 'KeyE'],
+  // Digit9 and Numpad9 stay unbound: pressed twice quickly they toggle testing God Mode.
   spell2: ['Digit2', 'KeyR'],
   spell3: ['Digit3', 'KeyZ'],
   spell4: ['Digit4', 'KeyX'],

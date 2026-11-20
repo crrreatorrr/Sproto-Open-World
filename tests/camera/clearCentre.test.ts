@@ -46,7 +46,7 @@ describe('the centre of the screen sees past the player', () => {
 
   it('passes over the rider and the whole bull, however the bull is turned', () => {
     const rig = new CameraRig(new THREE.PerspectiveCamera(62, 16 / 9, 0.1, 500));
-    rig.distanceScale = CAM.rideDistanceScale;
+    rig.riding = true;
     const feet = new THREE.Vector3(0, 0.12, 0);
     rig.snap(feet, 0);
     for (const bullYaw of [0, 0.8, Math.PI / 2, 2.6]) {

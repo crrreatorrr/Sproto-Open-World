@@ -25,8 +25,8 @@ const RAY_FROM = 30;
 const LEVEL_WITH = 2.5;
 /** Reaching the caller without having landed, it keeps walking at this speed to get off the ledge (m/s). */
 const FIND_THE_WAY_DOWN = 3;
-/** Nearer the caller than this, it is on top of them (m). */
-const TOO_CLOSE = 1.2;
+/** Nearer the caller than this, it is on top of them (m): its capsule's radius and a person's half-width, 1.2 m on the hub-sized bull. */
+const TOO_CLOSE = MOUNT.callRadius + 0.6;
 /** Its feet are on the ground if the ground under its middle is this close (m): its capsule can wedge against a cliff above it. */
 const FEET_ON_GROUND = 0.35;
 /** How far apart it checks the ground on the way in (m), and the most that ground may rise over that distance. */

@@ -8,6 +8,7 @@ export const GAME_IDS = [
     'sproto-arcade',
     'sproto-shooter',
     'sproto-coop-battle',
+    'sproto-open-world',
 ];
 /** Earn-once relics. The primary key on the server is (user, relic). */
 export const RELIC_IDS = [

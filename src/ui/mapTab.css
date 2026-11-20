@@ -28,3 +28,12 @@
 .btn.map-row.quest .name { color: var(--accent); }
 .btn.map-row.shrine .name { color: #8fe8ff; }
 .btn.map-row.focused .name { color: var(--accent-ink); }
+.map-quest { margin: 6px 4px 8px; padding: 10px 12px; border-radius: 10px; background: rgba(16, 22, 12, 0.45); border: 1px solid var(--panel-edge); }
+.map-quest-title { margin: 0 0 6px; font-size: 15px; font-weight: 800; color: var(--accent); }
+.map-steps { margin: 0; padding: 0 0 0 22px; font-size: 14px; line-height: 1.35; }
+.map-step { margin: 3px 0; color: var(--ink); opacity: 0.6; }
+.map-step.done { text-decoration: line-through; opacity: 0.45; }
+.map-step.current { opacity: 1; font-weight: 700; }
+.map-step.current::marker { color: var(--accent); }
+.map-step-lines { margin: 3px 0 0; padding: 0 0 0 16px; font-weight: 400; font-size: 13px; list-style: '◇ '; }
+.map-step-lines .done { list-style: '◆ '; opacity: 0.55; text-decoration: line-through; }

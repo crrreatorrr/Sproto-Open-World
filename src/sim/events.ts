@@ -16,6 +16,8 @@ export type PowerFxId =
 /** Things that happened this tick, for presentation (audio, FX, camera, rumble) and for quests. */
 export type SimEvent =
   | { type: 'jump'; entity: EntityId }
+  /** A ridden bull taking to the air, or coming down out of it (`MOUNT.fly`). */
+  | { type: 'mountFlight'; entity: EntityId; mount: EntityId; phase: 'takeoff' | 'landed' | 'dropped' }
   | { type: 'land'; entity: EntityId; fallSpeed: number; pos: Vec3 }
   | { type: 'spawn'; entity: EntityId }
   /** An attack's first active tick (staff whoosh, enemy swing). */
@@ -95,6 +97,12 @@ export type SimEvent =
   | { type: 'interact'; entity: EntityId; object: string; kind: 'shrine' | 'chest' | 'npc' | 'object' | 'portal' }
   /** Travel through a hidden entrance. `portal` is the mouth used; `to` is the mouth arrived at. */
   | { type: 'portalTravel'; entity: EntityId; portal: string; to: string }
+  /** Light attack with the Brick Phone in hand opened it. */
+  | { type: 'phoneOpen'; entity: EntityId }
+  /** God mode went on or off (testing). */
+  | { type: 'godMode'; entity: EntityId; on: boolean }
+  /** Fast travel (to a shrine) or a god's warp (to x, z): the sim has moved the body and drops it onto the floor there. */
+  | { type: 'travel'; entity: EntityId; x: number; z: number; shrine?: string }
   | { type: 'trigger'; entity: EntityId; trigger: string }
   | { type: 'talk'; entity: EntityId; npc: string; node: string }
   | { type: 'dialogueEnd'; entity: EntityId; npc: string }

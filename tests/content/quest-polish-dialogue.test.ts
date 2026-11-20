@@ -29,7 +29,8 @@ const NODES: Record<string, string[]> = {
   miner_odo: ['a8_odo'],
 };
 
-const NO_NEW_ITEM = ['q_pumpkins', 'q_pumpkin_strength'];
+// No relic or totem: pumpkins pay a staff, the map pays a shard that is spent, and the sword is the chest.
+const NO_NEW_ITEM = ['q_pumpkins', 'q_pumpkin_strength', 'q_collectors_map', 'q_rootdeep'];
 
 /** Modern and crypto talk the valley does not use (Lore Master). Whole words only. */
 const BANNED = /\b(sats|fud|frens?|jeet|hodl|bitcoin|crypto|nfts?|wallet|blockchain|berachain|testnet|hopium|emilokan|glowie|coomer|boomerang|liquidity|rocket|candle|chart)\b/i;

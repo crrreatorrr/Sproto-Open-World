@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { QUESTS, type QuestOffer } from '../../src/content/quests';
 import { worldLevel } from '../../src/content/world/level';
-import { SPROUTVALE_CONTENT } from '../../src/content/world/sproutvaleContent';
+import { WORLD_CONTENT } from '../../src/content/world/worldContent';
 import { initPhysics } from '../../src/sim/physics/PhysicsWorld';
 import { SimWorld } from '../../src/sim/SimWorld';
 import { startQuest } from '../../src/sim/systems/rpg';
-import { leadLine, nextLead, questLine, trackedQuest } from '../../src/ui/rpgText';
+import { mapQuest } from '../../src/ui/mapTab';
+import { leadLine, nextLead, questLine, questPlaces, questSteps, trackedQuest } from '../../src/ui/rpgText';
 import { step } from './combatHelpers';
 import { choose, interact, standBy } from './m3Helpers';
 import { flatSproutvale } from './m4Helpers';
@@ -16,7 +17,8 @@ async function placed(): Promise<SimWorld> {
   await initPhysics();
   const w = new SimWorld(worldLevel({ id: 'sproutvale', playerStart: { pos: [256, 30, 58], yaw: 0 } }), 1);
   w.spawnPlayer(0);
-  w.populateWorld(SPROUTVALE_CONTENT);
+  // Cave steps point at levers, the vault and the hidden door, which live on the joined world.
+  w.populateWorld(WORLD_CONTENT);
   return w;
 }
 
@@ -42,6 +44,27 @@ describe('every quest shows where to go', () => {
       expect(w.view().locate(line.marker!), line.marker!).not.toBeNull();
     }
     w.dispose();
+  });
+
+  it.each(steps)('%s step %i (%s) pins a real place on the map, clue steps too', async (id, i) => {
+    const w = await placed();
+    const def = QUESTS[id];
+    const places = questPlaces(id, { status: 'active', step: i, progress: def.steps[i].objectives.map(() => 0) });
+    expect(places.length).toBeGreaterThan(0);
+    for (const p of places) {
+      expect(w.view().locate(p.id), p.id).not.toBeNull();
+      expect(p.name, p.id).not.toMatch(/_/);
+    }
+    w.dispose();
+  });
+
+  it.each(Object.values(QUESTS).map((q) => q.id))('%s lists all its steps for the map', (id) => {
+    const def = QUESTS[id];
+    const mid = Math.min(1, def.steps.length - 1);
+    const list = questSteps(id, { status: 'active', step: mid, progress: def.steps[mid].objectives.map(() => 0) });
+    expect(list.map((s) => s.text)).toEqual(def.steps.map((s) => s.text));
+    expect(list.map((s) => s.state)).toEqual(def.steps.map((_, j) => (j < mid ? 'done' : j === mid ? 'current' : 'todo')));
+    expect(questSteps(id, { status: 'complete', step: def.steps.length, progress: [] }).every((s) => s.state === 'done')).toBe(true);
   });
 
   it.each(Object.values(QUESTS).map((q) => q.id))('%s goes on the tracker the moment it starts', async (id) => {
@@ -111,5 +134,35 @@ describe('Find a quest', () => {
 
   it('the tracker names who to talk to, and the compass points at them', () => {
     expect(leadLine({ quest: 'q_relics', npc: 'collector_pepe' })).toMatchObject({ title: 'Lost Relics', step: 'Talk to Collector Pepe to take this quest.', marker: 'collector_pepe', lines: [] });
+  });
+});
+
+describe('Lost Relics on the map', () => {
+  it('pins all three relic chests, and drops each one once it is opened', () => {
+    const at = (progress: number[]) => questPlaces('q_relics', { status: 'active', step: 0, progress });
+    expect(at([0, 0, 0]).map((p) => p.id)).toEqual(['relic_mill', 'relic_rootarch', 'relic_beanstalk']);
+    expect(at([0, 0, 0])[0].name).toBe('Relic chest by the mill waterfall');
+    expect(at([1, 0, 1]).map((p) => p.id)).toEqual(['relic_rootarch']);
+    // With the chests found, the step after sends you back to the Collector.
+    expect(questPlaces('q_relics', { status: 'active', step: 1, progress: [0] })).toEqual([{ id: 'collector_pepe', name: 'Collector Pepe' }]);
+  });
+
+  it('the map follows the tracked quest, with its steps and the chests still to find', () => {
+    const p = { quests: { q_relics: { status: 'active' as const, step: 0, progress: [1, 0, 0] } }, tracked: 'q_relics' } as never;
+    const q = mapQuest(p, null)!;
+    expect(q.title).toBe('Lost Relics');
+    expect(q.steps.map((s) => s.state)).toEqual(['current', 'todo']);
+    expect(q.steps[0].lines).toEqual([
+      { text: 'Relic chest by the mill waterfall', done: true },
+      { text: 'Relic chest under the root arch', done: false },
+      { text: 'Relic chest at the Beanstalk', done: false },
+    ]);
+    expect(q.places.map((pl) => pl.id)).toEqual(['relic_rootarch', 'relic_beanstalk']);
+  });
+
+  it('a quest not yet taken pins its giver', () => {
+    const q = mapQuest({ quests: {}, tracked: null } as never, { quest: 'q_relics', npc: 'collector_pepe' })!;
+    expect(q.places).toEqual([{ id: 'collector_pepe', name: 'Collector Pepe' }]);
+    expect(q.steps).toEqual([{ text: 'Talk to Collector Pepe to take this quest.', state: 'current', lines: [] }]);
   });
 });
