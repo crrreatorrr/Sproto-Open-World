@@ -163,6 +163,8 @@ describe('gun aim in the world tick', () => {
     const round = w.entities.find((e) => e.projectile && e.projectile.owner === p.id)!;
     expect(round.projectile!.gravity).toBeGreaterThan(0);
     expect(round.projectile!.bounces).toBe(1);
+    // Drawn as Sproto Shooter's rubber bullet, not a tracer.
+    expect(round.view.model).toBe('rubber_bullet');
     expect(round.projectile!.splash!.damage).toBeGreaterThan(0);
     expect(w.events.some((e) => e.type === 'fire')).toBe(false);
     const vy = round.tf.vel.y;
