@@ -340,7 +340,9 @@ export const WEAPON_BOX_SHOPS: readonly WeaponBoxShopDef[] = [
     id: 'weapon_box_sproutvale',
     name: 'Sproutvale Weapon Box',
     region: 'sproutvale',
-    pos: [254, 13.5, 78],
+    // 5 m south of the fountain's centre (254, 76; its collider is 2 m across the rim): on the rim
+    // the settle ray landed on the fountain's collider and the merchant hovered (WORLD-0003).
+    pos: [254, 13.5, 81],
     yaw: Math.PI * 0.75,
     currency: 'sprouts',
     guns: [
