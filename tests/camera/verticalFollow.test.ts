@@ -1,19 +1,27 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { CAM, CameraRig } from '../../src/camera/CameraRig';
+import { PLAYER_BODY } from '../../src/content/tuning';
 import type { ReadonlySimView } from '../../src/sim/view';
 
 const open = { sphereCast: () => null } as unknown as ReadonlySimView;
 const DT = 1 / 60;
 
-/** Walk the rig along z with the feet at `heightAt(frame)`; returns the camera's height per frame. */
+/**
+ * Walk the rig along z with the feet at `heightAt(frame)`, the player's own body in the way of the
+ * centre ray as it is in the game (the app sets it every frame). Returns the camera's height per frame.
+ */
 function walk(heightAt: (i: number) => number, frames: number): { cam: number[]; feet: number[] } {
   const rig = new CameraRig(new THREE.PerspectiveCamera(62, 16 / 9, 0.1, 500));
   const feet = new THREE.Vector3(0, heightAt(0), 0);
+  const me = () => [{ x: feet.x, z: feet.z, yaw: 0, halfWidth: PLAYER_BODY.radius, halfLength: PLAYER_BODY.radius, top: feet.y + CAM.footTop }];
+  rig.occluders = me();
   rig.snap(feet, 0);
+  for (let i = 0; i < 60; i++) rig.update(DT, feet, open, false);
   const cam: number[] = [], ys: number[] = [];
   for (let i = 0; i < frames; i++) {
     feet.set(0, heightAt(i), i * 5 * DT);
+    rig.occluders = me();
     rig.update(DT, feet, open, false);
     cam.push(rig.camera.position.y);
     ys.push(feet.y);
@@ -54,7 +62,24 @@ describe('the camera follows the ground without passing its bumps on', () => {
     // 20 m/s straight down for a second.
     const { cam, feet } = walk((i) => 100 - 20 * i * DT, 60);
     const settled = cam[0] - feet[0];
-    expect(cam[59] - feet[59] - settled).toBeLessThan(CAM.dropMaxLead + 0.02);
+    // (Walking forward, the body is a little ahead of the pivot, which asks for a few cm more rise.)
+    expect(cam[59] - feet[59] - settled).toBeLessThan(CAM.dropMaxLead + 0.06);
     expect(cam[59] - feet[59] - settled).toBeGreaterThan(0);
+  });
+
+  it('still keeps the centre of the screen off the player through a jump', () => {
+    // Up at 6 m/s: the pivot may trail, but never so far that the aim ray meets the head.
+    const rig = new CameraRig(new THREE.PerspectiveCamera(62, 16 / 9, 0.1, 500));
+    const feet = new THREE.Vector3(0, 0, 0);
+    rig.snap(feet, 0);
+    for (let i = 0; i < 40; i++) {
+      feet.y = 6 * i * DT;
+      rig.occluders = [{ x: 0, z: 0, yaw: 0, halfWidth: PLAYER_BODY.radius, halfLength: PLAYER_BODY.radius, top: feet.y + CAM.footTop }];
+      rig.update(DT, feet, open, false);
+      const ray = rig.aimRay()!;
+      // The ray's height where it passes over the player's middle.
+      const s = Math.hypot(ray.from.x, ray.from.z) / Math.hypot(ray.dir.x, ray.dir.z);
+      expect(ray.from.y + ray.dir.y * s - (feet.y + CAM.footTop), `frame ${i}`).toBeGreaterThan(0);
+    }
   });
 });

@@ -17,6 +17,8 @@ export interface OverlayStats {
   combat: string[];
   /** Last frame's draw calls and triangles, main and shadow pass (plan §3.5). */
   frame: Readonly<FrameStats>;
+  /** Shader compiles and texture uploads that happened inside a draw during play (render/Renderer.ts). */
+  firstDraw: Readonly<{ frames: number; programs: number; textures: number }>;
   /** JS heap in MB where the browser reports it (Chrome), else null. */
   heapMb: number | null;
   /** The streamed world's counters and ring map (app/WorldSession.ts). */
@@ -62,6 +64,7 @@ export class Overlay {
     this.root.textContent = [
       `fps ${this.fps.toFixed(0)}   frame ${s.frameMs.toFixed(1)} ms   sim ${s.simMs.toFixed(2)} ms   heap ${s.heapMb === null ? 'n/a' : `${s.heapMb.toFixed(0)} MB`}`,
       `draws ${f.calls} (main ${f.calls - f.shadowCalls} + shadow ${f.shadowCalls})   tris ${k(f.triangles)} (shadow ${k(f.shadowTriangles)})   geo ${info.memory.geometries}   tex ${info.memory.textures}`,
+      `in-draw work while playing: ${s.firstDraw.programs} shader compiles, ${s.firstDraw.textures} texture uploads, in ${s.firstDraw.frames} frames`,
       `tick ${s.ticks}   hash ${hex(s.hash)}   device ${s.device}`,
       p ? `pos ${p.x.toFixed(2)} ${p.y.toFixed(2)} ${p.z.toFixed(2)}   ${s.grounded ? 'grounded' : 'airborne'}   ${s.speed.toFixed(2)} m/s` : 'no player',
       `clip viewer: [ ] or D-pad ← →   ${s.clip}`,

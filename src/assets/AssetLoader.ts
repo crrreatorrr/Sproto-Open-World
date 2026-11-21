@@ -54,6 +54,11 @@ export class AssetLoader {
   /** Shared with the world streamer's cell fetches (plan §3.3: one NOW/LATER queue, 4 in flight). */
   readonly queue = new RequestQueue(PARALLEL);
   private readonly textures = new THREE.TextureLoader();
+  /**
+   * Set by the app: readies a loaded model for drawing (texture uploads within the frame budget,
+   * shader programs compiled off the draw) before any view gets a copy of it (render/warm.ts).
+   */
+  warm: ((scene: THREE.Object3D, body: boolean) => Promise<void>) | null = null;
 
   constructor(private readonly base = import.meta.env.BASE_URL + 'assets/') {
     this.gltfLoader.setMeshoptDecoder(MeshoptDecoder);
@@ -128,12 +133,23 @@ export class AssetLoader {
   /** The model, or a stand-in while it keeps retrying in the background (a blip never lasts the session). */
   private async loadTemplate(key: ModelKey, priority: Priority): Promise<ModelTemplate> {
     try {
-      return await this.fetchTemplate(key, priority);
+      return await this.warmed(await this.fetchTemplate(key, priority));
     } catch (err) {
       console.warn(`[assets] ${MODELS[key].path} failed to load, using a placeholder and retrying`, err);
       this.retryLater(key);
       return { key, scene: placeholder(key), clips: [], real: false };
     }
+  }
+
+  /** The template, once it can be drawn without a stall. A warm-up that fails never fails the model. */
+  private async warmed(t: ModelTemplate): Promise<ModelTemplate> {
+    try {
+      // A rigged model is a body: it is drawn with the burn-away variant of its materials too.
+      await this.warm?.(t.scene, !!(MODELS[t.key] as ModelEntry).rigged);
+    } catch (err) {
+      console.warn(`[assets] ${t.key} could not be warmed up; its first draw will compile it`, err);
+    }
+    return t;
   }
 
   private fetchTemplate(key: ModelKey, priority: Priority): Promise<ModelTemplate> {
@@ -142,7 +158,7 @@ export class AssetLoader {
 
   private retryLater(key: ModelKey): void {
     setTimeout(() => {
-      this.fetchTemplate(key, 'later').then(
+      this.fetchTemplate(key, 'later').then((t) => this.warmed(t)).then(
         (t) => {
           this.templates.set(key, Promise.resolve(t));
           for (const listener of this.recovered) listener(key);

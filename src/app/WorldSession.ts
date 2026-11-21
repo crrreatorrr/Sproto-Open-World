@@ -9,7 +9,7 @@ import { GrassField } from '../world/GrassField';
 import { loadWorld, propPath, type Region, type WorldManifest } from '../world/RegionManifest';
 import { VEIL_TIMEOUT_MS, withRetry } from '../world/rings';
 import { TerrainBuilder } from '../world/TerrainBuilder';
-import { UploadBudget } from '../world/UploadBudget';
+import { textureBytes, type UploadBudget } from '../world/UploadBudget';
 import { WaterLayer, waterClock } from '../world/Water';
 
 export type GroundState = 'ready' | 'loading' | 'timeout';
@@ -25,7 +25,6 @@ const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms))
 export class WorldSession {
   region: Region | null = null;
   streamer: CellStreamer | null = null;
-  readonly uploads = new UploadBudget();
   private builder: TerrainBuilder | null = null;
   private grass: GrassField | null = null;
   private water: WaterLayer | null = null;
@@ -35,7 +34,8 @@ export class WorldSession {
   /** When the veil went up for missing ground (performance.now ms), or null. */
   private veilSince: number | null = null;
 
-  constructor(private readonly renderer: Renderer, private readonly assets: AssetLoader, private grassOn = true) {}
+  /** `uploads` is the app's per-frame GPU upload budget; the app runs it once a frame. */
+  constructor(private readonly renderer: Renderer, private readonly assets: AssetLoader, readonly uploads: UploadBudget, private grassOn = true) {}
 
   /** The Grass setting. */
   setGrass(on: boolean): void {
@@ -80,7 +80,7 @@ export class WorldSession {
             this.uploads.texture(() => {
               this.renderer.renderer.initTexture(tex);
               resolve();
-            }),
+            }, textureBytes(tex)),
           ),
         compile: (obj) => this.renderer.compile(obj),
         now: () => performance.now(),
@@ -140,10 +140,9 @@ export class WorldSession {
     return this.region?.manifest.playerStart ?? null;
   }
 
-  /** One frame: spend the upload budget, then stream around `focus`. */
+  /** One frame of streaming around `focus` (the app has already spent this frame's upload budget). */
   frame(focus: { x: number; z: number; vx: number; vz: number }, view: CellView | null, tick: number): void {
     if (!this.streamer) return;
-    this.uploads.run();
     waterClock.value = performance.now() / 1000;
     this.streamer.update(focus, view, tick);
     this.water?.update(focus.x, focus.z);

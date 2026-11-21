@@ -80,6 +80,11 @@ export const CAM = {
    */
   clearMargin: 0.35,
   /**
+   * While the pivot trails the body (a bump underfoot, the start of a jump) the centre ray may dip
+   * this far into that margin before the pivot is pushed up after the body at once.
+   */
+  clearSlack: 0.3,
+  /**
    * How the models are drawn (m), measured in the game on the hub-sized bull (1×): the player's crown
    * on foot (the staff on their back included) and in the saddle, above their feet origin; the Pepe
    * Bull's back and horns above the ground, and half its length nose to tail (longer than its
@@ -200,6 +205,8 @@ export class CameraRig {
   private readonly right = new THREE.Vector3();
   private readonly tmp = new THREE.Vector3();
   private hasPivot = false;
+  /** The pivot's eased height, before the rise that keeps the centre ray off the player. */
+  private followY = 0;
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
 
@@ -315,6 +322,7 @@ export class CameraRig {
     this.desiredDistance = this.distance = this.targetDistance();
     this.fovNow = this.targetFov();
     this.pivot.set(target.x, target.y + this.heightNow, target.z);
+    this.followY = this.pivot.y;
     this.hasPivot = true;
   }
 
@@ -458,25 +466,30 @@ export class CameraRig {
     }
     if (!this.hasPivot) {
       this.pivot.copy(this.tmp);
+      this.followY = this.tmp.y;
       this.hasPivot = true;
     }
-    const lastY = this.pivot.y;
+    const lastY = this.followY;
     this.pivot.x = damp(this.pivot.x, this.tmp.x, CAM.followSharpness, dt);
     this.pivot.z = damp(this.pivot.z, this.tmp.z, CAM.followSharpness, dt);
     // Rise lazily on a jump (never more than jumpMaxLag behind). Going down it eases as well, a
     // little faster, and a fall never leaves it more than dropMaxLead above its place.
     const ty = this.tmp.y;
-    this.pivot.y = ty > lastY
+    this.followY = ty > lastY
       ? Math.max(damp(lastY, ty, CAM.jumpRiseSharpness, dt), ty - CAM.jumpMaxLag)
       : Math.min(damp(lastY, ty, CAM.dropSharpness, dt), ty + CAM.dropMaxLead);
+    this.pivot.y = this.followY;
 
     const cp = Math.cos(this.pitch);
     this.forward.set(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp);
     this.right.set(-Math.cos(this.yaw), 0, Math.sin(this.yaw));
     // Rise far enough that the centre of the screen sees past the player and the bull (3P modes only).
+    // The rise is measured from where the pivot would sit with no lag and added to the eased height,
+    // so it doesn't undo the easing (it used to pin the camera to the feet, bumps and all). Only when
+    // the pivot trails far behind the body does the ray's own floor push it up at once.
     if (!fp) {
       const clear = this.clearHeight();
-      if (clear > this.pivot.y) this.pivot.y = clear;
+      this.pivot.y = Math.max(this.followY + Math.max(0, clear - ty), clear - CAM.clearSlack);
     }
 
     // Shoulder offset, then pull back along -forward; both legs are sphere casts so the near plane

@@ -49,6 +49,16 @@ export class Renderer {
   private readonly caveSky = new THREE.Color(0x000000);
   private readonly sunOffset = new THREE.Vector3(18, 30, 12);
   private readonly stats: FrameStats = { calls: 0, triangles: 0, shadowCalls: 0, shadowTriangles: 0 };
+  /**
+   * Work that happened inside the draw while the player was playing (`watchFirstDraw`): frames in
+   * which a shader program was compiled or a texture first uploaded there, and how many of each.
+   * Every model is warmed before it shows (render/warm.ts), so `programs` should stay 0 in play.
+   * `textures` also counts each new skinned body's bone texture, which is small.
+   */
+  readonly firstDraw = { frames: 0, programs: 0, textures: 0 };
+  watchFirstDraw = false;
+  private readonly kept = new WeakSet<object>();
+  private keptCount = 0;
   private yardSky: THREE.Texture | null = null;
   private daySky: THREE.Texture | null = null;
 
@@ -248,10 +258,40 @@ export class Renderer {
   }
 
   render(): void {
+    const info = this.renderer.info;
+    const programs = info.programs?.length ?? 0, textures = info.memory.textures;
     this.renderer.render(this.scene, this.camera);
+    this.keepPrograms();
+    if (this.watchFirstDraw) {
+      const p = (info.programs?.length ?? 0) - programs, t = info.memory.textures - textures;
+      if (p > 0 || t > 0) {
+        this.firstDraw.frames++;
+        this.firstDraw.programs += Math.max(0, p);
+        this.firstDraw.textures += Math.max(0, t);
+      }
+    }
     const r = this.renderer.info.render;
     this.stats.calls = r.calls;
     this.stats.triangles = r.triangles;
+  }
+
+  /**
+   * Keep every compiled shader program for the session. three.js deletes a program when the last
+   * material using it is disposed, so each time the last enemy of a kind left view its program went
+   * with it, and the next one to walk in paid for the compile again, inside a draw. Counting one
+   * extra user on each program stops that. The number of programs is small and bounded (a few dozen).
+   */
+  private keepPrograms(): void {
+    const programs = this.renderer.info.programs;
+    if (!programs) return;
+    if (programs.length === this.keptCount) return;
+    for (const program of programs) {
+      if (this.kept.has(program)) continue;
+      this.kept.add(program);
+      const p = program as unknown as { usedTimes?: number };
+      if (typeof p.usedTimes === 'number') p.usedTimes++;
+    }
+    this.keptCount = programs.length;
   }
 
   /** Last frame's draw calls and triangles: `calls` includes the shadow pass (plan §3.5 budget). */

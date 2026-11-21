@@ -38,6 +38,8 @@ import { HitFx, type SparkStyle } from '../render/fx/HitFx';
 import { isSoftPowerHit, powerSpark } from '../render/fx/powers';
 import { PortraitStudio } from '../render/PortraitStudio';
 import { Renderer } from '../render/Renderer';
+import { warmModel } from '../render/warm';
+import { UploadBudget } from '../world/UploadBudget';
 import { getDungeon, getDungeonById } from '../content/dungeons/catalog';
 import type { DungeonId } from '../content/dungeons/types';
 import type { DungeonView } from '../render/dungeon/DungeonView';
@@ -133,6 +135,8 @@ export class App {
   readonly input: Input;
   readonly assets = new AssetLoader();
   readonly renderer: Renderer;
+  /** GPU uploads spread over frames: world cells, prop models and every character model share it. */
+  readonly uploads = new UploadBudget();
   /** The dialogue panel's render-to-texture speaker portraits. */
   readonly portraits: PortraitStudio;
   readonly rig: CameraRig;
@@ -247,6 +251,8 @@ export class App {
     host.appendChild(canvas);
     this.input = new Input(canvas);
     this.renderer = new Renderer(canvas, this.assets);
+    // No model reaches a view before its textures are up and its shaders are compiled.
+    this.assets.warm = (scene, body) => warmModel(scene, this.uploads, this.renderer, body);
     this.portraits = new PortraitStudio(this.renderer.renderer, this.assets);
     this.world = new WorldViews(this.assets, this.fx);
     this.renderer.scene.add(this.world.root, this.fx.root);
@@ -341,7 +347,7 @@ export class App {
     this.bindWindowEvents(canvas);
     window.addEventListener('resize', () => this.rpgHud.setCompassWidth(compassWidth()));
     this.rpgHud.setCompassWidth(compassWidth());
-    this.stream = MODE === 'world' ? new WorldSession(this.renderer, this.assets, this.settings.grass) : null;
+    this.stream = MODE === 'world' ? new WorldSession(this.renderer, this.assets, this.uploads, this.settings.grass) : null;
     if (!this.stream) {
       this.renderer.yardLook();
       this.renderer.buildLevel(SANDBOX);
@@ -761,6 +767,8 @@ export class App {
     const frameStart = performance.now();
     const pad = this.input.pad;
     pad.update();
+    // This frame's share of queued GPU uploads, before anything draws.
+    this.uploads.run();
     if (this.feedbackHold) {
       this.feedbackFrame();
       return;
@@ -795,6 +803,7 @@ export class App {
     this.startUsed = false;
     this.frameCount++;
     this.portraits.frame(dt, this.nav.top === this.rpgMenus.dialogue);
+    this.renderer.watchFirstDraw = this.state === 'playing' && !this.groundWait;
     this.renderer.render();
     // Under a menu the cursor is free on purpose: no "click to look around".
     this.hud.update(pad, this.input.locked || this.nav.open);
@@ -813,6 +822,7 @@ export class App {
       clip: this.clipName || '(locomotion)',
       combat: this.overlay.open ? [...frameDataLines(p, this.sim?.now ?? 0), '', ...targetLines(p?.combat?.lock != null ? this.sim?.get(p.combat.lock) : undefined)] : [],
       frame: fs,
+      firstDraw: this.renderer.firstDraw,
       heapMb: mem ? mem.usedJSHeapSize / 1048576 : null,
       world: this.overlay.open && this.stream ? this.stream.overlayLines(p ? p.tf.pos : null) : [],
     });
@@ -2156,6 +2166,7 @@ export class App {
       errorAction: this.panels.focusedAction,
       world: this.stream?.qa() ?? null,
       frameStats: { ...this.renderer.frameStats() },
+      firstDraw: { ...this.renderer.firstDraw },
       gpuMemory: { ...this.renderer.renderer.info.memory },
       heap: (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null,
       wave: this.sim?.view().wave ?? null,
