@@ -96,7 +96,7 @@ export type SimEvent =
   | { type: 'mountCall'; entity: EntityId; mount: EntityId; phase: 'coming' | 'appeared' | 'arrived' | 'failed' }
   | { type: 'interact'; entity: EntityId; object: string; kind: 'shrine' | 'chest' | 'npc' | 'object' | 'portal' }
   /** Travel through a hidden entrance. `portal` is the mouth used; `to` is the mouth arrived at. */
-  | { type: 'portalTravel'; entity: EntityId; portal: string; to: string }
+  | { type: 'portalTravel'; entity: EntityId; portal: string; to: string; /** A dungeon shrine to arrive beside (god mode's phone). */ shrine?: string }
   /** Light attack with the Brick Phone in hand opened it. */
   | { type: 'phoneOpen'; entity: EntityId }
   /** God mode went on or off (testing). */

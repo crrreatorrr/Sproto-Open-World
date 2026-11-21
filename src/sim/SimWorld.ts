@@ -1276,13 +1276,23 @@ export class SimWorld {
   }
 
   /** Boot an instanced Campaign Dungeon (L01-L10): compiles Rapier colliders and places player at spawn. */
-  startDungeon(id: DungeonId): void {
+  startDungeon(id: DungeonId, atShrine?: string): void {
     const def = getDungeon(id);
     this.dungeon = createDungeonSession(id);
     this.dungeonEvents = [];
     this.physics.loadDungeon(def, this.dungeon.sealedDoorIds);
     for (const sh of def.shrines) this.addInteractable(sh.id, 'shrine', [sh.pos[0], sh.pos[1], sh.pos[2]], sh.yaw, false);
     const p = this.playerEntity(0);
+    // Arriving at one of its shrines (god mode's phone): beside the stone, and that is where you wake.
+    const sh = atShrine ? def.shrines.find((x) => x.id === atShrine) : undefined;
+    if (sh) {
+      const at: [number, number, number] = [sh.pos[0] + SHRINE_ARRIVE_OFFSET, sh.pos[1], sh.pos[2] + SHRINE_ARRIVE_OFFSET];
+      this.dungeon.activeCheckpointId = sh.checkpointId;
+      this.dungeon.activeCheckpointPos = at;
+      if (!this.dungeon.activatedCheckpoints.includes(sh.checkpointId)) this.dungeon.activatedCheckpoints.push(sh.checkpointId);
+      if (p) this.teleportPlayer(0, { x: at[0], y: at[1] + 0.15, z: at[2] });
+      return;
+    }
     if (p) this.teleportPlayer(0, { x: def.spawn[0], y: def.spawn[1] + 0.15, z: def.spawn[2] });
   }
 

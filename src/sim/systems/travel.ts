@@ -1,3 +1,4 @@
+import { DUNGEON_OF_SHRINE } from '../../content/dungeons/catalog';
 import { TRAVEL_DEVICE } from '../../content/items';
 import type { Entity } from '../entity';
 import type { SimEvent } from '../events';
@@ -7,7 +8,8 @@ import { inCombat } from './loadout';
  * Fast travel. Wield the Brick Phone and Light attack opens it (`progress.phone`): it calls any
  * shrine you have used (touched or rested at), out of combat. God mode (systems/god.ts) goes to any
  * shrine at any time, phone or not, and to any named area from the Map tab. The sim moves the body
- * (SimWorld, on the `travel` event). Pure.
+ * (SimWorld, on the `travel` event). A shrine inside another Campaign Dungeon is god mode's alone:
+ * that is a `portalTravel` into the dungeon, and the app loads it. Pure.
  */
 export interface TravelCtx {
   now: number;
@@ -38,7 +40,15 @@ export function fastTravel(ctx: TravelCtx, e: Entity, shrine: string): void {
   const stone = ctx.entities.find(
     (x) => (x.interactable?.kind === 'shrine' || x.interactable?.kind === 'portal') && x.interactable.id === shrine,
   );
-  if (!stone) return refuse(ctx, e, 'There is no such shrine.');
+  if (!stone) {
+    // A shrine in a Campaign Dungeon that is not this session's: only a god goes, by loading that dungeon.
+    const dungeon = DUNGEON_OF_SHRINE[shrine];
+    if (!dungeon || !e.progress?.god || e.combat?.action?.kind === 'dead') return refuse(ctx, e, 'There is no such shrine.');
+    e.progress.atShrine = null;
+    delete e.progress.phone;
+    ctx.events.push({ type: 'portalTravel', entity: e.id, portal: shrine, to: `dungeon:${dungeon}`, shrine });
+    return;
+  }
   const why = travelRefusal(e, shrine, ctx.now);
   if (why) return refuse(ctx, e, why);
   const p = e.progress!;

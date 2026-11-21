@@ -110,6 +110,8 @@ const PARAMS = new URLSearchParams(location.search);
 const WAVE_SANDBOX = PARAMS.get('sandbox') === '1';
 /** `?dungeon=L01`..`L10`: boot directly into an instanced Campaign Dungeon. */
 const DUNGEON_ID: DungeonId | null = getDungeonById(PARAMS.get('dungeon') ?? '')?.id ?? null;
+/** `&shrine=<id>` with `?dungeon=`: start beside that shrine of the dungeon (god mode's phone sends you here). */
+const DUNGEON_SHRINE = PARAMS.get('shrine') ?? undefined;
 /**
  * Which level Play starts: Sproutvale, the streamed world (M2), by default; `?yard=1` keeps the M1
  * training yard, `?sandbox=1` the wave runner, and `?dungeon=L01..L10` an instanced Campaign Dungeon.
@@ -607,7 +609,7 @@ export class App {
       this.dungeonView = null;
       if (DUNGEON_ID) {
         const def = getDungeon(DUNGEON_ID);
-        sim.startDungeon(DUNGEON_ID);
+        sim.startDungeon(DUNGEON_ID, DUNGEON_SHRINE);
         const { DungeonView } = await import('../render/dungeon/DungeonView');
         this.dungeonView = new DungeonView(def);
         this.renderer.scene.add(this.dungeonView.root);
@@ -1523,6 +1525,8 @@ export class App {
           this.writeSaveNow();
           const url = new URL(window.location.href);
           url.searchParams.set('dungeon', e.to.slice('dungeon:'.length));
+          if (e.shrine) url.searchParams.set('shrine', e.shrine);
+          else url.searchParams.delete('shrine');
           window.location.assign(url.toString());
           return;
         }

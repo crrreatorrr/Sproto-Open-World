@@ -3,6 +3,8 @@
  * the XP bar, the quest tracker's lines, the compass bearings, interact prompts, what a skill rank
  * buys, gear comparisons, spell cooldowns and the merchant's remaining stock. Pure (no DOM, no three.js), so tests/ui covers it.
  */
+import { DUNGEON_LIST } from '../content/dungeons/catalog';
+import type { DungeonShrineDef } from '../content/dungeons/types';
 import { ENEMIES } from '../content/enemies';
 import { ITEMS, type ItemDef, type ItemKind } from '../content/items';
 import { MERCHANTS } from '../content/loot';
@@ -98,6 +100,11 @@ export function shrineGroups<T extends { pos: readonly [number, number, number] 
     title: r.name.replace(/^the /, 'The '),
     shrines: shrines.filter((s) => regionAt(s.pos[0], s.pos[2]).id === r.id),
   })).filter((g) => g.shrines.length > 0);
+}
+
+/** The shrines inside the Campaign Dungeons, one group a dungeon ("L01 · Sproto Landing"). Only god mode travels to them. */
+export function dungeonShrineGroups(): { title: string; shrines: readonly DungeonShrineDef[] }[] {
+  return DUNGEON_LIST.map((d) => ({ title: `${d.id} · ${d.name}`, shrines: d.shrines }));
 }
 
 /**

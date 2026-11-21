@@ -1062,6 +1062,11 @@ export const DUNGEONS: Readonly<Record<DungeonId, DungeonDef>> = {
 
 export const DUNGEON_LIST: readonly DungeonDef[] = DUNGEON_IDS.map((id) => DUNGEONS[id]);
 
+/** Which dungeon a shrine stands in, by the shrine's id. */
+export const DUNGEON_OF_SHRINE: Readonly<Record<string, DungeonId>> = Object.fromEntries(
+  DUNGEON_LIST.flatMap((d) => d.shrines.map((s) => [s.id, d.id] as const)),
+);
+
 export function getDungeon(id: DungeonId): DungeonDef {
   return DUNGEONS[id];
 }

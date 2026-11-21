@@ -9,7 +9,7 @@ import type { ReadonlySimView } from '../sim/view';
 import type { MenuNav, Screen } from './MenuNav';
 import type { MenuTab } from './gameMenu';
 import { shrineLabel } from './mapTab';
-import { itemStats, shopStock, shrineGroups } from './rpgText';
+import { dungeonShrineGroups, itemStats, shopStock, shrineGroups } from './rpgText';
 import './phone.css';
 import './portrait.css';
 
@@ -290,7 +290,8 @@ export class RpgMenus {
 
   /**
    * The Brick Phone's screen, region by region: the shrines you have used to call (the sim travels
-   * there), and a count of the rest, locked until you touch or rest at them. God mode calls any of them. No signal in combat.
+   * there), and a count of the rest, locked until you touch or rest at them. God mode calls any of them,
+   * and the shrines inside the Campaign Dungeons. No signal in combat.
    */
   private makePhone(): Screen {
     const s = this.screen('screen-phone', 'rpg phone');
@@ -306,7 +307,8 @@ export class RpgMenus {
       if (noSignal) lcd.append(el('p', 'phone-note', "You can't travel in combat."));
       const used = new Set(p?.discoveredShrines ?? []);
       const list = el('div', 'list phone-list');
-      for (const group of shrineGroups(WORLD_CONTENT.shrines)) {
+      // God mode calls the shrines inside the Campaign Dungeons too: the game loads that dungeon.
+      for (const group of [...shrineGroups(WORLD_CONTENT.shrines), ...(god ? dungeonShrineGroups() : [])]) {
         list.append(el('p', 'phone-group', group.title));
         let locked = 0;
         for (const sh of group.shrines) {

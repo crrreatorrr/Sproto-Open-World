@@ -78,3 +78,47 @@ describe('dungeon shrines in the sim', () => {
     w.dispose();
   });
 });
+
+describe("god mode's phone and the dungeon shrines", () => {
+  const call = (shrine: string) => ui([{ kind: 'fastTravel', shrine }]);
+
+  it('calls a shrine in another dungeon by loading that dungeon, and only in god mode', () => {
+    const w = dungeon('L01');
+    const target = getDungeon('L07').shrines[1]!;
+    expect(evs(tick1(w, call(target.id)), 'portalTravel')).toHaveLength(0);
+    tick1(w, ui([{ kind: 'godMode', on: true }]));
+    const [ev] = evs(tick1(w, call(target.id)), 'portalTravel');
+    expect(ev).toMatchObject({ to: 'dungeon:L07', shrine: target.id });
+    w.dispose();
+  });
+
+  it('calls a shrine of this dungeon by moving there', () => {
+    const w = dungeon('L07');
+    const target = getDungeon('L07').shrines[2]!;
+    tick1(w, ui([{ kind: 'godMode', on: true }]));
+    const events = tick1(w, call(target.id));
+    expect(evs(events, 'travel')).toHaveLength(1);
+    expect(evs(events, 'portalTravel')).toHaveLength(0);
+    w.dispose();
+  });
+
+  it('a dungeon started at a shrine puts you beside it, and that is where you wake', () => {
+    const def = getDungeon('L07');
+    const sh = def.shrines[1]!;
+    const w = new SimWorld(SANDBOX, 1);
+    w.spawnPlayer(0);
+    w.startDungeon('L07', sh.id);
+    for (let i = 0; i < 3; i++) tick1(w);
+    const p = w.playerEntity(0)!;
+    expect(Math.hypot(p.tf.pos.x - sh.pos[0], p.tf.pos.z - sh.pos[2])).toBeLessThan(3);
+    expect(w.dungeon!.activeCheckpointId).toBe(sh.checkpointId);
+    // An id from some other dungeon is ignored: the ordinary spawn.
+    const w2 = new SimWorld(SANDBOX, 1);
+    w2.spawnPlayer(0);
+    w2.startDungeon('L01', sh.id);
+    const p2 = w2.playerEntity(0)!;
+    expect(Math.hypot(p2.tf.pos.x - getDungeon('L01').spawn[0], p2.tf.pos.z - getDungeon('L01').spawn[2])).toBeLessThan(0.5);
+    w.dispose();
+    w2.dispose();
+  });
+});
