@@ -12,6 +12,7 @@ import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { next as rngNext, range as rngRange, type RngState } from '../rng';
 import { bossAttackTick, bossEngaged, bossPreTick, bossSpeed, bossThink, type BossHost } from '../systems/boss';
 import { drakeTick } from '../systems/drake';
+import { inSanctuary, keepOut, sanctuaries, type Spot } from '../systems/sanctuary';
 import { drive, fightClock, groundAt, lookForTarget, newFight, nextBeat, readTarget, ringSlots, slotPull } from './tactics';
 
 /** Spawns one projectile for an enemy's ranged move (provided by SimWorld). `angle` fans it out. */
@@ -51,6 +52,8 @@ const BLINK_GROUND_RAY = 5;
 export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld, spawnProjectile: SpawnProjectile, bossHost?: BossHost): void {
   const slots = ringSlots(ctx);
   const duels = ctx.entities.filter((e) => bossEngaged(e));
+  // Shrines are safe ground: nobody standing by one is a target, and no enemy walks onto it.
+  const safe = sanctuaries(ctx.entities);
   for (const e of ctx.entities) {
     const b = e.brain;
     const c = e.combat;
@@ -66,7 +69,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
 
     // The Skyfire Drake flies its whole fight itself (expansion plan §3.5).
     if (def.drake && bossHost) {
-      drakeTick(ctx, e, def, physics, rng, bossHost, { target: () => pickTarget(ctx, e, def, duels, physics), start: startAttack, run: (t) => runAttack(ctx, e, def, t, spawnProjectile, rng) });
+      drakeTick(ctx, e, def, physics, rng, bossHost, { target: () => pickTarget(ctx, e, def, duels, physics, safe), start: startAttack, run: (t) => runAttack(ctx, e, def, t, spawnProjectile, rng) });
       continue;
     }
 
@@ -105,7 +108,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
       continue;
     }
 
-    const target = pickTarget(ctx, e, def, duels, physics);
+    const target = pickTarget(ctx, e, def, duels, physics, safe);
     b.target = target?.id ?? null;
     const boss = def.boss && bossHost ? bossHost : null;
     if (boss) bossPreTick(ctx, e, def, target, rng, boss);
@@ -113,6 +116,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
     if (a?.kind === 'attack') {
       runAttack(ctx, e, def, target, spawnProjectile, rng);
       if (boss) bossAttackTick(ctx, e, def, boss);
+      keepOut(e, safe, ctx.motion, def.moveSpeed);
       continue;
     }
 
@@ -126,6 +130,7 @@ export function enemyBrains(ctx: CombatCtx, rng: RngState, physics: PhysicsWorld
       m.vx *= k;
       m.vz *= k;
     }
+    keepOut(e, safe, ctx.motion, def.moveSpeed);
   }
 }
 
@@ -134,7 +139,7 @@ function inDuel(p: Entity, duels: readonly Entity[]): boolean {
   return duels.some((b) => flatDist(p.tf.pos, b.brain!.home) <= ENEMIES[b.brain!.def].boss!.arenaRadius + 1);
 }
 
-function pickTarget(ctx: CombatCtx, e: Entity, def: EnemyDef, duels: readonly Entity[], physics: PhysicsWorld): Entity | null {
+function pickTarget(ctx: CombatCtx, e: Entity, def: EnemyDef, duels: readonly Entity[], physics: PhysicsWorld, safe: readonly Spot[]): Entity | null {
   let best: Entity | null = null;
   // Hurt by someone beyond its sight: it comes for them, anywhere inside its leash.
   const hurt = !def.dummy && e.vitals!.hp < e.vitals!.hpMax;
@@ -143,6 +148,7 @@ function pickTarget(ctx: CombatCtx, e: Entity, def: EnemyDef, duels: readonly En
   for (const p of ctx.entities) {
     if (p.kind !== 'player' || p.combat?.action?.kind === 'dead') continue;
     if (outsider && inDuel(p, duels)) continue;
+    if (inSanctuary(p.tf.pos, safe)) continue;
     const fromHome = flatDist(p.tf.pos, e.brain!.home);
     if (fromHome > def.leashRange) continue;
     const d = flatDist(p.tf.pos, e.tf.pos);
