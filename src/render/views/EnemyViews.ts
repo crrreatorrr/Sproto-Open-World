@@ -854,6 +854,62 @@ export class BulletView implements EntityView {
   }
 }
 
+/** The rubber bullet's length in flight (m), and how fast it tumbles (rad/s): both Sproto Shooter's. */
+const RUBBER_BULLET = { length: 0.42, spin: 20, color: 0xffd23a };
+
+/**
+ * The Duck Gun's round: Sproto Shooter's modelled rubber bullet, lobbed nose first and tumbling
+ * about its line of flight. A yellow ball stands in until the model has loaded.
+ */
+export class RubberBulletView implements EntityView {
+  readonly root = new THREE.Group();
+  readonly height = RUBBER_BULLET.length;
+  /** Turns about the line of flight. */
+  private readonly spin = new THREE.Group();
+  private readonly ballMat = new THREE.MeshStandardMaterial({ color: RUBBER_BULLET.color, roughness: 0.6 });
+  private readonly ball: THREE.Mesh;
+  private model: ModelInstance | null = null;
+  private disposed = false;
+
+  constructor(assets: AssetLoader) {
+    this.ball = new THREE.Mesh(spellGeometry().core, this.ballMat);
+    this.ball.scale.setScalar(RUBBER_BULLET.length * 0.4);
+    this.spin.add(this.ball);
+    this.spin.rotation.z = Math.random() * Math.PI * 2;
+    this.root.add(this.spin);
+    void assets.instance('proj_rubber_bullet').then((m) => {
+      if (this.disposed || !m.real) {
+        m.dispose();
+        return;
+      }
+      // Fitted by its length (the source stands on y = 0, nose along +Z), and centred so it tumbles about its middle.
+      const box = new THREE.Box3().setFromObject(m.root);
+      const size = box.getSize(new THREE.Vector3());
+      const k = RUBBER_BULLET.length / Math.max(size.z, 1e-3);
+      const mid = box.getCenter(new THREE.Vector3());
+      m.root.scale.multiplyScalar(k);
+      m.root.position.sub(mid.multiplyScalar(k));
+      m.root.traverse((o) => (o.castShadow = true));
+      this.model = m;
+      this.ball.visible = false;
+      this.spin.add(m.root);
+    });
+  }
+
+  update(e: Readonly<Entity>, alpha: number, dt: number): void {
+    placeEntity(this.root, e, alpha);
+    faceVelocity(this.root, e);
+    this.spin.rotation.z += RUBBER_BULLET.spin * dt;
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.ballMat.dispose();
+    this.model?.dispose();
+    this.root.removeFromParent();
+  }
+}
+
 /** Blast (plan §4.4): a slow, big glowing orb, fire around a white core, trailing embers. */
 export class BlastOrbView implements EntityView {
   readonly root = new THREE.Group();

@@ -22,6 +22,7 @@ import { BlastOrbView, BoltView,
   BulletView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, isHumanoidModel, type EntityView } from './EnemyViews';
 import { portalShown } from '../portalShown';
 import { ChestView, NpcView, PickupView, PortalView, ShrineView, objectView } from './RpgViews';
+import { RubberBulletView } from './EnemyViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
 import { TOTEM_FADE_TICKS } from '../../content/relics';
 import { decalLead, lanternShimmer, oracleEquipped } from '../relicCues';
@@ -478,6 +479,7 @@ export class WorldViews {
       // shots by their kind: homing or arcane ones are hexes, the rest coins.
       // A gun's shots (and a Soldier's shooting spells) are bullets, slugs and rockets.
       if (e.view.model === 'bullet' || e.view.model === 'slug' || e.view.model === 'rocket') return new BulletView(e.view.model);
+      if (e.view.model === 'rubber_bullet') return new RubberBulletView(this.assets);
       if (pr?.spell === 'blast' || e.view.model === 'blastOrb') return new BlastOrbView(this.fx, pr?.radius);
       if (pr?.spell || e.view.model === 'bolt') return new BoltView();
       if (pr?.homing || e.view.model === 'hex' || pr?.kind === 'arcane') return new HexView(this.fx);
