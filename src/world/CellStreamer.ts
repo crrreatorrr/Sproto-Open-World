@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Priority, RequestQueue, Ticket } from '../assets/RequestQueue';
 import { cellColliders, sampleHeight } from '../content/world/codec';
 import { cellKey, cellOf, type CellColliders, type CellData, type CellEntry } from '../content/world/format';
+import { FarTerrain } from './FarTerrain';
 import { Horizon } from './Horizon';
 import { PropInstancer, type PropHost } from './PropInstancer';
 import { publicUrl, type Region } from './RegionManifest';
@@ -84,6 +85,9 @@ const CACHE_CELLS = 260;
 const MAX_BUILDS = 4;
 /** Prefetch only while the shared queue is this short, so it never delays a needed cell. */
 const PREFETCH_QUEUE_LIMIT = 6;
+/** Cells this coarse are far ground: merged per block instead of drawn one by one. */
+const FAR_RES = 16;
+const FAR_BLOCKS_PER_FRAME = 6;
 /** A cell's ground takes this long to dither in over the horizon (ms). */
 export const CELL_FADE_MS = 400;
 
@@ -120,6 +124,9 @@ export class CellStreamer {
   readonly horizon: Horizon;
   private readonly terrain = new THREE.Group();
   private readonly material: THREE.MeshStandardMaterial;
+  /** Far cells' coarse ground, drawn a 256 m block at a time (world/FarTerrain.ts). */
+  private readonly farMaterial: THREE.MeshStandardMaterial;
+  private readonly far: FarTerrain;
   private readonly cells = new Map<string, Cell>();
   private readonly cache = new Map<string, Payload>();
   private readonly fetches = new Map<string, Fetch>();
@@ -142,13 +149,15 @@ export class CellStreamer {
     this.terrain.name = 'terrain';
     this.horizon = new Horizon(m);
     this.material = terrainMaterial(host.grass, host.rock, m.splatLayers, this.horizon.uniforms);
+    this.farMaterial = terrainMaterial(host.grass, host.rock, m.splatLayers, this.horizon.uniforms, true);
+    this.far = new FarTerrain(this.terrain, this.farMaterial);
     this.props = new PropInstancer(m.props, host.props);
     this.root.add(this.terrain, this.props.root, this.horizon.root);
   }
 
-  /** The terrain material, for warming its program before the first cell shows. */
-  get terrainMaterial(): THREE.Material {
-    return this.material;
+  /** The terrain materials (a cell's own mesh, and merged far ground), for warming their programs before the first cell shows. */
+  get terrainMaterials(): THREE.Material[] {
+    return [this.material, this.farMaterial];
   }
 
   /** Start sending colliders to a sim (a new SimWorld has none, so every Active cell goes again). */
@@ -226,6 +235,8 @@ export class CellStreamer {
       }
     }
 
+    // Far ground whose cells came or went is merged again, a few blocks a frame.
+    this.far.flush(FAR_BLOCKS_PER_FRAME);
     if (this.maskDirty) {
       // While any cell is still fading in, the mask is written again next frame.
       this.maskDirty = false;
@@ -233,6 +244,8 @@ export class CellStreamer {
       const shown: [number, number, number][] = [];
       for (const c of this.cells.values()) {
         if (!c.chunk) continue;
+        // Far ground shows once its block has been merged: the fade starts then.
+        if (this.far.has(c.chunk) && !this.far.shown(c.chunk)) c.shownAt = now;
         const fade = Math.min(1, (now - c.shownAt) / CELL_FADE_MS);
         if (fade < 1) this.maskDirty = true;
         shown.push([c.cx, c.cz, fade]);
@@ -377,9 +390,14 @@ export class CellStreamer {
           const chunk = new TerrainChunk(c.cx, c.cz, r.mesh, this.material);
           // A first mesh fades in; a finer or coarser one for the same cell just takes its place.
           if (!c.chunk) c.shownAt = this.host.props.now();
-          c.chunk?.dispose();
+          if (c.chunk) {
+            this.far.remove(c.chunk);
+            c.chunk.dispose();
+          }
           c.chunk = chunk;
-          this.terrain.add(chunk.mesh);
+          // Coarse (far) ground goes into its block's mesh; nearer ground is drawn as its own.
+          if (chunk.res === FAR_RES) this.far.add(chunk);
+          else this.terrain.add(chunk.mesh);
           this.maskDirty = true;
         });
       },
@@ -403,6 +421,7 @@ export class CellStreamer {
       for (const t of f.tickets) t.cancel();
     }
     if (c.chunk) {
+      this.far.remove(c.chunk);
       c.chunk.dispose();
       c.chunk = null;
       this.maskDirty = true;
@@ -470,8 +489,10 @@ export class CellStreamer {
     this.fetches.clear();
     this.cache.clear();
     this.props.dispose();
+    this.far.dispose();
     this.horizon.dispose();
     this.material.dispose();
+    this.farMaterial.dispose();
     this.root.removeFromParent();
   }
 }

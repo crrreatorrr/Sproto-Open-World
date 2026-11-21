@@ -134,9 +134,11 @@ export class WorldSession {
     this.applyView();
     this.renderer.scene.add(streamer.root);
     // Warm the terrain program before the first cell lands (it would compile on its first draw).
-    const probe = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), streamer.terrainMaterial);
-    probe.receiveShadow = true;
-    void this.renderer.compile(probe).finally(() => probe.geometry.dispose());
+    for (const material of streamer.terrainMaterials) {
+      const probe = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+      probe.receiveShadow = true;
+      void this.renderer.compile(probe).finally(() => probe.geometry.dispose());
+    }
     const field = new GrassField(Math.max(0, m.splatLayers.indexOf('grass')), m.props, m.heightRange);
     field.enabled = this.grassOn;
     this.grass = field;

@@ -22,7 +22,11 @@ export interface CellMaskUniforms {
   maskSize: { value: THREE.Vector2 };
 }
 
-export function terrainMaterial(grass: THREE.Texture, rock: THREE.Texture, splatLayers: readonly string[], mask?: CellMaskUniforms): THREE.MeshStandardMaterial {
+/**
+ * `merged` is the material for far ground drawn a block at a time (world/FarTerrain.ts): there a
+ * vertex says which cell it belongs to (`cellc`), where a cell's own mesh takes it from its place.
+ */
+export function terrainMaterial(grass: THREE.Texture, rock: THREE.Texture, splatLayers: readonly string[], mask?: CellMaskUniforms, merged = false): THREE.MeshStandardMaterial {
   for (const t of [grass, rock]) {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
@@ -51,9 +55,10 @@ export function terrainMaterial(grass: THREE.Texture, rock: THREE.Texture, splat
       // cell, at its centre (the mesh sits at the cell's south-west corner), so every pixel of the
       // cell agrees, and the horizon's shader keeps exactly the pixels this one gives up.
       Object.assign(shader.uniforms, mask);
+      const centre = merged ? 'cellc' : `modelMatrix[3].xz + ${(CELL_SIZE / 2).toFixed(1)}`;
       shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', '#include <common>\nuniform sampler2D horizonMask;\nuniform vec2 maskOrigin;\nuniform vec2 maskSize;\nvarying float vCellFade;')
-        .replace('#include <begin_vertex>', `#include <begin_vertex>\nvCellFade = texture2D(horizonMask, (modelMatrix[3].xz + ${(CELL_SIZE / 2).toFixed(1)} - maskOrigin) / maskSize).r;`);
+        .replace('#include <common>', `#include <common>\nuniform sampler2D horizonMask;\nuniform vec2 maskOrigin;\nuniform vec2 maskSize;\nvarying float vCellFade;${merged ? '\nattribute vec2 cellc;' : ''}`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>\nvCellFade = texture2D(horizonMask, (${centre} - maskOrigin) / maskSize).r;`);
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <common>', '#include <common>\nvarying float vCellFade;')
         .replace(
@@ -66,7 +71,7 @@ export function terrainMaterial(grass: THREE.Texture, rock: THREE.Texture, splat
         );
     }
   };
-  mat.customProgramCacheKey = () => (mask ? 'terrain-splat-v3-fade' : 'terrain-splat-v2');
+  mat.customProgramCacheKey = () => (mask ? (merged ? 'terrain-splat-v3-fade-merged' : 'terrain-splat-v3-fade') : 'terrain-splat-v2');
   return mat;
 }
 
