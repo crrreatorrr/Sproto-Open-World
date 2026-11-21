@@ -25,11 +25,13 @@
  * 4. Fingers are not in the wizard's rig: their default rotation is the target's own retargeted
  *    gun grip from the shooter's `ready` pose, so every wizard clip holds it.
  */
+import { fileURLToPath } from 'node:url';
 import { Matrix4, Quaternion, Vector3 } from 'three';
-import { durationOf, io, posOf, poseAt, rigOf, rotOf, worldOf } from './rig.mjs';
+import { io, posOf, poseAt, rigOf, rotOf, worldOf } from './rig.mjs';
+import { addGunLayers, addMoveClips, naturalStance } from './shooter-clips.mjs';
 
 const WIZARD = 'art/source/player_raw.glb';
-const SHOOTER = 'art/source/classes/pepe_shooter_decoded.glb';
+export const SHOOTER = 'art/source/classes/pepe_shooter_decoded.glb';
 /** The wizard's standing height in player.glb at scale 1 (rest pose, skinned mesh, feet at y = 0). */
 export const BODY_HEIGHT = 1.818;
 const BODIES = {
@@ -39,6 +41,11 @@ const BODIES = {
 };
 export const WIZARD_CLIPS = ['idle', 'run', 'run_back', 'strafe_l', 'strafe_r', 'jump', 'roll', 'hit', 'stun', 'defeat', 'victory', 'cast', 'cast_big', 'attack_light_1', 'attack_light_2', 'attack_light_3', 'attack_heavy', 'block', 'mount', 'ride', 'dismount'];
 const SEATED = new Set(['mount', 'ride', 'dismount']);
+/** A relaxed hand's fingers: this far from the body's open rest toward the gun grip. */
+const RELAXED_CURL = 0.3;
+/** The wizard's staff: from its grip down to its butt (m), and how far the butt stays off the floor. */
+const STAFF_GRIP_TO_BUTT = 1.093;
+const STAFF_CLEARANCE = 0.03;
 /**
  * Upper-body clips keep only these joints' channels: Sproto Shooter's `ARMS` filter plus the
  * spine, neck and head, so the gun points the same way over any locomotion clip.
@@ -50,10 +57,6 @@ const CURL = {
   Right: { Index: [22, 30, 20], Middle: [48, 52, 35], Ring: [52, 52, 35], Pinky: [56, 50, 35], Thumb: [8, 22, 15] },
   Left: { Index: [28, 32, 22], Middle: [34, 38, 26], Ring: [38, 38, 26], Pinky: [42, 38, 26], Thumb: [6, 15, 10] },
 };
-const FPS = 24;
-const AIM_SECONDS = 0.5;
-/** Frames at each end of `shoot` eased back onto the `ready` pose. */
-const SHOOT_EASE = 2;
 
 const M = (n) => `mixamorig:${n}`;
 const SIDES = ['Left', 'Right'];
@@ -77,7 +80,7 @@ const WIZARD_MAP = [
   ]),
 ];
 const same = (n, child) => [M(n), M(n), child && M(child), child && M(child)];
-const SHOOTER_MAP = [
+export const SHOOTER_MAP = [
   same('Hips', null), same('Spine', 'Spine1'), same('Spine1', 'Spine2'), same('Spine2', 'Neck'), same('Neck', 'Head'), same('Head', null),
   ...SIDES.flatMap((s) => [
     same(`${s}Shoulder`, `${s}Arm`), same(`${s}Arm`, `${s}ForeArm`), same(`${s}ForeArm`, `${s}Hand`), same(`${s}Hand`, `${s}HandMiddle1`),
@@ -87,7 +90,7 @@ const SHOOTER_MAP = [
 ];
 
 /** Skinning data for fast "lowest point" queries (every `step`th vertex). */
-function skinOf(doc, rig, step = 3) {
+export function skinOf(doc, rig, step = 3) {
   for (const node of rig.order) {
     const skin = node.getSkin(), mesh = node.getMesh();
     if (!skin || !mesh) continue;
@@ -101,7 +104,7 @@ function skinOf(doc, rig, step = 3) {
   }
   throw new Error('no skinned mesh');
 }
-function skinned(skin, world, filter) {
+export function skinned(skin, world, filter) {
   const mats = skin.joints.map((j, i) => world.get(j).clone().multiply(skin.ibm[i]));
   const out = [], tmp = new Vector3();
   for (const v of skin.verts) {
@@ -112,10 +115,10 @@ function skinned(skin, world, filter) {
   }
   return out;
 }
-const lowest = (skin, world) => Math.min(...skinned(skin, world).map((p) => p.y));
+export const lowest = (skin, world) => Math.min(...skinned(skin, world).map((p) => p.y));
 
 /** Bake a uniform scale into a skinned doc: node translations, inverse bind matrices, positions. */
-function scaleDoc(doc, k) {
+export function scaleDoc(doc, k) {
   for (const n of doc.getRoot().listNodes()) n.setTranslation(n.getTranslation().map((v) => v * k));
   for (const skin of doc.getRoot().listSkins()) {
     const acc = skin.getInverseBindMatrices();
@@ -137,13 +140,13 @@ function scaleDoc(doc, k) {
 }
 
 /** Reference (rest) data of a rig: world matrices, rotations and positions at default TRS. */
-function refOf(rig) {
+export function refOf(rig) {
   const world = worldOf(rig, null);
   return { world, rot: (n) => rotOf(world.get(n)), pos: (n) => posOf(world.get(n)) };
 }
 
 /** Per-target-joint rest alignment A_b for a source → target map. */
-function align(map, S, T, sCentroid) {
+export function align(map, S, T, sCentroid, tCentroid) {
   const C = new Map(), A = new Map(), pairs = [];
   for (const [tName, sName, tChild, sChild] of map) {
     const t = T.rig.byName.get(tName), s = S.rig.byName.get(sName);
@@ -152,10 +155,10 @@ function align(map, S, T, sCentroid) {
     while (up && !C.has(up)) up = T.rig.parent.get(up);
     const inherit = up ? C.get(up).clone() : new Quaternion();
     let c = inherit;
-    const tc = tChild && T.rig.byName.get(tChild);
+    const tc = tChild === 'centroid' ? tCentroid(t) : tChild && T.rig.byName.get(tChild) && T.ref.pos(T.rig.byName.get(tChild));
     const sc = sChild === 'centroid' ? sCentroid(s) : sChild && S.ref.pos(S.rig.byName.get(sChild));
     if (tc && sc) {
-      const dt = T.ref.pos(tc).sub(T.ref.pos(t)).normalize().applyQuaternion(inherit);
+      const dt = tc.clone().sub(T.ref.pos(t)).normalize().applyQuaternion(inherit);
       const ds = sc.clone().sub(S.ref.pos(s)).normalize();
       c = new Quaternion().setFromUnitVectors(dt, ds).multiply(inherit);
     }
@@ -166,7 +169,7 @@ function align(map, S, T, sCentroid) {
   return { A, pairs };
 }
 
-function rigData(doc) {
+export function rigData(doc) {
   const rig = rigOf(doc);
   return { doc, rig, ref: refOf(rig), skin: skinOf(doc, rig) };
 }
@@ -176,10 +179,10 @@ function rigData(doc) {
  * `fixed` holds constant local rotations (the finger grip); `hips(world)` returns the hips' world
  * position for a first-pass world, or null to leave the hips' translation alone.
  */
-function retargetPose(S, T, al, srcWorld, fixed, hips) {
+export function retargetPose(S, T, al, srcWorld, fixed, hips, hipsName = M('Hips')) {
   const D = new Map();
   for (const { t, s } of al.pairs) D.set(t, rotOf(srcWorld.get(s)).multiply(S.ref.rot(s).invert()));
-  const hipsNode = T.rig.byName.get(M('Hips'));
+  const hipsNode = T.rig.byName.get(hipsName);
   const build = (hipsPos) => {
     const pose = new Map(), world = new Map();
     for (const n of T.rig.order) {
@@ -209,7 +212,7 @@ function retargetPose(S, T, al, srcWorld, fixed, hips) {
   return out;
 }
 
-function addClip(doc, name, times, frames, nodes) {
+export function addClip(doc, name, times, frames, nodes) {
   const buffer = doc.getRoot().listBuffers()[0];
   const anim = doc.createAnimation(name);
   const input = doc.createAccessor(`${name}_t`).setType('SCALAR').setArray(new Float32Array(times)).setBuffer(buffer);
@@ -237,7 +240,7 @@ function addClip(doc, name, times, frames, nodes) {
 }
 
 /** Hand frame from joint positions: fingers, across the knuckles, palm normal; and hand length. */
-function handFrame(world, rig, side) {
+export function handFrame(world, rig, side) {
   const p = (n) => posOf(world.get(rig.byName.get(M(`${side}${n}`))));
   const h = p('Hand'), mid = p('HandMiddle1');
   const f = mid.clone().sub(h);
@@ -281,7 +284,7 @@ async function build(id) {
   // Shooter Pepe → this body: `ready` (held as `aim`) and `shoot`; arms and fingers only.
   const shooterAl = align(SHOOTER_MAP, shooter, T, null);
   const clipOf = (d, name) => d.getRoot().listAnimations().find((a) => a.getName() === name);
-  const ready = clipOf(shooterDoc, 'ready'), shoot = clipOf(shooterDoc, 'shoot');
+  const ready = clipOf(shooterDoc, 'ready');
   const readyPose = retargetPose(shooter, T, shooterAl, worldOf(shooter.rig, poseAt(ready, 0)), null, null);
   // The shooter's grip is barely curled (its guns hide the hand). Curl each finger further toward
   // the palm, then make that the fingers' default rotation: every clip then holds a gun without a
@@ -304,25 +307,15 @@ async function build(id) {
         const axis = new Vector3(0, 1, 0).applyQuaternion(W).cross(palm).normalize();
         const turn = new Quaternion().setFromAxisAngle(axis, (deg * Math.PI) / 180);
         const local = readyPose.pose.get(node).r.clone().multiply(W.clone().invert().multiply(turn).multiply(W));
+        // An open, relaxed hand for when this one holds nothing: mostly the body's own open rest, a
+        // little of the grip. The game blends a free hand's fingers to it (gunPose.ts relaxHand).
+        const open = new Quaternion().fromArray(node.getRotation()).slerp(local, RELAXED_CURL);
+        node.setExtras({ ...node.getExtras(), relaxed: open.toArray().map((v) => +v.toFixed(5)) });
         node.setRotation(local.toArray());
       });
     }
   }
   const upper = [...readyPose.pose.keys()].filter((n) => UPPER.test(n.getName()));
-
-  const aimTimes = Array.from({ length: Math.round(AIM_SECONDS * FPS) + 1 }, (_, i) => i / FPS);
-  addClip(doc, 'aim', aimTimes, aimTimes.map(() => readyPose.pose), upper);
-
-  const shootEnd = durationOf(shoot);
-  const shootTimes = Array.from({ length: Math.round(shootEnd * FPS) + 1 }, (_, i) => i / FPS);
-  const shootFrames = shootTimes.map((t, i) => {
-    const { pose } = retargetPose(shooter, T, shooterAl, worldOf(shooter.rig, poseAt(shoot, t)), null, null);
-    const edge = Math.min(i, shootTimes.length - 1 - i);
-    const w = edge >= SHOOT_EASE ? 0 : 1 - edge / SHOOT_EASE;
-    if (w > 0) for (const n of upper) pose.get(n).r = pose.get(n).r.clone().slerp(readyPose.pose.get(n).r, w);
-    return pose;
-  });
-  addClip(doc, 'shoot', shootTimes, shootFrames, upper);
 
   // Wizard → this body.
   const handCentroid = (s) => {
@@ -342,6 +335,7 @@ async function build(id) {
   const thigh = (rig, world) => (posOf(world.get(rig.byName.get(rig === wiz.rig ? 'LeftUpLeg' : M('LeftUpLeg')))).y + posOf(world.get(rig.byName.get(rig === wiz.rig ? 'RightUpLeg' : M('RightUpLeg')))).y) / 2;
   const report = { id, scale: +k.toFixed(4), hipsRatio: +ratio.toFixed(4), clips: {} };
   const bodyNodes = [...new Set(wizAl.pairs.map((p) => p.t))];
+  let idle0 = null;
 
   for (const name of WIZARD_CLIPS) {
     const clip = clipOf(wiz.doc, name);
@@ -366,11 +360,16 @@ async function build(id) {
       sink = Math.min(sink, lowest(T.skin, world));
       frames.push(pose);
     }
+    // Standing is the natural stance on every body (the wizard's own idle gets the same in build-player-glb).
+    if (name === 'idle') {
+      frames.splice(0, frames.length, ...naturalStance(T, 'mixamo', frames, wizAl.A.get(T.rig.byName.get(M('RightHand'))).clone().invert().normalize()));
+      idle0 = frames[0];
+    }
     addClip(doc, name, times, frames, bodyNodes);
     report.clips[name] = { seconds: +times[times.length - 1].toFixed(4), keys: times.length, lowest: +sink.toFixed(3) };
   }
-  report.clips.aim = { seconds: aimTimes[aimTimes.length - 1], keys: aimTimes.length, upperBodyOnly: true };
-  report.clips.shoot = { seconds: +shootTimes[shootTimes.length - 1].toFixed(4), keys: shootTimes.length, upperBodyOnly: true };
+  // Sproto Shooter's movement: its `dash` stride, and its slide (a pose built from the body's own legs).
+  Object.assign(report.clips, addMoveClips(doc, shooter, T, shooterAl, 'mixamo', idle0, bodyNodes));
 
   // socket_weapon: at the shooter's grip point (carried over in hand-relative terms), turned so
   // +Z is the character's forward and +Y up in the `aim` pose on its own (over the default hips and
@@ -383,7 +382,7 @@ async function build(id) {
   const at = tf.h.clone().addScaledVector(tf.f, c[0] * tf.len).addScaledVector(tf.s, c[1] * tf.len).addScaledVector(tf.n, c[2] * tf.len);
   const hand = T.rig.byName.get(M('RightHand'));
   const gripInHand = at.clone().applyMatrix4(readyPose.world.get(hand).clone().invert());
-  const handWorld = worldOf(T.rig, poseAt(clipOf(doc, 'aim'), 0)).get(hand);
+  const handWorld = readyPose.world.get(hand);
   const gripWorld = gripInHand.clone().applyMatrix4(handWorld);
   const local = handWorld.clone().invert().multiply(new Matrix4().compose(gripWorld, new Quaternion(), new Vector3(1, 1, 1)));
   const lt = new Vector3(), lr = new Quaternion(), ls = new Vector3();
@@ -401,7 +400,7 @@ async function build(id) {
   const atL = tfL.h.clone().addScaledVector(tfL.f, c[0] * tfL.len).addScaledVector(tfL.s, c[1] * tfL.len).addScaledVector(tfL.n, -c[2] * tfL.len);
   const handL = T.rig.byName.get(M('LeftHand'));
   const gripInHandL = atL.clone().applyMatrix4(readyPose.world.get(handL).clone().invert());
-  const handWorldL = worldOf(T.rig, poseAt(clipOf(doc, 'aim'), 0)).get(handL);
+  const handWorldL = readyPose.world.get(handL);
   const gripWorldL = gripInHandL.clone().applyMatrix4(handWorldL);
   const localL = handWorldL.clone().invert().multiply(new Matrix4().compose(gripWorldL, new Quaternion(), new Vector3(1, 1, 1)));
   const ltL = new Vector3(), lrL = new Quaternion(), lsL = new Vector3();
@@ -414,19 +413,33 @@ async function build(id) {
   handL.addChild(socketL);
   report.socketL = { t: ltL.toArray().map((v) => +v.toFixed(4)), r: lrL.toArray().map((v) => +v.toFixed(4)), aimWorld: gripWorldL.toArray().map((v) => +v.toFixed(4)) };
 
+  // The gun layers: stances solved onto the sockets (shooter-clips.mjs).
+  Object.assign(report.clips, addGunLayers(doc, shooter, T, shooterAl, upper, readyPose, socket, 'mixamo', idle0, socketL));
+
   // socket_staff: same right-fist origin as socket_weapon, oriented so +Y (shaft) and +Z (front)
   // match the wizard's socket_staff across every retargeted wizard clip (R_local = A_hand^-1).
   const staffRot = wizAl.A.get(hand).clone().invert().normalize();
-  const socketStaff = doc.createNode('socket_staff').setTranslation(lt.toArray()).setRotation(staffRot.toArray()).setScale([1, 1, 1]);
+  const worldOfIdle = worldOf(T.rig, poseAt(clipOf(doc, 'idle'), 0));
+  // The wizard grips its staff 1.09 m up the shaft; a body with lower hands would stand the butt
+  // in the ground, so its grip moves down the shaft until the butt clears the floor in `idle`.
+  const idleHand = worldOfIdle.get(hand);
+  const shaft = new Vector3(0, 1, 0).applyQuaternion(rotOf(idleHand).multiply(staffRot));
+  const butt = lt.clone().applyMatrix4(idleHand).addScaledVector(shaft, -STAFF_GRIP_TO_BUTT);
+  const lift = Math.max(0, STAFF_CLEARANCE - butt.y) / Math.max(0.2, shaft.y);
+  const staffAt = lt.clone().add(new Vector3(0, 1, 0).applyQuaternion(staffRot).multiplyScalar(lift));
+  report.staffLift = +lift.toFixed(3);
+  const socketStaff = doc.createNode('socket_staff').setTranslation(staffAt.toArray()).setRotation(staffRot.toArray()).setScale([1, 1, 1]);
   socketStaff.setExtras({
     contract: 'staff/melee root here: origin = centre of the closed right fist, +Y butt->head, +Z front, metres.',
   });
   hand.addChild(socketStaff);
-  report.socketStaff = { t: lt.toArray().map((v) => +v.toFixed(4)), r: staffRot.toArray().map((v) => +v.toFixed(4)) };
+  report.socketStaff = { t: staffAt.toArray().map((v) => +v.toFixed(4)), r: staffRot.toArray().map((v) => +v.toFixed(4)) };
 
   await io.write(out, doc);
   console.log(JSON.stringify(report));
 }
 
-const ids = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(BODIES);
-for (const id of ids) await build(id);
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const ids = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(BODIES);
+  for (const id of ids) await build(id);
+}

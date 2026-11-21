@@ -48,6 +48,11 @@ export interface WeaponBarHudState {
   critFlash: number;
   /** Sniper scope zoom stage: 0 = off, 1 = zoom stage 1, 2 = zoom stage 2. */
   scopeZoom: 0 | 1 | 2;
+  /**
+   * Something stands between the barrel and the crosshair point: where the shot will land
+   * instead, on screen (px). Null when the barrel is clear.
+   */
+  blocked?: { x: number; y: number } | null;
 }
 
 const STYLE_ID = 'sow-weapon-bar-hud-css';
@@ -206,6 +211,30 @@ const CSS = `
   display: none;
 }
 .wbh-crosshair.active { display: block; }
+.wbh-blocked {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  display: none;
+  pointer-events: none;
+}
+.wbh-blocked.active { display: block; }
+.wbh-blocked::before,
+.wbh-blocked::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 0;
+  width: 2px;
+  height: 14px;
+  background: #ff5d5d;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+  transform: rotate(45deg);
+}
+.wbh-blocked::after { transform: rotate(-45deg); }
 .wbh-crosshair .dot {
   position: absolute;
   left: -2px;
@@ -328,6 +357,8 @@ export class WeaponBarHud {
   private readonly swapHintEl: HTMLDivElement;
   private readonly slots: SlotDom[] = [];
   private readonly crosshairEl: HTMLDivElement;
+  private readonly blockedEl: HTMLDivElement;
+  private lastBlocked = '';
   private readonly tickT: HTMLDivElement;
   private readonly tickB: HTMLDivElement;
   private readonly tickL: HTMLDivElement;
@@ -391,7 +422,8 @@ export class WeaponBarHud {
     }
 
     cluster.append(this.reloadEl, this.ammoEl, bar);
-    this.root.append(this.scopeEl, this.crosshairEl, cluster);
+    this.blockedEl = div('wbh-blocked');
+    this.root.append(this.scopeEl, this.crosshairEl, this.blockedEl, cluster);
     host.append(this.root);
   }
 
@@ -479,6 +511,13 @@ export class WeaponBarHud {
     if (crossOn !== this.lastCrosshairOn) {
       this.lastCrosshairOn = crossOn;
       this.crosshairEl.classList.toggle('active', crossOn);
+    }
+    // A blocked barrel: a small red cross where the shot will really land.
+    const b = s.showCrosshair && s.blocked ? `${Math.round(s.blocked.x)},${Math.round(s.blocked.y)}` : '';
+    if (b !== this.lastBlocked) {
+      this.lastBlocked = b;
+      this.blockedEl.classList.toggle('active', b !== '');
+      if (s.blocked && b) this.blockedEl.style.transform = `translate(${Math.round(s.blocked.x)}px, ${Math.round(s.blocked.y)}px)`;
     }
     if (crossOn) {
       const gapPx = Math.round(6 + Math.min(48, Math.max(0, s.spread) * 320));

@@ -51,8 +51,10 @@ const REQUIRED_CLIPS = {
 const PLAYER_CLIPS = ['idle', 'run', 'run_back', 'strafe_l', 'strafe_r', 'jump', 'roll', 'hit', 'stun', 'defeat', 'victory', 'cast', 'cast_big', 'attack_light_1', 'attack_light_2', 'attack_light_3', 'attack_heavy', 'block', 'mount', 'ride', 'dismount'];
 /** Class bodies (art/tools/classes): the wizard's clips plus the upper-body gun layers. */
 const CLASS_BODIES = ['models/characters/soldier.glb', 'models/characters/pepe_player.glb', 'models/characters/pepe_warrior.glb'];
-const CLASS_CLIPS = [...PLAYER_CLIPS, 'aim', 'shoot'];
-const GUNS = ['mg', 'shotgun', 'sniper', 'bazooka', 'raygun', 'bigbullets', 'duckgun'].map((id) => `models/guns/gun_${id}.glb`);
+/** Sproto Shooter's gun layers and movement, on every playable body (art/tools/classes/shooter-clips.mjs). */
+const SHOOTER_CLIPS = ['aim', 'hold', 'shoot', 'reload', 'slide', 'dash', 'aim_1h', 'hold_1h', 'shoot_1h', 'reload_1h', 'dual', 'dual_shoot_r', 'dual_shoot_l', 'dual_reload', 'dual_reload_r', 'dual_reload_l'];
+const CLASS_CLIPS = [...PLAYER_CLIPS, ...SHOOTER_CLIPS];
+const GUNS = ['mg', 'shotgun', 'sniper', 'bazooka', 'raygun', 'bigbullets', 'duckgun', 'handgun', 'machinepistol'].map((id) => `models/guns/gun_${id}.glb`);
 /** Files made by this repo's own pipelines (not copied from a sibling). */
 const OWN = new Set(['models/characters/player.glb', 'models/characters/player.melee.json', 'models/mounts/pepe_bull.glb', 'models/staffs/staff_rootcleaver.glb', 'models/staffs/staff_brick_phone.glb', 'IMPORTED.json', ...CLASS_BODIES, ...GUNS]);
 /**
@@ -105,8 +107,9 @@ for (const rel of walk(ROOT)) {
   if (rel === 'models/interactables/chest.glb' && !doc.getRoot().listNodes().some((n) => n.getName() === 'chest_lid')) fail(`${rel} has no chest_lid node`);
   if (rel === 'models/characters/player.glb') {
     const names = new Set(doc.getRoot().listAnimations().map((a) => a.getName()));
-    const missing = PLAYER_CLIPS.filter((c) => !names.has(c));
+    const missing = CLASS_CLIPS.filter((c) => !names.has(c));
     if (missing.length) fail(`player.glb is missing clips: ${missing.join(', ')}`);
+    for (const name of ['socket_weapon', 'socket_weapon_l']) if (!doc.getRoot().listNodes().some((n) => n.getName() === name)) fail(`player.glb has no ${name} (run art/tools/build-player-glb.mjs)`);
     const socket = doc.getRoot().listNodes().find((n) => n.getName() === 'socket_staff');
     if (!socket) fail('player.glb has no socket_staff');
     else if (Math.abs(socket.getTranslation()[1]) > 50) fail('player.glb socket_staff is misplaced (run art/tools/build-player-glb.mjs)');
@@ -121,7 +124,7 @@ for (const rel of walk(ROOT)) {
     else if (hand?.getName() !== 'mixamorig:RightHand') fail(`${rel} socket_weapon is under ${hand?.getName()}, expected mixamorig:RightHand`);
     else if (Math.hypot(...socket.getTranslation()) > 0.2) fail(`${rel} socket_weapon is ${Math.hypot(...socket.getTranslation()).toFixed(2)} m from the hand`);
   }
-  if (GUNS.includes(rel) && !doc.getRoot().listNodes().some((n) => n.getName() === 'muzzle')) fail(`${rel} has no muzzle node (run art/tools/classes/build-guns.mjs)`);
+  if (GUNS.includes(rel) && !doc.getRoot().listNodes().some((n) => n.getName() === 'muzzle')) fail(`${rel} has no muzzle node (run art/tools/classes/build-guns.mjs or build-sidearms.mjs)`);
 }
 if (failures) process.exit(1);
 console.log('check-assets: all assets within caps and tracked');

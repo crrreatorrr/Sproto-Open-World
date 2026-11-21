@@ -103,6 +103,10 @@ export interface FixedGunDef {
   infiniteReserve?: boolean;
   projectile?: 'rocket' | 'bigBullet' | 'rubberBullet';
   zoomLevels?: 1 | 2;
+  /** Loads one round at a time (`reloadTime` fills an empty magazine); firing stops the reload. */
+  shellReload?: boolean;
+  /** Grip to barrel end (m), as the model is built: places the sim's muzzle. */
+  length: number;
   range: GunRange;
   base: GunBaseStats;
 }
@@ -137,6 +141,7 @@ const baseStats = (o: Partial<GunBaseStats>): GunBaseStats => ({
 export const GUNS: Record<GunType, FixedGunDef> = {
   mg: {
     id: 'mg',
+    length: 0.9,
     itemId: 'gun_mg',
     name: 'Toy MG',
     short: 'MG',
@@ -154,7 +159,7 @@ export const GUNS: Record<GunType, FixedGunDef> = {
       adsSpread: 0.45,
       critMult: 2.0,
       critChance: 0.05,
-      zoomFov: 52,
+      zoomFov: 48,
       recoil: 0.35,
       recoilYaw: 0.15,
       swapTime: 0.5,
@@ -162,6 +167,7 @@ export const GUNS: Record<GunType, FixedGunDef> = {
   },
   handgun: {
     id: 'handgun',
+    length: 0.22,
     itemId: 'gun_handgun',
     name: 'Handgun',
     short: 'HG',
@@ -180,7 +186,7 @@ export const GUNS: Record<GunType, FixedGunDef> = {
       adsSpread: 0.5,
       critMult: 2.2,
       critChance: 0.06,
-      zoomFov: 52,
+      zoomFov: 55,
       recoil: 1.4,
       recoilYaw: 0.35,
       swapTime: 0.35,
@@ -188,6 +194,7 @@ export const GUNS: Record<GunType, FixedGunDef> = {
   },
   machinepistol: {
     id: 'machinepistol',
+    length: 0.28,
     itemId: 'gun_machinepistol',
     name: 'Machine Pistol',
     short: 'MP',
@@ -206,7 +213,7 @@ export const GUNS: Record<GunType, FixedGunDef> = {
       adsSpread: 1.4,
       critMult: 1.8,
       critChance: 0.04,
-      zoomFov: 52,
+      zoomFov: 55,
       recoil: 0.45,
       recoilYaw: 0.3,
       swapTime: 0.35,
@@ -214,6 +221,8 @@ export const GUNS: Record<GunType, FixedGunDef> = {
   },
   shotgun: {
     id: 'shotgun',
+    shellReload: true,
+    length: 0.98,
     itemId: 'gun_shotgun',
     name: 'Toy Shotgun',
     short: 'SG',
@@ -239,6 +248,7 @@ export const GUNS: Record<GunType, FixedGunDef> = {
   },
   sniper: {
     id: 'sniper',
+    length: 1.2,
     itemId: 'gun_sniper',
     name: 'Toy Sniper',
     short: 'SN',
@@ -266,6 +276,7 @@ export const GUNS: Record<GunType, FixedGunDef> = {
   },
   bazooka: {
     id: 'bazooka',
+    length: 1.25,
     itemId: 'gun_bazooka',
     name: 'Toy Bazooka',
     short: 'BZ',
@@ -284,7 +295,7 @@ export const GUNS: Record<GunType, FixedGunDef> = {
       adsSpread: 0.2,
       critMult: 1.5,
       critChance: 0,
-      zoomFov: 52,
+      zoomFov: 50,
       splashRadius: 4.0,
       splashDamage: 68,
       projectileSpeed: 28,
@@ -295,6 +306,8 @@ export const GUNS: Record<GunType, FixedGunDef> = {
   },
   raygun: {
     id: 'raygun',
+    dualWield: true,
+    length: 0.58,
     itemId: 'gun_raygun',
     name: 'Raygun',
     short: 'RG',
@@ -315,7 +328,7 @@ export const GUNS: Record<GunType, FixedGunDef> = {
       critMult: 2.2,
       critChance: 0.08,
       elementChance: 0.25,
-      zoomFov: 48,
+      zoomFov: 46,
       pierce: 2,
       recoil: 0.3,
       recoilYaw: 0.08,
@@ -324,6 +337,7 @@ export const GUNS: Record<GunType, FixedGunDef> = {
   },
   bigbullets: {
     id: 'bigbullets',
+    length: 0.72,
     itemId: 'gun_bigbullets',
     name: 'Big Bullets',
     short: 'BB',
@@ -344,7 +358,7 @@ export const GUNS: Record<GunType, FixedGunDef> = {
       critMult: 2.5,
       critChance: 0.1,
       elementChance: 0.35,
-      zoomFov: 48,
+      zoomFov: 46,
       pierce: 1,
       splashRadius: 2.5,
       splashDamage: 75,
@@ -356,6 +370,7 @@ export const GUNS: Record<GunType, FixedGunDef> = {
   },
   duckgun: {
     id: 'duckgun',
+    length: 0.78,
     itemId: 'gun_duckgun',
     name: 'Duck Gun',
     short: 'DG',
@@ -521,6 +536,30 @@ export function zoomLevelsOf(typeOrItemId: string | null | undefined): 1 | 2 {
   return gunDef(typeOrItemId)?.zoomLevels ?? 1;
 }
 
+/**
+ * How many zoom steps the aim button cycles through: none while dual wielding, two on the
+ * sniper, one on everything else.
+ */
+export function zoomStepsOf(typeOrItemId: string | null | undefined, dualWielding: boolean): 0 | 1 | 2 {
+  return dualWielding ? 0 : zoomLevelsOf(typeOrItemId);
+}
+
+/** The next zoom after an aim press: off, 1, (2), off. */
+export function nextZoom(current: 0 | 1 | 2, steps: 0 | 1 | 2): 0 | 1 | 2 {
+  return current >= steps ? 0 : ((current + 1) as 1 | 2);
+}
+
+/**
+ * How firing and moving open the shot up. Each shot adds `heatPerShot` of heat (0..1), which
+ * cools at `heatCool` per second once the trigger is released; at full heat the hip spread is
+ * `1 + heatSpread` times wider and the kick `1 + heatRecoil` times harder. Moving and being
+ * airborne widen the hip spread further. Zoomed in, only the zoomed spread applies.
+ */
+export const GUN_HEAT = { heatPerShot: 0.08, heatCool: 1.5, heatSpread: 0.6, heatRecoil: 0.6, movingMult: 1.4, movingSpeed: 1, airborneMult: 2 } as const;
+
+/** While zoomed: the share of move speed kept, and of recoil felt. */
+export const ZOOM_FEEL = { moveMult: 0.8, recoilMult: 0.7 } as const;
+
 /** Field of view in degrees at `zoomLevel` (1 or 2). */
 export function zoomFovFor(
   typeOrItemId: GunRef,
@@ -530,7 +569,7 @@ export function zoomFovFor(
   return stats.zoomFov * (zoomLevel >= 2 && zoomLevelsOf(typeOrItemId) >= 2 ? SCOPE_ZOOM2 : 1);
 }
 
-/** True when this gun can be dual-wielded (`handgun` or `machinepistol`). */
+/** True when this gun can be dual-wielded (`handgun`, `machinepistol` or `raygun`). */
 export function isDualWieldGun(typeOrItemId: string | null | undefined): boolean {
   return !!gunDef(typeOrItemId)?.dualWield;
 }
@@ -538,4 +577,9 @@ export function isDualWieldGun(typeOrItemId: string | null | undefined): boolean
 /** True when this gun never consumes reserve ammo (magazine still reloads). */
 export function hasInfiniteReserve(typeOrItemId: string | null | undefined): boolean {
   return !!gunDef(typeOrItemId)?.infiniteReserve;
+}
+
+/** True when this gun loads one round at a time. */
+export function loadsByShell(typeOrItemId: string | null | undefined): boolean {
+  return !!gunDef(typeOrItemId)?.shellReload;
 }

@@ -5,7 +5,7 @@ import { TICK_HZ } from '../content/tuning';
 import { WAVES } from '../content/waves';
 import { costText } from './rpgText';
 import { padGlyph, type GamepadInput } from '../input/Gamepad';
-import { KEYS, PAD } from '../input/bindings';
+import { GUN_KEYS, GUN_PAD, KEYS, PAD } from '../input/bindings';
 import { keyLabel, promptLabel } from '../input/glyphs';
 import { ICONS, type IconId } from './icons';
 import type { RevealKey } from './Reveals';
@@ -108,8 +108,10 @@ const SPELL_FACE = ['x', 'y', 'b', 'a'] as const;
 const icon = (id: IconId, cls: string, extra = '') => `<span class="ico ${cls}">${ICONS[id]}${extra}</span>`;
 
 /** A spell slot's button glyph on the active device: keys 1–4, or the modifier plus a face button (LT + X…). */
-export function spellSlotGlyph(slot: number, device: GamepadInput['device'], style: GamepadInput['style']): string {
-  return device === 'gamepad' ? `${padGlyph(PAD.spellModifier[0] ?? 'lt', style)}+${padGlyph(SPELL_FACE[slot], style)}` : keyLabel(KEYS[`spell${SLOTS[slot]}`][0] ?? '');
+export function spellSlotGlyph(slot: number, device: GamepadInput['device'], style: GamepadInput['style'], gunLayout = false): string {
+  const mod = gunLayout ? (GUN_PAD.spellModifier[0] ?? 'lb') : (PAD.spellModifier[0] ?? 'lt');
+  const keys = gunLayout ? GUN_KEYS : KEYS;
+  return device === 'gamepad' ? `${padGlyph(mod, style)}+${padGlyph(SPELL_FACE[slot], style)}` : keyLabel(keys[`spell${SLOTS[slot]}`][0] ?? '');
 }
 
 /** A spell's icon (or an empty slot's ring), for the HUD and the Powers tab. */
@@ -262,16 +264,39 @@ export class Hud {
     this.root.classList.toggle('active', v);
   }
 
-  update(pad: GamepadInput, mouseLocked: boolean): void {
+  update(pad: GamepadInput, mouseLocked: boolean, gunLayout = false, dualWield = false): void {
     const d = pad.device, s = pad.style;
     const p = (keys: readonly string[], padB: readonly string[]) => promptLabel(d, s, keys, padB);
     const move = d === 'gamepad' ? 'Left stick' : `${p(KEYS.forward, [])}${p(KEYS.left, [])}${p(KEYS.back, [])}${p(KEYS.right, [])}`;
+    // A gun in hand has its own layout: fire, zoom, reload and one melee button.
+    // Two guns: a trigger each, and on a pad a bumper tap reloads each (the mouse reloads both with one key).
+    const pad2 = d === 'gamepad';
+    const fight: [string, string][] = gunLayout && dualWield
+      ? [
+          [p(GUN_KEYS.fire, GUN_PAD.aim), 'Left gun'],
+          [p(GUN_KEYS.aim, GUN_PAD.fire), 'Right gun'],
+          ...(pad2
+            ? ([[`${p([], GUN_PAD.spellModifier)} / ${p([], GUN_PAD.melee)}`, 'Reload left / right'], [p([], GUN_PAD.reload), 'Reload both'], [p([], GUN_PAD.melee), 'Melee (hold)']] as [string, string][])
+            : ([[p(GUN_KEYS.reload, []), 'Reload both'], [p(GUN_KEYS.melee, []), 'Melee (hold: heavy)']] as [string, string][])),
+          [p(KEYS.dodge, PAD.dodge), 'Dodge'],
+        ]
+      : gunLayout
+      ? [
+          [p(GUN_KEYS.fire, GUN_PAD.fire), 'Fire'],
+          [p(GUN_KEYS.aim, GUN_PAD.aim), 'Zoom'],
+          [p(GUN_KEYS.reload, GUN_PAD.reload), 'Reload'],
+          [p(GUN_KEYS.melee, GUN_PAD.melee), 'Melee (hold: heavy)'],
+          [p(KEYS.dodge, PAD.dodge), 'Dodge'],
+        ]
+      : [
+          [p(KEYS.light, PAD.light), 'Light'],
+          [p(KEYS.heavy, PAD.heavy), 'Heavy (hold)'],
+          [p(KEYS.dodge, PAD.dodge), 'Dodge'],
+          [p(KEYS.block, PAD.block), 'Block'],
+        ];
     const items: [string, string][] = [
       [move, 'Move'],
-      [p(KEYS.light, PAD.light), 'Light'],
-      [p(KEYS.heavy, PAD.heavy), 'Heavy (hold)'],
-      [p(KEYS.dodge, PAD.dodge), 'Dodge'],
-      [p(KEYS.block, PAD.block), 'Block'],
+      ...fight,
       [p(KEYS.lock, PAD.lock), 'Lock on'],
       [p(KEYS.sprint, PAD.sprint), 'Sprint'],
       [p(KEYS.jump, PAD.jump), 'Jump'],
@@ -285,7 +310,7 @@ export class Hud {
     }
     this.clickHint.classList.toggle('active', d === 'kbm' && !mouseLocked);
     // Spell glyphs follow the device: keys 1–4, or the modifier plus a face button (LT + X…).
-    const glyphs = this.slots.map((_, i) => spellSlotGlyph(i, d, s));
+    const glyphs = this.slots.map((_, i) => spellSlotGlyph(i, d, s, gunLayout));
     const g = glyphs.join('|');
     if (g !== this.lastGlyphs || this.slotsChanged) {
       this.slotsChanged = false;

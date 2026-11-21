@@ -1,10 +1,11 @@
 /**
  * The Pepe Bull on the real world, pad only (a teleport is the only cheat): ride up with Y, run, swing
- * with RB, cast with LT + X, fly with three taps of A, and get down with Y.
+ * with RB, cast with LT + X (LB + X with a gun in hand), fly with three taps of A, and get down with Y.
  *
  *   node tests/e2e/mount.mjs [--shots dir] [--class wizard|soldier|pepe]
  *
- * `--class` rides as another class (the picker's order): a gun class shoots Gunfire from LT + X.
+ * `--class` rides as another class (the picker's order). A gun class holds a gun, so it plays on the
+ * gun layout: RB still swings, and LB (not LT, which is the zoom) is the spell modifier.
  */
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
@@ -16,8 +17,10 @@ if (shots) mkdirSync(shots, { recursive: true });
 const CLASS = args.includes('--class') ? args[args.indexOf('--class') + 1] : 'wizard';
 const CLASS_ORDER = ['wizard', 'soldier', 'pepe_warrior', 'pepe'];
 if (!CLASS_ORDER.includes(CLASS)) throw new Error(`--class must be one of ${CLASS_ORDER.join(', ')}`);
-/** What slot 1 casts for the class. */
-const SLOT1 = CLASS === 'wizard' || CLASS === 'pepe_warrior' ? 'bolt' : 'gunfire';
+/** What slot 1 casts: the Arcane Bolt, for every class. */
+const SLOT1 = 'bolt';
+/** The pad's spell modifier: LB on the gun layout (a gun class starts with a gun in hand), LT otherwise. */
+const SPELL_MOD = CLASS === 'wizard' || CLASS === 'pepe_warrior' ? 'lt' : 'lb';
 
 const server = await createServer({ server: { port: 5195, strictPort: false, hmr: false }, logLevel: 'error' });
 await server.listen();
@@ -191,13 +194,13 @@ try {
   check(Math.hypot(s.player.pos.x - z0.x, s.player.pos.z - z0.z) > 1, 'the bull kept moving through the swing');
 
   await page.evaluate(() => window.__qa.log(true));
-  await page.evaluate(() => window.__pad.set('lt', true));
+  await page.evaluate((m) => window.__pad.set(m, true), SPELL_MOD);
   await frames(3);
   await page.evaluate(() => window.__pad.set('x', true));
   await waitLog('cast', SLOT1, 'a cast');
-  await page.evaluate(() => { window.__pad.set('x', false); window.__pad.set('lt', false); });
+  await page.evaluate((m) => { window.__pad.set('x', false); window.__pad.set(m, false); }, SPELL_MOD);
   s = await state();
-  check(s.player.riding === 'riding', `LT + X ${CLASS === 'wizard' ? 'casts' : 'shoots'} from the saddle`);
+  check(s.player.riding === 'riding', `${SPELL_MOD.toUpperCase()} + X casts from the saddle`);
   await shot('b6-cast');
   await until((q) => q.player.action === null, 'the cast ending');
 

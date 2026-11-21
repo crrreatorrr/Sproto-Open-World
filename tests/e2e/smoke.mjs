@@ -149,7 +149,7 @@ try {
   s = await state();
   check(s.state === 'playing', 'A on the Wizard starts the game');
   check(s.staffMounted === true, 'staff mounted on socket_staff');
-  check(s.clips.length === 21 && s.clips.includes('attack_light_1') && s.clips.includes('block'), 'player.glb has all 21 clips', s.clips.join(','));
+  check(s.clips.length === 37 && s.clips.includes('attack_light_1') && s.clips.includes('block') && s.clips.includes('reload') && s.clips.includes('dual'), 'player.glb has all 37 clips (21 of its own, 16 from Sproto Shooter)', s.clips.join(','));
 
   // Long tasks from here on (loading is allowed to be heavy).
   await page.evaluate(() => {

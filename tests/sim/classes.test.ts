@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { CLASS_IDS, CLASS_PASSIVES, CLASSES, GUN_ITEMS, STARTER_GUNS, type ClassId } from '../../src/content/classes';
+import { CLASS_IDS, CLASS_PASSIVES, CLASSES, STARTER_GUNS, type ClassId } from '../../src/content/classes';
 import { ITEMS } from '../../src/content/items';
 import { BRANCH_IDS, LEVEL_CAP, SKILL_IDS, classPerkDef, classSkillDef } from '../../src/content/progression';
 import { SANDBOX } from '../../src/content/sandbox';
-import { SPELL_BASE } from '../../src/content/spells';
 import type { UiAction } from '../../src/sim/commands';
 import type { Entity } from '../../src/sim/entity';
 import { initPhysics } from '../../src/sim/physics/PhysicsWorld';
@@ -37,14 +36,14 @@ describe('a new save of each class', () => {
     expect(Object.keys(p.inventory).some((id) => ITEMS[id]?.gun)).toBe(false);
   });
 
-  it('the Soldier holds the Toy MG, carries the other starter guns, and Gunfire replaces the Arcane Bolt', () => {
+  it('the Soldier holds the Toy MG, carries the other starter guns, and casts the Arcane Bolt like anyone', () => {
     const p = newProgress(['bolt'], 'soldier');
     expect(p.class).toBe('soldier');
     expect(p.equipment.staff).toBe('gun_mg');
     expect(p.weapons).toEqual(['gun_mg', null, null, null]);
     for (const g of STARTER_GUNS) expect(p.inventory[g], g).toBe(1);
-    expect(p.spells).toEqual(['gunfire']);
-    expect(p.loadout).toEqual(['gunfire', null, null, null]);
+    expect(p.spells).toEqual(['bolt']);
+    expect(p.loadout).toEqual(['bolt', null, null, null]);
   });
 
   it('Pepe Warrior starts with the Sprout Staff, class field pepe_warrior, and v6 defaults', () => {
@@ -58,12 +57,12 @@ describe('a new save of each class', () => {
     expect(p.loadout).toEqual(['bolt', null, null, null]);
   });
 
-  it('Pepe holds a gun and knows both Gunfire and the Arcane Bolt', () => {
+  it('Pepe holds a gun and knows the Arcane Bolt; nobody knows Gunfire', () => {
     const p = newProgress(['bolt'], 'pepe');
     expect(p.class).toBe('pepe');
     expect(p.equipment.staff).toBe('gun_mg');
-    expect([...p.spells].sort()).toEqual(['bolt', 'gunfire']);
-    expect(p.loadout).toEqual(['gunfire', 'bolt', null, null]);
+    expect(p.spells).toEqual(['bolt']);
+    expect(p.loadout).toEqual(['bolt', null, null, null]);
   });
 
   it('each class has its own body', async () => {
@@ -75,36 +74,23 @@ describe('a new save of each class', () => {
   });
 });
 
-describe('Gunfire', () => {
-  it('costs no mana, shoots the gun in hand and waits for its fire rate', async () => {
+describe('shooting (the gun has its own trigger; Gunfire is no longer a spell)', () => {
+  const gunShots = (w: SimWorld) => w.gunEvents.filter((g) => g.fired);
+
+  it('the trigger costs no mana and fires at the gun\'s rate while it is held', async () => {
     const { w, p } = await world('soldier');
     p.vitals!.mana = 5;
-    const ev = step(w, press(BTN.spell1));
-    expect(ev.filter((e) => e.type === 'castStart')).toMatchObject([{ spell: 'gunfire' }]);
-    let cooldown = -1;
-    let b: Entity | undefined;
-    for (let i = 0; i < 30 && p.combat!.action; i++) {
-      if (step(w).some((e) => e.type === 'cast')) {
-        cooldown = p.combat!.cooldowns.gunfire ?? 0;
-        b = shots(w)[0];
-      }
-    }
-    expect(cooldown).toBe(GUN_ITEMS.gun_mg.gun!.shot.cooldown);
-    expect(b!.view.model).toBe('bullet');
-    expect(b!.projectile!.damage).toBeCloseTo(SPELL_BASE * 1.0 * GUN_ITEMS.gun_mg.gun!.shot.mv);
-    // Nothing spent (mana only regenerates).
-    expect(p.vitals!.mana).toBeGreaterThanOrEqual(5);
-    w.dispose();
-  });
-
-  it('keeps firing while the trigger is held, at the gun\'s rate', async () => {
-    const { w, p } = await world('soldier');
     let fired = 0;
-    for (let i = 0; i < 60; i++) fired += step(w, i === 0 ? press(BTN.spell1) : hold(BTN.spell1)).filter((e) => e.type === 'cast').length;
-    // 60 ticks at one shot every 7 (plus the 2-tick release): about eight.
-    expect(fired).toBeGreaterThanOrEqual(6);
-    expect(fired).toBeLessThanOrEqual(9);
-    void p;
+    for (let i = 0; i < 60; i++) {
+      step(w, i === 0 ? press(BTN.light) : hold(BTN.light));
+      fired += gunShots(w).length;
+    }
+    // 60 ticks at the Toy MG's ten shots a second.
+    expect(fired).toBeGreaterThanOrEqual(9);
+    expect(fired).toBeLessThanOrEqual(11);
+    // Nothing spent (mana only regenerates), and nothing was cast.
+    expect(p.vitals!.mana).toBeGreaterThanOrEqual(5);
+    expect(p.combat!.action?.kind).not.toBe('cast');
     w.dispose();
   });
 
@@ -113,34 +99,39 @@ describe('Gunfire', () => {
     step(w, ui([equip('gun_shotgun')]));
     expect(p.progress!.equipment.staff).toBe('gun_shotgun');
     expect(p.progress!.weapons![0]).toBe('gun_shotgun');
-    step(w, press(BTN.spell1));
-    for (let i = 0; i < 4; i++) step(w);
-    const pellets = shots(w);
-    expect(pellets).toHaveLength(9);
-    // Spread across the fan: no two leave in the same direction.
-    expect(new Set(pellets.map((x) => x.tf.vel.x.toFixed(3))).size).toBe(9);
-    for (let i = 0; i < 120; i++) step(w);
+    for (let i = 0; i < 40 && !gunShots(w).length; i++) step(w, hold(BTN.light));
+    const [blast] = gunShots(w);
+    expect(blast.tracers).toHaveLength(9);
+    // Spread across the fan: no two pellets end in the same place.
+    expect(new Set(blast.tracers.map((t) => t.to.x.toFixed(3))).size).toBe(9);
     step(w, ui([equip('gun_bazooka')]));
-    p.combat!.cooldowns = {};
-    step(w, press(BTN.spell1));
-    for (let i = 0; i < 4; i++) step(w);
+    for (let i = 0; i < 60 && !shots(w).length; i++) step(w, hold(BTN.light));
     const [rocket] = shots(w);
     expect(rocket.view.model).toBe('rocket');
-    expect(rocket.projectile!.explode).toBe(GUN_ITEMS.gun_bazooka.gun!.shot.explodeRadius);
+    expect(rocket.projectile!.explode).toBeGreaterThan(0);
+    expect(rocket.projectile!.splash!.damage).toBeGreaterThan(0);
     w.dispose();
   });
 
-  it('the Soldier\'s shooting spells come out of the gun; Pepe\'s are still magic', async () => {
-    for (const [cls, model] of [['soldier', 'rocket'], ['pepe', 'blastOrb'], ['pepe_warrior', 'blastOrb'], ['wizard', 'blastOrb']] as const) {
+  it('every class casts its spells as magic, the Soldier included', async () => {
+    for (const cls of ['soldier', 'pepe', 'pepe_warrior', 'wizard'] as const) {
       const { w, p } = await world(cls);
       step(w, ui([{ kind: 'equipSpell', slot: 2, spell: 'blast' }]));
       p.vitals!.mana = p.vitals!.manaMax = 200;
       p.combat!.cooldowns = {};
       step(w, press(BTN.spell3));
       for (let i = 0; i < 40; i++) step(w);
-      expect(shots(w).map((x) => x.view.model), cls).toContain(model);
+      expect(shots(w).map((x) => x.view.model), cls).toContain('blastOrb');
       w.dispose();
     }
+  });
+
+  it('a Soldier taught the Arcane Bolt learns the Arcane Bolt', async () => {
+    const { w, p } = await world('soldier');
+    expect(p.progress!.spells).not.toContain('gunfire');
+    step(w, press(BTN.spell1));
+    expect(p.combat!.action).toMatchObject({ kind: 'cast', spell: 'bolt' });
+    w.dispose();
   });
 });
 
