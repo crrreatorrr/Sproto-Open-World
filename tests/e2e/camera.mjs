@@ -10,6 +10,8 @@
  * by centimetres. The test fails when any frame's pop is over the limits below. The view stick is
  * moved gradually: the rig turns exactly as told, so a flicked stick is the player's own jump.
  * Frames where a blow is shaking or kicking the camera are left out: that is meant to be felt.
+ * So are frames longer than 40 ms and their neighbours, which are counted and reported: a hitch is
+ * the frame rate's jump, not the camera's, and what the camera does across one can't be told from it.
  *
  *   node tests/e2e/camera.mjs            # headless, software GPU
  *   CAMERA_GPU=1 node tests/e2e/camera.mjs   # headless on the machine's GPU (smooth frame times)
@@ -28,6 +30,8 @@ const shotsDir = args.includes('--shots') ? args[args.indexOf('--shots') + 1] : 
 
 /** The most the camera's place may pop in one frame (m), at 60 frames a second. */
 const POP_LIMIT = 0.05;
+/** A frame longer than this (s) is a hitch: it and its neighbours are not measured. */
+const LONG_FRAME = 0.04;
 /** The most the view direction may pop in one frame (degrees). */
 const TURN_POP_LIMIT = 0.6;
 
@@ -102,7 +106,7 @@ const report = {};
  * to the frame's length so an uneven frame rate doesn't read as one.
  */
 function analyse(rows) {
-  const out = { frames: rows.length, shaken: 0, pop: 0, popAt: -1, turnPop: 0, turnAt: -1, fovPop: 0, worst: [] };
+  const out = { frames: rows.length, shaken: 0, long: 0, pop: 0, popAt: -1, turnPop: 0, turnAt: -1, fovPop: 0, worst: [] };
   const vel = [];
   for (let i = 1; i < rows.length; i++) {
     const a = rows[i - 1], b = rows[i];
@@ -114,6 +118,7 @@ function analyse(rows) {
     const p = vel[k - 1], c = vel[k], n = vel[k + 1];
     // A blow landed: the shake and the kick are on purpose.
     if (rows[c.i][12] > 1e-3 || rows[c.i - 1][12] > 1e-3 || rows[c.i + 1]?.[12] > 1e-3) { out.shaken++; continue; }
+    if (Math.max(p.dt, c.dt, n.dt) > LONG_FRAME) { out.long++; continue; }
     const pop = Math.hypot(...c.v.map((v, j) => v - (p.v[j] + n.v[j]) / 2)) * c.dt;
     const turnPop = Math.abs(c.w - (p.w + n.w) / 2) * c.dt;
     out.fovPop = Math.max(out.fovPop, Math.abs(c.f - (p.f + n.f) / 2) * c.dt);
@@ -187,7 +192,7 @@ async function play(kind) {
     await hold('l3', false);
     const a = analyse(rows);
     report[`${kind}: ${name}`] = a;
-    check(a.pop <= POP_LIMIT && a.turnPop <= TURN_POP_LIMIT, `${kind}: ${name}`, `${a.frames} frames${a.shaken ? `, ${a.shaken} shaken by a blow` : ''}, worst pop ${(a.pop * 100).toFixed(1)} cm, worst turn pop ${a.turnPop.toFixed(2)}°`);
+    check(a.pop <= POP_LIMIT && a.turnPop <= TURN_POP_LIMIT, `${kind}: ${name}`, `${a.frames} frames${a.shaken ? `, ${a.shaken} shaken by a blow` : ''}${a.long ? `, ${a.long} beside a long frame` : ''}, worst pop ${(a.pop * 100).toFixed(1)} cm, worst turn pop ${a.turnPop.toFixed(2)}°`);
   };
 
   const sides = async (ms, times) => {
