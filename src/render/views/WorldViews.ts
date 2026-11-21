@@ -18,9 +18,10 @@ import { makeBossView } from './BossViews';
 import { makeBurrowmotherView } from './BurrowmotherView';
 import { DrakeFlyover, makeDrakeView } from './DrakeViews';
 import { BlastOrbView, BoltView,
-  BulletView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, RubberBulletView, type EntityView } from './EnemyViews';
+  BulletView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
 import { portalShown } from '../portalShown';
 import { ChestView, NpcView, PickupView, PortalView, ShrineView, objectView } from './RpgViews';
+import { RubberBulletView } from './EnemyViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
 import { TOTEM_FADE_TICKS } from '../../content/relics';
 import { decalLead, lanternShimmer, oracleEquipped } from '../relicCues';
