@@ -210,6 +210,14 @@ Object.assign(AI_STYLES, {
   rd_brute: AI_STYLES.brute,
   rootdeep_digger: AI_STYLES.grunt_vet,
   deep_warden: AI_STYLES.hollow_giant,
+  midget_swarmer: AI_STYLES.grunt,
+  flying_midget: AI_STYLES.wisp,
+  bitcoin_obama: AI_STYLES.slinger,
+  big_bitcoin_obama: AI_STYLES.big_coin,
+  laser_bot: AI_STYLES.lens_warden,
+  shooter_bot: AI_STYLES.rivet_gunner,
+  mega_tinubu: AI_STYLES.gatekeeper,
+  hex_sahil: AI_STYLES.wisp,
 });
 
 /** The style of an enemy type. */
