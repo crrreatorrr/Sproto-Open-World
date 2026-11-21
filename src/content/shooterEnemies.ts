@@ -31,15 +31,7 @@ export const SHOOTER_ENEMY_IDS: readonly ShooterEnemyId[] = [
 ];
 
 /** Model keys present in `MODELS` (`src/assets/manifest.ts`) used by Shooter enemies and bosses. */
-export type ShooterEnemyModel =
-  | EnemyDef['model']
-  | 'midget_stage3'
-  | 'obama_stage3'
-  | 'sahil_stage2'
-  | 'sahil_stage3'
-  | 'tinubu_stage1'
-  | 'tinubu_stage2'
-  | 'tinubu_stage3';
+export type ShooterEnemyModel = EnemyDef['model'];
 
 export interface FlyingBehaviorDef {
   /** Preferred altitude above ground in metres. */
@@ -55,11 +47,8 @@ export interface FlyingBehaviorDef {
  * Mirrors `EnemyDef` from `src/content/enemies.ts` with widened Shooter model keys and optional
  * stage/flying metadata.
  */
-export interface ShooterEnemyDef extends Omit<EnemyDef, 'model'> {
+export interface ShooterEnemyDef extends EnemyDef {
   id: ShooterEnemyId;
-  model: ShooterEnemyModel;
-  /** Optional stage-progression models (all valid keys in `MODELS`). */
-  stageModels?: readonly ShooterEnemyModel[];
   /** Present on aerial Shooter enemies (e.g. `flying_midget`). */
   flying?: FlyingBehaviorDef;
 }
@@ -615,8 +604,10 @@ export const SHOOTER_ENEMIES: Record<ShooterEnemyId, ShooterEnemyDef> = {
   mega_tinubu: {
     id: 'mega_tinubu',
     name: 'Mega Tinubu',
-    model: 'tinubu_stage3',
+    // Sproto Shooter's MEGA TINUBU: a stage per phase, each bigger (Duel's 2.1, 2.45 and 2.9 m).
+    model: 'tinubu_stage1',
     stageModels: ['tinubu_stage1', 'tinubu_stage2', 'tinubu_stage3'],
+    stageScale: [0.72, 0.84, 1],
     tags: ['boss', 'tinubu', 'shooter_boss'],
     xp: 2400,
     hp: 6800,
@@ -754,8 +745,10 @@ export const SHOOTER_ENEMIES: Record<ShooterEnemyId, ShooterEnemyDef> = {
   hex_sahil: {
     id: 'hex_sahil',
     name: 'Hex Sahil',
-    model: 'sahil_stage3',
-    stageModels: ['sahil_stage2', 'sahil_stage3'],
+    // Sproto Shooter's HEX SAHIL: a stage per phase, each bigger (Duel's 2.0, 2.25 and 2.55 m).
+    model: 'sahil_stage1',
+    stageModels: ['sahil_stage1', 'sahil_stage2', 'sahil_stage3'],
+    stageScale: [0.78, 0.88, 1],
     tags: ['boss', 'wisp', 'sahil', 'shooter_boss'],
     xp: 2100,
     hp: 5400,

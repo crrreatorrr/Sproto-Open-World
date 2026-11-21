@@ -10,6 +10,7 @@ import { registerRootdeepEnemies } from './packs/rootdeep';
 import { BURROWMOTHER } from './packs/c5';
 import { DRAKE, type DrakeDef } from './packs/c6';
 import { SCRAPJAW } from './packs/m5';
+import { DUEL_BOSS_ENEMIES } from './packs/duelBosses';
 import { SHOOTER_ENEMIES } from './shooterEnemies';
 import type { StatusId } from './statuses';
 
@@ -142,10 +143,40 @@ export interface EnemyMoveDef {
   dive?: { length: number; low: number };
 }
 
+/** The models a staged enemy steps through (manifest.ts): every stage of every Sproto Duel boss. */
+export type StageModel =
+  | 'grunt' | 'grunt_vet' | 'midget_stage3'
+  | 'slinger' | 'slinger_vet' | 'obama_stage3'
+  | 'sahil_stage1' | 'sahil_stage2' | 'sahil_stage3'
+  | 'tinubu_stage1' | 'tinubu_stage2' | 'tinubu_stage3'
+  | 'broccoli_stage1' | 'broccoli_stage2' | 'broccoli_stage3'
+  | 'agent_stage1' | 'agent_stage2' | 'agent_stage3';
+
+/**
+ * The stage (0-based) a staged enemy shows: a boss's is its fight phase, anyone else's steps at two
+ * thirds and one third of its health.
+ */
+export function enemyStage(def: Pick<EnemyDef, 'stageModels' | 'stageScale'>, phase: number | undefined, hpFrac: number): number {
+  const n = Math.max(def.stageModels?.length ?? 0, def.stageScale?.length ?? 0);
+  if (n < 2) return 0;
+  const at = phase ?? (hpFrac <= 1 / 3 ? 3 : hpFrac <= 2 / 3 ? 2 : 1);
+  return Math.min(n, Math.max(1, at)) - 1;
+}
+
 export interface EnemyDef {
   id: string;
   name: string;
-  model: 'brute' | 'dummy' | 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'gatekeeper' | 'robot_shooter' | 'robot_laser' | 'scrapjaw' | 'burrowmother' | 'drake';
+  model: 'brute' | 'dummy' | 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet' | 'big_coin' | 'gatekeeper' | 'robot_shooter' | 'robot_laser' | 'scrapjaw' | 'burrowmother' | 'drake' | StageModel;
+  /**
+   * Its stages, as in Sproto Duel and Sproto Shooter, where a boss evolves as it loses health: the
+   * model drawn at stage 1, 2 and 3 (keys of `MODELS`). `model` is the first of them.
+   */
+  stageModels?: readonly StageModel[];
+  /**
+   * How big each stage is drawn, as a share of the body (the hitbox never changes). A boss with one
+   * model for every stage (the Shooter's monsters) only has this.
+   */
+  stageScale?: readonly number[];
   /** Extra names a quest's `kill` objective matches (an Orchard Grunt is still a `grunt`). */
   tags?: string[];
   hp: number;
@@ -404,7 +435,7 @@ ENEMIES.gatekeeper = {
   ],
 };
 
-Object.assign(ENEMIES, C4_ENEMIES, SHOOTER_ENEMIES);
+Object.assign(ENEMIES, C4_ENEMIES, SHOOTER_ENEMIES, DUEL_BOSS_ENEMIES);
 // M5: the boss of the Old Quarry.
 ENEMIES.scrapjaw = SCRAPJAW;
 // C5: the boss of the Deep Seam.

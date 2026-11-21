@@ -458,6 +458,48 @@
       "sourceSha256": "1a982afd77ee309e6f900b3c414ed5f356a964e1b3adb949db34d1b0e3a92ffb",
       "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
     },
+    "models/enemies/agent_stage1.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/rigged/agent_stage1.glb",
+      "commit": "58de65d5906169880e8d388cd717a9f796a78a7a",
+      "sourceSha256": "482c6b2993588f80230099612d4c3f2e63caf2f655159229f725c60fb705afee",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "models/enemies/agent_stage2.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/rigged/agent_stage2.glb",
+      "commit": "58de65d5906169880e8d388cd717a9f796a78a7a",
+      "sourceSha256": "dc83651d48d3922b7684ec68b048c4bf389d737b11023d67ce221cd3af5e2a77",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "models/enemies/agent_stage3.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/rigged/agent_stage3.glb",
+      "commit": "58de65d5906169880e8d388cd717a9f796a78a7a",
+      "sourceSha256": "df3e2c14a6600fda1add8fbc76e34b180d8a76fe52852398e98b2f4295bce6ce",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "models/enemies/broccoli_stage1.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/rigged/broccoli_stage1.glb",
+      "commit": "58de65d5906169880e8d388cd717a9f796a78a7a",
+      "sourceSha256": "9b99361cd6e8011fde55f24ff45a0895dc59173a5c7b0fe0b7a939ad5c5b29b2",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "models/enemies/broccoli_stage2.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/rigged/broccoli_stage2.glb",
+      "commit": "58de65d5906169880e8d388cd717a9f796a78a7a",
+      "sourceSha256": "cef1675eb1e3ca10dddc5aed9ea1a18c98d67396b3a1460e8a880e7f5cae0f38",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
+    "models/enemies/broccoli_stage3.glb": {
+      "repo": "sproto-duel",
+      "path": "public/assets/models/rigged/broccoli_stage3.glb",
+      "commit": "58de65d5906169880e8d388cd717a9f796a78a7a",
+      "sourceSha256": "cae5e65360ba1b35662b5503cda0c2c46e324d5b38f78036217abb57c2952563",
+      "derived": "resample + static channels dropped + webp ≤512 px + meshopt"
+    },
     "models/enemies/grunt_vet.glb": {
       "repo": "sproto-shooter",
       "path": "public/assets/models/characters/midget_stage2.glb",
