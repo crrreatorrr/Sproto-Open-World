@@ -1251,7 +1251,8 @@ export class SimWorld {
             pierce: proj.pierce || undefined,
             splash: proj.splash ? { damage: proj.splash.damage, minFalloff: proj.splash.minFalloff, selfMult: proj.splash.selfMult || undefined } : undefined,
           },
-          view: { model: proj.kind === 'rocket' ? 'rocket' : 'bullet' },
+          // The Duck Gun's round is Sproto Shooter's modelled rubber bullet; the rest are a rocket or a tracer.
+          view: { model: proj.kind === 'rocket' ? 'rocket' : proj.kind === 'rubberBullet' ? 'rubber_bullet' : 'bullet' },
         });
       }
 
