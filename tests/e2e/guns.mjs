@@ -125,6 +125,40 @@ try {
   g = await gun();
   check(g.mode === 'ots', 'D-pad Left no longer leaves third person', g.mode);
 
+  // Rebinding (Controls screen, "With a gun in hand"): move Reload from X to D-pad Left.
+  const clickText = (t) => page.evaluate((text) => {
+    const b = [...document.querySelectorAll('.screen.active button')].find((x) => x.textContent.trim().startsWith(text));
+    b?.click();
+    return !!b;
+  }, t);
+  await press('start');
+  await frames(10);
+  const opened = (await clickText('Settings')) && (await frames(5), await clickText('Controls'));
+  await frames(5);
+  check(opened && (await page.evaluate(() => window.__qa.state().screen)) === 'screen-controls', 'the Controls screen opens from the pause menu');
+  check(await page.evaluate(() => document.querySelector('#screen-controls .th.section')?.textContent === 'With a gun in hand'), 'it lists the gun controls');
+  await page.evaluate(() => document.querySelector('#screen-controls [data-gun-pad="reload"]').click());
+  await frames(5);
+  await press('left');
+  await frames(5);
+  const cell = await page.evaluate(() => ({ text: document.querySelector('#screen-controls [data-gun-pad="reload"]').textContent, note: document.querySelector('#screen-controls .note').textContent }));
+  check(/←/.test(cell.text) && cell.note === 'Saved.', 'Reload takes the pad button pressed', `${cell.text} | ${cell.note}`);
+  check(await page.evaluate(() => JSON.parse(localStorage.getItem('sow.controls')).gunPad.reload[0] === 'left'), 'and it is saved');
+  for (let i = 0; i < 6 && (await page.evaluate(() => window.__qa.state().screen)) !== null; i++) await press('b');
+  check((await page.evaluate(() => window.__qa.state().screen)) === null, 'B backs out to the game');
+  await frames(20);
+  await page.evaluate(() => window.__pad.set('rt', true));
+  g = await until((q) => q.mag <= q.magSize - 3, 'three more shots');
+  await page.evaluate(() => window.__pad.set('rt', false));
+  await frames(20);
+  await press('x');
+  await frames(20);
+  g = await gun();
+  check(g.reload === 0 && g.mag < g.magSize, 'X no longer reloads', `${g.mag}/${g.magSize}`);
+  await press('left');
+  g = await until((q) => q.reload > 0, 'a reload on the new button');
+  check(g.reload > 0, 'D-pad Left reloads');
+
   check(errors.length === 0, 'no console or page errors', errors.join('\n'));
 } finally {
   await browser.close();

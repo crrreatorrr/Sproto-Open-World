@@ -1,4 +1,5 @@
-import { GUN_PAD } from '../input/bindings';
+import { GUN_KEYS, GUN_PAD } from '../input/bindings';
+import { keyLabel } from '../input/glyphs';
 import { padGlyph, type InputDevice, type PadStyle } from '../input/Gamepad';
 
 export type WeaponKind = 'empty' | 'staff' | 'melee' | 'gun';
@@ -434,7 +435,7 @@ export class WeaponBarHud {
   /** Apply the latest view snapshot. Writes to the DOM only when a visible value changes. */
   update(s: WeaponBarHudState): void {
     // 1. Swap prompt (pad glyph vs Tab).
-    const swapHint = s.device === 'gamepad' ? padGlyph(GUN_PAD.swapWeapon[0] ?? 'right', s.padStyle) : 'Tab';
+    const swapHint = s.device === 'gamepad' ? padGlyph(GUN_PAD.swapWeapon[0] ?? 'right', s.padStyle) : keyLabel(GUN_KEYS.swapWeapon[0] ?? 'Tab');
     if (swapHint !== this.lastSwapHint) {
       this.lastSwapHint = swapHint;
       this.swapHintEl.textContent = swapHint;

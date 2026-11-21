@@ -294,3 +294,18 @@ build differs from the text above:
   `reload`.
 - **The raygun is a dual-wield gun** alongside the handgun and machine pistol. Alone it zooms one
   step; paired with another dual-wield gun on the weapon bar it does not.
+
+## Rebinding the gun controls (owner, 2026-11-21)
+
+The Controls screen has a second block, "With a gun in hand", for the gun layout's keys and pad
+buttons (`src/input/controlPrefs.ts`: `gunKeys`, `gunPad`, saved with the rest in `sow.controls`).
+
+- A gun action may share a key or button with an action the gun layout replaces (light, heavy,
+  block, the staff's spell keys and spell modifier). It may not share one with an action that works
+  in both layouts (move, jump, dodge, interact and so on); the screen refuses and says which two.
+- Grapple, slide and dash may have no pad button (Delete while choosing takes it off). Grapple with
+  no button is the spell modifier and melee together.
+- The dual-wield scheme follows the rebinds: the triggers are Fire and Zoom, the bumpers Melee and
+  the spell modifier.
+- Not rebindable: the first-person toggle (unused) and the face buttons spells sit on under the
+  modifier.
