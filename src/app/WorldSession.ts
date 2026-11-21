@@ -7,7 +7,7 @@ import type { Renderer } from '../render/Renderer';
 import { CellStreamer, type CellSink, type CellView } from '../world/CellStreamer';
 import { GrassField } from '../world/GrassField';
 import { loadWorld, propPath, type Region, type WorldManifest } from '../world/RegionManifest';
-import { VEIL_TIMEOUT_MS, withRetry } from '../world/rings';
+import { VEIL_TIMEOUT_MS, viewRings, viewScale, withRetry, type ViewQuality } from '../world/rings';
 import { TerrainBuilder } from '../world/TerrainBuilder';
 import { textureBytes, type UploadBudget } from '../world/UploadBudget';
 import { WaterLayer, waterClock } from '../world/Water';
@@ -33,9 +33,18 @@ export class WorldSession {
   private loading: Promise<Region> | null = null;
   /** When the veil went up for missing ground (performance.now ms), or null. */
   private veilSince: number | null = null;
+  private readonly lookDir = new THREE.Vector3();
 
   /** `uploads` is the app's per-frame GPU upload budget; the app runs it once a frame. */
   constructor(private readonly renderer: Renderer, private readonly assets: AssetLoader, readonly uploads: UploadBudget, private grassOn = true) {}
+
+  private quality: ViewQuality = 'high';
+
+  /** The graphics quality: how many rings of the world are shown, and how far each prop is drawn. */
+  setQuality(quality: ViewQuality): void {
+    this.quality = quality;
+    this.streamer?.setView(viewRings(quality), viewScale(quality));
+  }
 
   /** The Grass setting. */
   setGrass(on: boolean): void {
@@ -87,6 +96,7 @@ export class WorldSession {
       },
     });
     this.streamer = streamer;
+    streamer.setView(viewRings(this.quality), viewScale(this.quality));
     this.renderer.scene.add(streamer.root);
     // Warm the terrain program before the first cell lands (it would compile on its first draw).
     const probe = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), streamer.terrainMaterial);
@@ -140,13 +150,31 @@ export class WorldSession {
     return this.region?.manifest.playerStart ?? null;
   }
 
-  /** One frame of streaming around `focus` (the app has already spent this frame's upload budget). */
-  frame(focus: { x: number; z: number; vx: number; vz: number }, view: CellView | null, tick: number): void {
+  /**
+   * One frame of streaming around `focus` (the app has already spent this frame's upload budget).
+   * What the camera faces is asked for first.
+   */
+  frame(focus: { x: number; z: number; vx: number; vz: number }, view: CellView | null): void {
     if (!this.streamer) return;
     waterClock.value = performance.now() / 1000;
-    this.streamer.update(focus, view, tick);
+    const cam = this.renderer.camera;
+    cam.getWorldDirection(this.lookDir);
+    this.streamer.update(focus, view, { x: cam.position.x, z: cam.position.z, dx: this.lookDir.x, dz: this.lookDir.z });
     this.water?.update(focus.x, focus.z);
     this.grass?.update(focus.x, focus.z, performance.now() / 1000, this.streamer);
+  }
+
+  /**
+   * Just before the draw, with the camera where this frame shows it: the props in view go into
+   * their instance buffers and the fades move on (world/PropInstancer.ts).
+   */
+  present(): void {
+    const s = this.streamer;
+    if (!s) return;
+    const cam = this.renderer.camera;
+    cam.updateMatrixWorld();
+    const ground = s.heightAt(cam.position.x, cam.position.z);
+    s.props.present(cam, performance.now() / 1000, s.region.cellSize, ground === null ? null : cam.position.y - ground);
   }
 
   attach(sim: CellSink): void {

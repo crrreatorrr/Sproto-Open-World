@@ -46,8 +46,8 @@ export class Horizon {
       if (!mesh.isMesh) return;
       mesh.castShadow = false;
       mesh.receiveShadow = true;
-      // The horizon spans the whole region: one draw, never worth culling.
-      mesh.frustumCulled = false;
+      // One mesh per region: a region the camera has its back to is not drawn.
+      mesh.frustumCulled = true;
       const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const m of list) this.patch(m);
     });

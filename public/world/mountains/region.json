@@ -1369,7 +1369,11 @@
         "radius": 1.05,
         "height": 1.55
       },
-      "capacity": 70
+      "capacity": 70,
+      "size": [
+        2.45,
+        1.82
+      ]
     },
     "mtn_boulder_flat": {
       "path": "models/props/mtn_boulder_flat.glb",
@@ -1382,7 +1386,11 @@
           0.9
         ]
       },
-      "capacity": 22
+      "capacity": 22,
+      "size": [
+        2.99,
+        1.13
+      ]
     },
     "mtn_cliff_a": {
       "path": "models/props/mtn_cliff_a.glb",
@@ -1396,7 +1404,11 @@
         ]
       },
       "landmark": true,
-      "capacity": 7
+      "capacity": 7,
+      "size": [
+        35.72,
+        27.51
+      ]
     },
     "mtn_cliff_b": {
       "path": "models/props/mtn_cliff_b.glb",
@@ -1410,7 +1422,11 @@
         ]
       },
       "landmark": true,
-      "capacity": 10
+      "capacity": 10,
+      "size": [
+        16.72,
+        38
+      ]
     },
     "mtn_fence": {
       "path": "models/props/mtn_fence.glb",
@@ -1423,7 +1439,11 @@
           0.08
         ]
       },
-      "capacity": 29
+      "capacity": 29,
+      "size": [
+        3.15,
+        1.38
+      ]
     },
     "mtn_peak_a": {
       "path": "models/props/mtn_peak_a.glb",
@@ -1434,7 +1454,11 @@
         "height": 60
       },
       "landmark": true,
-      "capacity": 3
+      "capacity": 3,
+      "size": [
+        80.21,
+        96.65
+      ]
     },
     "mtn_peak_b": {
       "path": "models/props/mtn_peak_b.glb",
@@ -1448,7 +1472,11 @@
         ]
       },
       "landmark": true,
-      "capacity": 3
+      "capacity": 3,
+      "size": [
+        105.92,
+        76.84
+      ]
     },
     "mtn_pine": {
       "path": "models/props/mtn_pine.glb",
@@ -1458,7 +1486,11 @@
         "radius": 0.35,
         "height": 14
       },
-      "capacity": 568
+      "capacity": 568,
+      "size": [
+        6.13,
+        14.2
+      ]
     },
     "mtn_pine_small": {
       "path": "models/props/mtn_pine_small.glb",
@@ -1468,7 +1500,11 @@
         "radius": 0.2,
         "height": 7
       },
-      "capacity": 214
+      "capacity": 214,
+      "size": [
+        3.59,
+        7.2
+      ]
     },
     "mtn_rock_large": {
       "path": "models/props/mtn_rock_large.glb",
@@ -1481,7 +1517,11 @@
           2.4
         ]
       },
-      "capacity": 24
+      "capacity": 24,
+      "size": [
+        8.35,
+        6.25
+      ]
     },
     "mtn_rope_bridge": {
       "path": "models/props/mtn_rope_bridge.glb",
@@ -1490,7 +1530,11 @@
         "kind": "none"
       },
       "landmark": true,
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        45.14,
+        5.47
+      ]
     },
     "mtn_snow_drift": {
       "path": "models/props/mtn_snow_drift.glb",
@@ -1498,7 +1542,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 52
+      "capacity": 52,
+      "size": [
+        6.07,
+        1.22
+      ]
     },
     "mtn_steps": {
       "path": "models/props/mtn_steps.glb",
@@ -1506,7 +1554,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 31
+      "capacity": 31,
+      "size": [
+        3.09,
+        1.89
+      ]
     },
     "mtn_watchtower_ruin": {
       "path": "models/props/mtn_watchtower_ruin.glb",
@@ -1520,7 +1572,11 @@
         ]
       },
       "landmark": true,
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        11.26,
+        15.41
+      ]
     },
     "mtn_wildflowers": {
       "path": "models/props/mtn_wildflowers.glb",
@@ -1528,7 +1584,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 586
+      "capacity": 586,
+      "size": [
+        3,
+        0.63
+      ]
     }
   },
   "playerStart": {

@@ -26,7 +26,7 @@ export interface TerrainMeshData {
 /** Skirt depth (m): deeper than the worst half-res mismatch on the baked slopes. */
 export const SKIRT_DEPTH = 4;
 
-export function buildTerrainMesh(heights: Float32Array, splat: Uint8Array, cx: number, cz: number, res: 64 | 32, skirt = SKIRT_DEPTH): TerrainMeshData {
+export function buildTerrainMesh(heights: Float32Array, splat: Uint8Array, cx: number, cz: number, res: 64 | 32 | 16, skirt = SKIRT_DEPTH): TerrainMeshData {
   const n = res;
   const step = (CELL_RES - 1) / n;
   const spacing = CELL_SIZE / n;

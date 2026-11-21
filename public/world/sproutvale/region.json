@@ -476,7 +476,11 @@
           0.3
         ]
       },
-      "capacity": 2
+      "capacity": 2,
+      "size": [
+        1.84,
+        1.15
+      ]
     },
     "cart": {
       "path": "models/props/cart.glb",
@@ -489,7 +493,11 @@
           0.9
         ]
       },
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        3.35,
+        1.44
+      ]
     },
     "fountain": {
       "path": "models/props/fountain.glb",
@@ -499,7 +507,11 @@
         "radius": 2,
         "height": 2
       },
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        3.96,
+        2.05
+      ]
     },
     "frost_beacon": {
       "path": "models/props/frost_beacon.glb",
@@ -510,7 +522,11 @@
         "height": 2
       },
       "landmark": true,
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        0.86,
+        2.02
+      ]
     },
     "frost_gate": {
       "path": "models/props/frost_gate.glb",
@@ -519,7 +535,11 @@
         "kind": "none"
       },
       "landmark": true,
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        2,
+        1
+      ]
     },
     "grove_barn_roof": {
       "path": "models/props/grove_barn_roof.glb",
@@ -532,7 +552,11 @@
           6.39
         ]
       },
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        19.75,
+        2.53
+      ]
     },
     "grove_beanstalk": {
       "path": "models/props/grove_beanstalk.glb",
@@ -543,7 +567,11 @@
         "height": 27
       },
       "landmark": true,
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        5.6,
+        27.17
+      ]
     },
     "grove_boulder": {
       "path": "models/props/grove_boulder.glb",
@@ -553,7 +581,11 @@
         "radius": 0.9,
         "height": 1.6
       },
-      "capacity": 22
+      "capacity": 22,
+      "size": [
+        1.92,
+        1.94
+      ]
     },
     "grove_bridge": {
       "path": "models/props/grove_bridge.glb",
@@ -566,7 +598,11 @@
           2.02
         ]
       },
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        8.84,
+        0.45
+      ]
     },
     "grove_crops": {
       "path": "models/props/grove_crops.glb",
@@ -574,7 +610,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 45
+      "capacity": 45,
+      "size": [
+        4.29,
+        0.85
+      ]
     },
     "grove_hay": {
       "path": "models/props/grove_hay.glb",
@@ -582,7 +622,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 6
+      "capacity": 6,
+      "size": [
+        1.93,
+        1.16
+      ]
     },
     "grove_hedge": {
       "path": "models/props/grove_hedge.glb",
@@ -595,7 +639,11 @@
           1
         ]
       },
-      "capacity": 114
+      "capacity": 114,
+      "size": [
+        2.05,
+        2
+      ]
     },
     "grove_pines": {
       "path": "models/props/grove_pines.glb",
@@ -605,7 +653,11 @@
         "radius": 1.4,
         "height": 22
       },
-      "capacity": 70
+      "capacity": 70,
+      "size": [
+        16.43,
+        23.46
+      ]
     },
     "grove_pumpkin": {
       "path": "models/props/grove_pumpkin.glb",
@@ -613,7 +665,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 27
+      "capacity": 27,
+      "size": [
+        1.82,
+        1.44
+      ]
     },
     "grove_reeds": {
       "path": "models/props/grove_reeds.glb",
@@ -621,7 +677,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 47
+      "capacity": 47,
+      "size": [
+        2.51,
+        1.94
+      ]
     },
     "grove_root_wall": {
       "path": "models/props/grove_root_wall.glb",
@@ -634,7 +694,11 @@
           1.1
         ]
       },
-      "capacity": 6
+      "capacity": 6,
+      "size": [
+        3.19,
+        5.23
+      ]
     },
     "grove_scarecrow": {
       "path": "models/props/grove_scarecrow.glb",
@@ -642,7 +706,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 3
+      "capacity": 3,
+      "size": [
+        2.26,
+        2.57
+      ]
     },
     "grove_shed": {
       "path": "models/props/grove_shed.glb",
@@ -655,7 +723,11 @@
           2.85
         ]
       },
-      "capacity": 4
+      "capacity": 4,
+      "size": [
+        6.7,
+        3.69
+      ]
     },
     "grove_silo": {
       "path": "models/props/grove_silo.glb",
@@ -666,7 +738,11 @@
         "height": 17
       },
       "landmark": true,
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        8.72,
+        16.95
+      ]
     },
     "grove_stones": {
       "path": "models/props/grove_stones.glb",
@@ -674,7 +750,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 32
+      "capacity": 32,
+      "size": [
+        4.23,
+        0.23
+      ]
     },
     "grove_tower": {
       "path": "models/props/grove_tower.glb",
@@ -685,7 +765,11 @@
         "height": 8
       },
       "landmark": true,
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        5.02,
+        8.07
+      ]
     },
     "grove_tree": {
       "path": "models/props/grove_tree.glb",
@@ -695,7 +779,11 @@
         "radius": 0.45,
         "height": 10
       },
-      "capacity": 145
+      "capacity": 145,
+      "size": [
+        7.07,
+        10.83
+      ]
     },
     "grove_water_tower": {
       "path": "models/props/grove_water_tower.glb",
@@ -706,7 +794,11 @@
         "height": 28
       },
       "landmark": true,
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        12.08,
+        28.2
+      ]
     },
     "lantern_post": {
       "path": "models/props/lantern_post.glb",
@@ -716,7 +808,11 @@
         "radius": 0.18,
         "height": 3.4
       },
-      "capacity": 4
+      "capacity": 4,
+      "size": [
+        1.2,
+        3.42
+      ]
     },
     "market_stall": {
       "path": "models/props/market_stall.glb",
@@ -729,7 +825,11 @@
           0.85
         ]
       },
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        2.73,
+        2.4
+      ]
     },
     "quarry_rock": {
       "path": "models/props/rock_outcrop.glb",
@@ -739,7 +839,11 @@
         "radius": 2.2,
         "height": 6
       },
-      "capacity": 43
+      "capacity": 43,
+      "size": [
+        5.17,
+        3
+      ]
     },
     "scarecrow_giant": {
       "path": "models/props/grove_scarecrow.glb",
@@ -750,7 +854,11 @@
         "height": 2.5
       },
       "landmark": true,
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        2.26,
+        2.57
+      ]
     },
     "skyline_crane": {
       "path": "models/props/skyline_crane.glb",
@@ -761,7 +869,11 @@
         "height": 16.6
       },
       "landmark": true,
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        18.85,
+        16.61
+      ]
     },
     "underworks_hoist": {
       "path": "models/props/underworks_hoist.glb",
@@ -775,7 +887,11 @@
         ]
       },
       "landmark": true,
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        3.92,
+        5.77
+      ]
     },
     "well": {
       "path": "models/props/well.glb",
@@ -785,7 +901,11 @@
         "radius": 1.5,
         "height": 3
       },
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        3.26,
+        3.15
+      ]
     }
   },
   "playerStart": {

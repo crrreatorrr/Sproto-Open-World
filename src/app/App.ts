@@ -348,6 +348,7 @@ export class App {
     window.addEventListener('resize', () => this.rpgHud.setCompassWidth(compassWidth()));
     this.rpgHud.setCompassWidth(compassWidth());
     this.stream = MODE === 'world' ? new WorldSession(this.renderer, this.assets, this.uploads, this.settings.grass) : null;
+    this.stream?.setQuality(this.settings.quality);
     if (!this.stream) {
       this.renderer.yardLook();
       this.renderer.buildLevel(SANDBOX);
@@ -388,6 +389,7 @@ export class App {
     this.rig.invertY = s.invertY;
     this.input.pad.rumbleEnabled = s.rumble;
     this.stream?.setGrass(s.grass);
+    this.stream?.setQuality(s.quality);
     this.polish.apply(s);
   }
 
@@ -804,6 +806,8 @@ export class App {
     this.frameCount++;
     this.portraits.frame(dt, this.nav.top === this.rpgMenus.dialogue);
     this.renderer.watchFirstDraw = this.state === 'playing' && !this.groundWait;
+    // The camera is where this frame shows it: the props in its view go into their buffers now.
+    this.stream?.present();
     this.renderer.render();
     // Under a menu the cursor is free on purpose: no "click to look around".
     this.hud.update(pad, this.input.locked || this.nav.open);
@@ -1251,7 +1255,7 @@ export class App {
     const w = this.stream;
     const p = this.sim?.playerEntity(LOCAL_PLAYER);
     if (!w || !p) return false;
-    w.frame({ x: p.tf.pos.x, z: p.tf.pos.z, vx: p.tf.vel.x, vz: p.tf.vel.z }, view, view.now);
+    w.frame({ x: p.tf.pos.x, z: p.tf.pos.z, vx: p.tf.vel.x, vz: p.tf.vel.z }, view);
     if (this.pendingDrop) this.dropPending();
     const ground = w.ground(view, p.tf.pos);
     if (ground === 'ready') {
@@ -1908,8 +1912,8 @@ export class App {
     if (w && this.state !== 'playing') {
       const p = this.sim?.playerEntity(LOCAL_PLAYER);
       const start = w.start;
-      if (p) w.frame({ x: p.tf.pos.x, z: p.tf.pos.z, vx: 0, vz: 0 }, this.sim!.view(), this.sim!.now);
-      else if (start) w.frame({ x: start.pos[0], z: start.pos[2], vx: 0, vz: 0 }, null, this.frameCount);
+      if (p) w.frame({ x: p.tf.pos.x, z: p.tf.pos.z, vx: 0, vz: 0 }, this.sim!.view());
+      else if (start) w.frame({ x: start.pos[0], z: start.pos[2], vx: 0, vz: 0 }, null);
     }
     if (this.state === 'paused' || this.state === 'loading') return;
     this.orbit += dt * 0.08;

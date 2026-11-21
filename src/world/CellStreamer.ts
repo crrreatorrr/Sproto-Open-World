@@ -5,7 +5,7 @@ import { cellKey, cellOf, type CellColliders, type CellData, type CellEntry } fr
 import { Horizon } from './Horizon';
 import { PropInstancer, type PropHost } from './PropInstancer';
 import { publicUrl, type Region } from './RegionManifest';
-import { RETRY_DELAYS_MS, groundCells, planRings, prefetchCells, withRetry, type CellLevel, type CellXZ } from './rings';
+import { RETRY_DELAYS_MS, groundCells, planRings, prefetchCells, prefetchSeconds, withRetry, type CellLevel, type CellXZ } from './rings';
 import type { TerrainBuilder } from './TerrainBuilder';
 import { TerrainChunk, terrainMaterial } from './TerrainChunk';
 import type { UploadBudget } from './UploadBudget';
@@ -63,6 +63,8 @@ interface Cell {
   failed: boolean;
   heights: Float32Array | null;
   chunk: TerrainChunk | null;
+  /** Terrain resolution this cell should show (world/rings.ts `terrainRes`). */
+  res: 64 | 32 | 16;
   /** Resolution being built in the worker (0: none). */
   building: number;
   colliders: boolean;
@@ -71,8 +73,11 @@ interface Cell {
   gen: number;
 }
 
-/** Raw cell payloads kept after a cell unloads (and prefetched ones): the whole 8 × 8 region fits. */
-const CACHE_CELLS = 72;
+/**
+ * Raw cell payloads kept after a cell unloads (and prefetched ones), about 25 KiB each: enough for
+ * the widest view (13 × 13 cells with its hysteresis ring) and what was just left behind.
+ */
+const CACHE_CELLS = 260;
 /** Worker builds in flight at once. */
 const MAX_BUILDS = 4;
 /** Prefetch only while the shared queue is this short, so it never delays a needed cell. */
@@ -116,7 +121,8 @@ export class CellStreamer {
   private readonly fetches = new Map<string, Fetch>();
   private sink: CellSink | null = null;
   private maskDirty = true;
-  private tick = 0;
+  /** Rings of cells shown around the player (world/rings.ts `viewRings`). */
+  private shownRings = 2;
   readonly counters: StreamerCounters = {
     loaded: 0, active: 0, visual: 0, pending: 0, queued: 0, inFlight: 0, fetched: 0, prefetched: 0, unloaded: 0, retries: 0, failed: 0, builds: 0,
     collidersLoaded: 0, collidersUnloaded: 0, cached: 0,
@@ -149,18 +155,24 @@ export class CellStreamer {
     for (const c of this.cells.values()) c.colliders = false;
   }
 
+  /** How far the world is shown: rings of cells, and the props' draw-distance scale (the graphics quality). */
+  setView(rings: number, scale: number): void {
+    this.shownRings = rings;
+    this.props.configure(rings, scale);
+  }
+
   /**
    * One frame of streaming around `focus` (the player, or the title camera's spot). `view` is the
-   * sim's view while playing (anchors), `tick` the sim tick (or a frame count on the title).
+   * sim's view while playing (anchors). `look` is where the camera is and which way it faces on the
+   * ground plane: what is in front of it is asked for first.
    */
-  update(focus: { x: number; z: number; vx: number; vz: number }, view: CellView | null, tick: number): void {
-    this.tick = tick;
+  update(focus: { x: number; z: number; vx: number; vz: number }, view: CellView | null, look?: { x: number; z: number; dx: number; dz: number }): void {
     const cs = this.region.cellSize;
     const players: CellXZ[] = [cellOf(focus.x, focus.z)];
     const anchors = view ? view.cellAnchors() : [];
     const current = new Map<string, CellLevel>();
     for (const c of this.cells.values()) current.set(c.key, c.level);
-    const plan = planRings({ players, anchors, current, inRegion: this.region.has });
+    const plan = planRings({ players, anchors, current, inRegion: this.region.has, rings: this.shownRings, view: look });
 
     for (const k of plan.unload) this.unload(this.cells.get(k)!);
     for (const w of plan.want) {
@@ -169,10 +181,8 @@ export class CellStreamer {
         c = this.makeCell(w.cx, w.cz, w.level);
         this.cells.set(w.key, c);
       }
-      if (c.level !== w.level) {
-        c.level = w.level;
-        if (c.props) this.props.setLevel(c.cx, c.cz, c.level);
-      }
+      c.level = w.level;
+      c.res = w.res;
       c.anchored = w.anchored;
       if (c.priority !== w.priority) {
         c.priority = w.priority;
@@ -182,16 +192,16 @@ export class CellStreamer {
 
     for (const w of plan.want) this.pump(this.cells.get(w.key)!);
 
-    // Prefetch along the velocity: raw data only, into the cache.
+    // Prefetch along the velocity, further at speed: raw data only, into the cache.
     if (this.host.queue.queued < PREFETCH_QUEUE_LIMIT) {
       const skip = new Set<string>([...this.cells.keys(), ...this.cache.keys(), ...this.fetches.keys()]);
-      for (const [cx, cz] of prefetchCells({ x: focus.x, z: focus.z }, { x: focus.vx, z: focus.vz }, cs, this.region.has, skip)) {
+      const ahead = prefetchSeconds(Math.hypot(focus.vx, focus.vz));
+      for (const [cx, cz] of prefetchCells({ x: focus.x, z: focus.z }, { x: focus.vx, z: focus.vz }, cs, this.region.has, skip, ahead)) {
         if (this.host.queue.queued >= PREFETCH_QUEUE_LIMIT) break;
         this.request(cx, cz, 'later').then(() => this.counters.prefetched++, () => {});
       }
     }
 
-    this.props.update(focus.x, focus.z, cs, tick);
     if (this.maskDirty) {
       this.maskDirty = false;
       const shown: [number, number][] = [];
@@ -205,7 +215,7 @@ export class CellStreamer {
     const key = cellKey(cx, cz);
     return {
       cx, cz, key, entry: this.region.entry(cx, cz)!, level, priority: 'later', anchored: false, data: null, fetching: false, failed: false,
-      heights: null, chunk: null, building: 0, colliders: false, props: false, gen: 0,
+      heights: null, chunk: null, res: level === 'active' ? 64 : 32, building: 0, colliders: false, props: false, gen: 0,
     };
   }
 
@@ -218,7 +228,7 @@ export class CellStreamer {
         c.data = cached;
       } else this.fetchFor(c);
     }
-    const res = c.level === 'active' ? 64 : 32;
+    const res = c.res;
     if (c.data && !c.building && c.chunk?.res !== res && this.host.builder.inFlight < MAX_BUILDS) this.build(c, res);
 
     const sink = this.sink;
@@ -234,7 +244,7 @@ export class CellStreamer {
     }
     // Props arrive with the terrain, so nothing floats over the horizon mesh.
     if (c.chunk && c.data && !c.props) {
-      this.props.addCell(c.cx, c.cz, c.data.json, c.level, this.tick);
+      this.props.addCell(c.cx, c.cz, c.data.json);
       c.props = true;
     }
   }
@@ -321,7 +331,7 @@ export class CellStreamer {
     }
   }
 
-  private build(c: Cell, res: 64 | 32): void {
+  private build(c: Cell, res: 64 | 32 | 16): void {
     c.building = res;
     const gen = c.gen;
     this.counters.builds++;

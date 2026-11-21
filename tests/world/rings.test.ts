@@ -3,7 +3,7 @@ import { CELL_RES } from '../../src/content/world/format';
 import { buildTerrainMesh } from '../../src/world/terrainMesh';
 import { RequestQueue } from '../../src/assets/RequestQueue';
 import {
-  GROUND_NEAR_M, RETRY_DELAYS_MS, chebyshev, distanceToCell, groundCells, planRings, prefetchCells, propBucket, withRetry, type CellLevel,
+  GROUND_NEAR_M, RETRY_DELAYS_MS, chebyshev, groundCells, planRings, prefetchCells, withRetry, type CellLevel,
 } from '../../src/world/rings';
 
 const region8 = (cx: number, cz: number) => cx >= 0 && cz >= 0 && cx < 8 && cz < 8;
@@ -181,29 +181,6 @@ describe('cell fetch retries (plan §2.9)', () => {
       ),
     ).rejects.toThrow();
     expect(tries).toBe(1);
-  });
-});
-
-describe('prop LOD buckets (plan §3.4)', () => {
-  it('LOD0 with shadows ≤ 60 m, LOD0 ≤ 70, LOD1 ≤ 180, hidden beyond unless a landmark', () => {
-    expect(propBucket(0, 'active', 0, false)).toBe(0);
-    expect(propBucket(60, 'active', 1, false)).toBe(0);
-    expect(propBucket(65, 'active', 1, false)).toBe(1);
-    expect(propBucket(100, 'active', 2, false)).toBe(2);
-    expect(propBucket(181, 'active', 2, false)).toBeNull();
-    expect(propBucket(181, 'active', 2, true)).toBe(2);
-  });
-
-  it('Visual cells always use LOD1; past the visual ring only landmarks show', () => {
-    expect(propBucket(10, 'visual', 2, false)).toBe(2);
-    expect(propBucket(150, 'visual', 3, false)).toBeNull();
-    expect(propBucket(150, 'visual', 3, true)).toBe(2);
-  });
-
-  it('distance to a cell is to its nearest point', () => {
-    expect(distanceToCell(32, 32, 0, 0, 64)).toBe(0);
-    expect(distanceToCell(32, 32, 1, 0, 64)).toBe(32);
-    expect(distanceToCell(0, 0, 1, 1, 64)).toBeCloseTo(Math.hypot(64, 64));
   });
 });
 

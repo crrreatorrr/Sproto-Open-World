@@ -29,6 +29,11 @@ export interface PropKind {
    * InstancedMesh is sized once and never resized (plan §3.1).
    */
   capacity: number;
+  /**
+   * The model's size in metres: its width (the larger of x and z) and its height. The client draws
+   * small props a short way and big ones far (world/rings.ts `propRanges`).
+   */
+  size?: [number, number];
 }
 
 export interface CellEntry {

@@ -924,7 +924,11 @@
           0.3
         ]
       },
-      "capacity": 29
+      "capacity": 29,
+      "size": [
+        1.84,
+        1.15
+      ]
     },
     "cart": {
       "path": "models/props/cart.glb",
@@ -937,7 +941,11 @@
           0.9
         ]
       },
-      "capacity": 19
+      "capacity": 19,
+      "size": [
+        3.35,
+        1.44
+      ]
     },
     "fountain": {
       "path": "models/props/fountain.glb",
@@ -947,7 +955,11 @@
         "radius": 2,
         "height": 2
       },
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        3.96,
+        2.05
+      ]
     },
     "grove_barn_roof": {
       "path": "models/props/grove_barn_roof.glb",
@@ -960,7 +972,11 @@
           6.39
         ]
       },
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        19.75,
+        2.53
+      ]
     },
     "grove_boulder": {
       "path": "models/props/grove_boulder.glb",
@@ -970,7 +986,11 @@
         "radius": 0.9,
         "height": 1.6
       },
-      "capacity": 37
+      "capacity": 37,
+      "size": [
+        1.92,
+        1.94
+      ]
     },
     "grove_crops": {
       "path": "models/props/grove_crops.glb",
@@ -978,7 +998,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 644
+      "capacity": 644,
+      "size": [
+        4.29,
+        0.85
+      ]
     },
     "grove_hay": {
       "path": "models/props/grove_hay.glb",
@@ -986,7 +1010,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 6
+      "capacity": 6,
+      "size": [
+        1.93,
+        1.16
+      ]
     },
     "grove_hedge": {
       "path": "models/props/grove_hedge.glb",
@@ -999,7 +1027,11 @@
           1
         ]
       },
-      "capacity": 412
+      "capacity": 412,
+      "size": [
+        2.05,
+        2
+      ]
     },
     "grove_pines": {
       "path": "models/props/grove_pines.glb",
@@ -1009,7 +1041,11 @@
         "radius": 1.4,
         "height": 22
       },
-      "capacity": 51
+      "capacity": 51,
+      "size": [
+        16.43,
+        23.46
+      ]
     },
     "grove_pumpkin": {
       "path": "models/props/grove_pumpkin.glb",
@@ -1017,7 +1053,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 9
+      "capacity": 9,
+      "size": [
+        1.82,
+        1.44
+      ]
     },
     "grove_reeds": {
       "path": "models/props/grove_reeds.glb",
@@ -1025,7 +1065,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 25
+      "capacity": 25,
+      "size": [
+        2.51,
+        1.94
+      ]
     },
     "grove_scarecrow": {
       "path": "models/props/grove_scarecrow.glb",
@@ -1033,7 +1077,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        2.26,
+        2.57
+      ]
     },
     "grove_shed": {
       "path": "models/props/grove_shed.glb",
@@ -1046,7 +1094,11 @@
           2.85
         ]
       },
-      "capacity": 4
+      "capacity": 4,
+      "size": [
+        6.7,
+        3.69
+      ]
     },
     "grove_silo": {
       "path": "models/props/grove_silo.glb",
@@ -1057,7 +1109,11 @@
         "height": 17
       },
       "landmark": true,
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        8.72,
+        16.95
+      ]
     },
     "grove_stones": {
       "path": "models/props/grove_stones.glb",
@@ -1065,7 +1121,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 16
+      "capacity": 16,
+      "size": [
+        4.23,
+        0.23
+      ]
     },
     "grove_tree": {
       "path": "models/props/grove_tree.glb",
@@ -1075,7 +1135,11 @@
         "radius": 0.45,
         "height": 10
       },
-      "capacity": 255
+      "capacity": 255,
+      "size": [
+        7.07,
+        10.83
+      ]
     },
     "lantern_post": {
       "path": "models/props/lantern_post.glb",
@@ -1085,7 +1149,11 @@
         "radius": 0.18,
         "height": 3.4
       },
-      "capacity": 17
+      "capacity": 17,
+      "size": [
+        1.2,
+        3.42
+      ]
     },
     "market_stall": {
       "path": "models/props/market_stall.glb",
@@ -1098,7 +1166,11 @@
           0.85
         ]
       },
-      "capacity": 12
+      "capacity": 12,
+      "size": [
+        2.73,
+        2.4
+      ]
     },
     "rock_outcrop": {
       "path": "models/props/rock_outcrop.glb",
@@ -1108,7 +1180,11 @@
         "radius": 2.2,
         "height": 3
       },
-      "capacity": 6
+      "capacity": 6,
+      "size": [
+        5.17,
+        3
+      ]
     },
     "town_bridge": {
       "path": "models/props/town_bridge.glb",
@@ -1122,7 +1198,11 @@
         ]
       },
       "landmark": true,
-      "capacity": 4
+      "capacity": 4,
+      "size": [
+        16.26,
+        4.49
+      ]
     },
     "town_canal_wall": {
       "path": "models/props/town_canal_wall.glb",
@@ -1135,7 +1215,11 @@
           0.55
         ]
       },
-      "capacity": 194
+      "capacity": 194,
+      "size": [
+        8,
+        3.04
+      ]
     },
     "town_clock_tower": {
       "path": "models/props/town_clock_tower.glb",
@@ -1149,7 +1233,11 @@
         ]
       },
       "landmark": true,
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        8.53,
+        31.4
+      ]
     },
     "town_cobble_patch": {
       "path": "models/props/town_cobble_patch.glb",
@@ -1157,7 +1245,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 261
+      "capacity": 261,
+      "size": [
+        8,
+        0.12
+      ]
     },
     "town_fence": {
       "path": "models/props/town_fence.glb",
@@ -1170,7 +1262,11 @@
           0.1
         ]
       },
-      "capacity": 157
+      "capacity": 157,
+      "size": [
+        3.15,
+        1.14
+      ]
     },
     "town_house_blue": {
       "path": "models/props/town_house_blue.glb",
@@ -1183,7 +1279,11 @@
           3.75
         ]
       },
-      "capacity": 82
+      "capacity": 82,
+      "size": [
+        9.5,
+        12.12
+      ]
     },
     "town_house_corner": {
       "path": "models/props/town_house_corner.glb",
@@ -1196,7 +1296,11 @@
           4.2
         ]
       },
-      "capacity": 28
+      "capacity": 28,
+      "size": [
+        11.47,
+        10.68
+      ]
     },
     "town_house_narrow": {
       "path": "models/props/town_house_narrow.glb",
@@ -1209,7 +1313,11 @@
           3.65
         ]
       },
-      "capacity": 70
+      "capacity": 70,
+      "size": [
+        9.03,
+        12.88
+      ]
     },
     "town_house_red": {
       "path": "models/props/town_house_red.glb",
@@ -1222,7 +1330,11 @@
           4.3
         ]
       },
-      "capacity": 99
+      "capacity": 99,
+      "size": [
+        9.7,
+        13.77
+      ]
     },
     "town_keep": {
       "path": "models/props/town_keep.glb",
@@ -1233,7 +1345,11 @@
         "height": 14.3
       },
       "landmark": true,
-      "capacity": 1
+      "capacity": 1,
+      "size": [
+        9.63,
+        15.24
+      ]
     },
     "town_lamp": {
       "path": "models/props/town_lamp.glb",
@@ -1243,7 +1359,11 @@
         "radius": 0.2,
         "height": 3.6
       },
-      "capacity": 179
+      "capacity": 179,
+      "size": [
+        1.6,
+        3.71
+      ]
     },
     "town_lm_house_blue": {
       "path": "models/props/town_house_blue.glb",
@@ -1257,7 +1377,11 @@
         ]
       },
       "landmark": true,
-      "capacity": 25
+      "capacity": 25,
+      "size": [
+        9.5,
+        12.12
+      ]
     },
     "town_lm_house_corner": {
       "path": "models/props/town_house_corner.glb",
@@ -1271,7 +1395,11 @@
         ]
       },
       "landmark": true,
-      "capacity": 16
+      "capacity": 16,
+      "size": [
+        11.47,
+        10.68
+      ]
     },
     "town_lm_house_narrow": {
       "path": "models/props/town_house_narrow.glb",
@@ -1285,7 +1413,11 @@
         ]
       },
       "landmark": true,
-      "capacity": 23
+      "capacity": 23,
+      "size": [
+        9.03,
+        12.88
+      ]
     },
     "town_lm_house_red": {
       "path": "models/props/town_house_red.glb",
@@ -1299,7 +1431,11 @@
         ]
       },
       "landmark": true,
-      "capacity": 30
+      "capacity": 30,
+      "size": [
+        9.7,
+        13.77
+      ]
     },
     "town_market_stall": {
       "path": "models/props/town_market_stall.glb",
@@ -1312,7 +1448,11 @@
           1
         ]
       },
-      "capacity": 24
+      "capacity": 24,
+      "size": [
+        3.2,
+        2.68
+      ]
     },
     "town_planter": {
       "path": "models/props/town_planter.glb",
@@ -1325,7 +1465,11 @@
           0.32
         ]
       },
-      "capacity": 324
+      "capacity": 324,
+      "size": [
+        1.38,
+        0.82
+      ]
     },
     "town_props_cluster": {
       "path": "models/props/town_props_cluster.glb",
@@ -1338,7 +1482,11 @@
           0.95
         ]
       },
-      "capacity": 101
+      "capacity": 101,
+      "size": [
+        2.87,
+        1.13
+      ]
     },
     "town_stairs": {
       "path": "models/props/town_stairs.glb",
@@ -1346,7 +1494,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 13
+      "capacity": 13,
+      "size": [
+        6.13,
+        3.67
+      ]
     },
     "well": {
       "path": "models/props/well.glb",
@@ -1356,7 +1508,11 @@
         "radius": 1.5,
         "height": 3
       },
-      "capacity": 2
+      "capacity": 2,
+      "size": [
+        3.26,
+        3.15
+      ]
     },
     "zen_azalea": {
       "path": "models/props/zen_azalea.glb",
@@ -1364,7 +1520,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 126
+      "capacity": 126,
+      "size": [
+        1.75,
+        1.32
+      ]
     },
     "zen_shrub": {
       "path": "models/props/zen_shrub.glb",
@@ -1372,7 +1532,11 @@
       "collider": {
         "kind": "none"
       },
-      "capacity": 111
+      "capacity": 111,
+      "size": [
+        2.17,
+        1.49
+      ]
     }
   },
   "playerStart": {

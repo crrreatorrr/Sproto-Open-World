@@ -12,7 +12,7 @@ export interface TerrainJob {
   range: { min: number; max: number };
   cx: number;
   cz: number;
-  res: 64 | 32;
+  res: 64 | 32 | 16;
 }
 
 export type TerrainResult =

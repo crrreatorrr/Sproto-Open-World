@@ -900,8 +900,14 @@ async function bakeRegion(region: string): Promise<{ files: Map<string, Uint8Arr
     }
   }
 
-  const models = [...new Set(Object.values(placeSrc.kinds).filter((k) => k.landmark).map((k) => k.model))].sort();
+  // Bounds of every placed model: the landmarks' impostors are cut from them, and every kind's size
+  // goes in the prop table so the client can give it a draw distance by how big it is.
+  const models = [...new Set([...Object.values(placeSrc.kinds).filter((k) => k.landmark).map((k) => k.model), ...usedKeys.map((key) => placeSrc.kinds[key].model)])].sort();
   const bounds = await readPropBounds(models);
+  for (const key of usedKeys) {
+    const b = bounds.get(placeSrc.kinds[key].model)!;
+    props[key].size = [r2(Math.max(b.max[0] - b.min[0], b.max[2] - b.min[2])), r2(b.max[1] - b.min[1])];
+  }
   const landmarks = instances
     .filter((i) => placeSrc.kinds[i.key].landmark)
     .map((inst) => {
