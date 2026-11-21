@@ -20,6 +20,7 @@ import { SPELLS, WOVEN, type SpellId } from '../content/spells';
 import { MOUNT } from '../content/mounts';
 import { DT, PLAYER_BODY } from '../content/tuning';
 import { worldLevel } from '../content/world/level';
+import { overworldBounds } from '../content/world/regions';
 import { WORLD_CONTENT } from '../content/world/worldContent';
 import { frameDataLines, targetLines } from '../debug/frameData';
 import { Overlay } from '../debug/Overlay';
@@ -597,7 +598,7 @@ export class App {
     }
     try {
       const region = this.stream?.region;
-      const sim = new SimWorld(region ? worldLevel(region.manifest) : SANDBOX, 1);
+      const sim = new SimWorld(region ? worldLevel(region.manifest, overworldBounds()) : SANDBOX, 1);
       const entity = sim.spawnPlayer(LOCAL_PLAYER, undefined, undefined, save?.player.class ?? cls);
       // The sandbox's dummies and Brute (bare test worlds stay empty), the wave runner, or
       // Sproutvale's villagers, shrines, chest and training yard (its camps arrive in M4). A save
@@ -1507,6 +1508,17 @@ export class App {
             this.rig.snap(this.target, p.tf.yaw);
           }
         }
+        return;
+      case 'edgeWarden':
+        if (e.entity !== me) return;
+        if (e.phase === 'appear') {
+          this.hud.toast('The Edge Warden guards the edge of the world. Turn back.');
+          this.shake(0.3);
+        } else if (e.phase === 'strike') this.hud.toast('The Edge Warden attacks! Head back inland.');
+        else if (e.phase === 'burn') {
+          pad.rumble(RUMBLE.hurt, 0.6);
+          this.shake(0.25);
+        } else this.hud.toast('The Edge Warden lets you go.');
         return;
       case 'godMode':
         if (e.entity !== me) return;

@@ -34,14 +34,14 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
     if (pr.gravity) e.tf.vel.y -= pr.gravity * DT;
     const from = { ...e.tf.pos };
     const to = { x: from.x + e.tf.vel.x * DT, y: from.y + e.tf.vel.y * DT, z: from.z + e.tf.vel.z * DT };
-    const ward = wardProjectile(ctx, e, from, to);
+    const ward = pr.unstoppable ? null : wardProjectile(ctx, e, from, to);
     if (ward === 'reflected') continue;
     if (ward === 'blocked') {
       dead.push(e.id);
       continue;
     }
     // Turnstone turns one shot, and stays quiet while Mirror Ward is already doing it.
-    if (!pr.reflected && pr.team === 'enemy' && !ward) {
+    if (!pr.reflected && pr.team === 'enemy' && !ward && !pr.unstoppable) {
       const stone = turnstoneReady(ctx.entities, from, ctx.now, false);
       if (stone) {
         const coop = ctx.entities.filter((p) => p.kind === 'player').length > 1;
@@ -85,6 +85,9 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
       const bonus = pr.reflected && pr.reflectBonus?.shooter === tgt.id ? pr.reflectBonus : null;
       const hit = info(e, from);
       if (bonus?.hpFrac) hit.fixedDamage = tgt.vitals!.hpMax * bonus.hpFrac;
+      // The Edge Warden's fire: a share of the health bar, and its burn can't be guarded.
+      if (pr.hpFrac && !pr.reflected) hit.fixedDamage = tgt.vitals!.hpMax * pr.hpFrac;
+      if (pr.unstoppable) hit.unblockable = true;
       // A reflected fireball breaks the Drake's stance (expansion plan §3.5).
       if (bonus?.poiseFrac) hit.poise = tgt.combat.poiseMax * bonus.poiseFrac;
       const out = resolveHit(ctx, owner, tgt, hit);

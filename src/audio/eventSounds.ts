@@ -95,6 +95,11 @@ export function eventSound(e: SimEvent, audio: AudioManager, me: EntityId | null
     case 'bossPhase':
       audio.play('bossRise');
       return;
+    case 'edgeWarden':
+      // Its arrival roars through the `roar` cue; the burn's warning is a rising growl.
+      if (e.phase === 'strike') audio.play('bossRise', 0.8, 0.8);
+      else if (e.phase === 'burn') audio.play('bossRoar', 1.5, 0.9);
+      return;
     case 'cue':
       if (e.cue === 'horn') audio.play('bossRoar', 1.6, 0.55);
       else if (e.cue === 'bell') audio.play('shieldPerfect', 1.8, 0.7);

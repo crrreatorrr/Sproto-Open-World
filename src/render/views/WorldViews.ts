@@ -17,6 +17,7 @@ import { BodyGlow } from './BodyGlow';
 import { makeBossView } from './BossViews';
 import { makeBurrowmotherView } from './BurrowmotherView';
 import { DrakeFlyover, makeDrakeView } from './DrakeViews';
+import { EdgeWardenView } from './EdgeWardenView';
 import { BlastOrbView, BoltView,
   BulletView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
 import { portalShown } from '../portalShown';
@@ -466,6 +467,7 @@ export class WorldViews {
 
   private make(e: Readonly<Entity>): EntityView | null {
     if (LAZY_MODELS.has(e.view.model) && !this.lazyReady(e.view.model as ModelKey)) return null;
+    if (e.warden) return new EdgeWardenView(this.assets, this.fx);
     const bossView = makeBurrowmotherView(e, this.assets, this.fx) ?? makeDrakeView(e, this.assets, this.fx) ?? makeBossView(e, this.assets, this.fx);
     if (bossView) return bossView;
     const pr = e.projectile;
