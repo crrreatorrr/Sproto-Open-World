@@ -30,6 +30,12 @@ export const CAM = {
   closeRise: 0.6,
   jumpRiseSharpness: 5,
   jumpMaxLag: 0.6,
+  /**
+   * Going down, the pivot eases after the feet too (1/s), so steps and slope changes under them
+   * don't reach the picture; in a real fall it never sits more than `dropMaxLead` m above its place.
+   */
+  dropSharpness: 10,
+  dropMaxLead: 0.6,
   /** Hard lock (plan §4.1): the pivot sits this far from the player toward the target (0.3 = 70% toward the player). */
   lockPivot: 0.3,
   /**
@@ -457,9 +463,12 @@ export class CameraRig {
     const lastY = this.pivot.y;
     this.pivot.x = damp(this.pivot.x, this.tmp.x, CAM.followSharpness, dt);
     this.pivot.z = damp(this.pivot.z, this.tmp.z, CAM.followSharpness, dt);
-    // Rise lazily on a jump (never more than jumpMaxLag behind), drop with the player.
+    // Rise lazily on a jump (never more than jumpMaxLag behind). Going down it eases as well, a
+    // little faster, and a fall never leaves it more than dropMaxLead above its place.
     const ty = this.tmp.y;
-    this.pivot.y = ty > lastY ? Math.max(damp(lastY, ty, CAM.jumpRiseSharpness, dt), ty - CAM.jumpMaxLag) : ty;
+    this.pivot.y = ty > lastY
+      ? Math.max(damp(lastY, ty, CAM.jumpRiseSharpness, dt), ty - CAM.jumpMaxLag)
+      : Math.min(damp(lastY, ty, CAM.dropSharpness, dt), ty + CAM.dropMaxLead);
 
     const cp = Math.cos(this.pitch);
     this.forward.set(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp);

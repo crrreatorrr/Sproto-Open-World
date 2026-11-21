@@ -3,6 +3,7 @@ import type { AssetLoader } from '../assets/AssetLoader';
 import { TEXTURES } from '../assets/manifest';
 import type { LevelDef } from '../content/sandbox';
 import { DAY_HAZE, sunCastsShadow, worldLight } from './caveLook';
+import { snapToShadowTexels } from './shadowSnap';
 
 /** Draw calls and triangles of the last frame, split into the shadow pass and the main pass. */
 export interface FrameStats {
@@ -229,10 +230,15 @@ export class Renderer {
     this.levelGroup.clear();
   }
 
-  /** Keep the shadow box centred on the player, and the torch 2 m above their feet. */
+  /**
+   * Keep the shadow box on the player, moved in whole shadow texels so shadow edges hold still
+   * while they walk (render/shadowSnap.ts), and the torch 2 m above their feet.
+   */
   follow(target: THREE.Vector3): void {
-    this.sun.position.copy(target).add(this.sunOffset);
-    this.sun.target.position.copy(target);
+    const box = this.sun.shadow.camera;
+    const at = snapToShadowTexels(target, this.sunOffset, (box.right - box.left) / this.sun.shadow.mapSize.x);
+    this.sun.target.position.set(at.x, at.y, at.z);
+    this.sun.position.copy(this.sun.target.position).add(this.sunOffset);
     this.torch.position.set(target.x, target.y + 2, target.z);
   }
 
