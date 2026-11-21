@@ -1,6 +1,5 @@
 import { DIALOGUE, type DialogueNode } from '../content/dialogue';
 import { NPCS } from '../content/npcs';
-import { isRootdeep } from '../content/packs/rootdeep';
 import { GEAR_LOCK_TICKS } from '../content/progression';
 import { WORLD_CONTENT } from '../content/world/worldContent';
 import type { UiAction } from '../sim/commands';
@@ -10,7 +9,7 @@ import type { ReadonlySimView } from '../sim/view';
 import type { MenuNav, Screen } from './MenuNav';
 import type { MenuTab } from './gameMenu';
 import { shrineLabel } from './mapTab';
-import { itemStats, shopStock } from './rpgText';
+import { itemStats, shopStock, shrineGroups } from './rpgText';
 import './phone.css';
 import './portrait.css';
 
@@ -48,12 +47,6 @@ function button(label: string, onClick: () => void, cls = 'btn'): HTMLButtonElem
   b.type = 'button';
   b.addEventListener('click', onClick);
   return b;
-}
-
-/** "shrine_first_light" → "First Light Shrine": a fallback when the sim hasn't named it. */
-function shrineFallbackName(id: string): string {
-  const words = id.replace(/^shrine_/, '').split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1));
-  return `${words.join(' ')} Shrine`;
 }
 
 /**
@@ -272,7 +265,7 @@ export class RpgMenus {
     const render = () => {
       const p = this.progress();
       const id = p?.atShrine ?? '';
-      s.replaceChildren(el('h2', '', this.shrineNames.get(id) ?? shrineFallbackName(id)));
+      s.replaceChildren(el('h2', '', this.shrineNames.get(id) ?? shrineLabel(id)));
       if (this.shrineNote) s.append(el('p', 'note', this.shrineNote));
       const list = el('div', 'list');
       const points = p?.points ?? 0;
@@ -296,8 +289,8 @@ export class RpgMenus {
   }
 
   /**
-   * The Brick Phone's screen: every shrine, the ones you have used to call (the sim travels there),
-   * the rest locked until you touch or rest at them. God mode calls any of them. No signal in combat.
+   * The Brick Phone's screen, region by region: the shrines you have used to call (the sim travels
+   * there), and a count of the rest, locked until you touch or rest at them. God mode calls any of them. No signal in combat.
    */
   private makePhone(): Screen {
     const s = this.screen('screen-phone', 'rpg phone');
@@ -313,22 +306,27 @@ export class RpgMenus {
       if (noSignal) lcd.append(el('p', 'phone-note', "You can't travel in combat."));
       const used = new Set(p?.discoveredShrines ?? []);
       const list = el('div', 'list phone-list');
-      for (const [title, cave] of [['Sproutvale', false], ['The Rootdeep', true]] as const) {
-        list.append(el('p', 'phone-group', title));
-        for (const sh of WORLD_CONTENT.shrines.filter((x) => isRootdeep(x.pos[0]) === cave)) {
-          const name = this.shrineNames.get(sh.id) ?? shrineLabel(sh.id);
-          if (god || used.has(sh.id)) {
-            const b = button('', () => this.src.send({ kind: 'fastTravel', shrine: sh.id }), 'btn phone-row');
-            b.dataset.shrine = sh.id;
-            b.append(el('span', 'name', name), el('span', 'tag', p?.lastShrine === sh.id ? 'HOME' : 'CALL'));
-            if (noSignal) b.disabled = true;
-            list.append(b);
-          } else {
-            const row = el('div', 'phone-row locked');
-            row.dataset.shrine = sh.id;
-            row.append(el('span', 'name', name), el('span', 'tag', 'LOCKED'));
-            list.append(row);
+      for (const group of shrineGroups(WORLD_CONTENT.shrines)) {
+        list.append(el('p', 'phone-group', group.title));
+        let locked = 0;
+        for (const sh of group.shrines) {
+          if (!god && !used.has(sh.id)) {
+            locked++;
+            continue;
           }
+          const name = this.shrineNames.get(sh.id) ?? shrineLabel(sh.id);
+          const b = button('', () => this.src.send({ kind: 'fastTravel', shrine: sh.id }), 'btn phone-row');
+          b.dataset.shrine = sh.id;
+          b.append(el('span', 'name', name), el('span', 'tag', p?.lastShrine === sh.id ? 'HOME' : 'CALL'));
+          if (noSignal) b.disabled = true;
+          list.append(b);
+        }
+        // The shrines not used yet are one line per region, not a row each: there are dozens.
+        if (locked) {
+          const row = el('div', 'phone-row locked');
+          row.dataset.locked = String(locked);
+          row.append(el('span', 'name', locked === group.shrines.length ? `${locked} to find` : `${locked} more to find`), el('span', 'tag', 'LOCKED'));
+          list.append(row);
         }
       }
       lcd.append(list, el('p', 'phone-hint', 'Shrines unlock once you touch or rest at them.'));

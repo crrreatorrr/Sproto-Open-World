@@ -264,7 +264,8 @@ export class App {
     this.hud = new Hud(ui);
     this.surgeMeter = new SurgeMeter(this.hud.root);
     this.rpgHud = new RpgHud(this.hud.root);
-    this.rpgHud.enabled = MODE === 'world';
+    // A Campaign Dungeon has shrines to rest at too: it shows the level, tonics and the interact prompt.
+    this.rpgHud.enabled = MODE === 'world' || MODE === 'dungeon';
     this.bossHud = new BossHud(this.hud.root, ui);
     this.bossHud.onContinue = () => this.resume();
     this.weaponBar = new WeaponBarHud(this.hud.root);
@@ -1196,10 +1197,10 @@ export class App {
     return this.lockPos.set(pos.x + Math.cos(yaw) * side, pos.y + (v?.height ?? e.body?.height ?? 1.8) * 0.85, pos.z - Math.sin(yaw) * side);
   }
 
-  /** The RPG HUD: level, Sprouts, tonics, tracker, compass and the interact prompt (world mode). */
+  /** The RPG HUD: level, Sprouts, tonics, tracker, compass and the interact prompt (the world and the dungeons). */
   private rpgFrame(view: ReadonlySimView, p: Readonly<Entity>, dt: number, inMenu: boolean): void {
     const pr = p.progress;
-    if (this.mode !== 'world' || !pr) return;
+    if ((this.mode !== 'world' && this.mode !== 'dungeon') || !pr) return;
     // The lead ends once its quest is taken (it is tracked from then on) or is no longer on offer.
     const lead = this.questLead;
     if (lead && !view.questOffers(LOCAL_PLAYER).some((o) => o.quest === lead.quest)) this.questLead = null;

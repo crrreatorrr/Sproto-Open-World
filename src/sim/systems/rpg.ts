@@ -10,6 +10,7 @@ import { NPCS } from '../../content/npcs';
 import { OBJECTS, usedFlag } from '../../content/objects';
 import { LENS_PREVIEW_FLAG, LENS_PREVIEW_TICKS, SEAL_HOOK } from '../../content/packs/encounterTune';
 import { DUNGEON_PORTAL_BY_PORTAL_ID } from '../../content/packs/overworldMix';
+import { SHRINE_TITLES } from '../../content/packs/shrines';
 import { ROOTDEEP_PORTALS, portalOpenFlag } from '../../content/packs/rootdeep';
 import { GROWTH, LEVEL_CAP, SKILL_EFFECT, SKILL_POINTS_PER_LEVEL, noSkills, xpForLevel } from '../../content/progression';
 import { QUESTS, type Condition, type Effect, type Objective, type QuestOffer } from '../../content/quests';
@@ -421,7 +422,7 @@ export const shrineName = (id: string) =>
   ({
     shrine_first_light: 'Shrine of First Light', shrine_watchtower: 'Watchtower Shrine', shrine_quarry_gate: 'Quarry Gate Shrine',
     shrine_rootdeep_lantern: 'Lantern Hall Shrine', shrine_rootdeep_crossing: 'Crossing Shrine',
-  })[id] ?? DUNGEON_PORTAL_BY_PORTAL_ID[id]?.fastTravel.label ?? 'Shrine';
+  })[id] ?? SHRINE_TITLES[id] ?? DUNGEON_PORTAL_BY_PORTAL_ID[id]?.fastTravel.label ?? 'Shrine';
 
 /** The available choices on a node (conditions checked), with their index into node.choices. */
 export function availableChoices(node: DialogueNode, p: Progress, world: WorldState): { index: number; text: string }[] {

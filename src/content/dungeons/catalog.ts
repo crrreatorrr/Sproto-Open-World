@@ -12,6 +12,7 @@ import type {
   DungeonMaterial,
   DungeonPrimitive,
   DungeonRampPrimitive,
+  DungeonShrineDef,
   DungeonTerrainDef,
   Vec3Tuple,
 } from './types';
@@ -123,9 +124,36 @@ function makeTerrainPatch(
   return { id, origin, size, cols, rows, heights };
 }
 
+/** A dungeon as written below; `withShrines` adds the shrines. */
+type DungeonBase = Omit<DungeonDef, 'shrines'>;
+
+/**
+ * Where a shrine stands from its checkpoint (m): just inside the room and off the lane, outside the
+ * checkpoint's ring. In the first room that is also clear of the yard's pillars at (±9, ±9), which a
+ * dungeon still stands on.
+ */
+export const DUNGEON_SHRINE_OFFSET: Vec3Tuple = [4, 0, -5];
+
+const NUMERALS = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+
+/**
+ * A shrine beside every checkpoint: the room's start is clear floor in every section (cover starts a
+ * third of the way in, ramps and switches further still), so the same offset works in all ten.
+ */
+function withShrines(def: DungeonBase): DungeonDef {
+  const shrines: DungeonShrineDef[] = def.checkpoints.map((cp, i) => ({
+    id: `shrine_${def.id.toLowerCase()}_${i + 1}`,
+    name: `${def.name} Shrine ${NUMERALS[i] ?? i + 1}`,
+    checkpointId: cp.id,
+    pos: [cp.pos[0] + DUNGEON_SHRINE_OFFSET[0], cp.pos[1] + DUNGEON_SHRINE_OFFSET[1], cp.pos[2] + DUNGEON_SHRINE_OFFSET[2]],
+    yaw: Math.PI / 2,
+  }));
+  return { ...def, shrines };
+}
+
 // --------------------------------------------------------------------------- L01 - L10
 
-const L01: DungeonDef = {
+const L01: DungeonBase = {
   id: 'L01',
   name: 'Sproto Landing',
   subtitle: 'Dusk Strip-Mall Drop & Plaza Siege',
@@ -211,7 +239,7 @@ const L01: DungeonDef = {
   rewardXp: 350,
 };
 
-const L02: DungeonDef = {
+const L02: DungeonBase = {
   id: 'L02',
   name: 'The Grand Bazaar',
   subtitle: 'Sun-Baked Souk & RugMaster Showroom',
@@ -296,7 +324,7 @@ const L02: DungeonDef = {
   rewardXp: 520,
 };
 
-const L03: DungeonDef = {
+const L03: DungeonBase = {
   id: 'L03',
   name: 'The Vegetable Grove',
   subtitle: 'Twilight Canopy & Hex Auditor Clearing',
@@ -384,7 +412,7 @@ const L03: DungeonDef = {
   rewardXp: 700,
 };
 
-const L04: DungeonDef = {
+const L04: DungeonBase = {
   id: 'L04',
   name: 'The Blockchain Void',
   subtitle: 'Aurora Ledger Platforms & Bitcoin Duo Podium',
@@ -475,7 +503,7 @@ const L04: DungeonDef = {
   rewardXp: 950,
 };
 
-const L05: DungeonDef = {
+const L05: DungeonBase = {
   id: 'L05',
   name: 'Frostspire Black Site',
   subtitle: 'Polar-Night Ridge, Whiteout Pass & Ledger Vault',
@@ -565,7 +593,7 @@ const L05: DungeonDef = {
   rewardXp: 1200,
 };
 
-const L06: DungeonDef = {
+const L06: DungeonBase = {
   id: 'L06',
   name: 'Vape Cabal Skyline',
   subtitle: 'Rain-Slicked Freeway, Crane Yard & Cabal Streets',
@@ -650,7 +678,7 @@ const L06: DungeonDef = {
   rewardXp: 1500,
 };
 
-const L07: DungeonDef = {
+const L07: DungeonBase = {
   id: 'L07',
   name: 'Hellfire Underworks',
   subtitle: 'Magma Shafts, Furnace Gallery & Reactor Meltdown',
@@ -740,7 +768,7 @@ const L07: DungeonDef = {
   rewardXp: 1850,
 };
 
-const L08: DungeonDef = {
+const L08: DungeonBase = {
   id: 'L08',
   name: 'Government Office',
   subtitle: 'Federal Lobby, Server Floor & Rooftop Standoff',
@@ -828,7 +856,7 @@ const L08: DungeonDef = {
   rewardXp: 2200,
 };
 
-const L09: DungeonDef = {
+const L09: DungeonBase = {
   id: 'L09',
   name: 'Moonlit Ruins',
   subtitle: 'Ruin Plains, Catacombs & The Moon Gate',
@@ -918,7 +946,7 @@ const L09: DungeonDef = {
   rewardXp: 2600,
 };
 
-const L10: DungeonDef = {
+const L10: DungeonBase = {
   id: 'L10',
   name: 'Hellfire Caldera',
   subtitle: 'Geyser Fields, Demon Audit & Volcanic Eruption',
@@ -1020,16 +1048,16 @@ export const DUNGEON_IDS: readonly DungeonId[] = [
 ];
 
 export const DUNGEONS: Readonly<Record<DungeonId, DungeonDef>> = {
-  L01,
-  L02,
-  L03,
-  L04,
-  L05,
-  L06,
-  L07,
-  L08,
-  L09,
-  L10,
+  L01: withShrines(L01),
+  L02: withShrines(L02),
+  L03: withShrines(L03),
+  L04: withShrines(L04),
+  L05: withShrines(L05),
+  L06: withShrines(L06),
+  L07: withShrines(L07),
+  L08: withShrines(L08),
+  L09: withShrines(L09),
+  L10: withShrines(L10),
 };
 
 export const DUNGEON_LIST: readonly DungeonDef[] = DUNGEON_IDS.map((id) => DUNGEONS[id]);

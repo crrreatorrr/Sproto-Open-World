@@ -56,7 +56,7 @@ import { mountCalls, MOUNT_RUNNER } from './systems/mountCall';
 import { cancelMount, followRiders, ridingMotion } from './systems/riding';
 import { vitals } from './systems/vitals';
 import { godVitals } from './systems/god';
-import { wieldsPhone } from './systems/travel';
+import { SHRINE_ARRIVE_OFFSET, wieldsPhone } from './systems/travel';
 import type { ReadonlySimView } from './view';
 
 /** The wave runner's state (`?sandbox=1`). */
@@ -1154,6 +1154,7 @@ export class SimWorld {
     this.dungeon = createDungeonSession(id);
     this.dungeonEvents = [];
     this.physics.loadDungeon(def, this.dungeon.sealedDoorIds);
+    for (const sh of def.shrines) this.addInteractable(sh.id, 'shrine', [sh.pos[0], sh.pos[1], sh.pos[2]], sh.yaw, false);
     const p = this.playerEntity(0);
     if (p) this.teleportPlayer(0, { x: def.spawn[0], y: def.spawn[1] + 0.15, z: def.spawn[2] });
   }
@@ -1176,8 +1177,22 @@ export class SimWorld {
       aliveEnemies,
       !!(cmd && (cmd.pressed & BTN.interact)),
     );
-    this.dungeonEvents = res.events;
+    this.dungeon = res.state;
     const def = getDungeon(this.dungeon.dungeonId);
+    // A rest at a dungeon shrine makes its checkpoint the active one: you wake beside the stone.
+    const rested: DungeonEvent[] = [];
+    for (const ev of this.events) {
+      if (ev.type !== 'shrineRest' || ev.entity !== p.id) continue;
+      const sh = def.shrines.find((x) => x.id === ev.shrine);
+      if (!sh) continue;
+      this.dungeon.activeCheckpointId = sh.checkpointId;
+      this.dungeon.activeCheckpointPos = [sh.pos[0] + SHRINE_ARRIVE_OFFSET, sh.pos[1], sh.pos[2] + SHRINE_ARRIVE_OFFSET];
+      if (!this.dungeon.activatedCheckpoints.includes(sh.checkpointId)) {
+        this.dungeon.activatedCheckpoints.push(sh.checkpointId);
+        rested.push({ type: 'checkpointActivated', checkpointId: sh.checkpointId, pos: sh.pos });
+      }
+    }
+    this.dungeonEvents = rested.length ? [...res.events, ...rested] : res.events;
     for (const ev of res.events) {
       if (ev.type === 'doorStateChanged') {
         this.physics.setDungeonDoorSealed(ev.doorId, ev.sealed);

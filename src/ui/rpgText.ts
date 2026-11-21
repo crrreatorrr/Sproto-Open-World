@@ -7,11 +7,13 @@ import { ENEMIES } from '../content/enemies';
 import { ITEMS, type ItemDef, type ItemKind } from '../content/items';
 import { MERCHANTS } from '../content/loot';
 import { STAFF_TRAITS, staffTrait } from '../content/packs/c2';
+import { SHRINE_TITLES } from '../content/packs/shrines';
 import { NPCS } from '../content/npcs';
 import { OBJECTS } from '../content/objects';
 import { LEVEL_CAP, SKILL_EFFECT, xpForLevel, xpToNext, type SkillId } from '../content/progression';
 import { SPELL_BASE, SPELLS, SWAP_MIN_COOLDOWN, type SpellId } from '../content/spells';
 import { TICK_HZ } from '../content/tuning';
+import { REGIONS, regionAt } from '../content/world/regions';
 import { keepsakeForQuest } from '../content/relics';
 import { QUESTS, type Objective, type QuestDef, type QuestOffer, type QuestState } from '../content/quests';
 import type { Progress } from '../sim/entity';
@@ -87,7 +89,15 @@ const titleCase = (words: string) => words.split('_').map((w) => w.charAt(0).toU
 
 /** "shrine_quarry_gate" → "Quarry Gate Shrine". */
 export function shrineLabel(id: string): string {
-  return SHRINE_NAMES[id] ?? `${titleCase(id.replace(/^shrine_/, ''))} Shrine`;
+  return SHRINE_NAMES[id] ?? SHRINE_TITLES[id] ?? `${titleCase(id.replace(/^shrine_/, ''))} Shrine`;
+}
+
+/** Shrines by region, in the regions' own order, each under its region's name ("The Maple Terraces"). */
+export function shrineGroups<T extends { pos: readonly [number, number, number] }>(shrines: readonly T[]): { title: string; shrines: T[] }[] {
+  return REGIONS.map((r) => ({
+    title: r.name.replace(/^the /, 'The '),
+    shrines: shrines.filter((s) => regionAt(s.pos[0], s.pos[2]).id === r.id),
+  })).filter((g) => g.shrines.length > 0);
 }
 
 /**

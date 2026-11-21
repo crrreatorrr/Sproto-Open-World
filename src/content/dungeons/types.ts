@@ -102,6 +102,18 @@ export interface DungeonCheckpointDef {
   readonly radius: number;
 }
 
+/** A shrine inside a dungeon: rest there (health, mana, tonics, ammo) and it becomes the respawn point. */
+export interface DungeonShrineDef {
+  /** Content id (`shrine_l01_1`); also the interactable's id. */
+  readonly id: string;
+  readonly name: string;
+  /** The checkpoint this shrine stands beside: a rest here makes it the active one. */
+  readonly checkpointId: string;
+  readonly pos: Vec3Tuple;
+  /** Radians. */
+  readonly yaw: number;
+}
+
 export interface DungeonGrappleAnchorDef {
   readonly id: string;
   readonly pos: Vec3Tuple;
@@ -162,6 +174,8 @@ export interface DungeonDef {
   readonly solids: readonly DungeonPrimitive[];
   readonly terrain?: DungeonTerrainDef;
   readonly checkpoints: readonly DungeonCheckpointDef[];
+  /** One shrine beside every checkpoint (`catalog.ts` derives them). */
+  readonly shrines: readonly DungeonShrineDef[];
   readonly grappleAnchors: readonly DungeonGrappleAnchorDef[];
   readonly noGrapple: readonly DungeonAabb[];
   readonly encounters: readonly DungeonEncounterDef[];
