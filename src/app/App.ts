@@ -110,6 +110,8 @@ const PARAMS = new URLSearchParams(location.search);
 const WAVE_SANDBOX = PARAMS.get('sandbox') === '1';
 /** `?dungeon=L01`..`L10`: boot directly into an instanced Campaign Dungeon. */
 const DUNGEON_ID: DungeonId | null = getDungeonById(PARAMS.get('dungeon') ?? '')?.id ?? null;
+/** `&shrine=<id>` with `?dungeon=`: start beside that shrine of the dungeon (god mode's phone sends you here). */
+const DUNGEON_SHRINE = PARAMS.get('shrine') ?? undefined;
 /**
  * Which level Play starts: Sproutvale, the streamed world (M2), by default; `?yard=1` keeps the M1
  * training yard, `?sandbox=1` the wave runner, and `?dungeon=L01..L10` an instanced Campaign Dungeon.
@@ -281,7 +283,8 @@ export class App {
     this.hud = new Hud(ui);
     this.surgeMeter = new SurgeMeter(this.hud.root);
     this.rpgHud = new RpgHud(this.hud.root);
-    this.rpgHud.enabled = MODE === 'world';
+    // A Campaign Dungeon has shrines to rest at too: it shows the level, tonics and the interact prompt.
+    this.rpgHud.enabled = MODE === 'world' || MODE === 'dungeon';
     this.bossHud = new BossHud(this.hud.root, ui);
     this.bossHud.onContinue = () => this.resume();
     this.weaponBar = new WeaponBarHud(this.hud.root);
@@ -606,7 +609,7 @@ export class App {
       this.dungeonView = null;
       if (DUNGEON_ID) {
         const def = getDungeon(DUNGEON_ID);
-        sim.startDungeon(DUNGEON_ID);
+        sim.startDungeon(DUNGEON_ID, DUNGEON_SHRINE);
         const { DungeonView } = await import('../render/dungeon/DungeonView');
         this.dungeonView = new DungeonView(def);
         this.renderer.scene.add(this.dungeonView.root);
@@ -1249,10 +1252,10 @@ export class App {
     return this.lockPos.set(pos.x + Math.cos(yaw) * side, pos.y + (v?.height ?? e.body?.height ?? 1.8) * 0.85, pos.z - Math.sin(yaw) * side);
   }
 
-  /** The RPG HUD: level, Sprouts, tonics, tracker, compass and the interact prompt (world mode). */
+  /** The RPG HUD: level, Sprouts, tonics, tracker, compass and the interact prompt (the world and the dungeons). */
   private rpgFrame(view: ReadonlySimView, p: Readonly<Entity>, dt: number, inMenu: boolean): void {
     const pr = p.progress;
-    if (this.mode !== 'world' || !pr) return;
+    if ((this.mode !== 'world' && this.mode !== 'dungeon') || !pr) return;
     // The lead ends once its quest is taken (it is tracked from then on) or is no longer on offer.
     const lead = this.questLead;
     if (lead && !view.questOffers(LOCAL_PLAYER).some((o) => o.quest === lead.quest)) this.questLead = null;
@@ -1522,6 +1525,8 @@ export class App {
           this.writeSaveNow();
           const url = new URL(window.location.href);
           url.searchParams.set('dungeon', e.to.slice('dungeon:'.length));
+          if (e.shrine) url.searchParams.set('shrine', e.shrine);
+          else url.searchParams.delete('shrine');
           window.location.assign(url.toString());
           return;
         }

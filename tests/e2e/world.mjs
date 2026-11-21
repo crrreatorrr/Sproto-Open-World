@@ -469,7 +469,8 @@ async function rpgLoop() {
   s = await until((q) => q.screen === 'screen-phone');
   const rows = await page.evaluate(() => [...document.querySelectorAll('#screen-phone .phone-row')].map((r) => `${r.dataset.shrine}:${r.tagName === 'BUTTON' ? 'call' : 'locked'}`));
   check(s.screen === 'screen-phone' && s.rpg.phone === true && /^Shrine of First Light/.test(s.focused ?? ''), 'RB with the phone opens it on the shrine you have used', `${s.screen} ${JSON.stringify(s.focused)}`);
-  check(rows.includes('shrine_first_light:call') && rows.includes('shrine_watchtower:locked') && rows.length === 5, 'the phone lists used shrines to call and the rest locked', rows.join(','));
+  const lockedRows = rows.filter((r) => r.endsWith(':locked'));
+  check(rows.includes('shrine_first_light:call') && !rows.some((r) => r.startsWith('shrine_watchtower')) && lockedRows.length === 7 && rows.length === 8, 'the phone lists used shrines to call, and one locked line per region for the rest', rows.join(','));
   await shot('w14e-phone');
   await press('down');
   s = await state();
