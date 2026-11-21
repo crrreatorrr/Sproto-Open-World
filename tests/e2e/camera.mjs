@@ -9,6 +9,7 @@
  * changes speed a little each frame; a pop is a frame whose movement differs from its neighbours'
  * by centimetres. The test fails when any frame's pop is over the limits below. The view stick is
  * moved gradually: the rig turns exactly as told, so a flicked stick is the player's own jump.
+ * Frames where a blow is shaking or kicking the camera are left out: that is meant to be felt.
  *
  *   node tests/e2e/camera.mjs            # headless, software GPU
  *   CAMERA_GPU=1 node tests/e2e/camera.mjs   # headless on the machine's GPU (smooth frame times)
@@ -78,7 +79,7 @@ function recorderInit() {
     if (!rec.on) return;
     const cam = rig.camera;
     cam.getWorldDirection(dir);
-    rec.rows.push([dt, cam.position.x, cam.position.y, cam.position.z, dir.x, dir.y, dir.z, target.x, target.y, target.z, rig.mode, cam.fov]);
+    rec.rows.push([dt, cam.position.x, cam.position.y, cam.position.z, dir.x, dir.y, dir.z, target.x, target.y, target.z, rig.mode, cam.fov, rig.trauma + rig.kickAt.length() + rig.fovKick]);
   };
 }
 
@@ -101,7 +102,7 @@ const report = {};
  * to the frame's length so an uneven frame rate doesn't read as one.
  */
 function analyse(rows) {
-  const out = { frames: rows.length, pop: 0, popAt: -1, turnPop: 0, turnAt: -1, fovPop: 0, worst: [] };
+  const out = { frames: rows.length, shaken: 0, pop: 0, popAt: -1, turnPop: 0, turnAt: -1, fovPop: 0, worst: [] };
   const vel = [];
   for (let i = 1; i < rows.length; i++) {
     const a = rows[i - 1], b = rows[i];
@@ -111,6 +112,8 @@ function analyse(rows) {
   }
   for (let k = 1; k < vel.length - 1; k++) {
     const p = vel[k - 1], c = vel[k], n = vel[k + 1];
+    // A blow landed: the shake and the kick are on purpose.
+    if (rows[c.i][12] > 1e-3 || rows[c.i - 1][12] > 1e-3 || rows[c.i + 1]?.[12] > 1e-3) { out.shaken++; continue; }
     const pop = Math.hypot(...c.v.map((v, j) => v - (p.v[j] + n.v[j]) / 2)) * c.dt;
     const turnPop = Math.abs(c.w - (p.w + n.w) / 2) * c.dt;
     out.fovPop = Math.max(out.fovPop, Math.abs(c.f - (p.f + n.f) / 2) * c.dt);
@@ -184,7 +187,7 @@ async function play(kind) {
     await hold('l3', false);
     const a = analyse(rows);
     report[`${kind}: ${name}`] = a;
-    check(a.pop <= POP_LIMIT && a.turnPop <= TURN_POP_LIMIT, `${kind}: ${name}`, `${a.frames} frames, worst pop ${(a.pop * 100).toFixed(1)} cm, worst turn pop ${a.turnPop.toFixed(2)}°`);
+    check(a.pop <= POP_LIMIT && a.turnPop <= TURN_POP_LIMIT, `${kind}: ${name}`, `${a.frames} frames${a.shaken ? `, ${a.shaken} shaken by a blow` : ''}, worst pop ${(a.pop * 100).toFixed(1)} cm, worst turn pop ${a.turnPop.toFixed(2)}°`);
   };
 
   const sides = async (ms, times) => {

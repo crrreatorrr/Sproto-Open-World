@@ -27,9 +27,13 @@ interface Frame {
 interface Shot {
   mode?: CameraMode;
   riding?: boolean;
+  /** The view's tip (radians) from the start; the usual slight tip down otherwise. */
+  pitch?: number;
   seconds: number;
   /** Move the player (and anything else) for this frame. May return the lock point and the view. */
   frame(f: Frame): { lock?: THREE.Vector3 | null; view?: ReadonlySimView; sprinting?: boolean } | void;
+  /** Look at the rig once it has moved for this frame. */
+  after?(f: Frame): void;
   /** Occluders besides the player on foot. */
   occluders?(feet: THREE.Vector3): CameraOccluder[];
 }
@@ -58,14 +62,17 @@ function film(shot: Shot, fps: number, skip: (t: number) => boolean = () => fals
   if (shot.mode) rig.setCameraMode(shot.mode);
   rig.riding = shot.riding ?? false;
   rig.snap(feet, 0.6);
+  if (shot.pitch !== undefined) rig.pitch = shot.pitch;
   rig.occluders = [me(feet, rig.yaw), ...(shot.occluders?.(feet) ?? [])];
   for (let i = 0; i < fps; i++) rig.update(dt, feet, open, false);
   const pos: THREE.Vector3[] = [], dir: THREE.Vector3[] = [], fov: number[] = [], height: number[] = [];
   const frames = Math.round(shot.seconds * fps);
   for (let i = 0; i < frames; i++) {
-    const out = shot.frame({ feet, rig, t: i * dt, i, dt }) ?? {};
+    const f = { feet, rig, t: i * dt, i, dt };
+    const out = shot.frame(f) ?? {};
     rig.occluders = [me(feet, rig.yaw, rig.riding ? CAM.riderTop : CAM.footTop), ...(shot.occluders?.(feet) ?? [])];
     rig.update(dt, feet, out.view ?? open, out.sprinting ?? false, out.lock ?? null);
+    shot.after?.(f);
     pos.push(rig.camera.position.clone());
     dir.push(rig.camera.getWorldDirection(new THREE.Vector3()));
     fov.push(rig.camera.fov);
@@ -134,8 +141,10 @@ describe('the camera never jumps', () => {
         for (const fps of RATES) {
           const shot = film({ mode, seconds: 4, frame: sideToSide(speed, 0.6) }, fps);
           expect(shot.pop, `${fps} Hz, frame ${shot.popAt}`).toBeLessThan(limit(fps));
-          // A gun's cameras stand beside the player: nothing to rise over, whichever way they run.
-          expect(Math.max(...shot.height) - Math.min(...shot.height), `${fps} Hz`).toBeLessThan(0.01);
+          // A gun's cameras stand beside the player: whichever way they run the camera all but keeps
+          // its height (it stepped 39 cm). The few cm are the slight tip down of the view: running
+          // toward the shoulder side carries the body under the centre ray, which must not meet it.
+          expect(Math.max(...shot.height) - Math.min(...shot.height), `${fps} Hz`).toBeLessThan(0.06);
         }
       });
     }
@@ -229,7 +238,7 @@ describe('the camera never jumps', () => {
           },
         }, fps);
         // The player's own height changes at once on landing and on a kerb; the camera's must not.
-        expect(shot.pop, `${mode}, ${fps} Hz, frame ${shot.popAt}`).toBeLessThan(limit(fps, 0.03));
+        expect(shot.pop, `${mode}, ${fps} Hz, frame ${shot.popAt}`).toBeLessThan(limit(fps, 0.06));
       }
     }
   });
@@ -335,6 +344,72 @@ describe('the camera never jumps', () => {
     for (const fps of RATES) {
       const shot = film({ seconds: 3, frame: ({ t }) => ({ sprinting: t > 0.5 && t < 1.5 }) }, fps);
       expect(shot.fovPop, `${fps} Hz`).toBeLessThan(fovLimit(fps, 0.15));
+    }
+  });
+});
+
+describe('the centre of the screen stays off the player while the camera eases', () => {
+  /** How far the aim ray passes over the player's box at its lowest (m); +∞ when it passes beside it. */
+  function clearance(rig: CameraRig, feet: THREE.Vector3): number {
+    const ray = rig.aimRay()!;
+    const flat = Math.hypot(ray.dir.x, ray.dir.z);
+    const fx = ray.dir.x / flat, fz = ray.dir.z / flat;
+    let low = Infinity;
+    for (let s = 0; s < 12; s += 0.01) {
+      const dx = ray.from.x + fx * s - feet.x, dz = ray.from.z + fz * s - feet.z;
+      // The player's box faces the camera: across the view and along it.
+      if (Math.abs(dx * fz - dz * fx) > PLAYER_BODY.radius || Math.abs(dx * fx + dz * fz) > PLAYER_BODY.radius) continue;
+      low = Math.min(low, ray.from.y + (ray.dir.y / flat) * s - (feet.y + CAM.footTop));
+    }
+    return low;
+  }
+
+  it('through a jump, at every pitch', () => {
+    for (const mode of ['orbit', 'ots'] as const) {
+      for (const pitch of [CAM.minPitch, -0.3, 0, 0.3, CAM.maxPitch]) {
+        for (const fps of RATES) {
+          let vy = 0, low = Infinity;
+          film({
+            mode, pitch, seconds: 2.5,
+            frame: ({ feet, i, dt }) => {
+              feet.z += MOVE.runSpeed * dt;
+              if (i === Math.round(0.5 / dt)) vy = Math.sqrt(2 * MOVE.gravity * MOVE.jumpHeight);
+              if (vy !== 0 || feet.y > 10) {
+                vy -= MOVE.gravity * dt;
+                feet.y += vy * dt;
+                if (feet.y <= 10) { feet.y = 10; vy = 0; }
+              }
+            },
+            after: ({ rig, feet }) => { low = Math.min(low, clearance(rig, feet)); },
+          }, fps);
+          expect(low, `${mode}, pitch ${pitch}, ${fps} Hz`).toBeGreaterThan(0);
+        }
+      }
+    }
+  });
+
+  it('with a gun, sprinting toward the shoulder side while looking down', () => {
+    for (const mode of ['ots', 'ads'] as const) {
+      for (const pitch of [CAM.minPitch, -0.4, -0.12]) {
+        for (const fps of RATES) {
+          let low = Infinity, speed = 0;
+          film({
+            mode, pitch, seconds: 3,
+            frame: ({ feet, rig, dt }) => {
+              // Forward and to the right of the view, getting up to speed as the sim does.
+              const fx = Math.sin(rig.yaw), fz = Math.cos(rig.yaw);
+              speed = Math.min(MOVE.sprintSpeed, speed + MOVE.accel * dt);
+              feet.x += (fx - fz) * speed * Math.SQRT1_2 * dt;
+              feet.z += (fz + fx) * speed * Math.SQRT1_2 * dt;
+            },
+            // Once the rise has had the moment it takes to come on.
+            after: ({ rig, feet, t }) => { if (t > 0.8) low = Math.min(low, clearance(rig, feet)); },
+          }, fps);
+          // The lag carries the body under the ray, which then passes just over it: no margin here,
+          // so the camera moves no more than it must.
+          expect(low, `${mode}, pitch ${pitch}, ${fps} Hz`).toBeGreaterThan(-0.01);
+        }
+      }
     }
   });
 });

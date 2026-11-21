@@ -45,14 +45,14 @@ export function smoothstep(t: number): number {
 }
 
 /**
- * Trail `goal` lazily, as a first-order follow at `sharpness` (1/s) would, but never more than
- * `maxLag` behind it: the further behind, the harder the spring pulls, so the limit is approached
- * smoothly instead of hit. Being a spring, it keeps its speed when the goal steps (a kerb) or stops
- * dead (a landing).
+ * Trail `goal` lazily, as a first-order follow at `sharpness` (1/s) would while it is close, but
+ * never more than `maxLag` behind: the further behind, the harder the spring pulls (six times as
+ * hard at the limit), so the limit is approached smoothly instead of hit. Being a spring, it keeps
+ * its speed when the goal steps (a kerb) or stops dead (a landing).
  */
 export function trail(e: Eased, goal: number, sharpness: number, maxLag: number, dt: number): number {
-  const a = Math.min(0.98, Math.abs(goal - e.x) / maxLag);
-  e.to(goal, (2 * sharpness) / (1 - a * a), dt);
+  const a = Math.min(1, Math.abs(goal - e.x) / maxLag);
+  e.to(goal, 2 * sharpness * (1 + 5 * a * a), dt);
   if (Math.abs(goal - e.x) > maxLag) e.x = goal - Math.sign(goal - e.x) * maxLag;
   return e.x;
 }

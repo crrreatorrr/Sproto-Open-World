@@ -30,11 +30,13 @@ export const CAM = {
   fovKickSharpness: 9,
   closeRise: 0.6,
   /**
-   * The pivot's height trails the player's: lazily up (a jump, a step, a slope), a little faster
-   * down, so bumps underfoot don't reach the picture. It is never more than `jumpMaxLag` m below
-   * its place, nor more than `dropMaxLead` m above it in a fall.
+   * The pivot's height trails the player's, up and down, so a jump, a landing, a kerb and the bumps
+   * underfoot don't reach the picture at once. It is never more than `jumpMaxLag` m below its place,
+   * nor more than `dropMaxLead` m above it in a fall: room for the tallest step the character takes
+   * in one go (`KCC.autostepHeight`). At these rates a jump leaves it less than `clearMargin`
+   * behind, so the centre of the screen stays over the player's head (tests/camera/smoothness).
    */
-  jumpRiseSharpness: 5,
+  jumpRiseSharpness: 10,
   jumpMaxLag: 0.6,
   dropSharpness: 10,
   dropMaxLead: 0.6,
@@ -93,13 +95,8 @@ export const CAM = {
    */
   clearFeather: 0.2,
   /** How fast the rise comes on and lets go (spring, 1/s). */
-  clearRiseResponse: 14,
+  clearRiseResponse: 20,
   clearFallResponse: 8,
-  /**
-   * While the pivot trails the body upward (a jump, a bump) the centre ray may dip this far into
-   * the margin before the rise goes after the body.
-   */
-  clearSlack: 0.3,
   /**
    * How the models are drawn (m), measured in the game on the hub-sized bull (1×): the player's crown
    * on foot (the staff on their back included) and in the saddle, above their feet origin; the Pepe
@@ -498,24 +495,16 @@ export class CameraRig {
 
   /**
    * How far the pivot must rise above its place (`ty`, where it sits once it has caught up with the
-   * player) for the centre ray to pass `clearMargin` over every occluder. Over a body's footprint
-   * the ray is lowest at its near edge when looking up and at its far edge when looking down; behind
-   * the camera nothing counts.
-   *
-   * The answer changes smoothly with everything it is made from. The pivot trails the player, and
-   * that lag must not decide whether the ray is over them, or the rise would switch on and off as
-   * they run sideways (WORLD-0005): the ray is taken from where the pivot is heading sideways
-   * (`sideLag` m to its right). And the rise fades out over `clearFeather` as the ray moves off a
-   * body, rather than stopping at its edge.
+   * player) for the centre ray, taken `side` m to the pivot's right, to pass `margin` over every
+   * occluder. Over a body's footprint the ray is lowest at its near edge when looking up and at its
+   * far edge when looking down; behind the camera nothing counts. The rise fades out over
+   * `clearFeather` as the ray moves off a body sideways, rather than stopping at its edge.
    */
-  private clearRise(ty: number, sideLag: number): number {
+  private riseOver(ty: number, side: number, margin: number): number {
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
     const slope = Math.tan(this.pitch);
     const behind = -this.distance * Math.cos(this.pitch);
-    const side = this.shoulder + sideLag;
     const px = this.pivot.x + this.right.x * side, pz = this.pivot.z + this.right.z * side;
-    // Trailing far below the body (the start of a jump): go after it, less the slack.
-    const trailing = Math.max(0, ty - this.follow.x - CAM.clearSlack);
     let rise = 0;
     for (const o of this.occluders) {
       // The flat ray s ↦ p + s·f in the box's own axes: along its length (l) and its width (w).
@@ -542,10 +531,25 @@ export class CameraRig {
       }
       if (s1 < s0) continue;
       const worst = slope > 0 ? s0 : s1;
-      const over = o.top + CAM.clearMargin - worst * slope - ty;
-      rise = Math.max(rise, (1 - smoothstep(miss / CAM.clearFeather)) * Math.max(0, over + trailing));
+      rise = Math.max(rise, (1 - smoothstep(miss / CAM.clearFeather)) * Math.max(0, o.top + margin - worst * slope - ty));
     }
     return rise;
+  }
+
+  /**
+   * The rise that keeps the centre of the screen off the player and the bull, as a goal for the
+   * spring. Two things ask for it:
+   *
+   * - The camera's place: where the centre ray is meant to pass, it passes `clearMargin` over a body.
+   *   The pivot trails the player, and that lag must not decide this, or the rise would switch on
+   *   and off as they run sideways (WORLD-0005): the ray is taken from where the pivot is heading
+   *   sideways (`sideLag` m to its right). So behind the player the rise is always there, and over
+   *   the shoulder it never is, whichever way they run.
+   * - The ray itself: wherever the lag does carry a body under it (a gun in hand, running toward the
+   *   shoulder side, looking down), the ray must still not meet the body. No margin: just over it.
+   */
+  private clearRise(ty: number, sideLag: number): number {
+    return Math.max(this.riseOver(ty, this.shoulder + sideLag, CAM.clearMargin), this.riseOver(ty, this.shoulder, 0));
   }
 
   addTrauma(amount: number): void {
