@@ -242,6 +242,12 @@ export interface Progress {
   weapons?: (string | null)[];
   /** Active slot index on the 4-slot weapon bar (0..3). */
   activeWeaponSlot?: number;
+  /**
+   * Rounds left in the magazine of the gun in each weapon bar slot, with the gun they belong to
+   * (another gun put in the slot starts full). A missing entry is a full magazine (a new gun, an
+   * older save). Swapping weapons keeps it: a swap is never a reload.
+   */
+  mags?: ({ id: string; n: number } | null)[];
   /** Procedural gun stash (v6). */
   guns?: GunInstance[];
   /** Ammo reserves (v6). */
@@ -603,6 +609,21 @@ export interface Projectile {
   reflectBonus?: { hpFrac: number; stagger: number; shooter: EntityId; poiseFrac?: number; homing?: number };
   /** The enemy move that fired this shot, so a reflected charged_shot can be told from a burst. */
   sourceMove?: string;
+  /** Falls this fast (m/s²): a lobbed gun round. */
+  gravity?: number;
+  /** Walls it may still bounce off before it stops (or explodes) on one. */
+  bounces?: number;
+  /** Bodies it may still fly on through after hitting them. */
+  pierce?: number;
+  /** Bodies already hit, so a piercing round hits each once. */
+  struck?: EntityId[];
+  /**
+   * A gun round's blast: the body it strikes takes `damage`, and everyone else in `explode` takes
+   * this, falling to `minFalloff` of it at the edge. Without it a blast deals `damage` to all.
+   * `selfMult` is the share of the blast its own shooter takes when caught in it (a rocket at
+   * your feet hurts).
+   */
+  splash?: { damage: number; minFalloff: number; selfMult?: number };
 }
 
 /**

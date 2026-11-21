@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { AssetLoader, ModelInstance } from '../../assets/AssetLoader';
 import type { Priority } from '../../assets/RequestQueue';
-import { STAFF_SOCKET, WEAPON_SOCKET, type ModelKey } from '../../assets/manifest';
+import { OFFHAND_SOCKET, STAFF_SOCKET, WEAPON_SOCKET, type ModelKey } from '../../assets/manifest';
 import { PLAYER_MOVES, ROLL, clipTiming, type PlayerMoveId } from '../../content/combat';
 import { PLAYER_MOVE_TIMING } from '../../content/generated/playerMoveTiming';
 import { BACKSTEP, PLUNGE } from '../../content/packs/m7';
@@ -9,6 +9,7 @@ import { SPELLS, type SpellDef } from '../../content/spells';
 import { TICK_HZ } from '../../content/tuning';
 import type { Entity } from '../../sim/entity';
 import { Animator, ENTRY_FADE } from '../anim/Animator';
+import { armBones, leftHandGrips, reachArm, relaxHand, squareGun, type ArmBones } from '../anim/gunPose';
 import { CAST_PEAKS, castClipTime } from '../anim/castTiming';
 import { HitReaction } from '../fx/HitReaction';
 import { BodyGlow } from './BodyGlow';
@@ -24,14 +25,36 @@ const CAST_IN_FADE = 0.06;
 const CAST_OUT_FADE = 0.15;
 /** How much of a flinch a raised guard lets through. */
 const GUARD_RECOIL = 0.55;
-const GUN_Q1 = new THREE.Quaternion();
-const GUN_Q2 = new THREE.Quaternion();
-const GUN_Q3 = new THREE.Quaternion();
-const GUN_Q4 = new THREE.Quaternion();
-const GUN_V = new THREE.Vector3();
-const GUN_UP = new THREE.Vector3(0, 1, 0);
 /** A gun stays raised this long after the last shot (s). */
 const AIM_HOLD = 0.6;
+/** Between the gun layers (ready hold, shouldered aim, reload). */
+const GUN_FADE = 0.14;
+/** Into the slide and the dash, and how fast the grapple arm goes out and comes back (1/s). */
+const SLIDE_FADE = 0.1;
+const DASH_FADE = 0.05;
+const GRAPPLE_RATE = 14;
+/** How fast a hand's fingers open when it lets go, and close when it takes hold (1/s). */
+const FINGER_RATE = 12;
+
+/**
+ * What the sim's gun and movement systems are doing for this player, for the frame's pose. The sim
+ * keeps these per player, not on the entity (SimWorld.gunRuntime, SimWorld.movementTech).
+ */
+export interface PlayerPoseInput {
+  /** Aiming down the sights. */
+  ads: boolean;
+  /** The gun in hand is a sidearm (a dual-wield gun): one hand carries it. */
+  oneHanded: boolean;
+  /** Ticks left in a reload (0: not reloading). */
+  reloadTicks: number;
+  /** The same for the left hand's gun of a dual-wielded pair. */
+  reloadTicksLeft: number;
+  sliding: boolean;
+  dashing: boolean;
+  /** The grapple's anchor while the hook is out. */
+  grapple: Readonly<{ x: number; y: number; z: number }> | null;
+}
+const NO_INPUT: PlayerPoseInput = { ads: false, oneHanded: false, reloadTicks: 0, reloadTicksLeft: 0, sliding: false, dashing: false, grapple: null };
 /** Into and out of the saddle poses. */
 const RIDE_FADE = 0.1;
 /** The rider's bounce: its rate at a standstill, and how fast it rises with the bull's speed (m/s per 1× rate). */
@@ -97,11 +120,29 @@ export class PlayerView {
   private saddleMean = 0;
 
   private staffKey: ModelKey | null = null;
-  /** The gun classes' spine and weapon socket (squareGun). */
-  private gunSpine: THREE.Object3D | null = null;
-  private gunSocket: THREE.Object3D | null = null;
   /** Seconds the gun stays raised after a shot. */
   private aimHold = 0;
+  /** This frame's gun and movement state (App sets it before `update`). */
+  input: PlayerPoseInput = NO_INPUT;
+  /** A gun is in hand (not a staff). */
+  private gunInHand = false;
+  /** Seconds into the trigger pull on show (a shot the sim fired outside a cast), or -1; and which hand's. */
+  private shotT = -1;
+  private shotHand: 'left' | 'right' = 'right';
+  /** The second gun of a dual-wielded pair, in the left hand. */
+  private offhand: ModelInstance | null = null;
+  private offhandKey: ModelKey | null = null;
+  private offhandRequest = 0;
+  /** The reload on show: the ticks it started with, so its progress is known. */
+  private reloadFrom = 0;
+  private reloadFromLeft = 0;
+  private slideT = 0;
+  /** How open the left hand is (0: gripping, 1: relaxed). */
+  private leftOpen = 1;
+  private frameDt = 0;
+  private grappleArm: ArmBones | null | undefined;
+  private grappleWeight = 0;
+  private readonly grappleAt = new THREE.Vector3();
   private readonly stopListening: () => void;
 
   constructor(private readonly assets: AssetLoader, readonly body: ModelKey = 'player') {
@@ -121,9 +162,57 @@ export class PlayerView {
     await this.setStaff(staffKey);
   }
 
-  /** A new body: find its spine and weapon socket again. */
+  /** A new body: find its arms again. */
   private forgetGunBones(): void {
-    this.gunSpine = this.gunSocket = null;
+    this.grappleArm = undefined;
+  }
+
+  /** The sim fired this player's gun: the trigger pull plays from its start. `hand`: which gun of a pair. */
+  fired(hand: 'left' | 'right' = 'right'): void {
+    this.shotT = 0;
+    this.shotHand = hand;
+    this.aimHold = AIM_HOLD;
+  }
+
+  /**
+   * The barrel tip of a gun in hand, in the world (false: no gun in that hand, or it has no `muzzle`
+   * node). Ask for the left only while dual wielding.
+   */
+  muzzleWorld(out: THREE.Vector3, hand: 'left' | 'right' = 'right'): boolean {
+    const gun = hand === 'left' ? this.offhand : this.gunInHand ? this.staff : null;
+    const tip = gun?.root.getObjectByName('muzzle');
+    if (!tip) return false;
+    tip.getWorldPosition(out);
+    return true;
+  }
+
+  /** A gun's barrel direction in the world (false: no gun in that hand). */
+  muzzleDir(out: THREE.Vector3, hand: 'left' | 'right' = 'right'): boolean {
+    const gun = hand === 'left' ? this.offhand : this.gunInHand ? this.staff : null;
+    if (!gun) return false;
+    gun.root.getWorldDirection(out);
+    return true;
+  }
+
+  /**
+   * The second gun of a dual-wielded pair (null: none). It mounts in the left hand, and the arms
+   * switch to the akimbo layers while it is there.
+   */
+  async setOffhand(key: ModelKey | null): Promise<void> {
+    if (key === this.offhandKey) return;
+    const request = ++this.offhandRequest;
+    this.offhandKey = key;
+    this.offhand?.dispose();
+    this.offhand = null;
+    const socket = key ? this.model?.root.getObjectByName(OFFHAND_SOCKET) : undefined;
+    if (!key || !socket) return;
+    const next = await this.assets.instance(key);
+    if (request !== this.offhandRequest) {
+      next.dispose();
+      return;
+    }
+    this.offhand = next;
+    socket.add(next.root);
   }
 
   /** Struck from `from`: the body flashes and is knocked away from the blow. */
@@ -155,7 +244,11 @@ export class PlayerView {
     const request = ++this.staffRequest;
     this.staffKey = key;
     const root = this.model?.root;
-    const socket = root?.getObjectByName(WEAPON_SOCKET) ?? root?.getObjectByName(STAFF_SOCKET);
+    // A gun sits on the gun socket (barrel forward in the aim pose), a staff on the staff socket (the
+    // Wizard's grip, shaft upright); a body missing one takes the other.
+    const gun = key.startsWith('gun_');
+    const [first, second] = gun ? [WEAPON_SOCKET, STAFF_SOCKET] : [STAFF_SOCKET, WEAPON_SOCKET];
+    const socket = root?.getObjectByName(first) ?? root?.getObjectByName(second);
     if (!socket) {
       this.staff?.dispose();
       this.staff = null;
@@ -172,6 +265,7 @@ export class PlayerView {
     this.staff = next;
     socket.add(next.root);
     this.staffMounted = true;
+    this.gunInHand = gun;
   }
 
   /** The body's file arrived after a failed download: swap the stand-in and remount the staff. */
@@ -186,6 +280,10 @@ export class PlayerView {
     this.forgetGunBones();
     this.animator = new Animator(next.root, next.clips);
     if (this.staffKey) await this.setStaff(this.staffKey);
+    const offhand = this.offhandKey;
+    this.offhandKey = null;
+    this.offhand = null;
+    await this.setOffhand(offhand);
   }
 
   /** In the saddle the rider tilts with the bull. Call after the bull's view has updated this frame. */
@@ -203,6 +301,7 @@ export class PlayerView {
     this.leanInSaddle(e, dt);
     const anim = this.animator;
     if (!anim) return;
+    this.frameDt = dt;
     this.attackShown = false;
     if (e.combat?.action?.kind !== 'attack') this.poseMove = null;
     if (e.riding) {
@@ -212,23 +311,20 @@ export class PlayerView {
     }
     // Spells are upper body only (plan §4.4): the arms scrub the cast so the hand's peak lands on
     // the release tick, while the legs keep the locomotion layer (the player may walk slowly).
-    const a = e.combat?.action;
+    // With a gun in hand the guard button aims down the sights: the sim still runs its block, but
+    // the body shows the gun layers over free legs, not the staff's guard.
+    const sights = this.gunInHand && e.combat?.action?.kind === 'block' && anim.has('aim');
+    const a = sights ? undefined : e.combat?.action;
     if (a?.kind === 'cast') {
       // A channel holds the hands at the release pose for as long as it lasts.
       const pose = castPose(SPELLS[a.spell], a.channel ? Math.min(a.t, a.release) : a.t, a.release);
       this.castShown = anim.upper(pose.clip, pose.time, CAST_IN_FADE);
-      if (a.spell === 'gunfire') this.aimHold = AIM_HOLD;
-    } else if (!a && this.aimHold > 0) {
-      // Between trigger pulls a gun stays up on the aim pose, so a held MG doesn't bob.
-      this.aimHold -= dt;
-      this.castShown = false;
-      anim.upper('aim', 0, CAST_IN_FADE);
     } else {
-      this.aimHold = 0;
       this.castShown = false;
-      anim.upperOff(a ? ENTRY_FADE : CAST_OUT_FADE);
+      if (sights) this.aimHold = Math.max(this.aimHold, 0.1);
+      if (a || !this.gunLayer(anim, dt)) anim.upperOff(a ? ENTRY_FADE : CAST_OUT_FADE);
     }
-    if (!this.pose(e, anim)) {
+    if (sights || !this.pose(e, anim)) {
       const loco = e.loco;
       const speed = loco?.speed ?? 0;
       // Locked on (and not sprinting) the body faces the target: legs follow velocity vs facing.
@@ -239,9 +335,56 @@ export class PlayerView {
         const { x: vx, z: vz } = e.tf.vel;
         strafe = { x: -c * vx + s * vz, z: s * vx + c * vz };
       }
-      anim.locomotion({ grounded: loco?.grounded ?? true, speed, sprinting: loco?.sprinting ?? false, strafe });
+      this.moveBase(anim, dt, () => anim.locomotion({ grounded: loco?.grounded ?? true, speed, sprinting: loco?.sprinting ?? false, strafe }));
     }
     this.finishFrame(e, anim, dt);
+  }
+
+  /**
+   * A gun in hand and nothing else going on: the arms carry it (Sproto Shooter's layers, art/README.md).
+   * The trigger pull, a reload, the sights (held a moment after a shot, so a burst doesn't bob), or
+   * the ready hold. Returns false with a staff in hand, or on a body without the layers.
+   */
+  private gunLayer(anim: Animator, dt: number): boolean {
+    const input = this.input;
+    this.aimHold = Math.max(0, this.aimHold - dt);
+    if (this.shotT >= 0) this.shotT += dt;
+    if (this.shotT >= anim.duration('shoot')) this.shotT = -1;
+    if (input.reloadTicks <= 0) this.reloadFrom = 0;
+    else this.reloadFrom = Math.max(this.reloadFrom, input.reloadTicks);
+    if (input.reloadTicksLeft <= 0) this.reloadFromLeft = 0;
+    else this.reloadFromLeft = Math.max(this.reloadFromLeft, input.reloadTicksLeft);
+    if (!this.gunInHand) return false;
+    const reload = this.reloadFrom > 0 ? 1 - input.reloadTicks / this.reloadFrom : -1;
+    // A gun in each hand: one stance carries and fires them, and each hand shoots and reloads on its
+    // own (its own trigger, its own magazine), so one can reload while the other stays up.
+    if (this.offhand && anim.has('dual')) {
+      if (this.shotT >= 0) return anim.upper(this.shotHand === 'left' ? 'dual_shoot_l' : 'dual_shoot_r', this.shotT, CAST_IN_FADE);
+      const left = this.reloadFromLeft > 0 ? 1 - input.reloadTicksLeft / this.reloadFromLeft : -1;
+      const clip = reload >= 0 && left >= 0 ? 'dual_reload' : reload >= 0 ? 'dual_reload_r' : left >= 0 ? 'dual_reload_l' : null;
+      // Both at once: the pair moves together, at the pace of the one further behind.
+      if (clip && anim.has(clip)) return anim.upper(clip, (clip === 'dual_reload' ? Math.min(reload, left) : Math.max(reload, left)) * anim.duration(clip), GUN_FADE);
+      return anim.upper('dual', 0, GUN_FADE);
+    }
+    // A sidearm on its own is carried and fired in one hand; anything longer takes both.
+    const one = input.oneHanded && anim.has('hold_1h') ? '_1h' : '';
+    if (this.shotT >= 0) return anim.upper(`shoot${one}`, this.shotT, CAST_IN_FADE);
+    if (reload >= 0) return anim.upper(`reload${one}`, reload * anim.duration(`reload${one}`), GUN_FADE);
+    if (input.ads || this.aimHold > 0) return anim.upper(`aim${one}`, 0, GUN_FADE);
+    return anim.upper(`hold${one}`, 0, GUN_FADE);
+  }
+
+  /** The legs' state out of combat: the shooter's slide and dash while the sim runs them, else `locomotion`. */
+  private moveBase(anim: Animator, dt: number, locomotion: () => void): void {
+    const input = this.input;
+    if (input.sliding) {
+      this.slideT += dt;
+      if (anim.scrub('slide', this.slideT, SLIDE_FADE)) return;
+    } else {
+      this.slideT = 0;
+    }
+    if (input.dashing && anim.loop('dash', 1, DASH_FADE)) return;
+    locomotion();
   }
 
   /**
@@ -266,7 +409,14 @@ export class PlayerView {
   /** Advance the clips, then the flinch and the status glow on top of them. */
   private finishFrame(e: Readonly<Entity>, anim: Animator, dt: number): void {
     anim.update(dt);
-    this.squareGun();
+    const body = this.model?.root;
+    if (body) {
+      squareGun(body, anim.upperClip);
+      this.reachGrapple(body, dt);
+      // A hand that holds nothing hangs open; the left one closes on a long gun or its own sidearm.
+      this.leftOpen = THREE.MathUtils.damp(this.leftOpen, leftHandGrips(anim.upperClip) ? 0 : 1, FINGER_RATE, dt);
+      relaxHand(body, 'Left', this.leftOpen);
+    }
     this.reaction.update(dt);
     this.lean += (this.driveLean(e) - this.lean) * (1 - Math.exp(-DRIVE_LEAN_SHARPNESS * dt));
     this.reaction.apply(this.pivot, this.lean);
@@ -274,30 +424,16 @@ export class PlayerView {
     this.glow.update(dt);
   }
 
-  /**
-   * The Wizard's idle stands with its hips turned (about 25°), and a gun's aim and shot clips ride on
-   * whatever the legs do. While the gun is up, the spine turns about the body's up by however far the
-   * barrel is off the body's facing, so it points where the shots go (a run's hips already face ahead).
-   */
-  private squareGun(): void {
-    const name = this.animator?.upperClip;
-    if (name !== 'aim' && name !== 'shoot') return;
-    const body = this.model?.root;
-    const spine = this.gunSpine ??= body?.getObjectByName('mixamorigSpine') ?? null;
-    const socket = this.gunSocket ??= body?.getObjectByName(WEAPON_SOCKET) ?? null;
-    if (!body || !spine?.parent || !socket) return;
+  /** While the grapple hook is out, the left arm reaches for its anchor (the shooter's grapple arm). */
+  private reachGrapple(body: THREE.Object3D, dt: number): void {
+    const anchor = this.input.grapple;
+    if (anchor) this.grappleAt.set(anchor.x, anchor.y, anchor.z);
+    this.grappleWeight = THREE.MathUtils.damp(this.grappleWeight, anchor ? 1 : 0, GRAPPLE_RATE, dt);
+    if (this.grappleWeight < 0.01) return;
+    if (this.grappleArm === undefined) this.grappleArm = armBones(body, 'Left');
+    if (!this.grappleArm) return;
     body.updateWorldMatrix(true, true);
-    // The barrel (the socket's +Z) in the body's frame, flattened: its yaw off the body's +Z.
-    body.getWorldQuaternion(GUN_Q1);
-    socket.getWorldQuaternion(GUN_Q2).premultiply(GUN_Q4.copy(GUN_Q1).invert());
-    GUN_V.set(0, 0, 1).applyQuaternion(GUN_Q2);
-    const off = Math.atan2(GUN_V.x, GUN_V.z);
-    if (Math.abs(off) < 1e-3) return;
-    // Turn the spine by −off about the body's up, expressed in the spine's parent frame.
-    GUN_Q3.setFromAxisAngle(GUN_UP, -off).premultiply(GUN_Q1).multiply(GUN_Q4.copy(GUN_Q1).invert());
-    spine.parent.getWorldQuaternion(GUN_Q1);
-    spine.quaternion.premultiply(GUN_Q2.copy(GUN_Q1).invert().multiply(GUN_Q3).multiply(GUN_Q1));
-    spine.updateMatrixWorld(true);
+    reachArm(this.grappleArm, this.grappleAt, this.grappleWeight);
   }
 
   /** How far a sprint attack is leaning into its drive this frame. */
@@ -352,7 +488,7 @@ export class PlayerView {
         return;
       }
       default:
-        anim.upperOff(a ? ENTRY_FADE : CAST_OUT_FADE);
+        if (a || !this.gunLayer(anim, this.frameDt)) anim.upperOff(a ? ENTRY_FADE : CAST_OUT_FADE);
     }
   }
 
@@ -410,6 +546,8 @@ export class PlayerView {
     this.animator?.dispose();
     this.glow.dispose();
     this.staff?.dispose();
+    this.offhandRequest++;
+    this.offhand?.dispose();
     this.model?.dispose();
     this.root.removeFromParent();
   }

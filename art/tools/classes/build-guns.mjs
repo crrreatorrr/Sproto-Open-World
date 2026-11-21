@@ -27,15 +27,21 @@ const SRC = '../sproto-shooter/public/assets/models/guns';
 const OUT = 'public/assets/models/guns';
 const MAX_TRIS = 4000;
 const MAX_KIB = 90;
-/** From sproto-shooter src/render/assets.js GUN_MODELS and src/render/viewmodel/gunMesh.js. */
+/**
+ * `yaw`, `muzzleY` and `grip` are from sproto-shooter src/render/assets.js GUN_MODELS and
+ * src/render/viewmodel/gunMesh.js. `length` (m, butt to muzzle) is this game's: the shooter sizes
+ * its guns for a first-person view, and in a 1.8 m character's hands they read as toys, the sniper
+ * shorter than the MG. These are the lengths of the real things each one stands for (a carbine, a
+ * pump shotgun, a bolt-action rifle, a shoulder launcher, and three chunky sidearms).
+ */
 const GUNS = {
-  mg: { yaw: 90, muzzleY: 0.6, length: 0.96, grip: [0, -0.26, 0.23] },
-  shotgun: { yaw: -90, muzzleY: 0.85, length: 0.75 * 0.82, grip: [0, -0.29, 0.373] },
-  sniper: { yaw: 90, muzzleY: 0.68, length: 0.8 * 0.82, grip: [0, -0.27, 0.145] },
-  bazooka: { yaw: 0, muzzleY: 0.47, length: 0.9 * 0.82, grip: [0, -0.415, 0.208] },
-  raygun: { yaw: 90, muzzleY: 0.64, length: 0.62 * 0.82, grip: [0, -0.298, 0.31] },
-  bigbullets: { yaw: 90, muzzleY: 0.59, length: 0.78 * 0.82, grip: [0, -0.401, 0.405] },
-  duckgun: { yaw: 90, muzzleY: 0.62, length: 0.8 * 0.82, grip: [0, -0.4, 0.219] },
+  mg: { yaw: 90, muzzleY: 0.6, length: 0.9, grip: [0, -0.26, 0.23] },
+  shotgun: { yaw: -90, muzzleY: 0.85, length: 0.98, grip: [0, -0.29, 0.373] },
+  sniper: { yaw: 90, muzzleY: 0.68, length: 1.2, grip: [0, -0.27, 0.145] },
+  bazooka: { yaw: 0, muzzleY: 0.47, length: 1.25, grip: [0, -0.415, 0.208] },
+  raygun: { yaw: 90, muzzleY: 0.64, length: 0.58, grip: [0, -0.298, 0.31] },
+  bigbullets: { yaw: 90, muzzleY: 0.59, length: 0.72, grip: [0, -0.401, 0.405] },
+  duckgun: { yaw: 90, muzzleY: 0.62, length: 0.78, grip: [0, -0.4, 0.219] },
 };
 /**
  * Tried in order until a gun fits MAX_KIB: the first step keeps the most triangles and texture.

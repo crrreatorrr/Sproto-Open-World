@@ -31,6 +31,13 @@ export const BTN = {
   toggleView: 1 << 17,
   slide: 1 << 18,
   dash: 1 << 19,
+  /** Gun in hand: step the zoom (off, 1, then 2 on a gun with two levels, then off). */
+  aim: 1 << 20,
+  /** Gun in hand: swing it. The sim reads it as a light attack. */
+  melee: 1 << 21,
+  /** Dual wielding: reload one hand's gun (`reload` does both). The left gun's trigger is `aim`. */
+  reloadLeft: 1 << 22,
+  reloadRight: 1 << 23,
 } as const;
 export type ButtonName = keyof typeof BTN;
 

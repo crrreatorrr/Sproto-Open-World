@@ -309,8 +309,11 @@ describe('multi-zone hitboxes, ballistics, elements & reload (src/sim/combat/bal
     const start = startReload(rt, 'shotgun', ammo);
     expect(start.started).toBe(true);
 
+    // The shotgun loads by the shell: one per step, until the reserve is dry.
     let completed = false;
-    for (let i = 0; i < start.reloadTicks; i++) {
+    for (let i = 0; i < start.reloadTicks; i++) tickReload(rt, 'shotgun', ammo);
+    expect(rt.mag).toBe(1);
+    for (let i = 0; i < 600 && !completed; i++) {
       if (tickReload(rt, 'shotgun', ammo).completed) completed = true;
     }
     expect(completed).toBe(true);
@@ -336,7 +339,7 @@ describe('multi-zone hitboxes, ballistics, elements & reload (src/sim/combat/bal
 });
 
 describe('dual wield (src/sim/combat/dualWield.ts)', () => {
-  it('only permits handgun and machinepistol pairings (by GunType or item id)', () => {
+  it('only permits pairings of the dual-wield guns: handgun, machinepistol and raygun (by GunType or item id)', () => {
     expect(isDualWieldGun('handgun')).toBe(true);
     expect(isDualWieldGun('gun_machinepistol')).toBe(true);
     expect(canDualWield('handgun', 'machinepistol')).toBe(true);

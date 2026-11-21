@@ -95,7 +95,22 @@ export function migrate(raw: unknown): SaveFile {
     if (!step) throw new SaveError(`no migration from schema ${s.schema}`);
     s = step(s);
   }
-  return reconcile(validate(s));
+  return reconcile(validate(retireGunfire(s)));
+}
+
+/**
+ * Gunfire was a spell until guns got their own trigger; it is gone from the spell table, so a save
+ * that names it would not validate. The Soldier, who had it in the Arcane Bolt's place, gets the
+ * bolt back; anyone else just loses it.
+ */
+function retireGunfire(s: Raw): Raw {
+  const p = s.player;
+  if (!isTable(p) || !Array.isArray(p.spells) || !p.spells.includes('gunfire')) return s;
+  const to = p.class === 'soldier' && !p.spells.includes('bolt') ? 'bolt' : null;
+  const swap = (id: unknown): unknown => (id === 'gunfire' ? to : id);
+  const spells = [...new Set(p.spells.map(swap).filter((id) => id !== null))];
+  const loadout = Array.isArray(p.loadout) ? p.loadout.map(swap) : p.loadout;
+  return { ...s, player: { ...p, spells, loadout } };
 }
 
 const isTable = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);

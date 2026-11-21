@@ -10,7 +10,7 @@
  *    costs less than per-channel key times once meshopt has packed the quaternions.
  * 2. Channels that only ever hold their joint's default TRS are dropped (three.js blends an
  *    undriven joint back to its default, so the clip looks the same), except in the upper-body
- *    layers `aim` and `shoot`.
+ *    layers `aim`, `shoot` and `reload`.
  * 3. Defaults are stripped from the written JSON (LINEAR interpolation, zero byte offsets).
  * The Tripo mesh is welded and simplified (its UV atlas has so many seams that the soldier stops
  * near 10.4k triangles), textures go to WebP, then meshopt. prune keeps leaves: `socket_weapon` is
@@ -32,7 +32,8 @@ const BODIES = {
   pepe_player: { raw: 'art/source/classes/pepe_player_raw.glb', out: 'public/assets/models/characters/pepe_player.glb', tris: 10000, textures: { baseColorTexture: 1024, normalTexture: 256, metallicRoughnessTexture: 256 } },
   pepe_warrior: { raw: 'art/source/classes/pepe_warrior_raw.glb', out: 'public/assets/models/characters/pepe_warrior.glb', tris: 10000, textures: { baseColorTexture: 512, normalTexture: 256, metallicRoughnessTexture: 256 } },
 };
-const MAX_KIB = 470;
+/** 470 until the shooter's layers and moves went in (sixteen clips, about 40 KiB on the soldier). */
+const MAX_KIB = 510;
 const MAX_TRIS = 22000;
 const SAME = 2e-4;
 const QUALITY = 76;
@@ -89,7 +90,7 @@ function stripDefaults(glb) {
  * Upper-body clips the game layers over locomotion: every channel stays, even one that holds the
  * default, or the layer underneath would show through on that joint.
  */
-const LAYERS = new Set(['aim', 'shoot']);
+const LAYERS = new Set(['aim', 'hold', 'shoot', 'reload', 'aim_1h', 'hold_1h', 'shoot_1h', 'reload_1h', 'dual', 'dual_shoot_r', 'dual_shoot_l', 'dual_reload', 'dual_reload_r', 'dual_reload_l']);
 
 /** Remove channels whose every key equals the target node's default value. */
 function dropDefaultChannels(doc) {

@@ -144,6 +144,17 @@ describe('save migrations (M3 acceptance 2)', () => {
     expect(s.player.dungeonProgress).toEqual({});
   });
 
+it('a saved Gunfire becomes the Soldier\'s Arcane Bolt, and is dropped for anyone else', () => {
+    const v5 = fixture('save-v5.json');
+    const soldier = migrate(structuredClone(v5));
+    expect(soldier.player.class).toBe('soldier');
+    expect(soldier.player.spells).toEqual(['bolt', 'blast', 'frostNova']);
+    expect(soldier.player.loadout).toEqual(['frostNova', 'bolt', null, 'blast']);
+    const pepe = migrate({ ...structuredClone(v5), player: { ...(v5.player as object), class: 'pepe' } });
+    expect(pepe.player.spells).toEqual(['blast', 'frostNova']);
+    expect(pepe.player.loadout).toEqual(['frostNova', null, null, 'blast']);
+  });
+
   it('v5 → v6: preserves class, adds Gunslinger skills & weapon bar, and allows any owned weapon on any class', () => {
     const v5 = fixture('save-v5.json');
     const migrated = migrate(structuredClone(v5));

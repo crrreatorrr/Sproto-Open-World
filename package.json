@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
     "test:balance": "vitest run --config vitest.balance.config.ts",
-    "test:e2e": "node tests/e2e/smoke.mjs && node tests/e2e/camps.mjs && node tests/e2e/loading.mjs && node tests/e2e/mount.mjs && node tests/e2e/find-quest.mjs && node tests/e2e/rootdeep.mjs && node tests/e2e/unification.mjs",
+    "test:e2e": "node tests/e2e/smoke.mjs && node tests/e2e/camps.mjs && node tests/e2e/loading.mjs && node tests/e2e/mount.mjs && node tests/e2e/find-quest.mjs && node tests/e2e/rootdeep.mjs && node tests/e2e/unification.mjs && node tests/e2e/guns.mjs",
     "test:e2e:unification": "node tests/e2e/unification.mjs",
     "gen:moves": "vite-node tools/gen-player-moves.ts --",
     "bake:world": "vite-node tools/bake-world.ts --",
