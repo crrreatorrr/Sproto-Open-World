@@ -1,5 +1,6 @@
 import type { HitFx } from './fx/HitFx';
 import type { Renderer } from './Renderer';
+import { fogReach } from '../world/rings';
 
 export type QualityLevel = 'low' | 'medium' | 'high';
 
@@ -13,7 +14,8 @@ export const QUALITY: Record<QualityLevel, { pixelRatio: number; shadows: boolea
 /** Apply a graphics quality now: every part of it can change while the game runs. */
 export function applyQuality(r: Renderer, fx: HitFx, level: QualityLevel): void {
   const q = QUALITY[level];
-  r.renderer.setPixelRatio(Math.min(window.devicePixelRatio, q.pixelRatio));
+  r.setPixelCap(q.pixelRatio);
+  r.setFogReach(fogReach(level));
   const sun = r.sun;
   r.setShadows(q.shadows);
   if (sun.shadow.mapSize.x !== q.shadowMap) {

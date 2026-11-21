@@ -39,11 +39,25 @@ export class WorldSession {
   constructor(private readonly renderer: Renderer, private readonly assets: AssetLoader, readonly uploads: UploadBudget, private grassOn = true) {}
 
   private quality: ViewQuality = 'high';
+  private playing = false;
 
   /** The graphics quality: how many rings of the world are shown, and how far each prop is drawn. */
   setQuality(quality: ViewQuality): void {
     this.quality = quality;
-    this.streamer?.setView(viewRings(quality), viewScale(quality));
+    this.applyView();
+  }
+
+  /**
+   * Behind the title only the nearest two rings stream (the title has a download budget, and Play
+   * needs just the ground under the player). In play the view opens to what the quality allows.
+   */
+  setPlaying(on: boolean): void {
+    this.playing = on;
+    this.applyView();
+  }
+
+  private applyView(): void {
+    this.streamer?.setView(this.playing ? viewRings(this.quality) : viewRings('low'), viewScale(this.quality));
   }
 
   /** The Grass setting. */
@@ -96,7 +110,7 @@ export class WorldSession {
       },
     });
     this.streamer = streamer;
-    streamer.setView(viewRings(this.quality), viewScale(this.quality));
+    this.applyView();
     this.renderer.scene.add(streamer.root);
     // Warm the terrain program before the first cell lands (it would compile on its first draw).
     const probe = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), streamer.terrainMaterial);

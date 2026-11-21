@@ -59,6 +59,11 @@ export class Renderer {
   watchFirstDraw = false;
   private readonly kept = new WeakSet<object>();
   private keptCount = 0;
+  /** The surface fog's near and far, as shares of the region's own (the graphics quality; world/rings.ts `fogReach`). */
+  private fogReach: readonly [number, number] = [1, 1];
+  /** The most device pixels per CSS pixel the graphics quality allows, and the share of it drawn now. */
+  private pixelCap = 2;
+  private resolution = 1;
   private yardSky: THREE.Texture | null = null;
   private daySky: THREE.Texture | null = null;
 
@@ -123,6 +128,31 @@ export class Renderer {
     if (!this.cave) this.applyComposed();
   }
 
+  /** The graphics quality's fog reach on the surface. The cave keeps its own fog. */
+  setFogReach(reach: readonly [number, number]): void {
+    if (reach[0] === this.fogReach[0] && reach[1] === this.fogReach[1]) return;
+    this.fogReach = reach;
+    if (this.daylight || this.cave) this.applyComposed();
+  }
+
+  /** The graphics quality's pixel ratio ceiling. */
+  setPixelCap(cap: number): void {
+    this.pixelCap = cap;
+    this.applyPixels();
+  }
+
+  /** Draw at this share of the quality's resolution (render/resolutionGovernor.ts). */
+  setResolution(scale: number): void {
+    if (scale === this.resolution) return;
+    this.resolution = scale;
+    this.applyPixels();
+  }
+
+  private applyPixels(): void {
+    const ratio = Math.min(window.devicePixelRatio, this.pixelCap) * this.resolution;
+    if (Math.abs(this.renderer.getPixelRatio() - ratio) > 1e-3) this.renderer.setPixelRatio(ratio);
+  }
+
   /** The player is in the Rootdeep. No-op when the boolean has not changed. */
   setCave(on: boolean): void {
     if (on === this.cave) return;
@@ -155,9 +185,10 @@ export class Renderer {
 
   /** Sun, hemisphere, fog and torch from the storm, the cave and the quality, together. */
   private applyComposed(): void {
+    const fog = this.surfaceFog;
     const light = worldLight(
       { storm: this.storm, cave: this.cave, shadows: this.shadowsWanted },
-      this.surfaceFog,
+      { near: fog.near * this.fogReach[0], far: fog.far * this.fogReach[1], farPlane: fog.farPlane },
     );
     if (light.background === 'cave') this.scene.background = this.caveSky;
     else {

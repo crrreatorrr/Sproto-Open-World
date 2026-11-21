@@ -27,6 +27,8 @@ describe('a draw distance for each prop kind, by its size (San Andreas: one per 
       const x = r(size);
       expect(x.hd).toBeLessThan(x.far);
       expect(x.band).toBeGreaterThan(0);
+      expect(x.edge).toBeGreaterThan(0);
+      expect(x.far - x.edge).toBeGreaterThan(x.hd);
       expect(x.hd - x.band).toBeGreaterThan(0);
     }
   });
@@ -55,7 +57,7 @@ describe('a draw distance for each prop kind, by its size (San Andreas: one per 
 });
 
 describe('which level of detail a cell feeds, from its distance to the camera', () => {
-  const r = { hd: 80, far: 240, band: 20, casts: true };
+  const r = { hd: 80, far: 240, band: 20, edge: 20, casts: true };
 
   it('a cell close by feeds the detailed model only', () => {
     expect(propTiers(0, 50, r)).toEqual({ near: true, hd: true, far: false });

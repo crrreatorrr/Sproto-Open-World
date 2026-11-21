@@ -63,6 +63,8 @@ interface Cell {
   failed: boolean;
   heights: Float32Array | null;
   chunk: TerrainChunk | null;
+  /** When this cell's ground first showed (host clock, ms): it dithers in from then. */
+  shownAt: number;
   /** Terrain resolution this cell should show (world/rings.ts `terrainRes`). */
   res: 64 | 32 | 16;
   /** Resolution being built in the worker (0: none). */
@@ -82,6 +84,8 @@ const CACHE_CELLS = 260;
 const MAX_BUILDS = 4;
 /** Prefetch only while the shared queue is this short, so it never delays a needed cell. */
 const PREFETCH_QUEUE_LIMIT = 6;
+/** A cell's ground takes this long to dither in over the horizon (ms). */
+export const CELL_FADE_MS = 400;
 
 export interface StreamerCounters {
   /** Cells with terrain showing, and by level. */
@@ -132,9 +136,9 @@ export class CellStreamer {
     const m = region.manifest;
     this.root.name = 'world';
     this.terrain.name = 'terrain';
-    this.material = terrainMaterial(host.grass, host.rock, m.splatLayers);
-    this.props = new PropInstancer(m.props, host.props);
     this.horizon = new Horizon(m);
+    this.material = terrainMaterial(host.grass, host.rock, m.splatLayers, this.horizon.uniforms);
+    this.props = new PropInstancer(m.props, host.props);
     this.root.add(this.terrain, this.props.root, this.horizon.root);
   }
 
@@ -203,9 +207,16 @@ export class CellStreamer {
     }
 
     if (this.maskDirty) {
+      // While any cell is still fading in, the mask is written again next frame.
       this.maskDirty = false;
-      const shown: [number, number][] = [];
-      for (const c of this.cells.values()) if (c.chunk) shown.push([c.cx, c.cz]);
+      const now = this.host.props.now();
+      const shown: [number, number, number][] = [];
+      for (const c of this.cells.values()) {
+        if (!c.chunk) continue;
+        const fade = Math.min(1, (now - c.shownAt) / CELL_FADE_MS);
+        if (fade < 1) this.maskDirty = true;
+        shown.push([c.cx, c.cz, fade]);
+      }
       this.horizon.setLoaded(shown);
     }
     this.count();
@@ -215,7 +226,7 @@ export class CellStreamer {
     const key = cellKey(cx, cz);
     return {
       cx, cz, key, entry: this.region.entry(cx, cz)!, level, priority: 'later', anchored: false, data: null, fetching: false, failed: false,
-      heights: null, chunk: null, res: level === 'active' ? 64 : 32, building: 0, colliders: false, props: false, gen: 0,
+      heights: null, chunk: null, shownAt: 0, res: level === 'active' ? 64 : 32, building: 0, colliders: false, props: false, gen: 0,
     };
   }
 
@@ -344,6 +355,8 @@ export class CellStreamer {
           c.building = 0;
           if (c.gen !== gen) return;
           const chunk = new TerrainChunk(c.cx, c.cz, r.mesh, this.material);
+          // A first mesh fades in; a finer or coarser one for the same cell just takes its place.
+          if (!c.chunk) c.shownAt = this.host.props.now();
           c.chunk?.dispose();
           c.chunk = chunk;
           this.terrain.add(chunk.mesh);

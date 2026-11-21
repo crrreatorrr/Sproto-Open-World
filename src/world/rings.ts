@@ -42,6 +42,15 @@ export function viewScale(quality: ViewQuality): number {
   return quality === 'low' ? 0.8 : quality === 'medium' ? 1 : 1.2;
 }
 
+/**
+ * How far the fog lets you see, as a share of the region's own fog distances (near, far). The fog
+ * closes in on lower qualities so the bare far ground, past where trees and buildings are drawn,
+ * sits deeper in the haze (San Andreas tuned its fog and far clip like lighting; SA14).
+ */
+export function fogReach(quality: ViewQuality): readonly [number, number] {
+  return quality === 'low' ? [0.65, 0.5] : quality === 'medium' ? [0.85, 0.75] : [1, 1];
+}
+
 /** The camera trails the player by up to this far (m): the loaded square is centred on the player's cell. */
 const CAMERA_TRAIL_M = 8;
 
@@ -285,8 +294,13 @@ export interface PropRange {
   hd: number;
   /** ...the simple one from there out to here. */
   far: number;
-  /** Width of the fade at each of those two distances (m). */
+  /**
+   * Width of the swap between the two models, ending at `hd` (m). Kept short: mid-swap a prop is
+   * drawn half by each model, pixel by pixel, which shows as a stipple on a low-resolution screen.
+   */
   band: number;
+  /** Width of the fade to nothing, ending at `far` (m). */
+  edge: number;
   /** Whether the prop casts a sun shadow when close. */
   casts: boolean;
 }
@@ -330,7 +344,7 @@ function detailClass(kind: PropSized): PropClass {
 export function propRanges(kind: PropSized, scale: number, coverage: number): PropRange {
   const far = Math.max(1, Math.min(CLASS_RANGE[propClass(kind)][1] * scale, coverage));
   const hd = Math.min(CLASS_RANGE[detailClass(kind)][0] * scale, far * 0.6);
-  return { hd, far, band: Math.min(20, hd * 0.3), casts: kind.size ? kind.size[1] >= CAST_MIN_HEIGHT_M : true };
+  return { hd, far, band: Math.min(10, hd * 0.2), edge: Math.min(20, far * 0.25), casts: kind.size ? kind.size[1] >= CAST_MIN_HEIGHT_M : true };
 }
 
 /** Props within this distance of the camera are in the shadow-casting set (the shadow box is ±35 m). */

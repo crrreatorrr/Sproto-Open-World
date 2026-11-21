@@ -38,6 +38,7 @@ import { HitFx, type SparkStyle } from '../render/fx/HitFx';
 import { isSoftPowerHit, powerSpark } from '../render/fx/powers';
 import { PortraitStudio } from '../render/PortraitStudio';
 import { Renderer } from '../render/Renderer';
+import { ResolutionGovernor } from '../render/resolutionGovernor';
 import { warmModel } from '../render/warm';
 import { UploadBudget } from '../world/UploadBudget';
 import { getDungeon, getDungeonById } from '../content/dungeons/catalog';
@@ -137,6 +138,7 @@ export class App {
   readonly renderer: Renderer;
   /** GPU uploads spread over frames: world cells, prop models and every character model share it. */
   readonly uploads = new UploadBudget();
+  private readonly resolution = new ResolutionGovernor();
   /** The dialogue panel's render-to-texture speaker portraits. */
   readonly portraits: PortraitStudio;
   readonly rig: CameraRig;
@@ -640,6 +642,7 @@ export class App {
       this.rpgHud.clearFeed();
       this.state = 'playing';
       this.stream?.loadFarHorizons();
+      this.stream?.setPlaying(true);
       if (this.groundWait) this.showGroundVeil(entity.tf.pos.x, entity.tf.pos.z);
       else this.panels.hideVeil();
       this.hud.visible = !this.groundWait;
@@ -709,6 +712,7 @@ export class App {
     this.endCardPending = false;
     this.rig.distanceScale = 1;
     this.stream?.detach();
+    this.stream?.setPlaying(false);
     this.groundWait = false;
     this.pendingDrop = null;
     this.panels.hideVeil();
@@ -769,6 +773,8 @@ export class App {
     const frameStart = performance.now();
     const pad = this.input.pad;
     pad.update();
+    // A machine that can't hold the frame rate at full resolution draws at a lower one (and back).
+    if (this.state === 'playing') this.renderer.setResolution(this.resolution.sample(dt * 1000));
     // This frame's share of queued GPU uploads, before anything draws.
     this.uploads.run();
     if (this.feedbackHold) {

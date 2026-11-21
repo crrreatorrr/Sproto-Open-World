@@ -7,9 +7,10 @@ export const HORIZON_DROP = 0.5;
 /**
  * The always-resident low-detail region mesh (plan §3.2): `horizon.glb` (an 8 m grid plus landmark
  * impostors) drawn 0.5 m low and masked out under every cell whose real terrain is showing. The
- * mask is a one-texel-per-cell texture over the region (R = 255 under a loaded cell); fragments
- * that land on a masked texel are discarded, so the horizon never pokes through real terrain and
- * still fills the gap while a cell is loading.
+ * mask is a one-texel-per-cell texture over the region (R = 255 under a loaded cell, less while the
+ * cell's ground is fading in); fragments that land on a masked texel are discarded, so the horizon
+ * never pokes through real terrain and still fills the gap while a cell is loading. While a cell
+ * fades in, each pixel is drawn by the horizon or by the cell's ground, never both and never neither.
  */
 export class Horizon {
   readonly root = new THREE.Group();
@@ -18,7 +19,8 @@ export class Horizon {
   private readonly w: number;
   private readonly h: number;
   private readonly materials: THREE.Material[] = [];
-  private readonly uniforms = {
+  /** The mask and where it lies, for the terrain material: a cell's ground dithers in as its horizon dithers out. */
+  readonly uniforms = {
     horizonMask: { value: null as THREE.Texture | null },
     maskOrigin: { value: new THREE.Vector2() },
     maskSize: { value: new THREE.Vector2() },
@@ -55,13 +57,16 @@ export class Horizon {
     this.loaded = true;
   }
 
-  /** Set the mask from the cells whose terrain mesh is showing. */
-  setLoaded(cells: Iterable<readonly [number, number]>): void {
+  /**
+   * Set the mask from the cells whose terrain mesh is showing, each with how far its fade-in has
+   * run (0 to 1). The horizon keeps the pixels the cell's own ground hasn't taken yet.
+   */
+  setLoaded(cells: Iterable<readonly [number, number, number?]>): void {
     const next = new Uint8Array(this.bits.length);
     const [ox, oz] = this.manifest.origin;
-    for (const [cx, cz] of cells) {
+    for (const [cx, cz, fade] of cells) {
       const i = cx - ox, j = cz - oz;
-      if (i >= 0 && j >= 0 && i < this.w && j < this.h) next[j * this.w + i] = 255;
+      if (i >= 0 && j >= 0 && i < this.w && j < this.h) next[j * this.w + i] = Math.round(Math.min(1, Math.max(0, fade ?? 1)) * 255);
     }
     let same = true;
     for (let k = 0; k < next.length && same; k++) same = next[k] === this.bits[k];
@@ -84,10 +89,14 @@ export class Horizon {
           '#include <clipping_planes_fragment>',
           `#include <clipping_planes_fragment>
   vec2 hc = (vHorizonXZ - maskOrigin) / maskSize;
-  if (hc.x >= 0.0 && hc.y >= 0.0 && hc.x < 1.0 && hc.y < 1.0 && texture2D(horizonMask, hc).r > 0.5) discard;`,
+  if (hc.x >= 0.0 && hc.y >= 0.0 && hc.x < 1.0 && hc.y < 1.0) {
+    // The same per-pixel threshold the cell's ground uses (TerrainChunk.ts), the other way round.
+    float horizonNoise = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+    if (texture2D(horizonMask, hc).r > horizonNoise) discard;
+  }`,
         );
     };
-    m.customProgramCacheKey = () => 'horizon-mask-v1';
+    m.customProgramCacheKey = () => 'horizon-mask-v2';
     m.needsUpdate = true;
   }
 

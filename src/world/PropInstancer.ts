@@ -313,8 +313,8 @@ export class PropInstancer {
   private setFade(fade: THREE.Vector4, state: KindState, tier: Tier): void {
     const r = state.range;
     if (tier !== 'far') fade.set(-2, -1, r.hd - r.band, r.hd);
-    else if (this.standIn(state)) fade.set(-2, -1, r.far - r.band, r.far);
-    else fade.set(r.hd - r.band, r.hd, r.far - r.band, r.far);
+    else if (this.standIn(state)) fade.set(-2, -1, r.far - r.edge, r.far);
+    else fade.set(r.hd - r.band, r.hd, r.far - r.edge, r.far);
   }
 
   private want(ck: CellKind, state: KindState, hd: boolean, far: boolean, priority: Priority): void {
