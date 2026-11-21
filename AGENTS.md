@@ -49,6 +49,11 @@ off until the exhaustive world pass: `tests/world`, `tests/content/world-*` and
 (the Sproutvale laps and heap check) is out of `test:e2e` and CI. Run them by hand before a
 world-streaming PR.
 
+`npm run test:e2e:camera` runs the player about Sproutvale with a staff and with a gun and fails on
+any frame where the camera pops (feedback WORLD-0005). It measures frame to frame, so it needs even
+frame times: run it by hand with `CAMERA_GPU=1` before a camera PR. It is not in `test:e2e` or CI.
+`tests/camera/smoothness.test.ts` covers the same in `npm test`, at 60, 120 and 240 Hz.
+
 ## Working with other agents
 
 Claude Code, Codex, Cursor and Grok Bot all work on this repo.
