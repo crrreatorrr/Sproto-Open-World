@@ -125,6 +125,10 @@ export class CellStreamer {
   private readonly fetches = new Map<string, Fetch>();
   private sink: CellSink | null = null;
   private maskDirty = true;
+  /** What the last plan was made from, the cells it wants (in request order), and whether to plan again. */
+  private planKey = '';
+  private planUnsettled = true;
+  private readonly wanted: Cell[] = [];
   /** Rings of cells shown around the player (world/rings.ts `viewRings`). */
   private shownRings = 2;
   readonly counters: StreamerCounters = {
@@ -174,27 +178,43 @@ export class CellStreamer {
     const cs = this.region.cellSize;
     const players: CellXZ[] = [cellOf(focus.x, focus.z)];
     const anchors = view ? view.cellAnchors() : [];
-    const current = new Map<string, CellLevel>();
-    for (const c of this.cells.values()) current.set(c.key, c.level);
-    const plan = planRings({ players, anchors, current, inRegion: this.region.has, rings: this.shownRings, view: look });
-
-    for (const k of plan.unload) this.unload(this.cells.get(k)!);
-    for (const w of plan.want) {
-      let c = this.cells.get(w.key);
-      if (!c) {
-        c = this.makeCell(w.cx, w.cz, w.level);
-        this.cells.set(w.key, c);
+    // The plan only changes when the player crosses into another cell, an anchor moves, the camera
+    // turns to another eighth of the compass or the view setting changes: until then last frame's
+    // stands, and the cells it wants are only moved along.
+    let planKey = `${players[0][0]},${players[0][1]}|${this.shownRings}`;
+    for (const a of anchors) planKey += `|${a[0]},${a[1]}`;
+    if (look) planKey += `|${Math.floor(look.x / cs)},${Math.floor(look.z / cs)},${Math.round(Math.atan2(look.dz, look.dx) / (Math.PI / 4))}`;
+    if (planKey !== this.planKey || this.planUnsettled) {
+      const current = new Map<string, CellLevel>();
+      for (const c of this.cells.values()) current.set(c.key, c.level);
+      const plan = planRings({ players, anchors, current, inRegion: this.region.has, rings: this.shownRings, view: look });
+      // A plan that changed a cell's level may read differently next frame (the hysteresis ring
+      // goes by what is loaded): plan once more, then it has settled.
+      let changed = plan.unload.length > 0;
+      for (const k of plan.unload) this.unload(this.cells.get(k)!);
+      this.wanted.length = 0;
+      for (const w of plan.want) {
+        let c = this.cells.get(w.key);
+        if (!c) {
+          c = this.makeCell(w.cx, w.cz, w.level);
+          this.cells.set(w.key, c);
+          changed = true;
+        }
+        if (c.level !== w.level) changed = true;
+        c.level = w.level;
+        c.res = w.res;
+        c.anchored = w.anchored;
+        if (c.priority !== w.priority) {
+          c.priority = w.priority;
+          if (w.priority === 'now') this.promote(c.key);
+        }
+        this.wanted.push(c);
       }
-      c.level = w.level;
-      c.res = w.res;
-      c.anchored = w.anchored;
-      if (c.priority !== w.priority) {
-        c.priority = w.priority;
-        if (w.priority === 'now') this.promote(c.key);
-      }
+      this.planKey = planKey;
+      this.planUnsettled = changed;
     }
 
-    for (const w of plan.want) this.pump(this.cells.get(w.key)!);
+    for (const c of this.wanted) this.pump(c);
 
     // Prefetch along the velocity, further at speed: raw data only, into the cache.
     if (this.host.queue.queued < PREFETCH_QUEUE_LIMIT) {
@@ -441,6 +461,7 @@ export class CellStreamer {
   }
 
   dispose(): void {
+    this.wanted.length = 0;
     for (const c of [...this.cells.values()]) this.unload(c);
     for (const f of this.fetches.values()) {
       f.cancelled = true;

@@ -913,7 +913,11 @@ export class App {
 
     const p = sim.playerEntity(LOCAL_PLAYER);
     if (!p) return;
-    if (this.mode === 'world') this.renderer.setCave(isRootdeep(p.tf.pos.x));
+    if (this.mode === 'world') {
+      const cave = isRootdeep(p.tf.pos.x);
+      this.renderer.setCave(cave);
+      this.stream?.setCave(cave);
+    }
     this.autosave(simView, p, dt, held);
     this.syncEquipment(p);
     view.saddleLift = p.riding ? this.world.saddleLift(p.riding.mount) : 0;

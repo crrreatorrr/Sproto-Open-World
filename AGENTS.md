@@ -47,7 +47,7 @@ with a GPU, `SMOKE_STRICT_LONGTASKS=1 npm run test:e2e` opens a visible window a
 off until the exhaustive world pass: `tests/world`, `tests/content/world-*` and
 `tests/sim/riding-streaming.test.ts` are excluded in `vitest.config.ts`, and `tests/e2e/world.mjs`
 (the Sproutvale laps and heap check) is out of `test:e2e` and CI. Run them by hand before a
-world-streaming PR.
+world-streaming PR: `npm run test:world` runs the unit suites.
 
 ## Working with other agents
 

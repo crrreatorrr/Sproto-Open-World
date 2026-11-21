@@ -40,6 +40,7 @@ export class WorldSession {
 
   private quality: ViewQuality = 'high';
   private playing = false;
+  private cave = false;
 
   /** The graphics quality: how many rings of the world are shown, and how far each prop is drawn. */
   setQuality(quality: ViewQuality): void {
@@ -56,8 +57,16 @@ export class WorldSession {
     this.applyView();
   }
 
+  /** In the Rootdeep the cave's own fog ends at 180 m: more rings would load cave nobody can see. */
+  setCave(on: boolean): void {
+    if (on === this.cave) return;
+    this.cave = on;
+    this.applyView();
+  }
+
   private applyView(): void {
-    this.streamer?.setView(this.playing ? viewRings(this.quality) : viewRings('low'), viewScale(this.quality));
+    const wide = this.playing && !this.cave;
+    this.streamer?.setView(wide ? viewRings(this.quality) : viewRings('low'), viewScale(this.quality));
   }
 
   /** The Grass setting. */

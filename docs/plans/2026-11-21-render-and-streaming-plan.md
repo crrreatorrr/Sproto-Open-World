@@ -1,6 +1,8 @@
 # Sproto Open World: Smooth Rendering, No Pop-in, Longer View
 
-**Status:** plan only, no code. 2026-11-21. Not yet reviewed by a second agent.
+**Status:** R0, R1, R2 and the parts of R4, R5 and R6 that need no new models are built on
+`claude/smooth-rendering` (§10). R3 (the low-detail models and the 256 m blocks) is left for a later
+stage, by the owner's call on 2026-11-21.
 
 **The owner's request:** there are loading glitches, the screen sometimes shakes when moving, and
 the view should reach further. Fix all three while keeping the game light, using the way GTA San
@@ -267,3 +269,79 @@ R0 alone should answer the shake; R1 the freezes; R2 to R4 the pop-in and the di
 - GTA modding wiki: https://gtamods.com/wiki/Item_Definition, https://gtamods.com/wiki/INST,
   https://gtamods.com/wiki/Map_system
 - This repo: the files named above, and the two earlier plans in `docs/plans/`.
+
+---
+
+## 10. What is built (2026-11-21)
+
+The owner's call: build everything except the models. So the far tier of §4.1 (LOD2 shapes merged
+into 256 m blocks) is not built. The longer view in this stage comes from the models that exist:
+more rings of cells, with coarse ground and each prop's simple model (LOD1), paid for by view
+culling, per-kind distances and a smaller shadow set.
+
+**Measured after** (same machine and laps as §1, High quality unless noted):
+
+| | Before | After |
+|---|---|---|
+| Trees and buildings visible out to | about 130–180 m | 312 m on High, 184 m on Medium, 120 m on Low |
+| New ground appearing | at 128–181 m, in clear air, instantly | at 320 m or more, past every prop's reach, dithered in over 0.4 s |
+| Props appearing or swapping | whole cells at once, up to 393 in a frame | each prop by its own distance, dithered |
+| Triangles a frame in Bellmere | 1.2–2.24 million | 0.49–1.27 million (Low: 0.36–0.67 million) |
+| Shadow pass triangles in Bellmere | 345–805 thousand | 101–198 thousand |
+| Draw calls | 148–228 | 100–228 |
+| Frames over 34 ms on the walks | 250 ms and 110 ms seen | none on the High laps |
+| Camera's vertical jitter (p95) | 1.76 mm a frame² | 0.33 mm a frame² |
+| Shader compiles inside a draw | every enemy kind, again each time the last one left view | 2–4 small ones, once a session |
+
+Two goals of the table at the top are missed. Bellmere's densest views are at 1.1–1.27 million
+triangles, not 1.0 million; getting under needs the LOD2 models (a house's simple model is still
+about 1,100 triangles). And the view reaches 312 m, not 1,000 m, for the same reason.
+
+**Corrections to §1.** M7 said the camera rose slowly and dropped at once. The real cause was one
+step further: the rule that lifts the camera until the crosshair clears the player's head set the
+height from the feet every frame, so the camera was pinned to the feet rigidly and no easing ever
+applied. The measure that shows it is the camera's own vertical jitter, not its offset from the
+player.
+
+**What each part does**
+
+- **R0** `CameraRig.ts`: the pivot eases both ways, and the rise over the player's head is added to
+  the eased height instead of replacing it. `Renderer.follow` moves the shadow box in whole shadow
+  texels (`render/shadowSnap.ts`).
+- **R1** `AssetLoader` warms every model before any view gets a copy (`render/warm.ts`): textures
+  through the per-frame upload budget, programs compiled off the draw, including the burn-away
+  variant bodies are drawn with. The renderer keeps compiled programs for the session. The upload
+  budget belongs to the app, runs every frame in every mode, and caps bytes. The overlay and
+  `__qa.state().firstDraw` count work that still happens inside a draw.
+- **R2 and R4, props** `PropInstancer.ts`, `propFade.ts`, `rings.ts`: a draw distance per kind from
+  the model's size (the bake writes `size` into each region's prop table); each prop dithers between
+  its two models and at the far edge by its own distance, with complementary thresholds so a swap
+  leaves no holes; only cells in view are in the buffers; only tall props within 46 m cast shadows.
+- **R4, ground** `Horizon.ts`, `TerrainChunk.ts`: a cell's ground dithers in over the horizon mesh.
+- **R5** `rings.ts`, `CellStreamer.ts`: what the camera faces is asked for first; fetch-ahead grows
+  with speed; models are asked for 50 m before they are drawn; from 50 m above the ground only the
+  simple models are drawn.
+- **R6** `rings.ts`, `quality.ts`, `resolutionGovernor.ts`: rings of cells (2, 3 or 5), prop distance
+  scale and fog reach follow the graphics quality. Behind the title only 2 rings stream. The render
+  resolution steps down when frames run long and back up when there is headroom.
+
+**Not built, and why**
+
+| | Why |
+|---|---|
+| R3: LOD2 models, 256 m blocks, horizon tree masses | Left for the model stage (the owner) |
+| R4: block tier at run time and the tier mask | Needs R3's files |
+| R2: triangle caps in `check:assets` | They would fail on today's models; they belong with R3 |
+| R2: shadows cast with LOD1 shapes | A shadow-only draw costs a second set of draw calls. The small `near` set did the job instead |
+| R5: one file per cell, hashed names, `vercel.json` | Twelve tests and tools read the two-file cells, and every cell file would be renamed. Vercel already revalidates unchanged files without a body, so the gain is the request count only |
+| R5: GPU memory budget with eviction | Prop models are already dropped 10 s after their last cell; nothing measured needed more |
+| Terrain resolution swaps (16, 32, 64) | Still instant. Only the first appearance fades |
+
+**Still open**
+
+- Not checked at 120 Hz, at a gallop, or flying.
+- Changing the graphics quality in play, and entering the Rootdeep, recompile every shader in one
+  frame (50–170 ms seen on a quality change), because turning the sun's shadow on or off changes
+  every lit program. This was there before; it is now visible in the first-draw counter.
+- `tests/e2e/world.mjs` (out of `test:e2e`) still holds the old budgets and Sproutvale-only lap.
+
