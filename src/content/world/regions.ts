@@ -17,7 +17,7 @@
  *          |Sproutvale| Bellmere (16x8)      |
  *   z    0 +---------+-----------------------+
  */
-import { CELL_SIZE } from './format';
+import { CELL_SIZE, type WorldBounds } from './format';
 
 export type RegionId = 'sproutvale' | 'town' | 'zen' | 'river' | 'mountains' | 'waterfalls' | 'rootdeep';
 
@@ -61,7 +61,7 @@ export function regionAt(x: number, z: number): RegionDef {
 export const regionById = (id: RegionId): RegionDef => REGIONS.find((r) => r.id === id)!;
 
 /** The overworld's bounding box in metres. */
-export function overworldBounds(): { minX: number; minZ: number; maxX: number; maxZ: number } {
+export function overworldBounds(): WorldBounds {
   let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
   for (const r of REGIONS) {
     if (!r.overworld) continue;

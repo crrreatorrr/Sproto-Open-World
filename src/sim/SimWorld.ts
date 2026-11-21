@@ -56,6 +56,7 @@ import { relicSlowTick } from './systems/relics';
 import { mountCalls, MOUNT_RUNNER } from './systems/mountCall';
 import { cancelMount, followRiders, ridingMotion } from './systems/riding';
 import { vitals } from './systems/vitals';
+import { edgeWardens } from './systems/edgeWarden';
 import { godVitals } from './systems/god';
 import { SHRINE_ARRIVE_OFFSET, wieldsPhone } from './systems/travel';
 import type { ReadonlySimView } from './view';
@@ -894,6 +895,11 @@ export class SimWorld {
     mountCalls(this.entities, commands, this.physics, this.events, (id) => this.byId.get(id), (x, z) => this.cellReady(...cellOf(x, z)));
     this.physics.step();
     followRiders(this.entities, (id) => this.byId.get(id));
+    edgeWardens(ctx, this.level.edge, this.rng.stream('warden'), {
+      spawn: (e) => this.spawnSpellProjectile(e),
+      remove: (id) => this.remove(id),
+      busy: !!this.dungeon || !!this.wave || this.entities.some((b) => b.boss?.flight && (b.boss.state === 'intro' || b.boss.state === 'fight')),
+    });
     resolveAttacks(ctx, this.physics);
     this.gunRuntimeTick(ctx, rawCommands);
     for (const id of stepProjectiles(ctx, this.physics)) this.remove(id);

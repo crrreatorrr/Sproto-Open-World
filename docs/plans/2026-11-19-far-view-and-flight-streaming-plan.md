@@ -260,7 +260,22 @@ as they are: no new import and no new download for anyone who has met the Drake.
 reading as the boss, the view draws it **3 × the Drake's size** (`fitHeight` 15 m instead of 5) with a
 darker tint and glowing eyes and mouth. "Edge Warden" is a working name.
 
-**Bands**, measured inward from the nearest edge stretch (§3.1.1), on foot or on the mount:
+**Built 2026-11-21** (`src/sim/systems/edgeWarden.ts`, tuning in `src/content/packs/edge.ts`, view
+`src/render/views/EdgeWardenView.ts`, tests `tests/sim/edge-warden.test.ts` and
+`tests/e2e/edge-warden.mjs`). What differs from the design below:
+
+- **Tighter bands: it appears at 32 m, fires inside 20 m, leaves past 48 m.** The table's 96, 64 and
+  128 m assumed nothing is built near an edge, but Sproutvale's village and first shrine are about
+  62 m from the south edge and a camp is 36 m from the west one. To still meet a flier early, the
+  distance counts where the player's speed takes them in the next 2 s: a bull flying out at 45 m/s
+  meets the Warden about 120 m from the edge.
+- The grace is a minimum: it fires only inside the strike band, never just because the grace ran out.
+- It circles 38 m out and 20 m above the player (not 120 to 150 m up), so it is seen. It always
+  draws `drake.glb`, fetched when it first appears; no far LOD swap, no watch-band prefetch.
+- Not built yet: the mark on the target during the burn's warning, the bake check for content near
+  an edge, and the flight lap in `tests/e2e/flight.mjs`.
+
+**Bands** (as designed), measured inward from the nearest edge stretch (§3.1.1), on foot or on the mount:
 
 | Band | Distance from the edge | What happens |
 |---|---|---|

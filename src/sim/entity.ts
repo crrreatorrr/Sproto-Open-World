@@ -11,7 +11,7 @@ import type { Vec3 } from './math';
 
 export type EntityId = number;
 export type PlayerId = number;
-export type EntityKind = 'player' | 'enemy' | 'boss' | 'npc' | 'projectile' | 'area' | 'pickup' | 'interactable' | 'mount';
+export type EntityKind = 'player' | 'enemy' | 'boss' | 'npc' | 'projectile' | 'area' | 'pickup' | 'interactable' | 'mount' | 'warden';
 export type Team = 'player' | 'enemy';
 
 /** Transform. `prevPos` is the position at the start of the tick (render interpolation). */
@@ -624,6 +624,30 @@ export interface Projectile {
    * your feet hurts).
    */
   splash?: { damage: number; minFalloff: number; selfMult?: number };
+  /** Takes this share of the target's max health, whatever its defence (the Edge Warden's fire). */
+  hpFrac?: number;
+  /** Can't be blocked or parried, and no ward or relic turns it (the Edge Warden's burn). */
+  unstoppable?: true;
+}
+
+/**
+ * The Edge Warden's state (`systems/edgeWarden.ts`). It has no body, health or combat state: nothing
+ * can target it or hurt it.
+ */
+export interface Warden {
+  /** The player it came for. */
+  target: EntityId;
+  mode: 'watch' | 'strike' | 'leave';
+  /** Ticks since it appeared, or since it turned to leave. */
+  t: number;
+  /** Where it is on its circle (radians), and which way round it flies. */
+  angle: number;
+  dir: 1 | -1;
+  /** Ticks until the next fireball, and until the next burn's warning starts. */
+  volley: number;
+  burn: number;
+  /** Ticks into the burn's warning, or -1 when none is running. */
+  burning: number;
 }
 
 /**
@@ -654,6 +678,7 @@ export interface Entity {
   boss?: BossState;
   hazard?: Hazard;
   obstacle?: Obstacle;
+  warden?: Warden;
   owner?: PlayerId;
   /**
    * Placed by content at a guessed height: set down on the ground (a raycast) on the tick its cell's

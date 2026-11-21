@@ -25,7 +25,7 @@ export function inSanctuary(pos: Spot, spots: readonly Spot[], radius = SANCTUAR
 
 /** A hit that a shrine's ground refuses: an enemy's blow, shot or hazard on a player standing inside. */
 export function sanctuaryBlocks(entities: readonly Entity[], attacker: Entity, target: Entity): boolean {
-  if (!attacker.brain || target.kind !== 'player') return false;
+  if ((!attacker.brain && !attacker.warden) || target.kind !== 'player') return false;
   return inSanctuary(target.tf.pos, sanctuaries(entities));
 }
 
