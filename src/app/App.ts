@@ -1892,7 +1892,8 @@ export class App {
     const at = this.target;
     const r = PLAYER_BODY.radius;
     const seated = p.riding?.state === 'riding';
-    const out: CameraOccluder[] = [{ x: at.x, z: at.z, yaw: 0, halfWidth: r, halfLength: r, top: at.y + (seated ? CAM.riderTop : CAM.footTop) }];
+    // The player is round: a square turned to face the camera, so it is as wide from every side.
+    const out: CameraOccluder[] = [{ x: at.x, z: at.z, yaw: this.rig.yaw, halfWidth: r, halfLength: r, top: at.y + (seated ? CAM.riderTop : CAM.footTop) }];
     const bull = p.riding ? view.get(p.riding.mount) : undefined;
     if (bull) {
       // Seated, the bull stands where the rider is drawn; the sim's own position is a tick ahead of that.
