@@ -156,8 +156,9 @@ export function gallopInput(rider: Entity, cmd: InputCommand, stick: number): vo
 
 /**
  * The bull's weight, in place of the on-foot acceleration: its speed builds and brakes slowly, and
- * its line bends only as fast as its grip allows, so a turn at a gallop is a wide arc. Steering
- * hard across that line scrubs speed off, which tightens a hairpin. `ground` scales it all in the air.
+ * its line bends only as fast as its grip allows, and never faster than `MOUNT.turnRate`, so a turn
+ * is an arc at any pace: tight at a walk, wide at a gallop. Steering hard across that line scrubs
+ * speed off, which tightens a hairpin's circle without quickening the swing. `ground` scales it all in the air.
  */
 export function steerBull(vel: { x: number; z: number }, wish: { x: number; z: number; mag: number }, top: number, ground: number): void {
   const speed = Math.hypot(vel.x, vel.z);
@@ -179,7 +180,7 @@ export function steerBull(vel: { x: number; z: number }, wish: { x: number; z: n
   }
   const line = Math.atan2(vel.x, vel.z);
   const off = wrapAngle(goal - line);
-  const bend = ((MOUNT.grip * ground) / speed) * DT;
+  const bend = Math.min((MOUNT.grip * ground) / speed, MOUNT.turnRate) * DT;
   const heading = line + clamp(off, -bend, bend);
   const hard = clamp((Math.abs(off) - MOUNT.scrubFrom) / (MOUNT.scrubTo - MOUNT.scrubFrom), 0, 1);
   const next = change(want * (1 - (1 - MOUNT.scrubKeep) * hard));
