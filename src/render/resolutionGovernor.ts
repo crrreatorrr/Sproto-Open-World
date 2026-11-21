@@ -2,8 +2,12 @@
 export const RES_MIN_SCALE = 0.6;
 const STEP_DOWN = 0.85;
 const STEP_UP = 1 / 0.9;
-/** Frames longer than this on average mean the machine is falling toward the 30 fps floor (ms). */
-const SLOW_MS = 27;
+/**
+ * Frames longer than this on average mean the machine is under the 30 fps floor (ms). A steady
+ * 33 ms is the floor itself, and often not the machine at all: a 30 Hz display, or a browser saving
+ * power, draws that slowly whatever the resolution, and lowering it would cost sharpness for nothing.
+ */
+const SLOW_MS = 36;
 /** Frames shorter than this on average mean there is room to spare (ms). */
 const FAST_MS = 19;
 /** A frame this long is a freeze or a tab switch, not the machine's steady pace: it isn't counted (ms). */

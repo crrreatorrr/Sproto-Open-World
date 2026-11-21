@@ -63,8 +63,12 @@ export async function warmModel(root: THREE.Object3D, uploads: UploadBudget, ren
         (tex) =>
           new Promise<void>((resolve) =>
             uploads.texture(() => {
-              renderer.renderer.initTexture(tex);
-              resolve();
+              // Settle whatever happens: an upload that throws must not leave the model waiting.
+              try {
+                renderer.renderer.initTexture(tex);
+              } finally {
+                resolve();
+              }
             }, textureBytes(tex)),
           ),
       ),

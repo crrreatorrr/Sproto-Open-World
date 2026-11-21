@@ -156,6 +156,33 @@ describe('the prop instancer draws what the camera can see, at each prop\'s own 
     expect(count(p, 'house:far:0')).toBeGreaterThan(0);
   });
 
+  it('a landmark shows in every loaded cell, however far', async () => {
+    const h = host();
+    const p = new PropInstancer({ tower: { path: 'tower.glb', lod1Path: 'tower-lod1.glb', collider: { kind: 'none' }, capacity: 4, size: [8.5, 31.4], landmark: true } }, h);
+    p.configure(RINGS, SCALE);
+    // 7 cells north: about 450 m off, past every other prop's reach.
+    p.addCell(0, 7, { cx: 0, cz: 7, props: { tower: [32, 0, 7 * CELL + 32, 0, 1] } });
+    await settle(p, camera(32, 1, 32, 600));
+    expect(count(p, 'tower:far:0')).toBe(1);
+  });
+
+  it('a set made while the view was narrow still holds the widest view', async () => {
+    // Behind the title two rings stream; play opens the view. The simple set must not be sized for two.
+    const h = host();
+    const kinds = { house: { ...KINDS.house, capacity: 12 } };
+    const p = new PropInstancer(kinds, h);
+    p.configure(2, SCALE);
+    p.addCell(0, 0, row('house', 0, 8));
+    p.addCell(0, 1, row('house', 1, 8));
+    const cam = camera(32, 1, 32, 400);
+    await settle(p, cam);
+    p.configure(RINGS, SCALE);
+    for (let cz = 2; cz < 5; cz++) p.addCell(0, cz, row('house', cz, 8));
+    await settle(p, cam);
+    expect(count(p, 'house:far:0')).toBeGreaterThan(12);
+    expect(p.stats().overflow).toBe(0);
+  });
+
   it('nothing overflows its buffers with the widest view', async () => {
     const { p } = await world();
     await settle(p, camera(32, 1, 32, 400));

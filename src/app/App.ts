@@ -951,6 +951,7 @@ export class App {
     view.root.visible = !this.rig.isFirstPerson || riding;
     this.rig.riding = riding;
     this.rig.flight = p.riding?.flight ? { yaw: p.tf.yaw, pitch: p.riding.flight.pitch } : null;
+    this.stream?.setFlying(!!p.riding?.flight);
     this.rig.occluders = this.cameraOccluders(simView, p);
     this.rig.update(dt, this.target, simView, p.loco?.sprinting ?? false, this.speakerPoint(simView, p) ?? this.lockPoint(simView, p));
     this.viewmodel.update(dt, Viewmodel.stateFromView(simView, LOCAL_PLAYER, this.rig.mode, activeGun?.itemId ?? null, null, m.x * 0.002, m.y * 0.002));

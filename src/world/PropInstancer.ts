@@ -4,7 +4,7 @@ import type { Priority } from '../assets/RequestQueue';
 import type { CellData, PropKind } from '../content/world/format';
 import { cellKey } from '../content/world/format';
 import { fadeMaterial, type PropFadeShared } from './propFade';
-import { ALOFT_M, NEAR_SHADOW_M, coverageM, distanceToCell, farDistanceToCell, propRanges, propTiers, type PropRange } from './rings';
+import { ALOFT_M, ALOFT_OFF_M, MAX_VIEW_RINGS, NEAR_SHADOW_M, coverageM, distanceToCell, farDistanceToCell, propRanges, propTiers, type PropRange } from './rings';
 
 /** A template nobody uses is kept this long in case it comes straight back (plan §3.3). */
 export const TEMPLATE_GRACE_MS = 10_000;
@@ -12,6 +12,8 @@ export const TEMPLATE_GRACE_MS = 10_000;
 export const STREAM_AHEAD_M = 50;
 /** The camera moves this far before cells are sorted into levels of detail again (m). */
 const RECLASSIFY_M = 2;
+/** What a sort allows for the camera moving before the next one (m). */
+const SORT_SLACK_M = RECLASSIFY_M + 1;
 /** The bake sizes `capacity` for a 7 × 7 window of cells (tools/bake-world.ts CAPACITY_WINDOW). */
 const CAPACITY_WINDOW = 7;
 
@@ -70,6 +72,8 @@ interface CellKind {
   matrices: Float32Array;
   minY: number;
   maxY: number;
+  /** How far its props reach past the cell's own square (m): the cull box grows by this. */
+  reach: number;
   /** Seconds at which the detailed and the simple set first showed this cell (-1: not yet). */
   bornHd: number;
   bornFar: number;
@@ -136,6 +140,8 @@ export class PropInstancer {
   private readonly origin = new THREE.Vector3(Infinity, 0, Infinity);
   private rings = 2;
   private scale = 1;
+  /** Models are asked for this far short of where they are first drawn (m). */
+  private ahead = STREAM_AHEAD_M;
   private aloft = false;
   /** Cells, templates or settings changed: sort every cell into its sets again. */
   private dirty = true;
@@ -154,11 +160,15 @@ export class PropInstancer {
     this.root.name = 'props';
   }
 
-  /** How far the world is shown: rings of cells loaded, and the draw-distance scale (world/rings.ts). */
-  configure(rings: number, scale: number): void {
-    if (rings === this.rings && scale === this.scale) return;
+  /**
+   * How far the world is shown: rings of cells loaded, the draw-distance scale (world/rings.ts), and
+   * how far ahead of need models are asked for (0 behind the title, which has a download budget).
+   */
+  configure(rings: number, scale: number, ahead = STREAM_AHEAD_M): void {
+    if (rings === this.rings && scale === this.scale && ahead === this.ahead) return;
     this.rings = rings;
     this.scale = scale;
+    this.ahead = ahead;
     for (const k of this.kinds.values()) k.range = this.rangeOf(k.key, k.kind);
     this.dirty = true;
   }
@@ -197,7 +207,7 @@ export class PropInstancer {
         this.kinds.set(k, state);
       }
       const matrices = new Float32Array(n * 16);
-      let minY = Infinity, maxY = -Infinity;
+      let minY = Infinity, maxY = -Infinity, maxScale = 1;
       for (let i = 0; i < n; i++) {
         const p = i * 5;
         const x = packed[p], y = packed[p + 1], z = packed[p + 2], yaw = packed[p + 3], sc = packed[p + 4];
@@ -213,11 +223,14 @@ export class PropInstancer {
         matrices[o + 13] = y;
         matrices[o + 14] = z;
         matrices[o + 15] = 1;
-        minY = Math.min(minY, y);
-        maxY = Math.max(maxY, y + (kind.size?.[1] ?? 12) * sc);
+        // A model's origin isn't always at its base (vines hang, a peak's skirt goes underground).
+        const tall = (kind.size?.[1] ?? 12) * sc;
+        minY = Math.min(minY, y - tall * 0.5);
+        maxY = Math.max(maxY, y + tall);
+        maxScale = Math.max(maxScale, sc);
       }
       const ck: CellKind = {
-        id: this.nextId++, key: k, cell, n, matrices, minY: minY - 2, maxY: maxY + 2, bornHd: -1, bornFar: -1,
+        id: this.nextId++, key: k, cell, n, matrices, minY: minY - 2, maxY: maxY + 2, reach: Math.max(4, (kind.size?.[0] ?? 12) * 0.75 * maxScale), bornHd: -1, bornFar: -1,
         tiers: { near: false, hd: false, far: false }, splitHd: false, splitFar: false, wantHd: false, wantFar: false, visible: false,
       };
       cell.kinds.set(k, ck);
@@ -251,7 +264,8 @@ export class PropInstancer {
     const cam = camera.position;
     this.shared.cam.value.copy(cam);
     this.shared.time.value = seconds;
-    const high = aloft !== null && aloft > ALOFT_M;
+    // Unknown height keeps what was; the two thresholds keep a hover at the line from flickering.
+    const high = aloft === null ? this.aloft : aloft > (this.aloft ? ALOFT_OFF_M : ALOFT_M);
     if (high !== this.aloft) {
       this.aloft = high;
       this.dirty = true;
@@ -284,17 +298,21 @@ export class PropInstancer {
       for (const ck of state.cells) {
         const dmin = distanceToCell(x, z, ck.cell.cx, ck.cell.cz, cellSize);
         const dmax = farDistanceToCell(x, z, ck.cell.cx, ck.cell.cz, cellSize);
-        const t = propTiers(dmin, dmax, r, standIn);
+        // The shader fades by the live camera, which moves up to RECLASSIFY_M before the next sort:
+        // a cell counts as that much nearer and that much further than it measures now.
+        const lo = Math.max(0, dmin - SORT_SLACK_M), hi = dmax + SORT_SLACK_M;
+        const t = propTiers(lo, hi, r, standIn);
         ck.tiers.near = t.near && hdReady;
         ck.tiers.hd = t.hd && hdReady;
         ck.tiers.far = t.far && farReady;
-        ck.splitHd = dmax > r.hd;
-        ck.splitFar = dmax > r.far || (!standIn && dmin < r.hd - r.band);
+        ck.splitHd = hi > r.hd;
+        ck.splitFar = hi > r.far || (!standIn && lo < r.hd - r.band);
         if ((ck.tiers.near || ck.tiers.hd) && ck.bornHd < 0) ck.bornHd = seconds;
         if (ck.tiers.far && ck.bornFar < 0) ck.bornFar = seconds;
         // Ask for each model a little before it is first drawn (SA5), the close ones first.
-        const wantHd = !this.aloft && dmin < r.hd + STREAM_AHEAD_M;
-        const wantFar = dmin < r.far + STREAM_AHEAD_M && (this.aloft || dmax > r.hd - r.band - STREAM_AHEAD_M || state.farPath === state.hdPath);
+        // (From the air the detailed models stay wanted: landing needs them at once.)
+        const wantHd = dmin < r.hd + this.ahead;
+        const wantFar = dmin < r.far + this.ahead && (this.aloft || dmax > r.hd - r.band - this.ahead || state.farPath === state.hdPath);
         this.want(ck, state, wantHd, wantFar, dmin < NEAR_SHADOW_M ? 'now' : 'later');
       }
       for (const tier of TIERS) {
@@ -312,9 +330,11 @@ export class PropInstancer {
   /** A set's fade distances: the detailed model out to `hd`, the simple one from there to `far`. */
   private setFade(fade: THREE.Vector4, state: KindState, tier: Tier): void {
     const r = state.range;
+    // A landmark has no far distance: it is drawn wherever its cell is loaded.
+    const out0 = Number.isFinite(r.far) ? r.far - r.edge : 1e9, out1 = Number.isFinite(r.far) ? r.far : 2e9;
     if (tier !== 'far') fade.set(-2, -1, r.hd - r.band, r.hd);
-    else if (this.standIn(state)) fade.set(-2, -1, r.far - r.edge, r.far);
-    else fade.set(r.hd - r.band, r.hd, r.far - r.edge, r.far);
+    else if (this.standIn(state)) fade.set(-2, -1, out0, out1);
+    else fade.set(r.hd - r.band, r.hd, out0, out1);
   }
 
   private want(ck: CellKind, state: KindState, hd: boolean, far: boolean, priority: Priority): void {
@@ -335,9 +355,8 @@ export class PropInstancer {
     for (const list of this.sources.values()) list.length = 0;
     const box = this.box;
     for (const state of this.kinds.values()) {
-      // A prop reaches past its own cell by up to half its width; the box grows by that.
-      const reach = Math.max(4, (state.kind.size?.[0] ?? 12) * 0.75);
       for (const ck of state.cells) {
+        const reach = ck.reach;
         const t = ck.tiers;
         if (!t.near && !t.hd && !t.far) continue;
         const x0 = ck.cell.cx * cellSize, z0 = ck.cell.cz * cellSize;
@@ -400,7 +419,7 @@ export class PropInstancer {
     const tier = slot.tier;
     const r = this.kinds.get(slot.key)?.range;
     // The shader fades by the live camera, which is up to RECLASSIFY_M from where this sort stood.
-    const slack = RECLASSIFY_M + 1;
+    const slack = SORT_SLACK_M;
     const near2 = NEAR_SHADOW_M * NEAR_SHADOW_M;
     const hd2 = r ? (r.hd + slack) ** 2 : Infinity;
     const farIn = r && !this.standing.has(slot.key) ? Math.max(0, r.hd - r.band - slack) : 0;
@@ -465,8 +484,10 @@ export class PropInstancer {
     if (!state) return null;
     const t = this.templates.get(tier === 'far' ? state.farPath : state.hdPath);
     if (!t || t.state !== 'ready') return null;
-    // The bake's capacity covers a 7 × 7 window of cells; the simple set may span more rings than that.
-    const span = 2 * this.rings + 3;
+    // The bake's capacity covers a 7 × 7 window of cells; the simple set may span more rings than
+    // that. It is sized for the widest view there is, whatever the view is now: a set made behind
+    // the title (two rings) is still there when play opens the view.
+    const span = 2 * MAX_VIEW_RINGS + 3;
     const windows = tier === 'far' ? Math.ceil(span / CAPACITY_WINDOW) ** 2 : 1;
     const capacity = Math.max(1, state.kind.capacity) * windows;
     const matrix = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 16), 16);
@@ -553,7 +574,11 @@ export class PropInstancer {
       }
     });
     await Promise.all([...textures].map((tex) => this.host.uploadTexture(tex)));
-    if (t.disposed) return;
+    if (t.disposed) {
+      // Disposed while its uploads were queued: they have just put the textures back on the GPU.
+      for (const tex of textures) tex.dispose();
+      return;
+    }
     // Compile the programs the sets will draw with (instanced, with the fade), not on first draw.
     const warm = new THREE.Group();
     const born = new THREE.InstancedBufferAttribute(new Float32Array(1), 1);

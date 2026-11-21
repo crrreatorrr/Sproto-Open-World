@@ -164,9 +164,9 @@ export class CellStreamer {
   }
 
   /** How far the world is shown: rings of cells, and the props' draw-distance scale (the graphics quality). */
-  setView(rings: number, scale: number): void {
+  setView(rings: number, scale: number, ahead?: number): void {
     this.shownRings = rings;
-    this.props.configure(rings, scale);
+    this.props.configure(rings, scale, ahead);
   }
 
   /**
@@ -316,7 +316,7 @@ export class CellStreamer {
       withRetry(
         () => {
           const t = this.host.queue.run(async (signal) => {
-            const r = await fetch(publicUrl(path), { signal });
+            const r = await fetch(publicUrl(path, entry.v), { signal });
             if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
             return read(r);
           }, f.priority);

@@ -58,7 +58,6 @@ export class Renderer {
   readonly firstDraw = { frames: 0, programs: 0, textures: 0 };
   watchFirstDraw = false;
   private readonly kept = new WeakSet<object>();
-  private keptCount = 0;
   /** The surface fog's near and far, as shares of the region's own (the graphics quality; world/rings.ts `fogReach`). */
   private fogReach: readonly [number, number] = [1, 1];
   /** The most device pixels per CSS pixel the graphics quality allows, and the share of it drawn now. */
@@ -315,14 +314,12 @@ export class Renderer {
   private keepPrograms(): void {
     const programs = this.renderer.info.programs;
     if (!programs) return;
-    if (programs.length === this.keptCount) return;
     for (const program of programs) {
       if (this.kept.has(program)) continue;
       this.kept.add(program);
       const p = program as unknown as { usedTimes?: number };
       if (typeof p.usedTimes === 'number') p.usedTimes++;
     }
-    this.keptCount = programs.length;
   }
 
   /** Last frame's draw calls and triangles: `calls` includes the shadow pass (plan §3.5 budget). */

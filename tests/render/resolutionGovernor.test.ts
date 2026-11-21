@@ -15,6 +15,11 @@ describe('the resolution follows the frame rate, to hold the 30 fps floor', () =
     expect(run(new ResolutionGovernor(), 8.3, 30)).toBe(1);
   });
 
+  it('leaves a steady 30 frames a second alone: that is the floor, and often the display or the browser', () => {
+    // A 30 Hz screen, or a browser saving power, draws every 33 ms whatever the resolution.
+    expect(run(new ResolutionGovernor(), 33.3, 60)).toBe(1);
+  });
+
   it('steps the resolution down when frames run long, and stops at the floor', () => {
     const g = new ResolutionGovernor();
     const after = run(g, 40, 4);

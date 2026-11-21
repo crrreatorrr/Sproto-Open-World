@@ -34,8 +34,11 @@ export type ViewQuality = 'low' | 'medium' | 'high';
  * big enough to be seen from there (`propRanges`).
  */
 export function viewRings(quality: ViewQuality): number {
-  return quality === 'low' ? 2 : quality === 'medium' ? 3 : 5;
+  return quality === 'low' ? 2 : quality === 'medium' ? 3 : MAX_VIEW_RINGS;
 }
+
+/** The most rings any quality shows. Instance buffers are sized for it once (world/PropInstancer.ts). */
+export const MAX_VIEW_RINGS = 5;
 
 /** Every prop draw distance is multiplied by this (San Andreas's draw-distance slider). */
 export function viewScale(quality: ViewQuality): number {
@@ -340,10 +343,15 @@ function detailClass(kind: PropSized): PropClass {
 /**
  * A kind's draw distances at a draw-distance `scale`, never past `coverage` (`coverageM`): a prop
  * drawn beyond the loaded ground would pop in when its cell arrives instead of fading in.
+ *
+ * Landmarks are the exception: their `far` is Infinity, so they are drawn in every loaded cell. The
+ * horizon mesh carries a stand-in box for each, and it is hidden under loaded cells; a landmark with
+ * a far distance would vanish between that distance and the edge of the loaded square. It dithers in
+ * with its cell instead, as the box dithers out.
  */
 export function propRanges(kind: PropSized, scale: number, coverage: number): PropRange {
-  const far = Math.max(1, Math.min(CLASS_RANGE[propClass(kind)][1] * scale, coverage));
-  const hd = Math.min(CLASS_RANGE[detailClass(kind)][0] * scale, far * 0.6);
+  const far = kind.landmark ? Infinity : Math.max(1, Math.min(CLASS_RANGE[propClass(kind)][1] * scale, coverage));
+  const hd = Math.min(CLASS_RANGE[detailClass(kind)][0] * scale, Math.min(far, coverage) * 0.6);
   return { hd, far, band: Math.min(10, hd * 0.2), edge: Math.min(20, far * 0.25), casts: kind.size ? kind.size[1] >= CAST_MIN_HEIGHT_M : true };
 }
 
@@ -351,6 +359,8 @@ export function propRanges(kind: PropSized, scale: number, coverage: number): Pr
 export const NEAR_SHADOW_M = 46;
 /** The camera this far above the ground draws every prop as its simple model, without shadows (SA11). */
 export const ALOFT_M = 50;
+/** ...and it must come back under this before the detailed models return, so hovering at the line doesn't flicker. */
+export const ALOFT_OFF_M = 40;
 
 /**
  * Which sets a cell's props of one kind feed, from the nearest and farthest the cell gets to the

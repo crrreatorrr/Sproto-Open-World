@@ -41,6 +41,7 @@ export class WorldSession {
   private quality: ViewQuality = 'high';
   private playing = false;
   private cave = false;
+  private flying = false;
 
   /** The graphics quality: how many rings of the world are shown, and how far each prop is drawn. */
   setQuality(quality: ViewQuality): void {
@@ -66,7 +67,14 @@ export class WorldSession {
 
   private applyView(): void {
     const wide = this.playing && !this.cave;
-    this.streamer?.setView(wide ? viewRings(this.quality) : viewRings('low'), viewScale(this.quality));
+    // Behind the title: the shortest draw distances, and no model asked for ahead of need.
+    if (this.playing) this.streamer?.setView(wide ? viewRings(this.quality) : viewRings('low'), viewScale(this.quality));
+    else this.streamer?.setView(viewRings('low'), viewScale('low'), 0);
+  }
+
+  /** The player is flying the mount: from high up, props are drawn as their simple models. */
+  setFlying(on: boolean): void {
+    this.flying = on;
   }
 
   /** The Grass setting. */
@@ -110,8 +118,12 @@ export class WorldSession {
         uploadTexture: (tex) =>
           new Promise<void>((resolve) =>
             this.uploads.texture(() => {
-              this.renderer.renderer.initTexture(tex);
-              resolve();
+              // Settle whatever happens: an upload that throws must not leave the prop loading forever.
+              try {
+                this.renderer.renderer.initTexture(tex);
+              } finally {
+                resolve();
+              }
             }, textureBytes(tex)),
           ),
         compile: (obj) => this.renderer.compile(obj),
@@ -196,8 +208,10 @@ export class WorldSession {
     if (!s) return;
     const cam = this.renderer.camera;
     cam.updateMatrixWorld();
-    const ground = s.heightAt(cam.position.x, cam.position.z);
-    s.props.present(cam, performance.now() / 1000, s.region.cellSize, ground === null ? null : cam.position.y - ground);
+    // Height over the ground only counts in flight: on foot the camera can hang over a cliff's drop.
+    const ground = this.flying ? s.heightAt(cam.position.x, cam.position.z) : null;
+    const aloft = !this.flying ? 0 : ground === null ? null : cam.position.y - ground;
+    s.props.present(cam, performance.now() / 1000, s.region.cellSize, aloft);
   }
 
   attach(sim: CellSink): void {

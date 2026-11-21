@@ -22,7 +22,7 @@ describe('a draw distance for each prop kind, by its size (San Andreas: one per 
     expect(r([1.6, 0.7]).far).toBeLessThan(r([4.3, 0.8]).far);
     expect(r([4.3, 0.8]).far).toBeLessThan(r([8, 0.1]).far);
     expect(r([8, 0.1]).far).toBeLessThan(r([6.3, 16.4]).far);
-    expect(r([6.3, 16.4]).far).toBeLessThanOrEqual(r([8.5, 31.4], true).far);
+    expect(r([6.3, 16.4]).far).toBeLessThan(r([8.5, 31.4], true).far);
     for (const size of [[1.6, 0.7], [4.3, 0.8], [8, 0.1], [6.3, 16.4]] as [number, number][]) {
       const x = r(size);
       expect(x.hd).toBeLessThan(x.far);
@@ -37,7 +37,7 @@ describe('a draw distance for each prop kind, by its size (San Andreas: one per 
     for (const rings of [2, 3, 4, 5]) {
       const cover = coverageM(rings);
       for (const scale of [0.8, 1, 1.2, 2]) {
-        for (const kind of [{ size: [1.6, 0.7] }, { size: [6.3, 16.4] }, { size: [8.5, 31.4], landmark: true }] as const) {
+        for (const kind of [{ size: [1.6, 0.7] }, { size: [4.3, 0.8] }, { size: [6.3, 16.4] }] as const) {
           expect(propRanges(kind, scale, cover).far, `rings ${rings}, scale ${scale}`).toBeLessThanOrEqual(cover);
         }
       }
@@ -46,6 +46,18 @@ describe('a draw distance for each prop kind, by its size (San Andreas: one per 
     // away when the player stands at their cell's edge. The camera trails them by a few metres.
     expect(coverageM(2)).toBeLessThan(2 * CELL_SIZE_M);
     expect(coverageM(2)).toBeGreaterThan(2 * CELL_SIZE_M - 16);
+  });
+
+  it('a landmark is drawn wherever its cell is loaded: its cell hides its stand-in on the horizon', () => {
+    // The horizon mesh carries a box for every landmark and is hidden under loaded cells. A landmark
+    // with a far distance would vanish between that distance and the edge of the loaded square.
+    for (const rings of [2, 3, 5]) {
+      const r = propRanges({ size: [8.5, 31.4], landmark: true }, 1, coverageM(rings));
+      expect(r.far).toBe(Infinity);
+      expect(propTiers(500, 590, r).far).toBe(true);
+      expect(r.hd).toBeGreaterThan(0);
+      expect(Number.isFinite(r.hd)).toBe(true);
+    }
   });
 
   it('only things tall enough to matter cast a shadow', () => {
