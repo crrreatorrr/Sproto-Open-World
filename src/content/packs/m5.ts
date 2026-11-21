@@ -77,6 +77,8 @@ export const SCRAPJAW: EnemyDef = {
   id: 'scrapjaw',
   name: 'Scrapjaw',
   model: 'scrapjaw',
+  // Drawn bigger each phase, as in Sproto Shooter (6.4, 6.9 and 7.4 m). The body it is fought on stays the same.
+  stageScale: [1, 1.08, 1.16],
   xp: 1200,
   hp: 3600,
   poise: 300,

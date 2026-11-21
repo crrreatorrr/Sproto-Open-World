@@ -32,9 +32,15 @@ const AUTHORED: Record<string, { height: number; radius: number }> = {
   shooter_bot: { height: 2.0, radius: 0.45 },
   mega_tinubu: { height: 3.3, radius: 1.15 },
   hex_sahil: { height: 2.5, radius: 0.72 },
+  // The Duel and Shooter imports (packs/duelBosses.ts).
+  duel_obama: { height: 2.3, radius: 0.5 },
+  broccoli_head: { height: 2.6, radius: 0.7 },
+  glowie: { height: 2.3, radius: 0.55 },
+  blue_monster: { height: 3.2, radius: 1 },
+  sproto_beast: { height: 2.4, radius: 0.75 },
 };
 const STRONG = Object.keys(AUTHORED);
-const BOSSES = ['scrapjaw', 'burrowmother', 'skyfire_drake', 'mega_tinubu', 'hex_sahil'];
+const BOSSES = ['scrapjaw', 'burrowmother', 'skyfire_drake', 'mega_tinubu', 'hex_sahil', 'duel_obama', 'broccoli_head', 'glowie', 'blue_monster', 'sproto_beast'];
 const GROUND_FIGHTERS = STRONG.filter((id) => id !== 'skyfire_drake');
 /** An empty yard: nothing in the way of a capsule this size. */
 const YARD = { ...SANDBOX, enemies: [], shapes: [], ground: { size: 400, color: 0 } };

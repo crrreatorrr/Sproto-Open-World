@@ -6,6 +6,7 @@
  * registry keep this file out of its import cycle.
  */
 import type { EnemyDef, EnemyMoveDef, WeakSpotDef } from './enemies';
+import { DUEL_BOSS_SIZES } from './packs/duelBosses';
 import { MOVE, PLAYER_BODY, TICK_HZ } from './tuning';
 
 /** Every elite and boss, by how many times its authored size it is drawn and fought at. */
@@ -28,6 +29,7 @@ export const ENEMY_SIZES: Readonly<Record<string, number>> = {
   shooter_bot: 1.5,
   mega_tinubu: 1.6,
   hex_sahil: 1.6,
+  ...DUEL_BOSS_SIZES,
 };
 
 /** An area circle must stay outrunnable: this much slack (m) on a sprint out of it during the wind-up. */

@@ -135,6 +135,17 @@ export const MODELS = {
   tinubu_stage1: { path: 'models/enemies/tinubu_stage1.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
   tinubu_stage2: { path: 'models/enemies/tinubu_stage2.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
   tinubu_stage3: { path: 'models/enemies/tinubu_stage3.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.2 },
+  /**
+   * D1: the rest of Sproto Duel's boss stages (lazy-loaded). Sahil's first stage is the Wisp's file;
+   * Broccoli Head and Glowie are sproto-duel's rigs, with the same clips (cast and cast_big are their attacks).
+   */
+  sahil_stage1: { path: 'models/enemies/wisp.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.9 },
+  broccoli_stage1: { path: 'models/enemies/broccoli_stage1.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
+  broccoli_stage2: { path: 'models/enemies/broccoli_stage2.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
+  broccoli_stage3: { path: 'models/enemies/broccoli_stage3.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
+  agent_stage1: { path: 'models/enemies/agent_stage1.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
+  agent_stage2: { path: 'models/enemies/agent_stage2.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
+  agent_stage3: { path: 'models/enemies/agent_stage3.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
   gatekeeper: { path: 'models/elites/gatekeeper.glb', rigged: true, clips: GATEKEEPER_CLIPS, fitHeight: 3.2, rotationY: 0, inPlace: true },
   /** C4's robot elites: outside the critical download, they face +Z and their clips are in place. */
   robot_shooter: { path: 'models/elites/robot_shooter.glb', rigged: true, clips: ROBOT_SHOOTER_CLIPS, fitHeight: 2.0, rotationY: 0, inPlace: true },

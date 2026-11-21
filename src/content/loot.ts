@@ -3,6 +3,7 @@
  * a short list. Chests have fixed contents. The merchant's stock.
  */
 import { C4_DROPS, C4_EXTRA_DROPS, C4_STOCK, C4_STOCK_AFTER } from './packs/c4';
+import { DUEL_BOSS_LOOT } from './packs/duelBosses';
 import { WEAPON_BOX_SHOPS } from './packs/overworldMix';
 import { SHOOTER_LOOT } from './shooterEnemies';
 
@@ -48,7 +49,7 @@ inheritDrop('rd_wisp', 'wisp');
 inheritDrop('rd_brute', 'brute');
 inheritDrop('rootdeep_digger', 'grunt_vet');
 inheritDrop('deep_warden', 'hollow_giant');
-Object.assign(DROPS, SHOOTER_LOOT);
+Object.assign(DROPS, SHOOTER_LOOT, DUEL_BOSS_LOOT);
 
 export interface ChestDef {
   id: string;

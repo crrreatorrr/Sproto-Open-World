@@ -146,7 +146,7 @@ export interface EnemyMoveDef {
 /** The models a staged enemy steps through (manifest.ts): every stage of every Sproto Duel boss. */
 export type StageModel =
   | 'grunt' | 'grunt_vet' | 'midget_stage3'
-  | 'slinger' | 'slinger_vet' | 'obama_stage3'
+  | 'slinger' | 'slinger_vet' | 'big_coin' | 'obama_stage3'
   | 'sahil_stage1' | 'sahil_stage2' | 'sahil_stage3'
   | 'tinubu_stage1' | 'tinubu_stage2' | 'tinubu_stage3'
   | 'broccoli_stage1' | 'broccoli_stage2' | 'broccoli_stage3'
@@ -157,7 +157,7 @@ export type StageModel =
  * thirds and one third of its health.
  */
 export function enemyStage(def: Pick<EnemyDef, 'stageModels' | 'stageScale'>, phase: number | undefined, hpFrac: number): number {
-  const n = Math.max(def.stageModels?.length ?? 0, def.stageScale?.length ?? 0);
+  const n = def.stageScale?.length ?? 0;
   if (n < 2) return 0;
   const at = phase ?? (hpFrac <= 1 / 3 ? 3 : hpFrac <= 2 / 3 ? 2 : 1);
   return Math.min(n, Math.max(1, at)) - 1;
@@ -173,8 +173,10 @@ export interface EnemyDef {
    */
   stageModels?: readonly StageModel[];
   /**
-   * How big each stage is drawn, as a share of the body (the hitbox never changes). A boss with one
-   * model for every stage (the Shooter's monsters) only has this.
+   * How big each stage is drawn, as a share of the body (the hitbox never changes). This is what makes
+   * an enemy staged: `stageModels` without it only lists the models of its kind (the Shooter's ordinary
+   * enemies, which never change). A boss with one model for every stage (the Shooter's monsters) has
+   * this alone.
    */
   stageScale?: readonly number[];
   /** Extra names a quest's `kill` objective matches (an Orchard Grunt is still a `grunt`). */

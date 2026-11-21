@@ -73,6 +73,8 @@ export const DRAKE: EnemyDef = {
   id: 'skyfire_drake',
   name: 'Skyfire Drake',
   model: 'drake',
+  // Drawn bigger each phase, as in Sproto Shooter (3.2, 3.4 and 3.6 m). The body it is fought on stays the same.
+  stageScale: [1, 1.06, 1.12],
   xp: 2400,
   hp: 6000,
   // Only reflected fireballs move this much: everything else barely dents it.

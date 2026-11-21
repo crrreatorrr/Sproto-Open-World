@@ -218,6 +218,10 @@ Object.assign(AI_STYLES, {
   shooter_bot: AI_STYLES.rivet_gunner,
   mega_tinubu: AI_STYLES.gatekeeper,
   hex_sahil: AI_STYLES.wisp,
+  // The Duel and Shooter imports (duelBosses.ts): The Midget fights like a veteran Grunt, the two casters like Slingers.
+  duel_midget: AI_STYLES.grunt_vet,
+  floret_sprout: AI_STYLES.slinger,
+  glowie_agent: AI_STYLES.slinger,
 });
 
 /** The style of an enemy type. */

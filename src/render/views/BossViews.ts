@@ -8,7 +8,7 @@ import { Animator, ENTRY_FADE } from '../anim/Animator';
 import type { HitFx } from '../fx/HitFx';
 import { glowTexture } from '../fx/textures';
 import { BodyGlow } from './BodyGlow';
-import { attackClipTime, fitToBody, glowStatusOf, type EntityView } from './EnemyViews';
+import { attackClipTime, fitToBody, glowStatusOf, growToStage, type EntityView } from './EnemyViews';
 import { placeEntity, spring } from './interp';
 import { TelegraphDecal } from './TelegraphDecal';
 
@@ -182,6 +182,7 @@ export class ScrapjawView implements EntityView {
     this.lean += (lean - this.lean) * (1 - Math.exp(-14 * dt));
     spring(this.recoil, 160, 14, dt);
     this.body.rotation.x = this.lean + this.recoil.x;
+    growToStage(this.body, e, this.def, dt, !this.model);
     this.body.position.y = -sink * SINK_DEPTH * (this.def.size ?? 1) - this.burrowDepth(e, dt);
     this.glow.setOpacity(1 - sink);
     this.root.visible = sink < 1;
