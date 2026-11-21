@@ -10,7 +10,7 @@ import type { HitFx } from '../fx/HitFx';
 import { glowTexture } from '../fx/textures';
 import { BodyGlow } from './BodyGlow';
 import { fogMaterial } from './BossViews';
-import { attackClipTime, fitToBody, glowStatusOf, type EntityView } from './EnemyViews';
+import { attackClipTime, fitToBody, glowStatusOf, growToStage, type EntityView } from './EnemyViews';
 import { placeEntity, spring } from './interp';
 
 /** Where the spit leaves in the `fireball` clip (seconds; the shooter's 20 of 30 frames). */
@@ -176,6 +176,7 @@ export class DrakeView implements EntityView {
     spring(this.recoil, 160, 14, dt);
     this.body.rotation.x = this.pitch + this.recoil.x;
     this.body.rotation.z = this.bank;
+    growToStage(this.body, e, this.def, dt, !this.model);
     this.body.position.y = -sink * SINK_DEPTH * (this.def.size ?? 1);
     this.glow.setOpacity(1 - sink);
     this.root.visible = sink < 1;

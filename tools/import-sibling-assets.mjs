@@ -143,6 +143,13 @@ const FILES = [
   ...['midget_stage3', 'obama_stage3', 'sahil_stage2', 'sahil_stage3', 'tinubu_stage1', 'tinubu_stage2', 'tinubu_stage3'].map(
     (id) => [SHOOTER, `public/assets/models/characters/${id}.glb`, `models/enemies/${id}.glb`],
   ),
+  // D1: Sproto Duel's Broccoli Head and Glowie, all three stages each (the same 24-joint rig and clip set as the
+  // other stage models: cast and cast_big are their attacks). With the files above, every stage of every Duel boss
+  // is here: Sahil (wisp, sahil_stage2-3), Bitcoin Obama (slinger, slinger_vet, obama_stage3), The Midget (grunt,
+  // grunt_vet, midget_stage3), Broccoli Head, Glowie and Tinubu. Lazy-loaded; their 1024 px maps at 512 px.
+  ...['broccoli', 'agent'].flatMap((id) => [1, 2, 3].map(
+    (s) => [DUEL, `public/assets/models/rigged/${id}_stage${s}.glb`, `models/enemies/${id}_stage${s}.glb`, { tex: 512 }],
+  )),
   // U0: Shooter projectiles (U1/U2). High-poly/large-texture ones are simplified and resized to fit prop budgets.
   ...['duck', 'bomb'].map((id) => [SHOOTER, `public/assets/models/projectiles/${id}.glb.gz`, `models/projectiles/${id}.glb.gz`, { meshopt: true }]),
   [SHOOTER, 'public/assets/models/projectiles/tyre.glb', 'models/projectiles/tyre.glb', { meshopt: true }],

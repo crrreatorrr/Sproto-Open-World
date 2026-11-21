@@ -18,6 +18,9 @@ export const CAST_PEAKS: Readonly<Record<string, CastPeaks>> = {
   grunt_vet: { cast: 0.733, cast_big: 0.9 },
   slinger_vet: { cast: 0.667, cast_big: 0.933 },
   big_coin: { cast: 0.667, cast_big: 0.933 },
+  // The third stages (duel's measured peaks for Bitcoin Obama and The Midget).
+  obama_stage3: { cast: 0.667, cast_big: 0.9 },
+  midget_stage3: { cast: 0.733, cast_big: 0.867 },
 };
 
 /** A wind-up may compress the clip's anticipation up to this much to fit it before the release (duel). */

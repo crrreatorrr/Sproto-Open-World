@@ -18,7 +18,7 @@ import { makeBossView } from './BossViews';
 import { makeBurrowmotherView } from './BurrowmotherView';
 import { DrakeFlyover, makeDrakeView } from './DrakeViews';
 import { BlastOrbView, BoltView,
-  BulletView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
+  BulletView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, isHumanoidModel, type EntityView } from './EnemyViews';
 import { portalShown } from '../portalShown';
 import { ChestView, NpcView, PickupView, PortalView, ShrineView, objectView } from './RpgViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
@@ -32,7 +32,9 @@ import { castsShadow, wantsView } from './viewCull';
 const DECAL_COLOR: Record<DecalShape, number> = { circle: 0xffa23a, jagged: 0xff2a1a };
 
 /** Enemy models outside the critical download: fetched the first time one comes into range. */
-const LAZY_MODELS: ReadonlySet<string> = new Set<ModelKey>(['gatekeeper', 'grunt_vet', 'slinger_vet', 'big_coin', 'robot_shooter', 'robot_laser', 'scrapjaw', 'burrowmother', 'drake']);
+const LAZY_MODELS: ReadonlySet<string> = new Set<ModelKey>(['gatekeeper', 'grunt_vet', 'slinger_vet', 'big_coin', 'robot_shooter', 'robot_laser', 'scrapjaw', 'burrowmother', 'drake',
+  // The first stage of each Duel boss (and the two enemies on them): the later stages are fetched by the view.
+  'sahil_stage1', 'tinubu_stage1', 'broccoli_stage1', 'agent_stage1']);
 
 /** Seconds between status particles on a burning, shocked or chilled enemy. */
 const EMBER_EVERY = 0.07;
@@ -506,20 +508,8 @@ export class WorldViews {
         return def ? new BruteView(this.assets, def, e.view.model) : new FallbackView(e);
       case 'dummy':
         return def ? new DummyView(def) : new FallbackView(e);
-      case 'grunt':
-      case 'slinger':
-      case 'wisp':
-      case 'grunt_vet':
-      case 'slinger_vet':
-      case 'big_coin':
-      case 'robot_shooter':
-      case 'robot_laser':
-      case 'midget_stage3':
-      case 'obama_stage3':
-      case 'sahil_stage3':
-      case 'tinubu_stage3':
-        return def ? new HumanoidEnemyView(this.assets, def, e.view.model) : new FallbackView(e);
       default:
+        if (isHumanoidModel(e.view.model)) return def ? new HumanoidEnemyView(this.assets, def, e.view.model) : new FallbackView(e);
         return e.kind === 'enemy' || e.kind === 'boss' ? new FallbackView(e) : null;
     }
   }

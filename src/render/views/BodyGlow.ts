@@ -89,6 +89,12 @@ export class BodyGlow {
     });
   }
 
+  /** Let go of everything adopted (a staged boss swapping its model), freeing the cloned materials. */
+  release(): void {
+    for (const m of this.owned) m.dispose();
+    for (const list of [this.owned, this.burns, this.meshes, this.casts, this.mats, this.base]) list.length = 0;
+  }
+
   /**
    * A wind-up started. A parryable blow grows one gold glint across `seconds`. An unblockable keeps
    * the red body pulse; its jagged decal is drawn separately, so it gets no gold star.
