@@ -158,7 +158,14 @@ try {
   check(/Slow to a trot/.test(s.prompt ?? ''), 'the prompt offers the trot', s.prompt);
   await shot('b4-gallop');
   // A hedge crosses this line 70 m north of the bull: each leg starts back at the bull, so a stop against it can't pass for a trot.
-  const backToBull = () => page.evaluate(() => window.__qa.teleport(272, 55.6));
+  // The game holds behind the loading veil until the ground there has colliders again, and nothing
+  // ticks during the hold: presses made in it run together into one (three taps of A would not take
+  // off). So wait the hold out. It starts on the frame after the teleport.
+  const backToBull = async () => {
+    await page.evaluate(() => window.__qa.teleport(272, 55.6));
+    await frames(2);
+    await until((q) => !q.groundWait, 'the ground at the bull');
+  };
   await backToBull();
   await press('l3');
   // Wait on the speed, not a frame count: a slow software GPU covers many metres per rendered frame.
