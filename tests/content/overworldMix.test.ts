@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MODELS } from '../../src/assets/manifest';
 import { GUN_ITEMS } from '../../src/content/classes';
@@ -16,7 +18,8 @@ import {
   SHOOTER_HITZONES,
   SHOOTER_LOOT,
 } from '../../src/content/shooterEnemies';
-import { CELL_SIZE } from '../../src/content/world/format';
+import { cellColliders } from '../../src/content/world/codec';
+import { CELL_SIZE, cellOf, type CellData, type ColliderShape, type RegionManifest } from '../../src/content/world/format';
 import { REGIONS, regionAt, type RegionId } from '../../src/content/world/regions';
 
 function inRegionRect(regionId: RegionId, x: number, z: number): boolean {
@@ -154,6 +157,32 @@ describe('overworldMix', () => {
 
     for (const gunId of GUN_ITEM_IDS) {
       expect(stockedGuns.has(gunId), `fixed gun "${gunId}" missing from WEAPON_BOX_SHOPS`).toBe(true);
+    }
+  });
+
+  it('no Weapon Box merchant stands on a prop collider (it would settle on top and hover: WORLD-0003)', () => {
+    const PUBLIC = path.resolve(__dirname, '../../public');
+    /** How far a point is outside a collider's footprint on the ground (0 or less: over it). */
+    const outside = (s: ColliderShape, x: number, z: number): number => {
+      const dx = x - s.pos[0], dz = z - s.pos[2];
+      if (s.kind === 'cylinder') return Math.hypot(dx, dz) - s.radius;
+      // Into the box's frame (the sim turns it by `yaw` about y).
+      const c = Math.cos(s.yaw), sn = Math.sin(s.yaw);
+      const ox = Math.abs(dx * c - dz * sn) - s.half[0], oz = Math.abs(dx * sn + dz * c) - s.half[2];
+      return ox <= 0 && oz <= 0 ? Math.max(ox, oz) : Math.hypot(Math.max(ox, 0), Math.max(oz, 0));
+    };
+    for (const shop of WEAPON_BOX_SHOPS) {
+      const [x, , z] = shop.pos;
+      const manifest = JSON.parse(fs.readFileSync(path.join(PUBLIC, `world/${shop.region}/region.json`), 'utf8')) as RegionManifest;
+      const [cx, cz] = cellOf(x, z);
+      for (const c of manifest.cells) {
+        if (Math.abs(c.cx - cx) > 1 || Math.abs(c.cz - cz) > 1) continue;
+        const data = JSON.parse(fs.readFileSync(path.join(PUBLIC, c.json), 'utf8')) as CellData;
+        for (const s of cellColliders(data, new Float32Array(0), manifest).shapes) {
+          // The settle ray drops from the merchant's own x, z: keep that point clear of every footprint.
+          expect(outside(s, x, z), `shop ${shop.id} is over the ${s.kind} collider at ${s.pos}`).toBeGreaterThan(0.25);
+        }
+      }
     }
   });
 
