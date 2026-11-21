@@ -286,18 +286,17 @@ culling, per-kind distances and a smaller shadow set.
 | Trees and buildings visible out to | about 130–180 m | 312 m on High, 184 m on Medium, 120 m on Low |
 | New ground appearing | at 128–181 m, in clear air, instantly | at 320 m or more, past every prop's reach, dithered in over 0.4 s |
 | Props appearing or swapping | whole cells at once, up to 393 in a frame | each prop by its own distance, dithered |
-| Triangles a frame in Bellmere | 1.2–2.24 million | 0.50–1.27 million (Low: 0.36–0.67 million) |
+| Triangles a frame in Bellmere | 1.2–2.24 million | 0.51–1.28 million (Low: 0.36–0.67 million, before the last two changes) |
 | Shadow pass triangles in Bellmere | 345–805 thousand | 112–205 thousand |
-| Draw calls | 148–228 | 103–230 |
+| Draw calls | 148–228 | 103–204 |
 | Frames over 34 ms on the walks | 250 ms and 110 ms seen | none on the High laps |
 | Camera's vertical jitter (p95) | 1.76 mm a frame² | 0.33 mm a frame² |
 | Shader compiles inside a draw | every enemy kind, again each time the last one left view | 2–4 small ones, once a session |
 
-Three goals of the table at the top are missed. Bellmere's densest views are at 1.1–1.27 million
+Three goals of the table at the top are missed. Bellmere's densest views are at 1.1–1.28 million
 triangles, not 1.0 million; getting under needs the LOD2 models (a house's simple model is still
-about 1,100 triangles). The view reaches 312 m, not 1,000 m, for the same reason. And draw calls
-still pass 200 at the busiest headings (230), as they did before (228): the far rings add a draw
-per cell of ground in view.
+about 1,100 triangles). The view reaches 312 m, not 1,000 m, for the same reason. And one Bellmere
+heading draws 204 calls against a goal of 200 (it was 228).
 
 **Corrections to §1.** M7 said the camera rose slowly and dropped at once. The real cause was one
 step further: the rule that lifts the camera until the crosshair clears the player's head set the
@@ -320,6 +319,8 @@ player.
   its two models and at the far edge by its own distance, with complementary thresholds so a swap
   leaves no holes; only cells in view are in the buffers; only tall props within 46 m cast shadows.
 - **R4, ground** `Horizon.ts`, `TerrainChunk.ts`: a cell's ground dithers in over the horizon mesh.
+  `FarTerrain.ts`: far cells' coarse ground is merged per 256 m block, one draw each. Drawn cell by
+  cell it was 49–54 draw calls a frame and put a camp view over the 200-call limit in `camps.mjs`.
 - **R5** `rings.ts`, `CellStreamer.ts`: what the camera faces is asked for first; fetch-ahead grows
   with speed; models are asked for 50 m before they are drawn; flying more than 50 m above the
   ground, only the simple models are drawn. Each region's manifest carries a hash of its bake, which
@@ -341,20 +342,26 @@ player.
 | R5: GPU memory budget with eviction | Prop models are already dropped 10 s after their last cell; nothing measured needed more |
 | Terrain resolution swaps (16, 32, 64) | Still instant. Only the first appearance fades |
 
-**Checks** (run on the branch, 2026-11-21)
+**Checks** (run on the final commit, 2026-11-21)
 
-- Pass: `lint`, `typecheck`, `test` (134 files), `build`, `check:assets`, `gen:moves --check`,
-  `bake:world --check` for every region, `test:world` except the two `world-bake` tests, and the
-  e2e scripts.
-- The two `world-bake` tests need `node_modules/.bin/vite-node` under the checkout and so fail in a
-  git worktree; `npm run bake:world -- <region> --check` passes for all seven regions.
-- **Fails: `budgets`, by about 1 KiB.** "Critical to playable (wizard)" is 6,145 KiB against 6,144.
-  On `main` it was 6,143. This change adds about 5 KiB of code and 1 KiB of prop sizes, and gives
-  back about 3 KiB by writing the manifests compact. The owner decides: raise the budget a little,
-  or find the kilobyte elsewhere.
-- A second agent reviewed the branch. It found no critical bug; its two important findings
-  (landmarks vanishing past their far distance, and a buffer sized for the title's narrow view) and
-  its minor ones are fixed, each with a test where one could be written.
+- Pass: `lint`, `typecheck`, `build`, `check:assets`, `gen:moves --check`, `bake:world --check` for
+  all seven regions, and all seven e2e scripts (`smoke`, `camps`, `loading`, `mount`, `find-quest`,
+  `rootdeep`, `unification`).
+- `npm test`: 1,536 of 1,537 pass. The one failure is `tests/sim/perf.test.ts` (a tick must average
+  2 ms or less). Alone it measures 0.64 ms. Inside the parallel suite, on a machine other sessions
+  were loading, it measured 2.3 and 3.2 ms; on `main` the same day it passed at 1.997 ms. This
+  change does not touch the sim.
+- `npm run test:world`: 122 of 124 pass. The two failures are the `world-bake` tests, which need
+  `node_modules/.bin/vite-node` under the checkout and so cannot run in a git worktree; the
+  `bake:world --check` runs above cover the same thing.
+- **Fails: `budgets`, by 2 KiB.** "Critical to playable (wizard)" is 6,146 KiB against 6,144. On
+  `main` it was 6,143. This change adds about 6 KiB of code and 1 KiB of prop sizes, and gives back
+  about 3 KiB by writing the manifests compact. The owner decides: raise the budget a little, or
+  find the 2 KiB elsewhere.
+- A second agent reviewed the branch before the last two commits. It found no critical bug; its
+  two important findings (landmarks vanishing past their far distance, and a buffer sized for the
+  title's narrow view) and its minor ones are fixed, with tests where one could be written. The
+  far-ground merge came after that review and has unit tests and the e2e run, not a second review.
 
 **Still open**
 
