@@ -218,12 +218,19 @@ try {
   const flying = () => page.evaluate(() => !!window.__qa.app.sim.playerEntity(0).riding?.flight);
   const height = () => page.evaluate(() => window.__qa.app.sim.playerEntity(0).tf.pos.y);
   const ground = await height();
-  for (let i = 0; i < 3; i++) {
-    await page.evaluate(() => window.__pad.set('a', true));
-    await frames(1);
-    await page.evaluate(() => window.__pad.set('a', false));
-    await frames(1);
-  }
+  // The taps are timed inside the page, on its own frames. Driven from here, each change of the
+  // button waits on a round trip to the browser, and on a slow runner a round trip can miss a frame:
+  // a tap then lasts four or five frames (5 ticks each), which is past the 24 tick window.
+  await page.evaluate(() => new Promise((done) => {
+    let i = 0;
+    const step = () => {
+      if (i === 6) return done();
+      window.__pad.set('a', i % 2 === 0);
+      i++;
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }));
   await frames(2);
   check(await flying(), 'three quick taps of A take off');
   await page.evaluate(() => window.__pad.axes(0, 1));
