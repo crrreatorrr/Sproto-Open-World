@@ -4,7 +4,7 @@
  * gun and every spell). Every class keeps the same melee, powers and skills. Pure data.
  *
  * A gun is an item of kind `staff`: it is held in the weapon slot, swung like a staff, and its `staff`
- * numbers are its melee damage and spell power. Its `gun` numbers are what Gunfire shoots.
+ * numbers are its melee damage and spell power. Its `gun` numbers describe the gun on its item card.
  */
 import type { ItemDef } from './items';
 import type { SpellId } from './spells';
@@ -43,7 +43,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   },
   soldier: {
     id: 'soldier', name: 'Soldier Sproto', weapon: 'gun', model: 'player_soldier', startWeapon: 'gun_mg', startItems: STARTER_GUNS,
-    blurb: 'One gun at a time and bullets that never run out. Still knows the old powers.',
+    blurb: 'Guns with real magazines: fire, zoom and reload. Still casts the old powers.',
   },
   pepe_warrior: {
     id: 'pepe_warrior', name: 'Pepe Warrior', weapon: 'staff', model: 'player_pepe_warrior', startWeapon: 'staff_sproto', startItems: [],
@@ -67,7 +67,7 @@ export const CLASS_PASSIVES: Record<ClassId, ClassPassiveDef> = {
     id: 'combat_ready',
     name: 'Combat Ready',
     primaryBranch: 'gunslinger',
-    text: '+15% weapon swap and reload speed; shooting spells fire as high-velocity ballistic rounds.',
+    text: '+15% reload speed.',
   },
   pepe_warrior: {
     id: 'vanguard_poise',
@@ -167,11 +167,11 @@ export function canWield(_cls: ClassId | undefined, item: ItemDef | undefined): 
   return !!item && item.kind === 'staff';
 }
 
-/** The spell a class learns in place of `spell`: the Soldier's gun takes the Arcane Bolt's place. */
-export function classSpell(cls: ClassId | undefined, spell: SpellId): SpellId | null {
-  const c = classOf(cls).id;
-  if (spell === 'gunfire' && c === 'wizard') return null;
-  if (spell === 'bolt' && c === 'soldier') return 'gunfire';
+/**
+ * The spell a class learns when it is taught `spell`: the spell itself, for every class (the
+ * Soldier's Arcane Bolt included). A gun is fired with its own trigger, not a spell.
+ */
+export function classSpell(_cls: ClassId | undefined, spell: SpellId): SpellId | null {
   return spell;
 }
 
@@ -182,13 +182,7 @@ export function classSpells(cls: ClassId | undefined, spells: readonly SpellId[]
     const k = classSpell(cls, s);
     if (k && !out.includes(k)) out.push(k);
   }
-  // Pepe has both: the gun, and the bolt.
-  if (classOf(cls).id === 'pepe' && !out.includes('gunfire')) out.unshift('gunfire');
   return out;
 }
 
-/**
- * The Soldier's shooting spells come out of the gun: same numbers, a bullet's look and sound. Pepe and
- * the Wizard cast theirs as magic.
- */
-export const firesAsBullets = (cls: ClassId | undefined, spell: SpellId): boolean => spell === 'gunfire' || classOf(cls).id === 'soldier';
+

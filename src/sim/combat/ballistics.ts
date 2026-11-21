@@ -6,10 +6,13 @@
  */
 import {
   GUNS,
+  GUN_HEAT,
+  ZOOM_FEEL,
   computeGunStats,
   gunDef,
   gunRange,
   hasInfiniteReserve,
+  loadsByShell,
   rangeFalloff,
   type AmmoType,
   type ComputedGunStats,
@@ -22,8 +25,11 @@ import type { AmmoReserves, EntityId } from '../entity';
 import type { Vec3 } from '../math';
 import { next, type RngState } from '../rng';
 import type { DualWieldState } from './dualWield';
+import type { WorldRay } from './gunAim';
 
 export const SIM_HZ = 60;
+/** An empty gun with no reserve clicks this often while the trigger is held (ticks). */
+export const DRY_FIRE_TICKS = 24;
 export const HIT_ZONE_TIE_EPS = 0.05; // 0.05 m priority tie-breaker
 export const SHIELD_DAMAGE_MULT = 0.1;
 export const SHOCK_CHAIN_TARGETS = 2;
@@ -236,11 +242,19 @@ export function raycastEnemyZones(
 /** Per-player runtime gun state (60 Hz ticks). Plain data, cloneable and hashable. */
 export interface GunRuntimeState {
   mag: number;
+  /** The magazine's size with the player's skills applied, for the HUD. */
+  magSize: number;
   reloadTicks: number;
+  /** How long the running reload (or the running shell) takes in all, so a view can show progress. */
+  reloadTotalTicks: number;
   fireCooldownTicks: number;
   shotsFired: number;
   adsActive: boolean;
   scopeZoom: 0 | 1 | 2;
+  /** Sustained fire, 0..1: widens the hip spread and hardens the kick (GUN_HEAT). */
+  heat: number;
+  /** The spread a shot fired this tick would have (degrees), for the crosshair. */
+  spreadDeg: number;
   dual?: DualWieldState;
 }
 
@@ -252,11 +266,15 @@ export function createGunRuntimeState(
   const s = computeGunStats(gun, playerLevel, skillMods);
   return {
     mag: s.magSize,
+    magSize: s.magSize,
     reloadTicks: 0,
+    reloadTotalTicks: 0,
     fireCooldownTicks: 0,
     shotsFired: 0,
     adsActive: false,
     scopeZoom: 0,
+    heat: 0,
+    spreadDeg: s.spread,
   };
 }
 
@@ -301,6 +319,12 @@ export interface ReloadTickResult {
   ammoType: AmmoType;
 }
 
+/** Ticks one reload step takes: the whole magazine, or one shell on a gun that loads by the shell. */
+export function reloadTicksFor(gun: GunRef, stats: ComputedGunStats): number {
+  const whole = stats.reloadTime * SIM_HZ;
+  return Math.max(1, Math.round(loadsByShell(gun) ? whole / stats.magSize : whole));
+}
+
 /**
  * Begin reloading a fixed gun if not already reloading, not full, and reserve ammo is available.
  */
@@ -333,8 +357,9 @@ export function startReload(
     return { started: false, reason: 'empty_reserve', reloadTicks: 0, ammoType };
   }
 
-  const ticks = Math.max(1, Math.round(stats.reloadTime * SIM_HZ));
+  const ticks = reloadTicksFor(def.id, stats);
   runtime.reloadTicks = ticks;
+  runtime.reloadTotalTicks = ticks;
   return { started: true, reloadTicks: ticks, ammoType };
 }
 
@@ -364,9 +389,15 @@ export function tickReload(
   const stats = computeGunStats(def.id, playerLevel, skillMods);
   const need = Math.max(0, stats.magSize - runtime.mag);
   const free = !!opts?.infiniteAmmo || hasInfiniteReserve(def.id);
-  const take = free ? need : Math.min(need, Math.max(0, ammo[ammoType]));
+  const want = loadsByShell(def.id) ? Math.min(1, need) : need;
+  const take = free ? want : Math.min(want, Math.max(0, ammo[ammoType]));
   if (!free) ammo[ammoType] -= take;
   runtime.mag += take;
+  // By the shell: the next one goes in until the magazine is full or the reserve is dry.
+  if (loadsByShell(def.id) && take > 0 && runtime.mag < stats.magSize && (free || ammo[ammoType] > 0)) {
+    runtime.reloadTicks = runtime.reloadTotalTicks = reloadTicksFor(def.id, stats);
+    return { reloading: true, completed: false, loaded: take, ammoType };
+  }
 
   return { reloading: false, completed: true, loaded: take, ammoType };
 }
@@ -652,6 +683,10 @@ export interface StepGunFireParams {
   playerLevel?: number;
   skillMods?: GunSkillMods;
   worldHitDist?: number;
+  /** World occlusion per ray (each pellet gets its own); replaces `worldHitDist` when given. */
+  worldRay?: WorldRay;
+  /** Multiplies the hip spread for movement (moving, airborne); heat is added here. */
+  moveSpreadMult?: number;
   infiniteAmmo?: boolean;
   hand?: 'right' | 'left' | 'single';
 }
@@ -666,6 +701,8 @@ export interface GunFireResult {
   reloadStarted: boolean;
   reloadCompleted: boolean;
   critWeaveTriggered: boolean;
+  /** The trigger was pulled on an empty gun with nothing left to load. */
+  dryFire?: boolean;
 }
 
 /**
@@ -681,12 +718,17 @@ export function executeGunShot(params: {
   enemies: readonly HitboxEnemyInput[];
   rng: RngState;
   worldHitDist?: number;
+  worldRay?: WorldRay;
+  /** Multiplies the hip spread (heat, movement); the zoomed spread is not touched. */
+  hipSpreadMult?: number;
+  /** Multiplies the kick (heat, zoom). */
+  recoilMult?: number;
   hand: 'right' | 'left' | 'single';
 }): Pick<GunFireResult, 'hits' | 'tracers' | 'projectiles' | 'recoilKick' | 'critWeaveTriggered'> {
-  const { gun, stats, adsActive, origin, enemies, rng, worldHitDist, hand } = params;
+  const { gun, stats, adsActive, origin, enemies, rng, worldHitDist, worldRay, hand } = params;
   const def = gunDef(gun) ?? GUNS.mg;
   const aim = normalizeVec3(params.aimDir);
-  const spreadDeg = adsActive ? stats.adsSpread : stats.spread;
+  const spreadDeg = adsActive ? stats.adsSpread : stats.spread * (params.hipSpreadMult ?? 1);
 
   const hits: ShotHitResult[] = [];
   const tracers: { from: Vec3; to: Vec3 }[] = [];
@@ -793,7 +835,7 @@ export function executeGunShot(params: {
         dir: rayDir,
         enemies,
         rng,
-        worldHitDist,
+        worldHitDist: worldRay ? (worldRay(origin, rayDir, def.range.max) ?? undefined) : worldHitDist,
       });
       hits.push(...res.hits);
       tracers.push({ from: { ...origin }, to: res.endPoint });
@@ -801,13 +843,32 @@ export function executeGunShot(params: {
     }
   }
 
-  const yawKick = stats.recoilYaw * (next(rng) * 2 - 1);
+  const kick = params.recoilMult ?? 1;
+  const yawKick = stats.recoilYaw * (next(rng) * 2 - 1) * kick;
   return {
     hits,
     tracers,
     projectiles,
-    recoilKick: { pitchDeg: stats.recoil, yawDeg: yawKick },
+    recoilKick: { pitchDeg: stats.recoil * kick, yawDeg: yawKick },
     critWeaveTriggered,
+  };
+}
+
+/** The trigger is up: the gun cools. */
+export function coolGun(runtime: GunRuntimeState, fireHeld: boolean): void {
+  if (!fireHeld) runtime.heat = Math.max(0, runtime.heat - GUN_HEAT.heatCool / SIM_HZ);
+}
+
+/** A shot was fired: the gun heats. */
+export function heatGun(runtime: GunRuntimeState): void {
+  runtime.heat = Math.min(1, runtime.heat + GUN_HEAT.heatPerShot);
+}
+
+/** What the gun's heat, the player's movement and the zoom do to the next shot's spread and kick. */
+export function heatMults(runtime: GunRuntimeState, moveSpreadMult = 1): { hipSpreadMult: number; recoilMult: number } {
+  return {
+    hipSpreadMult: (1 + runtime.heat * GUN_HEAT.heatSpread) * moveSpreadMult,
+    recoilMult: (1 + runtime.heat * GUN_HEAT.heatRecoil) * (runtime.adsActive ? ZOOM_FEEL.recoilMult : 1),
   };
 }
 
@@ -828,6 +889,7 @@ export function stepGunFire(params: StepGunFireParams): GunFireResult {
     playerLevel = 1,
     skillMods,
     worldHitDist,
+    worldRay,
     infiniteAmmo,
   } = params;
   const hand = params.hand ?? 'single';
@@ -844,6 +906,10 @@ export function stepGunFire(params: StepGunFireParams): GunFireResult {
   };
 
   if (runtime.fireCooldownTicks > 0) runtime.fireCooldownTicks--;
+  coolGun(runtime, fireHeld);
+
+  // Loading by the shell, the trigger stops the reload and fires what is already in.
+  if (runtime.reloadTicks > 0 && fireHeld && runtime.mag > 0 && loadsByShell(gun)) runtime.reloadTicks = 0;
 
   if (runtime.reloadTicks > 0) {
     const tick = tickReload(runtime, gun, ammo, playerLevel, skillMods, { infiniteAmmo });
@@ -862,6 +928,10 @@ export function stepGunFire(params: StepGunFireParams): GunFireResult {
   if (runtime.mag <= 0) {
     const start = startReload(runtime, gun, ammo, playerLevel, skillMods, { infiniteAmmo });
     emptyResult.reloadStarted = start.started;
+    if (start.reason === 'empty_reserve') {
+      emptyResult.dryFire = true;
+      runtime.fireCooldownTicks = DRY_FIRE_TICKS;
+    }
     return emptyResult;
   }
 
@@ -879,8 +949,11 @@ export function stepGunFire(params: StepGunFireParams): GunFireResult {
     enemies,
     rng,
     worldHitDist,
+    worldRay,
+    ...heatMults(runtime, params.moveSpreadMult),
     hand,
   });
+  heatGun(runtime);
 
   let reloadStarted = false;
   if (runtime.mag <= 0) {

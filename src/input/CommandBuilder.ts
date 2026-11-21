@@ -1,5 +1,5 @@
 import { BTN, type AimRay, type ButtonName, type InputCommand, type UiAction } from '../sim/commands';
-import { GAMEPAD, GUN_KEYS, GUN_PAD, KEYS, PAD } from './bindings';
+import { DUAL_TAP, GAMEPAD, GUN_KEYS, GUN_PAD, KEYS, MELEE_HOLD_HEAVY, PAD } from './bindings';
 import { shapeStick } from './Gamepad';
 import type { Input } from './Input';
 
@@ -37,6 +37,22 @@ export class CommandBuilder {
   private move = { x: 0, y: 0 };
   /** The pad's spell modifier is held: face buttons cast spells 1–4. */
   private spellMode = false;
+  /**
+   * A gun is in hand (the app sets it each frame): the gun layout is read instead of the melee
+   * one. Fire, aim and one melee button replace light, heavy and block.
+   */
+  gunLayout = false;
+  /**
+   * Two guns are in hand (the app sets it each frame): a trigger and a bumper per gun, as in the
+   * early Halo games (bindings.ts, DUAL_TAP).
+   */
+  dualWield = false;
+  /** Dual wield: how long each bumper has been down (s; -1 once the hold was used for something else). */
+  private bumperL = 0;
+  private bumperR = 0;
+  /** How long the gun layout's melee button has been down (s), and whether that hold already went heavy. */
+  private meleeHeld = 0;
+  private meleeHeavy = false;
   private switchLatched = 0;
   private weaponSlotLatched: number | undefined = undefined;
   private mouseArmed = true;
@@ -50,6 +66,12 @@ export class CommandBuilder {
   constructor(private readonly input: Input) {}
 
   frame(look?: LockLook): void {
+    if (this.gunLayout) {
+      this.gunFrame(look);
+      return;
+    }
+    this.meleeHeld = 0;
+    this.meleeHeavy = false;
     const inp = this.input;
     const pad = inp.pad;
     pad.update();
@@ -67,10 +89,7 @@ export class CommandBuilder {
     for (const name of ['reload', 'swapWeapon', 'grapple', 'toggleView', 'slide', 'dash'] as const) {
       btn(name, inp.isDown(GUN_KEYS[name]), inp.wasPressed(GUN_KEYS[name]));
     }
-    // Direct 1–4 weapon bar slot selection (keyboard).
-    for (let i = 0; i < WEAPON_SLOT_KEYS.length; i++) {
-      if (inp.wasPressed(GUN_KEYS[WEAPON_SLOT_KEYS[i]])) this.weaponSlotLatched = i;
-    }
+    // The number keys cast spells here; they pick weapon slots only with a gun in hand (gunFrame).
     // Pad: face buttons are spells while the modifier is held, their own action otherwise.
     this.spellMode = pad.isDown(PAD.spellModifier);
     for (const name of ['sprint', 'light', 'heavy', 'block', 'lock', 'potion', 'callMount'] as const) {
@@ -98,6 +117,100 @@ export class CommandBuilder {
       const chordPressed = chordDown && (pad.wasPressed(PAD.block) || pad.wasPressed(PAD.light));
       btn('grapple', chordDown, chordPressed);
     }
+    this.finishFrame(held, pressed, look);
+  }
+
+  /**
+   * The gun layout (gun shooting design §3). Movement, dodge, jump, interact, potion, lock and the
+   * mount whistle are where they always are; what changes is the trigger, the zoom, one melee
+   * button and where the spells sit.
+   */
+  private gunFrame(look?: LockLook): void {
+    const inp = this.input;
+    const pad = inp.pad;
+    pad.update();
+    let held = 0;
+    let pressed = 0;
+    const btn = (name: ButtonName, isDown: boolean, wasPressed: boolean) => {
+      if (isDown) held |= BTN[name];
+      if (wasPressed) pressed |= BTN[name];
+    };
+    for (const name of ['jump', 'sprint', 'dodge', 'lock', 'interact', 'potion', 'callMount'] as const) {
+      btn(name, inp.isDown(KEYS[name]), inp.wasPressed(KEYS[name]));
+    }
+    const dual = this.dualWield;
+    const dtFrame = look?.dt ?? 1 / 60;
+    // Two guns: the left mouse button is the left gun (the sim's `aim`), the right one the right gun.
+    btn(dual ? 'aim' : 'light', inp.isDown(GUN_KEYS.fire), inp.wasPressed(GUN_KEYS.fire));
+    btn(dual ? 'light' : 'aim', inp.isDown(GUN_KEYS.aim), inp.wasPressed(GUN_KEYS.aim));
+    for (const name of ['spell1', 'spell2', 'spell3', 'spell4', 'reload', 'swapWeapon', 'grapple', 'slide', 'dash'] as const) {
+      btn(name, inp.isDown(GUN_KEYS[name]), inp.wasPressed(GUN_KEYS[name]));
+    }
+    for (let i = 0; i < WEAPON_SLOT_KEYS.length; i++) {
+      if (inp.wasPressed(GUN_KEYS[WEAPON_SLOT_KEYS[i]])) this.weaponSlotLatched = i;
+    }
+    // Pad: face buttons are spells while the gun layout's modifier is held.
+    this.spellMode = pad.isDown(GUN_PAD.spellModifier);
+    for (const name of ['sprint', 'lock', 'potion', 'callMount'] as const) btn(name, pad.isDown(PAD[name]), pad.wasPressed(PAD[name]));
+    btn('light', pad.isDown(GUN_PAD.fire), pad.wasPressed(GUN_PAD.fire));
+    btn('aim', pad.isDown(GUN_PAD.aim), pad.wasPressed(GUN_PAD.aim));
+    if (this.spellMode) {
+      for (const [spell, face] of Object.entries(SPELL_FACE) as [keyof typeof SPELL_FACE, string][]) {
+        btn(spell, pad.isDown([face]), pad.wasPressed([face]));
+      }
+    } else {
+      for (const name of ['jump', 'dodge', 'interact'] as const) btn(name, pad.isDown(PAD[name]), pad.wasPressed(PAD[name]));
+      btn('reload', pad.isDown(GUN_PAD.reload), pad.wasPressed(GUN_PAD.reload));
+    }
+    for (const name of ['swapWeapon', 'slide', 'dash'] as const) {
+      if (GUN_PAD[name].length) btn(name, pad.isDown(GUN_PAD[name]), pad.wasPressed(GUN_PAD[name]));
+    }
+    // Grapple: its own binding if set, otherwise the modifier and the melee button together.
+    const chord = !GUN_PAD.grapple.length && pad.isDown(GUN_PAD.spellModifier) && pad.isDown(GUN_PAD.melee);
+    if (GUN_PAD.grapple.length) btn('grapple', pad.isDown(GUN_PAD.grapple), pad.wasPressed(GUN_PAD.grapple));
+    else btn('grapple', chord, chord && (pad.wasPressed(GUN_PAD.spellModifier) || pad.wasPressed(GUN_PAD.melee)));
+    // Two guns: a tap of a bumper reloads that hand's gun. A hold is the bumper's usual job (RB
+    // swings, LB is the spell modifier), and so is anything pressed with it.
+    const padMelee = !chord && pad.isDown(GUN_PAD.melee);
+    if (dual) {
+      const tap = (down: boolean, t: number, used: boolean): [number, boolean] => {
+        if (down) return [t < 0 || used ? -1 : t + dtFrame, false];
+        return [0, t > 0 && t <= DUAL_TAP];
+      };
+      const faceUsed = Object.values(SPELL_FACE).some((f) => pad.isDown([f]));
+      let fire: boolean;
+      [this.bumperL, fire] = tap(pad.isDown(GUN_PAD.spellModifier), this.bumperL, chord || faceUsed);
+      if (fire) pressed |= BTN.reloadLeft;
+      [this.bumperR, fire] = tap(pad.isDown(GUN_PAD.melee), this.bumperR, chord);
+      if (fire) pressed |= BTN.reloadRight;
+    } else this.bumperL = this.bumperR = 0;
+    // Melee: the press swings at once; still down after the hold time, the swing goes heavy. With
+    // two guns the pad's melee button only swings once it has been held past a tap.
+    const padSwing = padMelee && (!dual || this.bumperR > DUAL_TAP);
+    const meleeDown = inp.isDown(GUN_KEYS.melee) || padSwing;
+    const meleePressed = inp.wasPressed(GUN_KEYS.melee) || (padSwing && (!dual ? pad.wasPressed(GUN_PAD.melee) : this.meleeHeld === 0));
+    if (meleeDown) {
+      this.meleeHeld += look?.dt ?? 1 / 60;
+      if (this.meleeHeavy) held |= BTN.heavy;
+      else {
+        held |= BTN.melee;
+        if (meleePressed) pressed |= BTN.melee;
+        if (this.meleeHeld >= MELEE_HOLD_HEAVY) {
+          this.meleeHeavy = true;
+          held |= BTN.heavy;
+          pressed |= BTN.heavy;
+        }
+      }
+    } else {
+      this.meleeHeld = 0;
+      this.meleeHeavy = false;
+    }
+    this.finishFrame(held, pressed, look);
+  }
+
+  private finishFrame(held: number, pressed: number, look: LockLook | undefined): void {
+    const inp = this.input;
+    const pad = inp.pad;
     this.held = held;
     this.latched |= pressed;
     if (pressed) this.onLatch?.(pressed);

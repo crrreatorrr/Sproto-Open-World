@@ -101,7 +101,7 @@ describe('every quest, start to finish, on the baked world', () => {
     buy(w, 'staff_nobu');
     buy(w, 'staff_brick_phone');
     const p = prog(w);
-    expect([...p.spells].sort()).toEqual(Object.keys(SPELLS).filter((id) => id !== 'gunfire').sort());
+    expect([...p.spells].sort()).toEqual(Object.keys(SPELLS).sort());
     // Alien Ray is held for area 2. Rootcleaver is paid by the vault chest, opened while playing The Rootdeep above.
     // Guns are the gun classes' (a Wizard is never given one): tests/sim/classes.test.ts covers those.
     const staffs = Object.values(ITEMS).filter((i) => i.kind === 'staff' && !i.gun && i.id !== 'staff_alien_ray');

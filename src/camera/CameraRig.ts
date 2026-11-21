@@ -266,8 +266,24 @@ export class CameraRig {
     }
   }
 
+  /**
+   * Zoomed in, the same hand movement turns the view less, by the zoom's share of the hip view, so
+   * the picture moves across the screen at the same speed at every zoom.
+   */
+  get lookScale(): number {
+    const m = this._mode;
+    return m === 'ads' || m === 'scope1' || m === 'scope2' ? Math.min(1, this.targetFov() / CAM.otsFov) : 1;
+  }
+
+  /** Turn the view by angles (rad), outside the look settings: aim assist's pull, a shot's recoil. */
+  nudge(dYaw: number, dPitch: number): void {
+    this.yaw += dYaw;
+    this.pitch += dPitch;
+    this.clampPitch();
+  }
+
   rotateMouse(dx: number, dy: number): void {
-    const s = MOUSE.sensitivity * this.mouseScale;
+    const s = MOUSE.sensitivity * this.mouseScale * this.lookScale;
     if (dx !== 0 || dy !== 0) this.sinceLook = 0;
     this.yaw -= dx * s;
     this.pitch -= dy * s * (this.invertY ? -1 : 1);
@@ -283,9 +299,9 @@ export class CameraRig {
     if (Math.abs(x) >= A.threshold) this.padHeldEdge += dt;
     else this.padHeldEdge = 0;
     const ramp = Math.min(1, Math.max(0, (this.padHeldEdge - A.delay) / A.rampTime));
-    const yawSpeed = (G.sensitivity.yaw + A.extraYaw * ramp) * this.padScale;
+    const yawSpeed = (G.sensitivity.yaw + A.extraYaw * ramp) * this.padScale * this.lookScale;
     this.yaw -= x * yawSpeed * dt;
-    this.pitch -= y * G.sensitivity.pitch * this.padScale * dt * (this.invertY ? -1 : 1);
+    this.pitch -= y * G.sensitivity.pitch * this.padScale * this.lookScale * dt * (this.invertY ? -1 : 1);
     this.clampPitch();
   }
 

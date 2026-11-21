@@ -76,7 +76,8 @@ step. If a clip's length or speed changes, change the speed in `MountView`'s `GA
 3. Export with only `Armature`, `char1` and `socket_staff` selected: glTF Binary, Animation mode
    *Actions*, Always Sample Animations on, Include Custom Properties on, to `source/player_raw.glb`.
 4. Build the game file: `node art/tools/build-player-glb.mjs`. It puts `socket_staff` back where
-   the source rig has it (Blender's export moves it 18 m up the hand bone) and compresses with
+   the source rig has it (Blender's export moves it 18 m up the hand bone), adds Sproto Shooter's
+   clips, the natural `idle` stance and `socket_weapon` (below), and compresses with
    resample → WebP → meshopt. Never use `gltf-transform optimize` here: it removes the socket.
 5. `player.melee.json` is written by the script on every run, from `TIMING` plus each clip's
    last key. Keys snap to whole 24 fps frames, so `end` is the exact clip length. Don't edit the
@@ -99,7 +100,7 @@ is rebuilt by the tools in `tools/classes/` from the decoded sources in `source/
 | `characters/pepe_player.glb` | metaverse-hub `avatar/pepe.glb` → `source/classes/pepe_hub_decoded.glb` | 9,998 | 433 KiB |
 | `guns/gun_<id>.glb` (7) | sproto-shooter `models/guns/toy_<id>.glb` | 2.4k–4k | 65–89 KiB |
 
-Budgets (`build-class-glbs.mjs` and `build-guns.mjs` fail past them): a body ≤ 470 KiB and 22k
+Budgets (`build-class-glbs.mjs` and `build-guns.mjs` fail past them): a body ≤ 510 KiB and 22k
 triangles, a gun ≤ 90 KiB and 4k triangles.
 
 ### Rebuild
@@ -122,10 +123,11 @@ node tree, textures and clips.
   in its rest pose at scale 1, feet at y = 0, facing +Z. The scale is baked into the file (node
   translations, inverse bind matrices, positions), so the scene root stays at scale 1.
 - **Clips.** The wizard's 21 clips with its names, key times and exact lengths (`idle`, `stun`,
-  `victory` and `defeat` keep every other key, 12 fps), plus two upper-body layers from Sproto
-  Shooter's Pepe: `aim` (its held `ready` pose, a 0.5 s loop) and `shoot` (0.333 s, eased onto the
-  `ready` pose for its first and last two frames, so it starts and ends where `aim` is). The layers
-  drive only the spine, neck, head, shoulders, arms and hands: play them over any locomotion clip.
+  `victory` and `defeat` keep every other key, 12 fps), plus Sproto Shooter's sixteen (below).
+- **Standing.** `idle` is set on a natural stance on every body, the Wizard included
+  (`naturalStance` in `shooter-clips.mjs`): hips and chest facing straight ahead, feet parallel
+  under the hip joints with 5° of turn-out, knees just off locked. The wizard's source idle stands a
+  quarter turn open with its feet wide and splayed; that reads as a pose, and points a gun sideways.
 - **Retarget** (`retarget.mjs`, three.js maths on the glTF, so a pose means what the game shows):
   each body joint is first turned, parent-first, so its bone points where the wizard's (or the
   shooter Pepe's) does in its rest pose; every frame then applies the source joint's world-space
@@ -139,7 +141,60 @@ node tree, textures and clips.
   not resampled (all channels of a clip share one time accessor) and channels that only hold a
   joint's default are dropped, except in `aim` and `shoot`.
 
-### `socket_weapon` (both bodies)
+### Sproto Shooter's animations (all four bodies)
+
+`tools/classes/shooter-clips.mjs` builds these for the three class bodies (through `retarget.mjs`)
+and for the Wizard (through `wizard-gun-clips.mjs`, called by `build-player-glb.mjs`). The source is
+`source/classes/pepe_shooter_decoded.glb`, sproto-shooter's `pepe.glb` decoded.
+
+| Clip | Kind | From |
+|---|---|---|
+| `hold` | upper layer, held | The ready carry: stock under the arm, muzzle down across the body |
+| `aim` | upper layer, held | Shouldered, head down to the sights |
+| `shoot` | upper layer, 0.333 s | `aim` plus the gun's kick from the shooter's `shoot` |
+| `reload` | upper layer, 1.2 s | A magazine change keyed for the third-person camera (`reload-clips.mjs`); the shooter's `reload` sets only its length |
+| `hold_1h`, `aim_1h`, `shoot_1h`, `reload_1h` | upper layers | A sidearm (a dual-wield gun) on its own: carried low at the side and fired at arm's length in the right hand; the free arm hangs as in `idle`; the reload brings both hands together |
+| `dual`, `dual_shoot_r`, `dual_shoot_l`, `dual_reload`, `dual_reload_r`, `dual_reload_l` | upper layers | A sidearm in each hand, both arms out at chest height, canted in; each hand kicks on its own shots |
+| `slide` | whole body, 0.5 s | The shooter's slide: 3 keys in, then held |
+| `dash` | whole body, 0.233 s | The shooter's `dash` stride |
+
+- **Stances are placed, not retargeted.** `STANCES` puts the gun in the body's frame (from the right
+  shoulder, in arm lengths) and both arms reach it by two-bone IK: the right hand so `socket_weapon`
+  lands on the grip, the left on the handguard (`SUPPORT`), pulled back toward the grip on a body
+  whose arm is too short. A rotation-only retarget of the shooter's `ready` left short-armed bodies
+  with the support hand in the air and the gun held out in front of the chest.
+- **The shooter's clips supply the recoil.** `shoot` takes, per frame, how the shooter Pepe's gun
+  (its `weapon_grip`, turned with its right hand) has moved from its `ready` pose; that is scaled by
+  arm length and replayed on the stance (`SHOOT_GAIN`).
+- **Reloads are keyed here** (`tools/classes/reload-clips.mjs`). The shooter's `reload` is a
+  first-person clip: a few degrees of tilt and a few centimetres of hand travel, which from behind
+  the player reads as the arms freezing. Each reload is a short list of keys over 0..1 (the game
+  scrubs the clip by the sim's reload progress): the gun's shift and turn from its reload stance, the
+  support hand's place on the gun, how far that hand has gone to the pouch on the left hip (a place
+  on the body, not on the tipped gun), and the torso and head going with it. `long` is the two-handed
+  magazine change for every long gun, `sidearm` the one-handed gun's (the free hand fetches, seats and
+  racks), `akimbo` the pair's (no free hand: both guns tip, drop to the belt and snap back up).
+- **`slide` is built, as in the shooter.** There it is code, not a clip (`src/render/pvp/slidePose.js`
+  makes the pose from the avatar's own limb lengths). The same construction runs here per body, is set
+  down on the floor, and is written as a clip over the body's standing arms.
+- **The game** (`src/render/views/PlayerView.ts`): with a gun in hand the arms show `hold`; `aim`
+  while aiming and for 0.6 s after a shot; `shoot` on each shot; `reload` scrubbed by the reload's
+  progress. `slide` and `dash` replace the legs' locomotion while the sim runs them. The grapple is the
+  shooter's too, but stays code (`src/render/anim/gunPose.ts` `reachArm`): the left arm reaches for
+  the anchor, wherever it is.
+- **Sidearms** (`build-sidearms.mjs`): the Handgun and Machine Pistol have no model in the shooter, so
+  they are built here from boxes in the toy guns' colours, to the same contract. The second gun of a
+  pair mounts on `socket_weapon_l` (every body has one).
+- **The staff** stands straight up in the fist in `idle`: `naturalStance` turns the wrist until the
+  staff socket's shaft is vertical.
+- **Guns** (`build-guns.mjs`): lengths are this game's, not the shooter's (which sizes them for a
+  first-person view): carbine 0.90 m, shotgun 0.98, sniper 1.20, launcher 1.25, the three sidearms
+  0.58–0.78.
+- **Looking at them.** `tools/qa/sheet.html` (dev server) draws any body, weapon, layer and view
+  as a contact sheet with the game's own animator; `tools/qa/drive.ts` plays the moves in the running
+  game and photographs each from the front and the side.
+
+### `socket_weapon` (every body)
 
 An empty node, child of `mixamorig:RightHand`. Origin: the centre of the closed right fist, where
 the shooter's `weapon_grip` sits (carried over to the soldier in hand-relative terms). +Z: along

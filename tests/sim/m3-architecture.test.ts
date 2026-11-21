@@ -49,7 +49,7 @@ const WRITE_RULES: [string, RegExp][] = [
 const ALLOWED_SIM = new Set([
   'tick', 'loadCell', 'unloadCell', 'populate', 'populateWorld', 'startWaves', 'startDungeon', 'toSave', 'applySave', 'spawnPlayer', 'teleportPlayer', 'view', 'dispose',
   // read-only
-  'now', 'entities', 'events', 'get', 'playerEntity', 'hash', 'cellReady', 'cellAnchors', 'waitingForGround', 'world', 'wave', 'locate', 'level', 'seed', 'streamed', 'gunRuntime', 'gunEvents', 'dungeonEvents',
+  'now', 'entities', 'events', 'get', 'playerEntity', 'hash', 'cellReady', 'cellAnchors', 'waitingForGround', 'world', 'wave', 'locate', 'level', 'seed', 'streamed', 'gunRuntime', 'gunEvents', 'movementTech', 'dungeonEvents',
 ]);
 
 describe('every gameplay mutation goes through a command (M3 acceptance 4)', () => {
