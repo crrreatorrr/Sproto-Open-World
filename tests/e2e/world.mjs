@@ -624,9 +624,11 @@ try {
     let st0 = standing(await state(), 470, 470);
     check(st0.ok, 'Retry loads the cells and the player lands', st0.detail);
 
-    const EAST = /cells\/c_7_[234]\./;
-    await blockCells(EAST);
-    await page.evaluate(() => window.__qa.teleport(480, 200));
+    // The far north-west corner: nothing the wider view or the payload cache has reached from the
+    // start or from the north-east, so the fetches really do fail.
+    const FAR = /cells\/c_[01]_[67]\./;
+    await blockCells(FAR);
+    await page.evaluate(() => window.__qa.teleport(40, 470));
     await page.waitForFunction(() => window.__qa.state().errorOpen, null, { timeout: 30000, polling: 250 });
     await press('right');
     await press('a');
@@ -634,7 +636,7 @@ try {
     await frames(12);
     st0 = standing(await state(), 256, 58);
     check(st0.ok, 'Return to start puts the player back at the start, on the ground', st0.detail);
-    await unblock(EAST);
+    await unblock(FAR);
     blocking = false;
   }
 
@@ -701,7 +703,8 @@ try {
     check(c.collidersUnloaded > 0 && c.collidersLoaded > c.collidersUnloaded, 'colliders go to the sim and come back out', `+${c.collidersLoaded} −${c.collidersUnloaded}`);
     check(c.failed === before.failed && c.retries === before.retries, 'no cell fetch failed or retried during the laps', `failed ${c.failed - before.failed}, retries ${c.retries - before.retries}`);
     check(c.queued === 0 && c.pending === 0, 'the loader queue drains', `queued ${c.queued}, pending ${c.pending}`);
-    check(c.active <= 25 && c.loaded <= 49, 'loaded cells stay within the rings', `${c.loaded} shown, ${c.active} active, ${c.visual} visual`);
+    // Shown cells: at most the hysteresis ring past the widest view (rings.ts MAX_VIEW_RINGS = 5, so 13 × 13).
+    check(c.active <= 25 && c.loaded <= 169, 'loaded cells stay within the rings', `${c.loaded} shown, ${c.active} active, ${c.visual} visual`);
     check(after.props.overflow === 0, 'no prop bucket overflows its baked capacity', `overflow ${after.props.overflow}`);
 
     const long = await page.evaluate(() => window.__long.splice(0));
