@@ -100,7 +100,7 @@ production build has no such endpoint, so it saves in the browser only.
 | Lock on / switch target | Middle mouse or T / flick the mouse | Right stick click / flick the right stick |
 | Cast the spell in slot 1–4 (in Sproutvale you start with Bolt; a gun class starts with Gunfire, held to keep firing) | 1 2 3 4 (or E R Z X) | Hold LT + X / Y / B / A |
 | Interact: talk, open, rest | F | Y |
-| Ride or get off the Pepe Bull (east of the start) | F | Y |
+| Ride or get off the Pepe Bull (west of the start) | F | Y |
 | Gallop on the Pepe Bull: press once and it keeps going, at no stamina cost, until you press again or stop (holding works too) | Left Shift | Left stick click |
 | Call the Pepe Bull: it runs to you, or appears nearby and runs in if it is too far away | V | D-pad ↓ |
 | Fast travel: with the Brick Phone in hand (Trader Pepe sells it; wield it from Gear), Light attack opens it. Call any shrine you have touched or rested at; the others show as locked. Not in combat | Left mouse | RB |

@@ -246,7 +246,7 @@ const C5_DIALOGUE: Record<string, DialogueGraph> = {
       early: { speaker: 'Foreman Bram', text: 'Nobody digs while that scrap beast has the quarry. Deal with it, then we can talk about the ground.' },
       offer: {
         speaker: 'Foreman Bram',
-        text: 'The beast is gone and the ground still shakes. It is coming from the Deep Seam, the old pit west of here. Ask my crew what they felt?',
+        text: 'The beast is gone and the ground still shakes. It is coming from the Deep Seam, the old pit east of here. Ask my crew what they felt?',
         choices: [
           { text: "I'll ask them.", do: [{ startQuest: T }], next: 'a8_bram' },
           { text: 'Not yet.' },

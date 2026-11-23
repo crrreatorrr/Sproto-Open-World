@@ -287,7 +287,7 @@ export const C4_QUESTS: Record<string, QuestDef> = {
     prereq: [{ questDone: 'q_pest_control' }],
     steps: [
       { id: 'brief', text: 'Hear out the Watch Captain.', objectives: [{ kind: 'talk', npc: 'watch_captain', node: 'a1_brief' }], marker: 'watch_captain' },
-      { id: 'yard', text: 'Reach the salvage yard at the east end of the Orchard.', objectives: [{ kind: 'reach', trigger: 'salvage_yard_gate' }], marker: 'salvage_yard_gate' },
+      { id: 'yard', text: 'Reach the salvage yard at the west end of the Orchard.', objectives: [{ kind: 'reach', trigger: 'salvage_yard_gate' }], marker: 'salvage_yard_gate' },
       { id: 'gunners', text: 'Destroy the Rivet Gunners.', objectives: [{ kind: 'kill', tag: 'rivet_gunner', count: 3 }], marker: 'salvage_yard_gate' },
       { id: 'return', text: 'Report to the Watch Captain.', objectives: [{ kind: 'talk', npc: 'watch_captain', node: 'a1_done' }], marker: 'watch_captain', onComplete: [{ give: 'totem_turnstone' }] },
     ],
@@ -332,7 +332,7 @@ export const C4_QUESTS: Record<string, QuestDef> = {
     kind: 'side',
     prereq: [{ questDone: 'q_pumpkins' }],
     steps: [
-      { id: 'pumpkins', text: 'Take 3 Giant Pumpkins from the Bramble camps.', objectives: [{ kind: 'collect', item: 'giant_pumpkin', count: 3, consume: true }], marker: 'bramble_fields' },
+      { id: 'pumpkins', text: 'Take 3 Giant Pumpkins from the Bramble camps. A Colossus drops one only if you stagger it.', objectives: [{ kind: 'collect', item: 'giant_pumpkin', count: 3, consume: true }], marker: 'bramble_fields' },
       { id: 'return', text: 'Bring the pumpkins to Farmer Broccoli.', objectives: [{ kind: 'talk', npc: 'farmer_broccoli', node: 'a4_done' }], marker: 'farmer_broccoli' },
     ],
     rewards: [{ learnSpell: spell('vinePull') }, { xp: 300 }, { currency: 40 }],
@@ -345,7 +345,7 @@ export const C4_QUESTS: Record<string, QuestDef> = {
     kind: 'side',
     prereq: [{ level: 6 }],
     steps: [
-      { id: 'track1', text: 'Follow the giant tracks west from the Ranger.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_1', label: 'Giant tracks' }] },
+      { id: 'track1', text: 'Follow the giant tracks east from the Ranger.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_1', label: 'Giant tracks' }] },
       { id: 'track2', text: 'Follow the tracks deeper into the Thornwood.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_2', label: 'Giant tracks' }] },
       { id: 'track3', text: 'The tracks turn past the Brute patrol.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_3', label: 'Giant tracks' }] },
       { id: 'track4', text: 'The prints are fresh here.', clue: 'footprints', objectives: [{ kind: 'reach', trigger: 'giant_track_4', label: 'Giant tracks' }] },
@@ -406,7 +406,7 @@ export const C4_DIALOGUE: Record<string, DialogueGraph> = {
         ],
       },
       a1_brief: { speaker: 'Watch Captain', text: 'Close the gap when they reload, and watch for the big shot: when one glows, get out of the line or throw it back at them.' },
-      a1_busy: { speaker: 'Watch Captain', text: 'The salvage yard is at the east end of the Orchard. Three Gunners. Keep moving.' },
+      a1_busy: { speaker: 'Watch Captain', text: 'The salvage yard is at the west end of the Orchard. Three Gunners. Keep moving.' },
       a1_done: { speaker: 'Watch Captain', text: 'Three Gunners down, and you are still standing. Take this Turnstone. Set it down as the shot lands, and the shot goes home.' },
       next_offer: {
         speaker: 'Watch Captain',
@@ -426,7 +426,7 @@ export const C4_DIALOGUE: Record<string, DialogueGraph> = {
         ],
       },
       a2_brief: { speaker: 'Watch Captain', text: 'Roll through the beam or ward it, then hit the thing with your staff. Spells barely scratch that lens.' },
-      a2_busy: { speaker: 'Watch Captain', text: 'The ridge behind the Old Mill, east of the river. Staff, not spells.' },
+      a2_busy: { speaker: 'Watch Captain', text: 'The ridge behind the Old Mill, west of the river. Staff, not spells.' },
       a2_done: {
         speaker: 'Watch Captain',
         text: 'Look through it. A chip of the Speaking Stone, if you believe the old talk. It shows the blow before the blow.',
@@ -441,7 +441,7 @@ export const C4_DIALOGUE: Record<string, DialogueGraph> = {
           { text: 'Not yet.' },
         ],
       },
-      a3_brief: { speaker: 'Watch Captain', text: 'There is the yard in the Orchard, and more camps east of the village and over the river.', next: 'a3_brief_2' },
+      a3_brief: { speaker: 'Watch Captain', text: 'There is the yard in the Orchard, and more camps west of the village and over the river.', next: 'a3_brief_2' },
       a3_brief_2: { speaker: 'Watch Captain', text: 'If you run short of Gunners, rest at a shrine and they will be back.' },
       a3_busy: { speaker: 'Watch Captain', text: 'Eight Gunners, five Rivets. The camps refill whenever you rest at a shrine.' },
       a3_done: { speaker: 'Watch Captain', text: 'Five Rivets, and the camps are quiet. This staff was made by people who hated those things as much as you do.' },
@@ -466,16 +466,16 @@ export const C4_DIALOGUE: Record<string, DialogueGraph> = {
       { node: 'early' },
     ],
     nodes: {
-      early: { speaker: 'Ranger Moss', text: 'Something huge walks the west of this wood. You are not ready to meet it. Come back when you have a few more scars.' },
+      early: { speaker: 'Ranger Moss', text: 'Something huge walks the east of this wood. You are not ready to meet it. Come back when you have a few more scars.' },
       offer: {
         speaker: 'Ranger Moss',
-        text: 'Those prints belong to the Hollow Giant. Follow them west and you will find it. It swings slow and it reaches far. Lightning makes it stumble.',
+        text: 'Those prints belong to the Hollow Giant. Follow them east and you will find it. It swings slow and it reaches far. Lightning makes it stumble.',
         choices: [
           { text: "I'll track it.", do: [{ startQuest: 'q_hollow_giant' }] },
           { text: 'Not today.' },
         ],
       },
-      busy: { speaker: 'Ranger Moss', text: 'Follow the prints west. When the ground shakes, stop walking and start rolling.' },
+      busy: { speaker: 'Ranger Moss', text: 'Follow the prints east. When the ground shakes, stop walking and start rolling.' },
       after: { speaker: 'Ranger Moss', text: 'The wood is quieter without it. I almost miss the footsteps.' },
       after_myth: { speaker: 'Ranger Moss', text: 'Wear those wraps like the old stories say Sproto did. Never where the blow falls.', next: 'after' },
     },
@@ -539,7 +539,7 @@ export const C4_DIALOGUE_PATCHES: DialoguePatch[] = [
           { text: 'Another time.' },
         ],
       },
-      a4_busy: { speaker: 'Farmer Broccoli', text: 'Bramble camps, far west and far east. The big ones carry the pumpkins. Fire does them no favours.' },
+      a4_busy: { speaker: 'Farmer Broccoli', text: 'Bramble camps, far west and far east. The big ones only drop a pumpkin once you stagger them. Fire does them no favours.' },
       a4_done: { speaker: 'Farmer Broccoli', text: 'Would you look at the size of them! Here, a vine for your trouble. Pull the small ones to you, and yourself to the big ones.' },
       a4_after: { speaker: 'Farmer Broccoli', text: "Don't plant those in my rows. Once is enough." },
     },

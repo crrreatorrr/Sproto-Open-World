@@ -79,13 +79,13 @@ export const DIALOGUE: Record<string, DialogueGraph> = {
       seed_thanks: { speaker: 'Elder Pepe', text: 'Now rest at the Shrine of First Light. Shrines heal you, refill your tonics and let you grow stronger.' },
       pest_offer: {
         speaker: 'Elder Pepe',
-        text: "Grunts are trampling the Orchard to the west. Farmer Broccoli can't harvest a thing. Clear them out for her?",
+        text: "Grunts are trampling the Orchard to the east. Farmer Broccoli can't harvest a thing. Clear them out for her?",
         choices: [
           { text: 'Leave it to me.', do: [{ startQuest: 'q_pest_control' }] },
           { text: 'Not yet.' },
         ],
       },
-      pest_busy: { speaker: 'Elder Pepe', text: 'The Orchard is west, along the path past the barn. Lock on, keep your combos short, and mind your mana.' },
+      pest_busy: { speaker: 'Elder Pepe', text: 'The Orchard is east, along the path past the barn. Lock on, keep your combos short, and mind your mana.' },
       after: { speaker: 'Elder Pepe', text: 'Captain Agent at the training yard needs a hand at the Watchtower. And mind the Thornwood.' },
       wake_after: {
         speaker: 'Elder Pepe',
@@ -214,7 +214,7 @@ export const DIALOGUE: Record<string, DialogueGraph> = {
           { text: 'Not now.' },
         ],
       },
-      busy: { speaker: 'Miller Pepe', text: 'Across the bridge and up the east bank. Big Coin hides behind his friends.' },
+      busy: { speaker: 'Miller Pepe', text: 'Across the bridge and up the west bank. Big Coin hides behind his friends.' },
       mill_done: {
         speaker: 'Miller Pepe',
         text: "Hear that wheel? Music. That grim seal was stuck in the works. The old folk say it was the tyrant Tinubu's. It will serve you now, and never him.",
