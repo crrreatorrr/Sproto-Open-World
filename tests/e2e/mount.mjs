@@ -158,7 +158,14 @@ try {
   check(/Slow to a trot/.test(s.prompt ?? ''), 'the prompt offers the trot', s.prompt);
   await shot('b4-gallop');
   // A hedge crosses this line 70 m north of the bull: each leg starts back at the bull, so a stop against it can't pass for a trot.
-  const backToBull = () => page.evaluate(() => window.__qa.teleport(272, 55.6));
+  // The game holds behind the loading veil until the ground there has colliders again, and nothing
+  // ticks during the hold: presses made in it run together into one (three taps of A would not take
+  // off). So wait the hold out. It starts on the frame after the teleport.
+  const backToBull = async () => {
+    await page.evaluate(() => window.__qa.teleport(272, 55.6));
+    await frames(2);
+    await until((q) => !q.groundWait, 'the ground at the bull');
+  };
   await backToBull();
   await press('l3');
   // Wait on the speed, not a frame count: a slow software GPU covers many metres per rendered frame.
@@ -211,12 +218,19 @@ try {
   const flying = () => page.evaluate(() => !!window.__qa.app.sim.playerEntity(0).riding?.flight);
   const height = () => page.evaluate(() => window.__qa.app.sim.playerEntity(0).tf.pos.y);
   const ground = await height();
-  for (let i = 0; i < 3; i++) {
-    await page.evaluate(() => window.__pad.set('a', true));
-    await frames(1);
-    await page.evaluate(() => window.__pad.set('a', false));
-    await frames(1);
-  }
+  // The taps are timed inside the page, on its own frames. Driven from here, each change of the
+  // button waits on a round trip to the browser, and on a slow runner a round trip can miss a frame:
+  // a tap then lasts four or five frames (5 ticks each), which is past the 24 tick window.
+  await page.evaluate(() => new Promise((done) => {
+    let i = 0;
+    const step = () => {
+      if (i === 6) return done();
+      window.__pad.set('a', i % 2 === 0);
+      i++;
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }));
   await frames(2);
   check(await flying(), 'three quick taps of A take off');
   await page.evaluate(() => window.__pad.axes(0, 1));
