@@ -99,6 +99,8 @@ export const BURROWMOTHER: EnemyDef = {
   id: 'burrowmother',
   name: 'The Burrowmother',
   model: 'burrowmother',
+  // Drawn bigger each phase, as in Sproto Shooter (5.6, 6.0 and 6.5 m). The body it is fought on stays the same.
+  stageScale: [1, 1.07, 1.16],
   xp: 2600,
   hp: 6200,
   poise: 380,

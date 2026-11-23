@@ -26,8 +26,15 @@ export const MOUNT = {
   brake: 20,
   /** Sideways grip (m/s²). The turning circle's radius is speed² / grip: about 7 m at a full gallop. */
   grip: 42,
-  /** Under this speed (m/s) the bull can set off in any direction at once. */
-  pivotSpeed: 3,
+  /**
+   * The fastest its line can swing round, whatever its speed (rad/s): about 143° a second, so a
+   * quarter turn takes 0.63 s and turning right round at least 1.26 s. Grip is the tighter limit
+   * only at a full gallop; at a walk or a trot this is what makes a turn an arc and not a snap
+   * (1.5 m radius at a 3.8 m/s walk, 3.8 m at a trot, 7 m at a gallop).
+   */
+  turnRate: 2.5,
+  /** Under this speed (m/s), all but standing, the bull can set off in any direction at once. */
+  pivotSpeed: 1,
   /** Steering further off its line than `scrubFrom` (radians) slows the bull, to `scrubKeep` of its speed at `scrubTo`, so a hairpin is tight. */
   scrubFrom: Math.PI / 3,
   scrubTo: (3 * Math.PI) / 4,

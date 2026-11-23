@@ -1,6 +1,5 @@
 import { CLASS_PASSIVES, canWield, classOf } from '../content/classes';
 import { ITEMS, TRAVEL_DEVICE, type ItemDef } from '../content/items';
-import { isRootdeep } from '../content/packs/rootdeep';
 import { NPCS } from '../content/npcs';
 import { staffCostMult } from '../content/packs/c2';
 import { BRANCHES, BRANCH_IDS, PERKS, PERK_IDS, SKILL_MAX_RANK, branchTotal, classPerkDef, classSkillDef, hasPerk, RESPEC_SPROUTS_PER_LEVEL, type Branch } from '../content/progression';
@@ -15,7 +14,7 @@ import { spellIcon } from './Hud';
 import { mapSignature, renderMap, shrineLabel } from './mapTab';
 import type { MenuNav, Screen } from './MenuNav';
 import { loadRelicCopy, pressCard, relicKey, relicPad, relicsModel, renderRelics } from './relicsTab';
-import { KIND_NAMES, SWAP_RULE, costText, gearCompare, inventoryGroups, itemStats, levelProgress, nextLead, questLog, readyText, skillGain, staffTraitText, swapCooldown } from './rpgText';
+import { KIND_NAMES, SWAP_RULE, costText, dungeonShrineGroups, gearCompare, inventoryGroups, itemStats, levelProgress, nextLead, questLog, readyText, shrineGroups, skillGain, staffTraitText, swapCooldown } from './rpgText';
 
 export type MenuTab = 'powers' | 'skills' | 'gear' | 'relics' | 'quests' | 'map' | 'settings';
 
@@ -602,9 +601,9 @@ export class GameMenu {
       body.append(g);
     };
     const shrines = WORLD_CONTENT.shrines;
-    const shrineRow = (s: (typeof shrines)[number]) => ({ name: shrineLabel(s.id), act: { kind: 'fastTravel', shrine: s.id } as UiAction, here: p.lastShrine === s.id });
-    group('Shrines: Sproutvale', shrines.filter((s) => !isRootdeep(s.pos[0])).map(shrineRow));
-    group('Shrines: the Rootdeep', shrines.filter((s) => isRootdeep(s.pos[0])).map(shrineRow));
+    const shrineRow = (s: { id: string }) => ({ name: shrineLabel(s.id), act: { kind: 'fastTravel', shrine: s.id } as UiAction, here: p.lastShrine === s.id });
+    for (const g of shrineGroups(shrines)) group(`Shrines: ${g.title}`, g.shrines.map(shrineRow));
+    for (const g of dungeonShrineGroups()) group(`Shrines: ${g.title}`, g.shrines.map(shrineRow));
     const area = (a: AreaDef) => ({ name: a.name, act: { kind: 'godWarp', x: a.x, z: a.z } as UiAction });
     group('Areas: Sproutvale (god mode)', SURFACE_AREAS.map(area));
     group('Areas: the Rootdeep (god mode)', CAVE_AREAS.map(area));

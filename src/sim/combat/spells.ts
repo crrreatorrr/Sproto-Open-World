@@ -1,7 +1,6 @@
 import { STAFFS } from '../../content/combat';
 import { PERK_EFFECT, PROTECTION_SPELLS, SKILL_EFFECT, hasPerk, protectionMult } from '../../content/progression';
-import { charmOf, gunOf, knowsSpell, staffOf } from '../systems/rpg';
-import { firesAsBullets } from '../../content/classes';
+import { charmOf, knowsSpell, staffOf } from '../systems/rpg';
 import { ENEMIES } from '../../content/enemies';
 import { staffCostMult, staffSpellMult } from '../../content/packs/c2';
 import { SPELL_BASE, SPELLS, WOVEN, type SpellDef, type SpellId } from '../../content/spells';
@@ -39,19 +38,9 @@ function aimPoint(from: Vec3, t: Entity, speed: number): Vec3 {
   return { x: c.x + t.tf.vel.x * time, y: c.y + t.tf.vel.y * time, z: c.z + t.tf.vel.z * time };
 }
 
-/**
- * The numbers a cast uses. Gunfire takes the equipped gun's (content/classes.ts): its fire rate is the
- * cooldown, and its damage, range and splash are the shot's.
- */
-export function castDef(p: Entity | undefined, id: SpellId): SpellDef {
-  const def = SPELLS[id];
-  if (id !== 'gunfire') return def;
-  const g = gunOf(p?.progress)?.shot;
-  if (!g) return def;
-  return {
-    ...def, cooldown: g.cooldown, mv: g.mv, poise: g.poise, knockdown: g.knockdown, interruptsRanged: g.interrupts,
-    projectile: { speed: g.speed, radius: g.radius, range: g.range, explodeRadius: g.explodeRadius },
-  };
+/** The numbers a cast uses. */
+export function castDef(_p: Entity | undefined, id: SpellId): SpellDef {
+  return SPELLS[id];
 }
 
 /** Spell power: SPELL_BASE × the staff's spellPower (and trait) × (1 + 0.04 · Spell Power) × MV, ×1.2 when woven (more with Scholar's Knot). */
@@ -176,19 +165,9 @@ function spellInfo(id: SpellId, base: number, from: Vec3): HitInfo {
   };
 }
 
-/** A projectile's look: a gun's shot (or a Soldier's shooting spell) is a bullet, a slug or a rocket. */
-function projectileModel(p: Entity, id: SpellId): string {
-  if (!firesAsBullets(p.progress?.class, id)) return id === 'blast' ? 'blastOrb' : 'bolt';
-  if (id === 'gunfire') return gunOf(p.progress)?.look ?? 'bullet';
-  return id === 'blast' ? 'rocket' : 'slug';
-}
-
-/** How far (radians) pellet `i` of `n` turns off the aim: an even fan, and a single bullet wobbles with the tick. */
-function pelletYaw(spreadDeg: number, i: number, n: number, now: number): number {
-  const spread = (spreadDeg * Math.PI) / 180;
-  if (spread === 0) return 0;
-  if (n <= 1) return ((((now * 7919) % 13) / 12) - 0.5) * spread;
-  return -spread / 2 + (spread * i) / (n - 1);
+/** A spell projectile's look. */
+function projectileModel(_p: Entity, id: SpellId): string {
+  return id === 'blast' ? 'blastOrb' : 'bolt';
 }
 
 function fire(ctx: CombatCtx, p: Entity, id: SpellId, woven: boolean, target: Entity | null, physics: PhysicsWorld, spawn: SpawnSpellProjectile, point?: Vec3): void {
@@ -204,13 +183,8 @@ function fire(ctx: CombatCtx, p: Entity, id: SpellId, woven: boolean, target: En
     const d = { x: aim.x - from.x, y: aim.y - from.y, z: aim.z - from.z };
     const len = Math.hypot(d.x, d.y, d.z) || 1;
     const model = projectileModel(p, id);
-    const shot = id === 'gunfire' ? gunOf(p.progress)?.shot : undefined;
-    const pellets = shot?.pellets ?? 1;
-    for (let i = 0; i < pellets; i++) {
-      // Each pellet turns about the vertical by its share of the gun's spread.
-      const turn = shot ? pelletYaw(shot.spread, i, pellets, ctx.now) : 0;
-      const cs = Math.cos(turn), sn = Math.sin(turn);
-      const vx = (d.x * cs + d.z * sn) / len, vz = (-d.x * sn + d.z * cs) / len, vy = d.y / len;
+    {
+      const vx = d.x / len, vz = d.z / len, vy = d.y / len;
       spawn({
         kind: 'projectile',
         tf: { pos: { ...from }, prevPos: { ...from }, yaw: p.tf.yaw, prevYaw: p.tf.yaw, vel: { x: vx * sp, y: vy * sp, z: vz * sp } },

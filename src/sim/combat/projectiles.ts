@@ -15,6 +15,9 @@ import { wardProjectile } from './powers/mirrorWard';
 import { snareHit } from './powers/snare';
 import { applyStatus } from './statuses';
 
+/** The share of its speed a bouncing round keeps. */
+const BOUNCE_KEEP = 0.6;
+
 /**
  * Projectiles fly straight (homing ones turn toward their target), stop on world geometry, and
  * hit bodies of the other team. A parried projectile is reflected back at its shooter, 1.5×
@@ -28,16 +31,17 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
     if (!pr) continue;
     if (ctx.frozen.has(e.id)) continue;
     if (pr.homing && pr.target !== undefined) steer(e, ctx.get(pr.target));
+    if (pr.gravity) e.tf.vel.y -= pr.gravity * DT;
     const from = { ...e.tf.pos };
     const to = { x: from.x + e.tf.vel.x * DT, y: from.y + e.tf.vel.y * DT, z: from.z + e.tf.vel.z * DT };
-    const ward = wardProjectile(ctx, e, from, to);
+    const ward = pr.unstoppable ? null : wardProjectile(ctx, e, from, to);
     if (ward === 'reflected') continue;
     if (ward === 'blocked') {
       dead.push(e.id);
       continue;
     }
     // Turnstone turns one shot, and stays quiet while Mirror Ward is already doing it.
-    if (!pr.reflected && pr.team === 'enemy' && !ward) {
+    if (!pr.reflected && pr.team === 'enemy' && !ward && !pr.unstoppable) {
       const stone = turnstoneReady(ctx.entities, from, ctx.now, false);
       if (stone) {
         const coop = ctx.entities.filter((p) => p.kind === 'player').length > 1;
@@ -54,10 +58,24 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
     let reflected = false;
     for (const tgt of ctx.entities) {
       if (!tgt.combat || !tgt.body || tgt.combat.team === pr.team || tgt.combat.action?.kind === 'dead') continue;
+      if (pr.struck?.includes(tgt.id)) continue;
       const [b0, b1] = bodySegment(tgt.tf.pos, tgt.body.radius, tgt.body.height);
       const r = pr.radius + tgt.body.radius;
       if (segmentSegmentDistSq(from, to, b0, b1) > r * r) continue;
       const owner = ctx.get(pr.owner) ?? e;
+      if (pr.explode && pr.splash) {
+        // A gun round: the body it strikes takes the round itself, the blast takes the rest.
+        const out = resolveHit(ctx, owner, tgt, info(e, from));
+        if (out === 'hit' && pr.status && !isDead(tgt)) applyStatus(ctx, tgt, pr.status.id, pr.status.stacks, owner.id);
+        explode(ctx, e, owner, from, tgt.id);
+        if ((pr.pierce ?? 0) > 0) {
+          pr.pierce!--;
+          (pr.struck ??= []).push(tgt.id);
+          continue;
+        }
+        consumed = true;
+        break;
+      }
       if (pr.explode) {
         explode(ctx, e, owner, from);
         consumed = true;
@@ -67,6 +85,9 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
       const bonus = pr.reflected && pr.reflectBonus?.shooter === tgt.id ? pr.reflectBonus : null;
       const hit = info(e, from);
       if (bonus?.hpFrac) hit.fixedDamage = tgt.vitals!.hpMax * bonus.hpFrac;
+      // The Edge Warden's fire: a share of the health bar, and its burn can't be guarded.
+      if (pr.hpFrac && !pr.reflected) hit.fixedDamage = tgt.vitals!.hpMax * pr.hpFrac;
+      if (pr.unstoppable) hit.unblockable = true;
       // A reflected fireball breaks the Drake's stance (expansion plan §3.5).
       if (bonus?.poiseFrac) hit.poise = tgt.combat.poiseMax * bonus.poiseFrac;
       const out = resolveHit(ctx, owner, tgt, hit);
@@ -94,6 +115,19 @@ export function stepProjectiles(ctx: CombatCtx, physics: PhysicsWorld): number[]
 
     if (reflected) continue; // turned round at the parry: it starts its way back next tick
     if (!consumed && wall && wall.distance <= segLen) {
+      if ((pr.bounces ?? 0) > 0) {
+        // Off the surface, with most of its speed, from just clear of it.
+        pr.bounces!--;
+        const n = wall.normal, v = e.tf.vel;
+        const into = v.x * n.x + v.y * n.y + v.z * n.z;
+        e.tf.vel = { x: (v.x - 2 * into * n.x) * BOUNCE_KEEP, y: (v.y - 2 * into * n.y) * BOUNCE_KEEP, z: (v.z - 2 * into * n.z) * BOUNCE_KEEP };
+        e.tf.pos = { x: wall.point.x + n.x * pr.radius, y: wall.point.y + n.y * pr.radius, z: wall.point.z + n.z * pr.radius };
+        if (--pr.life <= 0) {
+          if (pr.explode) explode(ctx, e, ctx.get(pr.owner) ?? e, e.tf.pos);
+          dead.push(e.id);
+        }
+        continue;
+      }
       if (pr.explode) explode(ctx, e, ctx.get(pr.owner) ?? e, from);
       consumed = true;
     }
@@ -120,14 +154,28 @@ function info(e: Entity, from: Vec3): HitInfo {
 }
 
 /** Blast: everyone of the other team within the radius takes the hit and the status. */
-function explode(ctx: CombatCtx, e: Entity, owner: Entity, at: Vec3): void {
+function explode(ctx: CombatCtx, e: Entity, owner: Entity, at: Vec3, struck?: number): void {
   const pr = e.projectile!;
   const radius = pr.explode!;
+  // A gun round's own shooter, caught in the blast, takes a share of it.
+  const self = pr.splash?.selfMult ?? 0;
+  if (self > 0 && owner !== e && owner.combat && owner.body && owner.combat.action?.kind !== 'dead'
+    && flatDist(at, owner.tf.pos) <= radius + owner.body.radius && Math.abs(owner.tf.pos.y - at.y) <= radius + owner.body.height) {
+    const near = Math.max(0, flatDist(at, owner.tf.pos) - owner.body.radius) / radius;
+    const base = pr.splash!.damage * (1 - (1 - pr.splash!.minFalloff) * Math.min(1, near)) * self;
+    resolveHit(ctx, e, owner, { ...info(e, at), from: at, base, fixedDamage: Math.max(1, Math.round(base)), unblockable: true });
+  }
   ctx.events.push({ type: 'explode', entity: owner.id, spell: pr.spell ?? null, pos: { ...at }, radius });
   for (const tgt of ctx.entities) {
     if (!tgt.combat || !tgt.body || tgt.combat.team === pr.team || tgt.combat.action?.kind === 'dead') continue;
     if (flatDist(at, tgt.tf.pos) > radius + tgt.body.radius || Math.abs(tgt.tf.pos.y - at.y) > radius + tgt.body.height) continue;
-    const out = resolveHit(ctx, owner, tgt, { ...info(e, at), from: at });
+    if (tgt.id === struck) continue;
+    const hit = { ...info(e, at), from: at };
+    if (pr.splash) {
+      const near = Math.max(0, flatDist(at, tgt.tf.pos) - tgt.body.radius) / radius;
+      hit.base = pr.splash.damage * (1 - (1 - pr.splash.minFalloff) * Math.min(1, near));
+    }
+    const out = resolveHit(ctx, owner, tgt, hit);
     if (out === 'hit' && pr.status && !isDead(tgt)) applyStatus(ctx, tgt, pr.status.id, pr.status.stacks, owner.id);
   }
 }

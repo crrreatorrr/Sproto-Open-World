@@ -1,8 +1,9 @@
 import { CLASSES, CLASS_IDS, CLASS_PASSIVES, type ClassId } from '../content/classes';
 import { padGlyph, PAD_BUTTONS, type GamepadInput } from '../input/Gamepad';
 import {
-  ACTION_LABELS, KEY_ACTIONS, KEY_SLOTS, PAD_ACTIONS, bindKey, bindPad, clearKey, defaultControlPrefs,
-  type ControlPrefs, type KeyAction, type PadAction,
+  ACTION_LABELS, GUN_ACTION_LABELS, GUN_KEY_ACTIONS, GUN_PAD_ACTIONS, GUN_PAD_OPTIONAL, KEY_ACTIONS, KEY_SLOTS, PAD_ACTIONS,
+  bindGunKey, bindGunPad, bindKey, bindPad, clearGunKey, clearGunPad, clearKey, defaultControlPrefs,
+  type ControlPrefs, type GunKeyAction, type GunPadAction, type KeyAction, type PadAction,
 } from '../input/controlPrefs';
 import type { Input } from '../input/Input';
 import { keyLabel } from '../input/glyphs';
@@ -77,8 +78,15 @@ export class Menus {
   readonly controls: Screen;
   /** A new save's first choice: Wizard, Soldier or Pepe. */
   readonly classes: Screen;
-  private captureState: { kind: 'key'; action: KeyAction; slot: number } | { kind: 'pad'; action: PadAction } | null = null;
+  private captureState:
+    | { kind: 'key'; action: KeyAction; slot: number }
+    | { kind: 'pad'; action: PadAction }
+    | { kind: 'gunKey'; action: GunKeyAction; slot: number }
+    | { kind: 'gunPad'; action: GunPadAction }
+    | null = null;
   private captureTimer = 0;
+  /** A capture ended on this very key or button press: it must not also confirm the focused slot. */
+  private captureJustEnded = false;
   private note = '';
   /** The title's save state: whether Continue is offered, and a notice about a damaged save. */
   private titleSave: { canContinue: boolean; notice: string; diskPath: string | null } = { canContinue: false, notice: '', diskPath: null };
@@ -252,6 +260,32 @@ export class Menus {
           table.append(button(capturing ? 'Press a button…' : this.prefs.pad[pa].map((b) => padGlyph(b, style)).join(' / ') || '—', () => this.startCapture({ kind: 'pad', action: pa }), 'btn cell'));
         } else table.append(el('div', 'td', a === 'forward' || a === 'back' || a === 'left' || a === 'right' ? 'Left stick' : ''));
       }
+      // The gun layout: what the same hands do while a gun is out.
+      table.append(el('div', 'th section', 'With a gun in hand'));
+      const style = this.input.pad.style;
+      const gunActions = [...new Set<string>([...GUN_KEY_ACTIONS, ...GUN_PAD_ACTIONS])];
+      for (const a of gunActions) {
+        table.append(el('div', 'td label', GUN_ACTION_LABELS[a as GunKeyAction]));
+        for (let slot = 0; slot < KEY_SLOTS; slot++) {
+          if ((GUN_KEY_ACTIONS as string[]).includes(a)) {
+            const ka = a as GunKeyAction;
+            const c = this.captureState;
+            const capturing = c?.kind === 'gunKey' && c.action === ka && c.slot === slot;
+            const b = button(capturing ? 'Press a key…' : keyLabel(this.prefs.gunKeys[ka][slot]) || '—', () => this.startCapture({ kind: 'gunKey', action: ka, slot }), 'btn cell');
+            b.dataset.gunKey = `${ka}:${slot}`;
+            table.append(b);
+          } else table.append(el('div', 'td', ''));
+        }
+        if ((GUN_PAD_ACTIONS as string[]).includes(a)) {
+          const pa = a as GunPadAction;
+          const c = this.captureState;
+          const capturing = c?.kind === 'gunPad' && c.action === pa;
+          const empty = pa === 'grapple' ? `${padGlyph(this.prefs.gunPad.spellModifier[0] ?? 'lb', style)} + ${padGlyph(this.prefs.gunPad.melee[0] ?? 'rb', style)}` : '—';
+          const b = button(capturing ? 'Press a button…' : this.prefs.gunPad[pa].map((x) => padGlyph(x, style)).join(' / ') || empty, () => this.startCapture({ kind: 'gunPad', action: pa }), 'btn cell');
+          b.dataset.gunPad = pa;
+          table.append(b);
+        } else table.append(el('div', 'td', ''));
+      }
       const foot = el('div', 'list row');
       foot.append(
         button('Reset to defaults', () => {
@@ -264,18 +298,24 @@ export class Menus {
       );
       s.append(table, el('p', 'note', this.note || 'Select a slot, then press the key or button. Esc cancels; Delete clears a key.'), foot);
     };
-    return { el: s, render, capturing: () => this.captureState !== null };
+    return { el: s, render, capturing: () => this.captureState !== null || this.captureJustEnded };
   }
 
   private startCapture(c: NonNullable<Menus['captureState']>): void {
     this.captureState = c;
     this.captureTimer = 0;
-    this.note = c.kind === 'key' ? 'Press a key or mouse button for this action.' : 'Press a pad button for this action (or wait to cancel).';
+    this.note = c.kind === 'key' || c.kind === 'gunKey'
+      ? 'Press a key or mouse button for this action.'
+      : c.kind === 'gunPad' && GUN_PAD_OPTIONAL.has(c.action)
+        ? 'Press a pad button for this action. Delete takes the button off; wait to cancel.'
+        : 'Press a pad button for this action (or wait to cancel).';
     this.nav.refresh();
   }
 
   private endCapture(note: string): void {
     this.captureState = null;
+    this.captureJustEnded = true;
+    setTimeout(() => (this.captureJustEnded = false), 0);
     this.note = note;
     this.nav.refresh();
   }
@@ -286,6 +326,18 @@ export class Menus {
     e.preventDefault();
     e.stopPropagation();
     if (code === 'Escape') return this.endCapture('Cancelled.');
+    if (c.kind === 'gunPad') {
+      if (code !== 'Delete' && code !== 'Backspace') return;
+      const r = clearGunPad(this.prefs, c.action);
+      if (r.ok) this.applyPrefs(r.prefs);
+      return this.endCapture(r.ok ? 'Button cleared.' : r.reason);
+    }
+    if (c.kind === 'gunKey') {
+      const clear = code === 'Delete' || code === 'Backspace';
+      const r = clear ? clearGunKey(this.prefs, c.action, c.slot) : bindGunKey(this.prefs, c.action, c.slot, code);
+      if (r.ok) this.applyPrefs(r.prefs);
+      return this.endCapture(r.ok ? (clear ? 'Key cleared.' : r.swapped ? `Swapped with ${GUN_ACTION_LABELS[r.swapped]}.` : 'Saved.') : r.reason);
+    }
     if (c.kind !== 'key') return;
     if (code === 'Delete' || code === 'Backspace') {
       const r = clearKey(this.prefs, c.action, c.slot);
@@ -303,10 +355,15 @@ export class Menus {
     if (!c) return;
     this.captureTimer += dt;
     if (this.captureTimer > 6) return this.endCapture('Timed out.');
-    if (c.kind !== 'pad') return;
+    if (c.kind !== 'pad' && c.kind !== 'gunPad') return;
     pad.update();
     for (const b of PAD_BUTTONS) {
       if (b === 'home' || !pad.wasPressed([b])) continue;
+      if (c.kind === 'gunPad') {
+        const r = bindGunPad(this.prefs, c.action, b);
+        if (r.ok) this.applyPrefs(r.prefs);
+        return this.endCapture(r.ok ? (r.swapped ? `Swapped with ${GUN_ACTION_LABELS[r.swapped]}.` : 'Saved.') : r.reason);
+      }
       const r = bindPad(this.prefs, c.action, b);
       if (r.ok) this.applyPrefs(r.prefs);
       return this.endCapture(r.ok ? (r.swapped ? `Swapped with ${ACTION_LABELS[r.swapped]}.` : 'Saved.') : r.reason);

@@ -16,9 +16,10 @@ import type { ObstaclePlacement, RegionContent } from '../content/world/sproutva
 import { SAVE_SCHEMA, type SaveFile } from '../save/schema';
 import { getDungeon } from '../content/dungeons/catalog';
 import type { DungeonId } from '../content/dungeons/types';
-import { gunDef, type GunType } from '../content/guns';
-import { createGunRuntimeState, stepGunFire, type GunRuntimeState } from './combat/ballistics';
+import { GUN_HEAT, computeGunStats, gunDef, nextZoom, zoomStepsOf, ZOOM_FEEL, type GunRef, type GunType } from '../content/guns';
+import { SIM_HZ, createGunRuntimeState, heatMults, stepGunFire, type GunRuntimeState } from './combat/ballistics';
 import { canDualWield, createDualWieldState, stepDualWieldFire } from './combat/dualWield';
+import { aimShot, type GunHand, type WorldRay } from './combat/gunAim';
 import { createDungeonSession, stepDungeon, type DungeonEvent, type DungeonSessionState } from './dungeon/DungeonDirector';
 import { computeClassModifiers } from './systems/classSkills';
 import { createMovementTechState, stepMovementTech, type MovementTechState } from './systems/movementTech';
@@ -55,8 +56,9 @@ import { relicSlowTick } from './systems/relics';
 import { mountCalls, MOUNT_RUNNER } from './systems/mountCall';
 import { cancelMount, followRiders, ridingMotion } from './systems/riding';
 import { vitals } from './systems/vitals';
+import { edgeWardens } from './systems/edgeWarden';
 import { godVitals } from './systems/god';
-import { wieldsPhone } from './systems/travel';
+import { SHRINE_ARRIVE_OFFSET, wieldsPhone } from './systems/travel';
 import type { ReadonlySimView } from './view';
 
 /** The wave runner's state (`?sandbox=1`). */
@@ -84,6 +86,8 @@ export interface SimSnapshot {
   world?: WorldState;
   /** `${entityId}:${triggerId}` for every player inside a trigger volume. */
   triggers?: string[];
+  /** Each player's gun in hand: its magazine, reload and zoom. */
+  guns?: [PlayerId, GunEntry][];
 }
 
 /** Ticks a dead wave enemy lies there before it's removed (wave enemies don't respawn). */
@@ -131,6 +135,34 @@ export interface GunTickEvent {
   crit: boolean;
   reloadStarted: boolean;
   reloadCompleted: boolean;
+  /** The trigger was pulled on an empty gun with nothing left to load. */
+  dryFire: boolean;
+  /** The shot's kick on the view: up, and a little to one side (degrees). */
+  recoil: { pitchDeg: number; yawDeg: number };
+  /** Where the shot left the gun (the sim's barrel point); a view may draw from the model's own. */
+  muzzle: Vec3;
+  /** One line per hitscan ray this tick, from the barrel to where it ended. */
+  tracers: readonly { from: Vec3; to: Vec3 }[];
+}
+
+/** One player's gun in hand: which gun and bar slot, its magazine and timers, and what it points at. */
+export interface GunEntry {
+  gunId: string;
+  slot: number;
+  runtime: GunRuntimeState;
+  aim?: GunAimView;
+  faceTicks?: number;
+}
+
+/** After a shot the body keeps facing the aim this long (ticks), so a burst does not swing it about. */
+const GUN_FACE_TICKS = 40;
+
+/** What a player's gun is pointed at this tick, for the crosshair. */
+export interface GunAimView {
+  /** The world point under the crosshair. */
+  point: Vec3;
+  /** Where a shot would land instead: something is between the barrel and that point. */
+  blocked: Vec3 | null;
 }
 
 export class SimWorld {
@@ -151,7 +183,7 @@ export class SimWorld {
   /** Per-player ability-gated movement tech state (Slide, Dash, Double-Jump, Grapple). */
   private readonly moveTech = new Map<PlayerId, MovementTechState>();
   /** Per-player gun runtime state (magazine, reload progress). */
-  private readonly gunState = new Map<PlayerId, { gunId: string; runtime: GunRuntimeState }>();
+  private readonly gunState = new Map<PlayerId, GunEntry>();
   /** Camp members that wait for a horn (the second Pest Control wave). Part of the snapshot. */
   private pendingWaves: { camp: string; def: string; pos: Vec3; yaw: number; wave: number; carry?: string }[] = [];
   /** World flags, opened chests, killed uniques (plan §2.8). */
@@ -825,7 +857,8 @@ export class SimWorld {
       const busy = playerRpg(rpg, e, cmd?.pressed ?? 0, uiActions, this.chests, cmd?.held ?? 0);
       if (busy) effective.set(e.owner, { ...idleInput(cmd?.camYaw ?? e.tf.yaw) });
       // The Brick Phone and equipped guns never swing on Light attack: Light triggers phone or gun fire.
-      else if (cmd && (wieldsPhone(e) || gunDef(e.progress?.equipment.staff)) && ((cmd.pressed | cmd.held) & BTN.light)) {
+      else if (cmd && gunDef(e.progress?.equipment.staff)) effective.set(e.owner, this.gunCommand(e.owner, cmd));
+      else if (cmd && wieldsPhone(e) && ((cmd.pressed | cmd.held) & BTN.light)) {
         effective.set(e.owner, { ...cmd, pressed: cmd.pressed & ~BTN.light, held: cmd.held & ~BTN.light });
       }
     }
@@ -862,6 +895,11 @@ export class SimWorld {
     mountCalls(this.entities, commands, this.physics, this.events, (id) => this.byId.get(id), (x, z) => this.cellReady(...cellOf(x, z)));
     this.physics.step();
     followRiders(this.entities, (id) => this.byId.get(id));
+    edgeWardens(ctx, this.level.edge, this.rng.stream('warden'), {
+      spawn: (e) => this.spawnSpellProjectile(e),
+      remove: (id) => this.remove(id),
+      busy: !!this.dungeon || !!this.wave || this.entities.some((b) => b.boss?.flight && (b.boss.state === 'intro' || b.boss.state === 'fight')),
+    });
     resolveAttacks(ctx, this.physics);
     this.gunRuntimeTick(ctx, rawCommands);
     for (const id of stepProjectiles(ctx, this.physics)) this.remove(id);
@@ -909,8 +947,13 @@ export class SimWorld {
   }
 
   /** Readonly snapshot of a player's live gun magazine and reload state, or null if not holding a gun. */
-  gunRuntime(player: PlayerId): { gunId: string; runtime: Readonly<GunRuntimeState> } | null {
+  gunRuntime(player: PlayerId): { gunId: string; runtime: Readonly<GunRuntimeState>; aim?: Readonly<GunAimView> } | null {
     return this.gunState.get(player) ?? null;
+  }
+
+  /** Readonly snapshot of a player's movement tech (slide, dash, grapple), or null before they unlock any. */
+  movementTech(player: PlayerId): Readonly<MovementTechState> | null {
+    return this.moveTech.get(player) ?? null;
   }
 
   /** Step ability-gated Slide, Dash, Double-Jump, and Grapple (no-op when all abilities are locked). */
@@ -972,6 +1015,24 @@ export class SimWorld {
     }
   }
 
+  /**
+   * What the rest of the sim sees from a player holding a gun: Light is the trigger, never a swing;
+   * the melee button is the swing; and aiming is not a guard. Zoomed, they move slower, and
+   * sprinting drops the zoom.
+   */
+  private gunCommand(owner: PlayerId, cmd: InputCommand): InputCommand {
+    const strip = BTN.light | BTN.block;
+    const swing = (bits: number) => ((bits & ~strip) | (bits & BTN.melee ? BTN.light : 0));
+    const out: InputCommand = { ...cmd, pressed: swing(cmd.pressed), held: swing(cmd.held) };
+    const rt = this.gunState.get(owner)?.runtime;
+    if (rt && rt.scopeZoom > 0) {
+      const moving = Math.hypot(cmd.move.x, cmd.move.y) >= MOVE.sprintMinStick;
+      if ((cmd.held & BTN.sprint) && moving) rt.scopeZoom = 0;
+      else out.move = { x: cmd.move.x * ZOOM_FEEL.moveMult, y: cmd.move.y * ZOOM_FEEL.moveMult };
+    }
+    return out;
+  }
+
   /** Run per-player gun ballistics, dual-wield alternating fire, reloads, and elemental/crit-weave procs. */
   private gunRuntimeTick(ctx: CombatCtx, commands: CommandMap): void {
     const gunEvents: GunTickEvent[] = [];
@@ -997,34 +1058,74 @@ export class SimWorld {
       });
       const skillMods = {
         dmgMult: mods.gunDmgMult,
-        reloadMult: mods.reloadSpeedMult,
+        // A faster reload is a shorter one: the skill's speed divides the time.
+        reloadMult: 1 / Math.max(0.1, mods.reloadSpeedMult),
         fireRateMult: mods.fireRateMult,
         spreadMult: mods.recoilSpreadMult,
+        recoilMult: mods.recoilSpreadMult,
         critBonus: mods.gunCritBonus,
         weakspotMult: mods.weakspotMult,
         elementChanceBonus: mods.elementProcBonus,
         magMult: mods.ammoCapacityMult,
       };
+      // Each bar slot keeps its own magazine (progress.mags): a swap is never a reload. Drawing a
+      // gun drops any reload in progress and takes the gun's swap time before it can fire.
+      const mags = (e.progress.mags ??= []);
+      const kept = (slot: number, id: string, full: number) => {
+        const m = mags[slot];
+        return m && m.id === id ? Math.min(full, Math.max(0, m.n)) : full;
+      };
       let entry = this.gunState.get(e.owner);
-      if (!entry || entry.gunId !== gun.itemId) {
-        entry = { gunId: gun.itemId, runtime: createGunRuntimeState(gun.id, e.progress.level, skillMods) };
+      if (!entry || entry.gunId !== gun.itemId || entry.slot !== activeSlot) {
+        const drawn = entry !== undefined;
+        const runtime = createGunRuntimeState(gun.id, e.progress.level, skillMods);
+        runtime.mag = kept(activeSlot, gun.itemId, runtime.magSize);
+        if (drawn) runtime.fireCooldownTicks = Math.round(gun.base.swapTime * SIM_HZ);
+        entry = { gunId: gun.itemId, slot: activeSlot, runtime };
         this.gunState.set(e.owner, entry);
       }
+      entry.runtime.magSize = computeGunStats(gun.id, e.progress.level, skillMods).magSize;
+      const offhandSlot = offhand ? e.progress.weapons!.findIndex((w, i) => i !== activeSlot && w === offhand) : -1;
       if (isDual && offhandDef && !entry.runtime.dual) {
-        entry.runtime.dual = createDualWieldState(offhandDef.id, e.progress.level, skillMods);
+        const dual = createDualWieldState(offhandDef.id, e.progress.level, skillMods);
+        dual.offhandMag = kept(offhandSlot, offhandDef.itemId, dual.offhandMag);
+        entry.runtime.dual = dual;
       } else if (!isDual && entry.runtime.dual) {
         entry.runtime.dual = undefined;
       }
       const cmd = commands.get(e.owner);
       const ammo = (e.progress.ammo ??= defaultAmmo());
-      const canAct = e.combat?.action?.kind !== 'dead' && !e.riding && !e.progress.dialogue && !e.progress.shop && !e.progress.atShrine;
+      // In the saddle a gun still fires, from the hip: it cannot zoom, and the bull does the turning.
+      const mounted = !!e.riding;
+      const canAct = e.combat?.action?.kind !== 'dead' && (!mounted || e.riding!.state === 'riding') && !e.progress.dialogue && !e.progress.shop && !e.progress.atShrine;
       const fireHeld = canAct && Boolean(cmd && ((cmd.held | cmd.pressed) & BTN.light));
       const reloadPressed = canAct && Boolean(cmd && (cmd.pressed & BTN.reload));
-      entry.runtime.adsActive = canAct && !isDual && Boolean(cmd && (cmd.held & BTN.block));
+      // Zoom is a toggle the aim button steps through; what the gun allows decides how far.
+      const rt = entry.runtime;
+      const steps = mounted ? 0 : zoomStepsOf(gun.itemId, isDual);
+      const act = e.combat?.action?.kind;
+      // A swing or a roll takes the hands off the reload.
+      if (act === 'attack' || act === 'dodge') {
+        rt.reloadTicks = 0;
+        if (rt.dual) rt.dual.reloadTicks = 0;
+      }
+      if (!canAct || act === 'attack' || act === 'dodge' || rt.reloadTicks > 0 || rt.scopeZoom > steps) rt.scopeZoom = 0;
+      else if (cmd && (cmd.pressed & BTN.aim)) rt.scopeZoom = nextZoom(rt.scopeZoom, steps);
+      rt.adsActive = rt.scopeZoom > 0;
 
-      const origin = { x: e.tf.pos.x, y: e.tf.pos.y + 1.45, z: e.tf.pos.z };
-      const aimDir = cmd?.aim?.dir ?? { x: Math.sin(e.tf.yaw), y: 0, z: Math.cos(e.tf.yaw) };
-      const worldHit = fireHeld ? this.physics.raycast(origin, aimDir, 120) : null;
+      // The crosshair picks a point; the shot leaves the barrel and flies to it (gunAim.ts).
+      const worldRay: WorldRay = (o, d, max) => this.physics.raycast(o, d, max)?.distance ?? null;
+      const fallbackDir = { x: Math.sin(e.tf.yaw), y: 0, z: Math.cos(e.tf.yaw) };
+      const aimFor = (hand: GunHand, ref: GunRef) =>
+        aimShot({ pos: e.tf.pos, gun: ref, hand, ray: cmd?.aim, fallbackDir, enemies: liveEnemies, worldRay });
+      const shotAim = aimFor(isDual ? 'right' : 'single', gun.id);
+      entry.aim = canAct && cmd?.aim ? { point: shotAim.point, blocked: shotAim.blocked } : undefined;
+      const origin = shotAim.origin;
+      const aimDir = shotAim.dir;
+      // Moving and being in the air open the hip spread up; the crosshair shows what a shot would get.
+      const moveSpreadMult = !(e.loco?.grounded ?? true) ? GUN_HEAT.airborneMult : (e.loco?.speed ?? 0) > GUN_HEAT.movingSpeed ? GUN_HEAT.movingMult : 1;
+      const liveStats = computeGunStats(gun.id, e.progress.level, skillMods);
+      rt.spreadDeg = rt.adsActive ? liveStats.adsSpread : liveStats.spread * heatMults(rt, moveSpreadMult).hipSpreadMult;
       const rng = this.rng.stream('combat');
 
       const res = isDual
@@ -1033,7 +1134,12 @@ export class SimWorld {
             rightGun: gun.id,
             ammo,
             fireHeld,
+            // A trigger and a reload per gun: Light is the right hand's, Aim (no zoom here) the left's.
+            fireRight: fireHeld,
+            fireLeft: canAct && Boolean(cmd && ((cmd.held | cmd.pressed) & BTN.aim)),
             reloadPressed,
+            reloadRight: canAct && Boolean(cmd && (cmd.pressed & BTN.reloadRight)),
+            reloadLeft: canAct && Boolean(cmd && (cmd.pressed & BTN.reloadLeft)),
             yaw: e.tf.yaw,
             origin,
             aimDir,
@@ -1041,7 +1147,12 @@ export class SimWorld {
             rng,
             playerLevel: e.progress.level,
             skillMods,
-            worldHitDist: worldHit?.distance,
+            worldRay,
+            moveSpreadMult,
+            handAim: (hand) => {
+              const a = hand === 'right' ? shotAim : aimFor('left', offhandDef!.id);
+              return { origin: a.origin, aimDir: a.dir };
+            },
           })
         : stepGunFire({
             runtime: entry.runtime,
@@ -1055,8 +1166,20 @@ export class SimWorld {
             rng,
             playerLevel: e.progress.level,
             skillMods,
-            worldHitDist: worldHit?.distance,
+            worldRay,
+            moveSpreadMult,
           });
+
+      mags[activeSlot] = { id: gun.itemId, n: entry.runtime.mag };
+      if (isDual && offhandDef && entry.runtime.dual && offhandSlot >= 0) mags[offhandSlot] = { id: offhandDef.itemId, n: entry.runtime.dual.offhandMag };
+
+      // Shooting or zoomed, the body faces where the gun points, and stays there for a moment after.
+      if (canAct && (res.fired || entry.runtime.adsActive)) entry.faceTicks = GUN_FACE_TICKS;
+      if (canAct && !mounted && (entry.faceTicks ?? 0) > 0) {
+        entry.faceTicks!--;
+        const d = cmd?.aim?.dir;
+        if (d && Math.hypot(d.x, d.z) > 1e-4) e.tf.yaw = Math.atan2(d.x, d.z);
+      }
 
       let anyHit = false;
       let anyCrit = false;
@@ -1113,7 +1236,9 @@ export class SimWorld {
 
       for (const proj of res.projectiles) {
         const statusId = proj.element === 'fire' ? 'burn' : proj.element === 'shock' ? 'shock' : proj.element === 'goo' ? 'chill' : undefined;
-        this.spawnSpellProjectile({
+        // No 'fire' event: a gun round has its own gun event (and sound), not a spell's.
+        this.add({
+          id: this.nextId++,
           kind: 'projectile',
           tf: { pos: { ...proj.origin }, prevPos: { ...proj.origin }, vel: { ...proj.vel }, yaw: e.tf.yaw, prevYaw: e.tf.yaw },
           projectile: {
@@ -1127,12 +1252,17 @@ export class SimWorld {
             reflected: false,
             explode: proj.splash?.radius,
             status: statusId ? { id: statusId, stacks: 1 } : undefined,
+            gravity: proj.gravity || undefined,
+            bounces: proj.bounces || undefined,
+            pierce: proj.pierce || undefined,
+            splash: proj.splash ? { damage: proj.splash.damage, minFalloff: proj.splash.minFalloff, selfMult: proj.splash.selfMult || undefined } : undefined,
           },
-          view: { model: proj.kind === 'rocket' ? 'rocket' : 'bullet' },
+          // The Duck Gun's round is Sproto Shooter's modelled rubber bullet; the rest are a rocket or a tracer.
+          view: { model: proj.kind === 'rocket' ? 'rocket' : proj.kind === 'rubberBullet' ? 'rubber_bullet' : 'bullet' },
         });
       }
 
-      if (res.fired || res.reloadStarted || res.reloadCompleted) {
+      if (res.fired || res.reloadStarted || res.reloadCompleted || res.dryFire) {
         gunEvents.push({
           entity: e.id,
           gunType: gun.id,
@@ -1142,6 +1272,10 @@ export class SimWorld {
           crit: anyCrit,
           reloadStarted: res.reloadStarted,
           reloadCompleted: res.reloadCompleted,
+          dryFire: !!res.dryFire,
+          recoil: res.recoilKick,
+          muzzle: res.tracers[0]?.from ?? res.projectiles[0]?.origin ?? origin,
+          tracers: res.tracers,
         });
       }
     }
@@ -1149,12 +1283,23 @@ export class SimWorld {
   }
 
   /** Boot an instanced Campaign Dungeon (L01-L10): compiles Rapier colliders and places player at spawn. */
-  startDungeon(id: DungeonId): void {
+  startDungeon(id: DungeonId, atShrine?: string): void {
     const def = getDungeon(id);
     this.dungeon = createDungeonSession(id);
     this.dungeonEvents = [];
     this.physics.loadDungeon(def, this.dungeon.sealedDoorIds);
+    for (const sh of def.shrines) this.addInteractable(sh.id, 'shrine', [sh.pos[0], sh.pos[1], sh.pos[2]], sh.yaw, false);
     const p = this.playerEntity(0);
+    // Arriving at one of its shrines (god mode's phone): beside the stone, and that is where you wake.
+    const sh = atShrine ? def.shrines.find((x) => x.id === atShrine) : undefined;
+    if (sh) {
+      const at: [number, number, number] = [sh.pos[0] + SHRINE_ARRIVE_OFFSET, sh.pos[1], sh.pos[2] + SHRINE_ARRIVE_OFFSET];
+      this.dungeon.activeCheckpointId = sh.checkpointId;
+      this.dungeon.activeCheckpointPos = at;
+      if (!this.dungeon.activatedCheckpoints.includes(sh.checkpointId)) this.dungeon.activatedCheckpoints.push(sh.checkpointId);
+      if (p) this.teleportPlayer(0, { x: at[0], y: at[1] + 0.15, z: at[2] });
+      return;
+    }
     if (p) this.teleportPlayer(0, { x: def.spawn[0], y: def.spawn[1] + 0.15, z: def.spawn[2] });
   }
 
@@ -1176,8 +1321,22 @@ export class SimWorld {
       aliveEnemies,
       !!(cmd && (cmd.pressed & BTN.interact)),
     );
-    this.dungeonEvents = res.events;
+    this.dungeon = res.state;
     const def = getDungeon(this.dungeon.dungeonId);
+    // A rest at a dungeon shrine makes its checkpoint the active one: you wake beside the stone.
+    const rested: DungeonEvent[] = [];
+    for (const ev of this.events) {
+      if (ev.type !== 'shrineRest' || ev.entity !== p.id) continue;
+      const sh = def.shrines.find((x) => x.id === ev.shrine);
+      if (!sh) continue;
+      this.dungeon.activeCheckpointId = sh.checkpointId;
+      this.dungeon.activeCheckpointPos = [sh.pos[0] + SHRINE_ARRIVE_OFFSET, sh.pos[1], sh.pos[2] + SHRINE_ARRIVE_OFFSET];
+      if (!this.dungeon.activatedCheckpoints.includes(sh.checkpointId)) {
+        this.dungeon.activatedCheckpoints.push(sh.checkpointId);
+        rested.push({ type: 'checkpointActivated', checkpointId: sh.checkpointId, pos: sh.pos });
+      }
+    }
+    this.dungeonEvents = rested.length ? [...res.events, ...rested] : res.events;
     for (const ev of res.events) {
       if (ev.type === 'doorStateChanged') {
         this.physics.setDungeonDoorSealed(ev.doorId, ev.sealed);
@@ -1422,7 +1581,9 @@ export class SimWorld {
 
   /** Hash of the sim state (entities, players, rng streams, tick). Not Rapier's internals. */
   hash(): number {
-    return hashValue({ now: this.now, entities: this.entities, players: [...this.players], rng: this.rng.streams, wave: this.wave, pendingWaves: this.pendingWaves, cells: [...this.readyCells].sort(), world: this.world, triggers: [...this.insideTriggers].sort() });
+    const state = { now: this.now, entities: this.entities, players: [...this.players], rng: this.rng.streams, wave: this.wave, pendingWaves: this.pendingWaves, cells: [...this.readyCells].sort(), world: this.world, triggers: [...this.insideTriggers].sort() };
+    // Guns in hand (magazine, reload and zoom) are state too; a world without one hashes as before.
+    return hashValue(this.gunState.size ? { ...state, guns: this.gunSnapshot() } : state);
   }
 
   snapshot(): SimSnapshot {
@@ -1436,7 +1597,12 @@ export class SimWorld {
       pendingWaves: this.pendingWaves,
       world: this.world,
       triggers: [...this.insideTriggers].sort(),
+      guns: this.gunSnapshot(),
     });
+  }
+
+  private gunSnapshot(): [PlayerId, GunEntry][] {
+    return [...this.gunState].sort((a, b) => a[0] - b[0]);
   }
 
   /** Restore a snapshot; Rapier character bodies are rebuilt from the entities. */
@@ -1455,6 +1621,8 @@ export class SimWorld {
     // moves characters as if the rebuilt capsules weren't there.
     this.physics.step();
     for (const [p, id] of copy.players) this.players.set(p, id);
+    this.gunState.clear();
+    for (const [p, g] of copy.guns ?? []) this.gunState.set(p, g);
     for (const k of Object.keys(this.rng.streams)) delete this.rng.streams[k];
     Object.assign(this.rng.streams, copy.rng);
     this.wave = copy.wave ?? null;

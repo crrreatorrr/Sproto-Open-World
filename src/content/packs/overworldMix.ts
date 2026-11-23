@@ -322,6 +322,89 @@ export const OVERWORLD_MIX_CAMPS: readonly OverworldMixCampDef[] = [
       { def: 'shooter_bot', at: [8.0, 5.0], yaw: -2.3 },
     ],
   },
+
+  // ---- The rest of Sproto Duel's ladder and Sproto Shooter's wave bosses (packs/duelBosses.ts) ----
+  // Each stands on open, level ground: 34 m around it is flat to within 2 m and clear of water.
+  {
+    id: 'mix_willowrun_pump_and_dump',
+    name: 'Bitcoin Obama & The Midget — Willowrun Trading Floor',
+    region: 'river',
+    levelRange: [13, 15],
+    isWorldBoss: true,
+    pos: [1008, 10, 880],
+    // The Midget is not a member: he comes in when the fight starts.
+    members: [{ def: 'duel_obama', at: [0, 0], yaw: Math.PI, unique: 'world_boss_duel_obama_willowrun' }],
+  },
+  {
+    id: 'mix_willowrun_floret_patch',
+    name: 'Floret Patch',
+    region: 'river',
+    levelRange: [13, 16],
+    pos: [1104, 10, 800],
+    members: [
+      { def: 'floret_sprout', at: [-4.0, 2.5], yaw: 0.6 },
+      { def: 'floret_sprout', at: [4.0, 2.5], yaw: -0.6 },
+      { def: 'floret_sprout', at: [0, -4.5], yaw: Math.PI },
+      { def: 'grunt_vet', at: [0, 5.0], yaw: 0 },
+    ],
+  },
+  {
+    id: 'mix_bellmere_broccoli_head',
+    name: 'Broccoli Head — Bellmere Commons',
+    region: 'town',
+    levelRange: [17, 19],
+    isWorldBoss: true,
+    pos: [864, 10, 80],
+    members: [
+      { def: 'broccoli_head', at: [0, 0], yaw: Math.PI, unique: 'world_boss_broccoli_head_bellmere' },
+      { def: 'floret_sprout', at: [-7.5, 4.0], yaw: 2.4 },
+      { def: 'floret_sprout', at: [7.5, 4.0], yaw: -2.4 },
+    ],
+  },
+  {
+    id: 'mix_bellmere_field_office',
+    name: 'Glowie Field Office',
+    region: 'town',
+    levelRange: [17, 20],
+    pos: [1040, 9, 368],
+    members: [
+      { def: 'glowie_agent', at: [-4.5, 2.0], yaw: 0.7 },
+      { def: 'glowie_agent', at: [4.5, 2.0], yaw: -0.7 },
+      { def: 'glowie_agent', at: [0, -4.5], yaw: Math.PI },
+      { def: 'laser_bot', at: [0, 5.0], yaw: 0 },
+    ],
+  },
+  {
+    id: 'mix_bellmere_glowie',
+    name: 'Glowie — Bellmere East Checkpoint',
+    region: 'town',
+    levelRange: [21, 23],
+    isWorldBoss: true,
+    pos: [1472, 10, 80],
+    members: [
+      { def: 'glowie', at: [0, 0], yaw: Math.PI, unique: 'world_boss_glowie_bellmere' },
+      { def: 'glowie_agent', at: [-7.5, 4.0], yaw: 2.4 },
+      { def: 'glowie_agent', at: [7.5, 4.0], yaw: -2.4 },
+    ],
+  },
+  {
+    id: 'mix_veilfalls_blue_monster',
+    name: 'Blue Monster — Veilfalls High Shelf',
+    region: 'waterfalls',
+    levelRange: [23, 25],
+    isWorldBoss: true,
+    pos: [1312, 72, 1744],
+    members: [{ def: 'blue_monster', at: [0, 0], yaw: Math.PI, unique: 'world_boss_blue_monster_veilfalls' }],
+  },
+  {
+    id: 'mix_frostspine_sproto_beast',
+    name: 'Sproto Beast — Frostspine Hollow',
+    region: 'mountains',
+    levelRange: [29, 30],
+    isWorldBoss: true,
+    pos: [448, 54, 1856],
+    members: [{ def: 'sproto_beast', at: [0, 0], yaw: Math.PI, unique: 'world_boss_sproto_beast_frostspine' }],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -340,7 +423,9 @@ export const WEAPON_BOX_SHOPS: readonly WeaponBoxShopDef[] = [
     id: 'weapon_box_sproutvale',
     name: 'Sproutvale Weapon Box',
     region: 'sproutvale',
-    pos: [254, 13.5, 78],
+    // 5 m south of the fountain's centre (254, 76; its collider is 2 m across the rim): on the rim
+    // the settle ray landed on the fountain's collider and the merchant hovered (WORLD-0003).
+    pos: [254, 13.5, 81],
     yaw: Math.PI * 0.75,
     currency: 'sprouts',
     guns: [

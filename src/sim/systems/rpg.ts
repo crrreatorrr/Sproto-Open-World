@@ -10,6 +10,7 @@ import { NPCS } from '../../content/npcs';
 import { OBJECTS, usedFlag } from '../../content/objects';
 import { LENS_PREVIEW_FLAG, LENS_PREVIEW_TICKS, SEAL_HOOK } from '../../content/packs/encounterTune';
 import { DUNGEON_PORTAL_BY_PORTAL_ID } from '../../content/packs/overworldMix';
+import { SHRINE_TITLES } from '../../content/packs/shrines';
 import { ROOTDEEP_PORTALS, portalOpenFlag } from '../../content/packs/rootdeep';
 import { GROWTH, LEVEL_CAP, SKILL_EFFECT, SKILL_POINTS_PER_LEVEL, noSkills, xpForLevel } from '../../content/progression';
 import { QUESTS, type Condition, type Effect, type Objective, type QuestOffer } from '../../content/quests';
@@ -65,7 +66,7 @@ export function newProgress(spells: SpellId[], cls: ClassId = 'wizard'): Progres
     abilities: defaultAbilities(),
     dungeonProgress: {},
     inventory,
-    spells: known, loadout: classLoadout(known), tonics: { charges: TONIC.charges, max: TONIC.charges },
+    spells: known, loadout: defaultLoadout(known), tonics: { charges: TONIC.charges, max: TONIC.charges },
     quests: {}, tracked: null, lastShrine: null, discoveredShrines: [], dialogue: null, shop: null, atShrine: null,
     relics: emptyRelics(),
   };
@@ -74,27 +75,12 @@ export function newProgress(spells: SpellId[], cls: ClassId = 'wizard'): Progres
   return p;
 }
 
-/**
- * Each known spell in its home slot. A gun class always has Gunfire in slot 1: what was there (Pepe's
- * bolt) moves to a free slot, or waits in the Powers tab when all four are full.
- */
-function classLoadout(known: readonly SpellId[]): (SpellId | null)[] {
-  const slots = defaultLoadout(known.filter((s) => s !== 'gunfire'));
-  if (!known.includes('gunfire')) return slots;
-  const moved = slots[0];
-  slots[0] = 'gunfire';
-  const free = slots.indexOf(null);
-  if (moved && free >= 0) slots[free] = moved;
-  return slots;
-}
-
 /** The class a progress was made for. */
 export const classOfProgress = (p: Progress | undefined): ClassId => p?.class ?? 'wizard';
 
 export const charmOf = (p: Progress) => (p.equipment.charm ? ITEMS[p.equipment.charm]?.charm : undefined);
 export const staffOf = (p: Progress) => ITEMS[p.equipment.staff]?.staff ?? ITEMS[classOf(p.class).startWeapon]?.staff ?? ITEMS[STARTING_GEAR.staff].staff!;
 /** The gun in the weapon slot, if it is one. */
-export const gunOf = (p: Progress | undefined) => (p ? ITEMS[p.equipment.staff]?.gun : undefined);
 
 /** Re-derive max HP/stamina/mana, defense and tonic charges from level, skills and gear. */
 export function recompute(e: Entity): void {
@@ -211,7 +197,7 @@ export function applyEffects(ctx: RpgCtx, e: Entity, effects: readonly Effect[] 
     if ('give' in fx) giveItem(ctx, e, fx.give, fx.count ?? 1);
     else if ('xp' in fx) grantXp(ctx, e, fx.xp);
     else if ('learnSpell' in fx) {
-      // The class decides what is learned: a Soldier taught the Arcane Bolt gets Gunfire.
+      // The class decides what is learned (today every class learns the spell it is taught).
       const spell = classSpell(p.class, fx.learnSpell);
       if (spell && !p.spells.includes(spell)) {
         p.spells.push(spell);
@@ -421,7 +407,7 @@ export const shrineName = (id: string) =>
   ({
     shrine_first_light: 'Shrine of First Light', shrine_watchtower: 'Watchtower Shrine', shrine_quarry_gate: 'Quarry Gate Shrine',
     shrine_rootdeep_lantern: 'Lantern Hall Shrine', shrine_rootdeep_crossing: 'Crossing Shrine',
-  })[id] ?? DUNGEON_PORTAL_BY_PORTAL_ID[id]?.fastTravel.label ?? 'Shrine';
+  })[id] ?? SHRINE_TITLES[id] ?? DUNGEON_PORTAL_BY_PORTAL_ID[id]?.fastTravel.label ?? 'Shrine';
 
 /** The available choices on a node (conditions checked), with their index into node.choices. */
 export function availableChoices(node: DialogueNode, p: Progress, world: WorldState): { index: number; text: string }[] {

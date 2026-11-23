@@ -85,9 +85,20 @@ describe('CommandBuilder gunplay bindings', () => {
     }
   });
 
-  it('latches direct 1–4 weaponSlot picks for one tick and clears afterwards', () => {
+  it('with a staff in hand the number keys cast spells and do not also change weapon', () => {
     const f = fakeInput();
     const b = new CommandBuilder(f.input);
+    f.pressed.add('Digit2');
+    b.frame();
+    const cmd = b.take(0);
+    expect(cmd.pressed & BTN.spell2).toBeTruthy();
+    expect(cmd.weaponSlot).toBeUndefined();
+  });
+
+  it('gun layout: latches direct 1–4 weaponSlot picks for one tick and clears afterwards', () => {
+    const f = fakeInput();
+    const b = new CommandBuilder(f.input);
+    b.gunLayout = true;
     for (let slot = 0; slot < 4; slot++) {
       f.pressed.clear();
       f.pressed.add(`Digit${slot + 1}`);
@@ -200,5 +211,179 @@ describe('GamepadInput holdTime and wasReleased', () => {
     } finally {
       Object.defineProperty(globalThis, 'navigator', { configurable: true, value: origNav });
     }
+  });
+});
+
+describe('CommandBuilder gun layout (a gun is in hand)', () => {
+  const build = () => {
+    const f = fakeInput();
+    const b = new CommandBuilder(f.input);
+    b.gunLayout = true;
+    return { f, b };
+  };
+
+  it('keyboard and mouse: left fires, right steps the zoom, and neither swings nor blocks', () => {
+    const { f, b } = build();
+    f.down.add('Mouse0');
+    f.pressed.add('Mouse0');
+    f.down.add('Mouse2');
+    f.pressed.add('Mouse2');
+    f.down.add('KeyQ');
+    b.frame();
+    const cmd = b.take(0);
+    expect(cmd.pressed & BTN.light).toBeTruthy();
+    expect(cmd.pressed & BTN.aim).toBeTruthy();
+    expect(cmd.held & BTN.heavy).toBe(0);
+    expect(cmd.held & BTN.block).toBe(0);
+  });
+
+  it('gamepad: RT fires, LT steps the zoom, RB swings, and LT no longer opens the spells', () => {
+    const { f, b } = build();
+    for (const k of ['rt', 'lt', 'rb', 'x']) {
+      f.padDown.add(k);
+      f.padPressed.add(k);
+    }
+    b.frame();
+    const cmd = b.take(0);
+    expect(cmd.pressed & BTN.light).toBeTruthy();
+    expect(cmd.pressed & BTN.aim).toBeTruthy();
+    expect(cmd.pressed & BTN.melee).toBeTruthy();
+    expect(cmd.pressed & BTN.reload).toBeTruthy();
+    expect(cmd.pressed & BTN.spell1).toBe(0);
+    expect(cmd.held & BTN.block).toBe(0);
+  });
+
+  it('gamepad: LB plus a face button casts', () => {
+    const { f, b } = build();
+    f.padDown.add('lb');
+    f.padDown.add('y');
+    f.padPressed.add('y');
+    b.frame();
+    const cmd = b.take(0);
+    expect(cmd.pressed & BTN.spell2).toBeTruthy();
+    expect(cmd.pressed & BTN.interact).toBe(0);
+  });
+
+  it('R only reloads and spell 2 sits on Y', () => {
+    const { f, b } = build();
+    f.pressed.add('KeyR');
+    b.frame();
+    let cmd = b.take(0);
+    expect(cmd.pressed & BTN.reload).toBeTruthy();
+    expect(cmd.pressed & BTN.spell2).toBe(0);
+    f.pressed.clear();
+    f.pressed.add('KeyY');
+    b.frame();
+    cmd = b.take(0);
+    expect(cmd.pressed & BTN.spell2).toBeTruthy();
+  });
+
+  it('melee: a tap is a light swing, and holding it turns heavy', () => {
+    const { f, b } = build();
+    f.down.add('KeyQ');
+    f.pressed.add('KeyQ');
+    b.frame({ locked: false, mouseDx: 0, dt: 1 / 60 });
+    let cmd = b.take(0);
+    expect(cmd.pressed & BTN.melee).toBeTruthy();
+    expect(cmd.pressed & BTN.heavy).toBe(0);
+    f.pressed.clear();
+    for (let i = 0; i < 30; i++) b.frame({ locked: false, mouseDx: 0, dt: 1 / 60 });
+    cmd = b.take(0);
+    expect(cmd.pressed & BTN.heavy).toBeTruthy();
+    expect(cmd.held & BTN.heavy).toBeTruthy();
+    f.down.clear();
+    b.frame({ locked: false, mouseDx: 0, dt: 1 / 60 });
+    expect(b.take(0).held & (BTN.heavy | BTN.melee)).toBe(0);
+  });
+
+  it('LB + RB is the grapple, not a swing', () => {
+    const { f, b } = build();
+    f.padDown.add('lb');
+    f.padDown.add('rb');
+    f.padPressed.add('rb');
+    b.frame();
+    const cmd = b.take(0);
+    expect(cmd.pressed & BTN.grapple).toBeTruthy();
+    expect(cmd.pressed & BTN.melee).toBe(0);
+  });
+});
+
+describe('CommandBuilder dual wield (two guns in hand)', () => {
+  const build = () => {
+    const f = fakeInput();
+    const b = new CommandBuilder(f.input);
+    b.gunLayout = true;
+    b.dualWield = true;
+    return { f, b };
+  };
+  const dt = { locked: false, mouseDx: 0, dt: 1 / 60 };
+
+  it('RT is the right gun and LT the left; on the mouse, left is left and right is right', () => {
+    let { f, b } = build();
+    f.padDown.add('rt');
+    b.frame(dt);
+    let cmd = b.take(0);
+    expect(cmd.held & BTN.light).toBeTruthy();
+    expect(cmd.held & BTN.aim).toBe(0);
+    f.padDown.clear();
+    f.padDown.add('lt');
+    b.frame(dt);
+    cmd = b.take(0);
+    expect(cmd.held & BTN.aim).toBeTruthy();
+    expect(cmd.held & BTN.light).toBe(0);
+
+    ({ f, b } = build());
+    f.down.add('Mouse0');
+    b.frame(dt);
+    expect(b.take(0).held & BTN.aim).toBeTruthy();
+    f.down.clear();
+    f.down.add('Mouse2');
+    b.frame(dt);
+    expect(b.take(0).held & BTN.light).toBeTruthy();
+  });
+
+  it('a tap of a bumper reloads that hand, and X reloads both', () => {
+    const { f, b } = build();
+    const tap = (button: string) => {
+      f.padDown.add(button);
+      for (let i = 0; i < 5; i++) b.frame(dt);
+      f.padDown.delete(button);
+      b.frame(dt);
+      return b.take(0);
+    };
+    let cmd = tap('rb');
+    expect(cmd.pressed & BTN.reloadRight).toBeTruthy();
+    expect(cmd.pressed & (BTN.melee | BTN.heavy | BTN.reloadLeft)).toBe(0);
+    cmd = tap('lb');
+    expect(cmd.pressed & BTN.reloadLeft).toBeTruthy();
+    expect(cmd.pressed & BTN.reloadRight).toBe(0);
+    f.padDown.add('x');
+    f.padPressed.add('x');
+    b.frame(dt);
+    expect(b.take(0).pressed & BTN.reload).toBeTruthy();
+  });
+
+  it('holding RB swings and does not reload; LB with a face button casts and does not reload', () => {
+    const { f, b } = build();
+    f.padDown.add('rb');
+    for (let i = 0; i < 25; i++) b.frame(dt);
+    let cmd = b.take(0);
+    expect(cmd.pressed & BTN.melee).toBeTruthy();
+    f.padDown.clear();
+    b.frame(dt);
+    cmd = b.take(0);
+    expect(cmd.pressed & BTN.reloadRight).toBe(0);
+
+    f.padDown.add('lb');
+    b.frame(dt);
+    f.padDown.add('x');
+    f.padPressed.add('x');
+    b.frame(dt);
+    cmd = b.take(0);
+    expect(cmd.pressed & BTN.spell1).toBeTruthy();
+    f.padDown.clear();
+    f.padPressed.clear();
+    b.frame(dt);
+    expect(b.take(0).pressed & BTN.reloadLeft).toBe(0);
   });
 });

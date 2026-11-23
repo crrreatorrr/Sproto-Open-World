@@ -28,10 +28,18 @@ export const PLAYER_CLIPS = [
 ] as const;
 
 /**
- * The gun classes' bodies carry the Wizard's 21 clips (retargeted onto their Mixamo rigs, same names
- * and lengths) plus Sproto Shooter's trigger pull: `shoot`, and `aim`, the held pose (art/README.md).
+ * Sproto Shooter's animations, on every playable body (art/README.md): the gun layers over the legs
+ * (`hold` the ready carry, `aim` the shouldered sights, `shoot` the trigger pull, `reload`), and the
+ * whole-body `slide` and `dash`.
  */
-export const GUNNER_CLIPS = [...PLAYER_CLIPS, 'shoot', 'aim'] as const;
+export const SHOOTER_CLIPS = [
+  'aim', 'hold', 'shoot', 'reload', 'slide', 'dash',
+  // The sidearms (the dual-wield guns): one in the right hand, or one in each.
+  'aim_1h', 'hold_1h', 'shoot_1h', 'reload_1h', 'dual', 'dual_shoot_r', 'dual_shoot_l', 'dual_reload', 'dual_reload_r', 'dual_reload_l',
+] as const;
+
+/** Every playable body's clips: the Wizard's 21 (retargeted onto the class bodies' Mixamo rigs) plus the shooter's. */
+export const GUNNER_CLIPS = [...PLAYER_CLIPS, ...SHOOTER_CLIPS] as const;
 
 /** The Thornwood Brute (sproto-shooter's `sproto_monster`). */
 export const BRUTE_CLIPS = ['idle', 'walk', 'run', 'punch', 'kick'] as const;
@@ -65,7 +73,7 @@ export const NPC_CLIPS = ['idle'] as const;
 
 export const MODELS = {
   /** sproto-duel's rigged wizard plus the Blender melee clips (art/README.md). Never optimized again. */
-  player: { path: 'models/characters/player.glb', rigged: true, clips: PLAYER_CLIPS },
+  player: { path: 'models/characters/player.glb', rigged: true, clips: GUNNER_CLIPS },
   /**
    * The Soldier Sproto (metaverse-hub's soldier avatar) and Pepe (the hub's Pepe avatar), built by
    * art/tools/classes: the Wizard's height, a `socket_weapon` in the right hand, and GUNNER_CLIPS.
@@ -83,6 +91,9 @@ export const MODELS = {
   gun_raygun: { path: 'models/guns/gun_raygun.glb' },
   gun_bigbullets: { path: 'models/guns/gun_bigbullets.glb' },
   gun_duckgun: { path: 'models/guns/gun_duckgun.glb' },
+  /** The sidearms, which the shooter has no model for (art/tools/classes/build-sidearms.mjs). */
+  gun_handgun: { path: 'models/guns/gun_handgun.glb' },
+  gun_machinepistol: { path: 'models/guns/gun_machinepistol.glb' },
   staff_sproto: { path: 'models/staffs/staff_sproto.glb' },
   /** The small starter staff the world boots with (STAFF_BOOT_LOD). */
   staff_sproto_lod1: { path: 'models/staffs/staff_sproto-lod1.glb' },
@@ -124,6 +135,17 @@ export const MODELS = {
   tinubu_stage1: { path: 'models/enemies/tinubu_stage1.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
   tinubu_stage2: { path: 'models/enemies/tinubu_stage2.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
   tinubu_stage3: { path: 'models/enemies/tinubu_stage3.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.2 },
+  /**
+   * D1: the rest of Sproto Duel's boss stages (lazy-loaded). Sahil's first stage is the Wisp's file;
+   * Broccoli Head and Glowie are sproto-duel's rigs, with the same clips (cast and cast_big are their attacks).
+   */
+  sahil_stage1: { path: 'models/enemies/wisp.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 1.9 },
+  broccoli_stage1: { path: 'models/enemies/broccoli_stage1.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
+  broccoli_stage2: { path: 'models/enemies/broccoli_stage2.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
+  broccoli_stage3: { path: 'models/enemies/broccoli_stage3.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
+  agent_stage1: { path: 'models/enemies/agent_stage1.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
+  agent_stage2: { path: 'models/enemies/agent_stage2.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
+  agent_stage3: { path: 'models/enemies/agent_stage3.glb', rigged: true, clips: DUEL_ENEMY_CLIPS, fitHeight: 2.0 },
   gatekeeper: { path: 'models/elites/gatekeeper.glb', rigged: true, clips: GATEKEEPER_CLIPS, fitHeight: 3.2, rotationY: 0, inPlace: true },
   /** C4's robot elites: outside the critical download, they face +Z and their clips are in place. */
   robot_shooter: { path: 'models/elites/robot_shooter.glb', rigged: true, clips: ROBOT_SHOOTER_CLIPS, fitHeight: 2.0, rotationY: 0, inPlace: true },
@@ -204,5 +226,7 @@ export const TEXTURES = {
 
 /** Where the staff mounts on a rigged character (node extras carry the contract). */
 export const STAFF_SOCKET = 'socket_staff';
-/** Where a gun mounts on the gun classes' bodies: grip at its origin, +Z along the barrel. */
+/** Where a gun mounts on every playable body: grip at its origin, +Z along the barrel. */
 export const WEAPON_SOCKET = 'socket_weapon';
+/** The same in the left hand, for the second gun of a dual-wielded pair. */
+export const OFFHAND_SOCKET = 'socket_weapon_l';

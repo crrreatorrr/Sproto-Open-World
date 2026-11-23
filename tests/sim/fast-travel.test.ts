@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ITEMS, TRAVEL_DEVICE } from '../../src/content/items';
 import { MERCHANTS } from '../../src/content/loot';
 import { isRootdeep } from '../../src/content/packs/rootdeep';
+import { regionAt } from '../../src/content/world/regions';
 import { WORLD_CONTENT } from '../../src/content/world/worldContent';
 import { BTN, idleInput } from '../../src/sim/commands';
 import type { SimWorld } from '../../src/sim/SimWorld';
@@ -132,7 +133,10 @@ describe('fast travel', () => {
     w.tick(new Map([[0, ui([{ kind: 'godMode', on: true }])]]));
     expect(p().progress!.discoveredShrines).toEqual([]);
     expect(p().progress!.equipment.staff).not.toBe(TRAVEL_DEVICE);
-    for (const s of WORLD_CONTENT.shrines) {
+    // The test world bakes Sproutvale and the Rootdeep only: the other regions' shrines have no ground here.
+    const loaded = WORLD_CONTENT.shrines.filter((s) => ['sproutvale', 'rootdeep'].includes(regionAt(s.pos[0], s.pos[2]).id));
+    expect(loaded.length).toBeGreaterThanOrEqual(11);
+    for (const s of loaded) {
       w.tick(new Map([[0, travel(s.id)]]));
       expect(evs(w.events, 'travel'), s.id).toHaveLength(1);
       for (let i = 0; i < 30 && p().settle; i++) w.tick(new Map([[0, idleInput(0)]]));

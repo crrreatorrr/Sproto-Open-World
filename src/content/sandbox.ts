@@ -43,6 +43,8 @@ export interface LevelDef {
    */
   ground?: { size: number; color: number };
   shapes: ShapeDef[];
+  /** The outer edge of the walkable world (m). The Edge Warden guards it (`content/packs/edge.ts`). */
+  edge?: { minX: number; minZ: number; maxX: number; maxZ: number };
 }
 
 const STONE = 0x9a8f86;

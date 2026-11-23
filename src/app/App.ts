@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { AssetLoader } from '../assets/AssetLoader';
 import { MODELS, STAFF_BOOT_LOD, type ModelKey } from '../assets/manifest';
 import { AudioManager } from '../audio/AudioManager';
-import { playCritSfx, playGunshot, playHitmarkerSfx, playReloadSfx } from '../audio/gunSfx';
+import { playCritSfx, playDryFireSfx, playGunshot, playHitmarkerSfx, playReloadSfx } from '../audio/gunSfx';
 import { zoneAt } from '../audio/zones';
 import { CAM, CameraRig, type CameraOccluder } from '../camera/CameraRig';
-import { classOf, firesAsBullets, type ClassId, type GunDef } from '../content/classes';
+import { classOf, type ClassId } from '../content/classes';
 import { ITEMS } from '../content/items';
 import { keepsake, keepsakeIcon } from '../content/relics';
 import { affixName } from '../content/packs/c4';
@@ -20,13 +20,14 @@ import { SPELLS, WOVEN, type SpellId } from '../content/spells';
 import { MOUNT } from '../content/mounts';
 import { DT, PLAYER_BODY } from '../content/tuning';
 import { worldLevel } from '../content/world/level';
+import { overworldBounds } from '../content/world/regions';
 import { WORLD_CONTENT } from '../content/world/worldContent';
 import { frameDataLines, targetLines } from '../debug/frameData';
 import { Overlay } from '../debug/Overlay';
 import { QA_LOG_ENABLED, qaLog } from '../debug/qaLog';
 import type { FeedbackHost, FeedbackSnapshot } from '../hub/feedback';
 import type { HubLink } from '../hub/link';
-import { GAMEPAD, KEYS, PAD } from '../input/bindings';
+import { GAMEPAD, GUN_KEYS, GUN_PAD, KEYS, PAD } from '../input/bindings';
 import { freshDigitChord, godChordPressed } from '../input/godChord';
 import { CommandBuilder } from '../input/CommandBuilder';
 import { applyControlPrefs, loadControlPrefs, saveControlPrefs } from '../input/controlPrefs';
@@ -34,6 +35,7 @@ import { promptLabel } from '../input/glyphs';
 import { aimAssist, assistTargetsFromView } from '../input/aimAssist';
 import { Input } from '../input/Input';
 import { CAMERA_KICK, HIT_FEEL, RUMBLE, TRAUMA, hitTier, kickScale } from '../render/fx/feedback';
+import { GunFx } from '../render/fx/GunFx';
 import { HitFx, type SparkStyle } from '../render/fx/HitFx';
 import { isSoftPowerHit, powerSpark } from '../render/fx/powers';
 import { PortraitStudio } from '../render/PortraitStudio';
@@ -70,7 +72,7 @@ import { RpgHud, type HudRpgState } from '../ui/RpgHud';
 import { RpgMenus } from '../ui/rpgMenus';
 import { compassOffset, gallopLabel, headingTo, interactLabel, leadLine, trackedQuest } from '../ui/rpgText';
 import { loadSettings, motionScale, saveSettings, type Settings } from '../ui/settings';
-import { gunDef, gunRange, type FixedGunDef } from '../content/guns';
+import { GUNS, gunDef, isDualWieldGun, gunRange, zoomLevelsOf, type FixedGunDef } from '../content/guns';
 import { SurgeMeter } from '../ui/SurgeMeter';
 import { WeaponBarHud, type WeaponSlotView } from '../ui/WeaponBarHud';
 import { FixedLoop } from './loop';
@@ -88,6 +90,14 @@ interface FeedbackHold {
 }
 
 const LOCAL_PLAYER = 0;
+/** The model's barrel tip is used for a shot's flash and tracer when it is this near the sim's barrel point (m). */
+const MUZZLE_TRUST = 0.35;
+/**
+ * A shot's kick on the view: the most it may climb (rad), how fast it settles (rad/s, plus a share
+ * of what is left per second), the share of that while the trigger is held, and how long a hit
+ * marker shows (s).
+ */
+const RECOIL = { maxRad: (25 * Math.PI) / 180, settleRad: (9 * Math.PI) / 180, settleShare: 4, heldShare: 0.3, markerSec: 0.18 } as const;
 /** How long a lost WebGL context may take to come back before we offer a reload (plan §2.9). */
 const CONTEXT_RESTORE_TIMEOUT_MS = 10_000;
 /** The enemy bar stays on the enemy you hit last for this long (ms) when nothing is locked. */
@@ -104,6 +114,8 @@ const PARAMS = new URLSearchParams(location.search);
 const WAVE_SANDBOX = PARAMS.get('sandbox') === '1';
 /** `?dungeon=L01`..`L10`: boot directly into an instanced Campaign Dungeon. */
 const DUNGEON_ID: DungeonId | null = getDungeonById(PARAMS.get('dungeon') ?? '')?.id ?? null;
+/** `&shrine=<id>` with `?dungeon=`: start beside that shrine of the dungeon (god mode's phone sends you here). */
+const DUNGEON_SHRINE = PARAMS.get('shrine') ?? undefined;
 /**
  * Which level Play starts: Sproutvale, the streamed world (M2), by default; `?yard=1` keeps the M1
  * training yard, `?sandbox=1` the wave runner, and `?dungeon=L01..L10` an instanced Campaign Dungeon.
@@ -153,6 +165,14 @@ export class App {
   readonly commands: CommandBuilder;
   readonly world: WorldViews;
   readonly fx = new HitFx();
+  /** Tracers, muzzle flashes and the raygun's beam. */
+  readonly gunFx = new GunFx();
+  private readonly muzzleTmp = new THREE.Vector3();
+  /** The view's climb from recent shots, still to settle back (rad). */
+  private recoilPitch = 0;
+  /** Hit and weak-spot markers on the crosshair, fading (0..1). */
+  private gunHitFlash = 0;
+  private gunCritFlash = 0;
   readonly numbers: DamageNumbers;
   /** Weakness and resistance reveals and their toasts: remembered for the session (plan §4.6). */
   readonly reveals = new Reveals();
@@ -257,7 +277,7 @@ export class App {
     this.assets.warm = (scene, body) => warmModel(scene, this.uploads, this.renderer, body);
     this.portraits = new PortraitStudio(this.renderer.renderer, this.assets);
     this.world = new WorldViews(this.assets, this.fx);
-    this.renderer.scene.add(this.world.root, this.fx.root);
+    this.renderer.scene.add(this.world.root, this.fx.root, this.gunFx.root);
     this.rig = new CameraRig(this.renderer.camera);
     this.viewmodel = new Viewmodel(this.renderer.camera, this.assets);
     this.commands = new CommandBuilder(this.input);
@@ -272,7 +292,8 @@ export class App {
     this.hud = new Hud(ui);
     this.surgeMeter = new SurgeMeter(this.hud.root);
     this.rpgHud = new RpgHud(this.hud.root);
-    this.rpgHud.enabled = MODE === 'world';
+    // A Campaign Dungeon has shrines to rest at too: it shows the level, tonics and the interact prompt.
+    this.rpgHud.enabled = MODE === 'world' || MODE === 'dungeon';
     this.bossHud = new BossHud(this.hud.root, ui);
     this.bossHud.onContinue = () => this.resume();
     this.weaponBar = new WeaponBarHud(this.hud.root);
@@ -328,7 +349,7 @@ export class App {
       },
       gearLocked: () => this.sim?.view().gearLocked(LOCAL_PLAYER) ?? false,
       prompt: (keys, padButtons) => promptLabel(this.input.pad.device, this.input.pad.style, keys, padButtons),
-      slotGlyph: (i) => spellSlotGlyph(i, this.input.pad.device, this.input.pad.style),
+      slotGlyph: (i) => spellSlotGlyph(i, this.input.pad.device, this.input.pad.style, this.commands.gunLayout),
       godAllowed: () => GOD_ALLOWED && this.mode === 'world',
       setGod: (on) => this.setGodMode(on),
       resume: () => this.closeGameMenu(),
@@ -590,7 +611,7 @@ export class App {
     }
     try {
       const region = this.stream?.region;
-      const sim = new SimWorld(region ? worldLevel(region.manifest) : SANDBOX, 1);
+      const sim = new SimWorld(region ? worldLevel(region.manifest, overworldBounds()) : SANDBOX, 1);
       const entity = sim.spawnPlayer(LOCAL_PLAYER, undefined, undefined, save?.player.class ?? cls);
       // The sandbox's dummies and Brute (bare test worlds stay empty), the wave runner, or
       // Sproutvale's villagers, shrines, chest and training yard (its camps arrive in M4). A save
@@ -599,7 +620,7 @@ export class App {
       this.dungeonView = null;
       if (DUNGEON_ID) {
         const def = getDungeon(DUNGEON_ID);
-        sim.startDungeon(DUNGEON_ID);
+        sim.startDungeon(DUNGEON_ID, DUNGEON_SHRINE);
         const { DungeonView } = await import('../render/dungeon/DungeonView');
         this.dungeonView = new DungeonView(def);
         this.renderer.scene.add(this.dungeonView.root);
@@ -706,6 +727,7 @@ export class App {
     this.lastHitEnemy = null;
     this.world.clear();
     this.fx.clear();
+    this.gunFx.clear();
     this.numbers.clear();
     this.polish.end();
     this.bossHud.update(null, 0);
@@ -816,7 +838,7 @@ export class App {
     this.stream?.present();
     this.renderer.render();
     // Under a menu the cursor is free on purpose: no "click to look around".
-    this.hud.update(pad, this.input.locked || this.nav.open);
+    this.hud.update(pad, this.input.locked || this.nav.open, this.state === 'playing' && this.commands.gunLayout, this.commands.dualWield);
     const p = this.sim?.playerEntity(LOCAL_PLAYER);
     const fs = this.renderer.frameStats();
     const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
@@ -864,6 +886,10 @@ export class App {
     // In a menu the sticks drive the menu and the camera frames the speaker.
     const locked = this.lockPoint(simView, sim.playerEntity(LOCAL_PLAYER)) !== null;
     const m = this.input.consumeMouseDelta();
+    // A gun in hand switches the controls to the gun layout (fire, aim, one melee button).
+    this.commands.gunLayout = !!gunDef(sim.playerEntity(LOCAL_PLAYER)?.progress?.equipment.staff);
+    // Two guns in hand: a trigger and a bumper each.
+    this.commands.dualWield = this.commands.gunLayout && !!sim.gunRuntime(LOCAL_PLAYER)?.runtime.dual;
     if (!menu) {
       if (m.x || m.y) this.rig.rotateMouse(locked ? 0 : m.x, m.y);
       const curP = sim.playerEntity(LOCAL_PLAYER);
@@ -875,14 +901,14 @@ export class App {
           yaw: this.rig.yaw,
           pitch: this.rig.pitch,
           targets: assistTargetsFromView(simView),
-          aiming: pad.isDown(PAD.block),
+          aiming: (sim.gunRuntime(LOCAL_PLAYER)?.runtime.scopeZoom ?? 0) > 0,
           input: Math.max(Math.hypot(pad.look.x, pad.look.y), Math.hypot(pad.move.x, pad.move.y)),
           dt,
           device: 'gamepad',
           range: gunRange(curGun.id).max,
         });
         if (pad.look.x || pad.look.y) this.rig.rotatePad(pad.look.x * assist.slow, pad.look.y * assist.slow, dt);
-        if (assist.dYaw || assist.dPitch) this.rig.rotateMouse(-assist.dYaw * 200, -assist.dPitch * 200);
+        if (assist.dYaw || assist.dPitch) this.rig.nudge(assist.dYaw, assist.dPitch);
       } else if (pad.look.x || pad.look.y) {
         this.rig.rotatePad(locked ? 0 : pad.look.x, pad.look.y, dt);
       }
@@ -905,7 +931,7 @@ export class App {
     for (let i = 0; i < ticks; i++) {
       // Behind the veil the player is frozen by the sim anyway; their input is dropped, not buffered.
       const cmd = this.commands.take(this.rig.yaw, this.rig.aimRay());
-      if (!held && !menu && (cmd.pressed & BTN.toggleView)) this.rig.toggleFirstPerson();
+      // The game is always third person (owner): the old first-person toggle (B / D-pad Left) does nothing.
       sim.tick(held ? new Map() : new Map([[LOCAL_PLAYER, cmd]]));
       this.afterTick(simView);
     }
@@ -922,6 +948,24 @@ export class App {
     this.syncEquipment(p);
     view.saddleLift = p.riding ? this.world.saddleLift(p.riding.mount) : 0;
     this.sharpenStaff(p, dt);
+    const gunRuntime = sim.gunRuntime(LOCAL_PLAYER)?.runtime;
+    const tech = sim.movementTech(LOCAL_PLAYER);
+    // A sidearm is carried in one hand; a second one elsewhere on the weapon bar goes in the other (the
+    // sim's own rule for a dual-wielded pair, SimWorld.gunRuntimeTick).
+    const inHand = p.progress?.equipment.staff;
+    const sidearm = isDualWieldGun(inHand);
+    const bar = p.progress?.weapons;
+    const offhand = sidearm ? bar?.find((w, i) => i !== (p.progress?.activeWeaponSlot ?? 0) && isDualWieldGun(w)) : undefined;
+    void view.setOffhand(offhand ? this.staffModel(offhand) : null);
+    view.input = {
+      ads: gunRuntime?.adsActive ?? false,
+      oneHanded: sidearm,
+      reloadTicks: gunRuntime?.reloadTicks ?? 0,
+      reloadTicksLeft: gunRuntime?.dual?.reloadTicks ?? 0,
+      sliding: (tech?.slidingTicks ?? 0) > 0,
+      dashing: (tech?.dashTicks ?? 0) > 0,
+      grapple: tech?.grapple?.active ? tech.grapple.anchor : null,
+    };
     view.update(p, this.loop.alpha, dt);
     const a = p.combat?.action;
     if (QA_LOG_ENABLED && a?.kind === 'attack' && view.attackShown && a !== this.posedAction) {
@@ -935,16 +979,21 @@ export class App {
     this.world.sync(simView, this.loop.alpha, dt);
     if (p.riding?.state === 'riding') view.tiltWithSaddle(this.world.saddleTilt(p.riding.mount));
     this.fx.update(dt);
+    this.gunFx.update(dt);
+    this.settleRecoil(dt, !!((this.commands.gunLayout) && (this.input.isDown(GUN_KEYS.fire) || pad.isDown(GUN_PAD.fire))));
     this.polish.frame(simView, p, dt);
     this.target.copy(view.root.position);
     const riding = p.riding !== undefined && p.riding.state !== 'dismounting';
     const equippedId = p.progress?.equipment.staff ?? '';
     const activeGun = gunDef(equippedId) ?? null;
-    const aiming = !menu && !riding && !!activeGun && (this.input.isDown(KEYS.block) || pad.isDown(PAD.block));
-    if (this.rig.isFirstPerson && !riding) {
+    // The sim owns the zoom (a toggle the aim button steps through); the camera follows it.
+    const zoom = !menu && !riding && activeGun ? (gunRuntime?.scopeZoom ?? 0) : 0;
+    const aiming = zoom > 0;
+    const scoped = aiming && zoomLevelsOf(activeGun?.itemId) >= 2;
+    if (activeGun && !riding) {
+      this.rig.setCameraMode(zoom === 0 ? 'ots' : scoped ? (zoom >= 2 ? 'scope2' : 'scope1') : 'ads', activeGun.base.zoomFov);
+    } else if (this.rig.isFirstPerson && !riding) {
       this.rig.setCameraMode('fps');
-    } else if (activeGun && !riding) {
-      this.rig.setCameraMode(aiming ? ((activeGun.zoomLevels ?? 1) >= 2 ? 'scope1' : 'ads') : 'ots', activeGun.base.zoomFov);
     } else {
       this.rig.setCameraMode('orbit');
     }
@@ -964,6 +1013,21 @@ export class App {
     this.weaponBarFrame(p, activeGun, aiming, !!menu);
     this.rpgFrame(simView, p, dt, !!menu);
     this.bossFrame(simView, p, dt, !!menu);
+  }
+
+  /**
+   * The view settles back down after a shot's kick: quickly once the trigger is up, slowly while
+   * it is held, so a burst climbs. The hit markers fade here too.
+   */
+  private settleRecoil(dt: number, firing: boolean): void {
+    if (this.recoilPitch > 0) {
+      const rate = (RECOIL.settleRad + this.recoilPitch * RECOIL.settleShare) * (firing ? RECOIL.heldShare : 1);
+      const down = Math.min(this.recoilPitch, rate * dt);
+      this.recoilPitch -= down;
+      this.rig.nudge(0, -down);
+    }
+    this.gunHitFlash = Math.max(0, this.gunHitFlash - dt / RECOIL.markerSec);
+    this.gunCritFlash = Math.max(0, this.gunCritFlash - dt / RECOIL.markerSec);
   }
 
   /** Updates the 4-slot weapon bar, ammo readout, and crosshair/scope overlay. */
@@ -987,13 +1051,17 @@ export class App {
     ];
     const gunRt = this.sim?.gunRuntime(LOCAL_PLAYER);
     const rt = gunRt && activeGun && gunRt.gunId === activeGun.itemId ? gunRt.runtime : null;
-    const totalReloadTicks = activeGun ? Math.max(1, Math.round(activeGun.base.reloadTime * 60)) : 1;
+    // The magazine size and reload time are the sim's, with the player's skills in them.
+    const totalReloadTicks = Math.max(1, rt?.reloadTotalTicks ?? 1);
     const ammo = activeGun && prog.ammo ? {
       mag: rt ? rt.mag : activeGun.base.magSize,
-      magSize: activeGun.base.magSize,
+      magSize: rt?.magSize ?? activeGun.base.magSize,
+      // Two guns: the left one's magazine shows beside the right one's.
+      ...(rt?.dual ? { offhandMag: rt.dual.offhandMag } : {}),
       reserve: prog.ammo[activeGun.ammoType] ?? 0,
     } : null;
     const reloading = !!rt && rt.reloadTicks > 0;
+    const blockedAt = gunRt?.aim?.blocked ? this.project(gunRt.aim.blocked) : null;
     const reloadProgress = reloading && rt ? Math.max(0, Math.min(1, 1 - rt.reloadTicks / totalReloadTicks)) : 0;
     this.weaponBar.update({
       slots,
@@ -1004,10 +1072,12 @@ export class App {
       reloading,
       reloadProgress,
       showCrosshair: !!activeGun,
-      spread: activeGun ? (aiming ? activeGun.base.adsSpread : activeGun.base.spread) : 0,
-      hitFlash: 0,
-      critFlash: 0,
-      scopeZoom: activeGun && aiming && (activeGun.zoomLevels ?? 1) >= 2 ? 1 : 0,
+      // The spread a shot would really get right now (heat, movement, zoom), as an angle.
+      spread: ((rt?.spreadDeg ?? 0) * Math.PI) / 180,
+      hitFlash: this.gunHitFlash,
+      critFlash: this.gunCritFlash,
+      blocked: blockedAt?.visible ? blockedAt : null,
+      scopeZoom: activeGun && aiming && zoomLevelsOf(activeGun.itemId) >= 2 ? ((rt?.scopeZoom ?? 1) as 0 | 1 | 2) : 0,
     });
   }
 
@@ -1185,19 +1255,6 @@ export class App {
     void this.player.setStaff(full, 'later');
   }
 
-  /** A gun class's shot (Gunfire, or a Soldier's shooting spell) sounds like a gun. */
-  private castsBullets(view: ReadonlySimView, id: number, spell: SpellId): boolean {
-    const p = view.entities.find((x) => x.id === id)?.progress;
-    return !!p && firesAsBullets(p.class, spell) && !!SPELLS[spell].projectile;
-  }
-
-  /** Which gun it sounds like: the one in hand for Gunfire; a rocket or a slug for the Soldier's spells. */
-  private gunSound(view: ReadonlySimView, id: number, spell: SpellId): GunDef['type'] {
-    const p = view.entities.find((x) => x.id === id)?.progress;
-    if (spell === 'gunfire') return (p && ITEMS[p.equipment.staff]?.gun?.type) || 'mg';
-    return spell === 'blast' ? 'bazooka' : 'sniper';
-  }
-
   private staffModel(item: string | undefined): ModelKey {
     const key = item ? ITEMS[item]?.staff?.model : undefined;
     return key && key in MODELS ? (key as ModelKey) : 'staff_sproto';
@@ -1221,10 +1278,10 @@ export class App {
     return this.lockPos.set(pos.x + Math.cos(yaw) * side, pos.y + (v?.height ?? e.body?.height ?? 1.8) * 0.85, pos.z - Math.sin(yaw) * side);
   }
 
-  /** The RPG HUD: level, Sprouts, tonics, tracker, compass and the interact prompt (world mode). */
+  /** The RPG HUD: level, Sprouts, tonics, tracker, compass and the interact prompt (the world and the dungeons). */
   private rpgFrame(view: ReadonlySimView, p: Readonly<Entity>, dt: number, inMenu: boolean): void {
     const pr = p.progress;
-    if (this.mode !== 'world' || !pr) return;
+    if ((this.mode !== 'world' && this.mode !== 'dungeon') || !pr) return;
     // The lead ends once its quest is taken (it is tracked from then on) or is no longer on offer.
     const lead = this.questLead;
     if (lead && !view.questOffers(LOCAL_PLAYER).some((o) => o.quest === lead.quest)) this.questLead = null;
@@ -1328,12 +1385,34 @@ export class App {
         if (ev.fired) {
           playGunshot(ev.gunType, vol);
           if (ev.entity === this.playerId) this.viewmodel?.kick(1, ev.hand === 'left' ? 'left' : 'right');
+          if (ev.entity === this.playerId) this.player?.fired(ev.hand === 'left' ? 'left' : 'right');
+          // Drawn from the model's own barrel when it is where the sim fired from (to within a
+          // pose's sway); the sim's barrel point otherwise (another player, a staff-shaped sidearm).
+          const tip = this.muzzleTmp;
+          const onModel = ev.entity === this.playerId && !!this.player?.muzzleWorld(tip, ev.hand === 'left' ? 'left' : 'right')
+            && Math.hypot(tip.x - ev.muzzle.x, tip.y - ev.muzzle.y, tip.z - ev.muzzle.z) < MUZZLE_TRUST;
+          if (ev.entity === this.playerId) {
+            // The kick turns the view, so it moves the crosshair and the next shot with it.
+            const up = Math.min(RECOIL.maxRad - this.recoilPitch, (ev.recoil.pitchDeg * Math.PI) / 180);
+            this.recoilPitch += Math.max(0, up);
+            this.rig.nudge((ev.recoil.yawDeg * Math.PI) / 180, Math.max(0, up));
+            this.input.pad.rumble(GAMEPAD.rumble.fire);
+          }
+          this.gunFx.shot(ev.gunType, GUNS[ev.gunType].element, onModel ? tip : ev.muzzle, ev.tracers.map((t) => t.to));
         }
         if (ev.hit) {
           if (ev.crit) playCritSfx(vol);
           else playHitmarkerSfx(vol);
+          if (ev.entity === this.playerId) {
+            if (ev.crit) this.gunCritFlash = 1;
+            else this.gunHitFlash = 1;
+          }
         }
-        if (ev.reloadStarted) playReloadSfx(vol, 'start');
+        if (ev.dryFire) playDryFireSfx(vol);
+        if (ev.reloadStarted) {
+          playReloadSfx(vol, 'start');
+          if (ev.entity === this.playerId) this.input.pad.rumble(GAMEPAD.rumble.reload);
+        }
         if (ev.reloadCompleted) playReloadSfx(vol, 'end');
       }
     }
@@ -1458,6 +1537,17 @@ export class App {
           }
         }
         return;
+      case 'edgeWarden':
+        if (e.entity !== me) return;
+        if (e.phase === 'appear') {
+          this.hud.toast('The Edge Warden guards the edge of the world. Turn back.');
+          this.shake(0.3);
+        } else if (e.phase === 'strike') this.hud.toast('The Edge Warden attacks! Head back inland.');
+        else if (e.phase === 'burn') {
+          pad.rumble(RUMBLE.hurt, 0.6);
+          this.shake(0.25);
+        } else this.hud.toast('The Edge Warden lets you go.');
+        return;
       case 'godMode':
         if (e.entity !== me) return;
         if (e.on) this.godUsed = true;
@@ -1472,6 +1562,8 @@ export class App {
           this.writeSaveNow();
           const url = new URL(window.location.href);
           url.searchParams.set('dungeon', e.to.slice('dungeon:'.length));
+          if (e.shrine) url.searchParams.set('shrine', e.shrine);
+          else url.searchParams.delete('shrine');
           window.location.assign(url.toString());
           return;
         }
@@ -1537,8 +1629,7 @@ export class App {
         return;
       case 'cast':
         qa('cast', e.spell);
-        if (this.castsBullets(view, e.entity, e.spell)) this.audio.gunshot(this.gunSound(view, e.entity, e.spell), e.entity === me ? 1 : 0.6);
-        else if (e.spell === 'bolt') this.audio.play('boltCast', e.woven ? 1.15 : 1);
+        if (e.spell === 'bolt') this.audio.play('boltCast', e.woven ? 1.15 : 1);
         else if (e.spell === 'blast') this.audio.play('boltCast', 0.62, 1.2);
         else if (e.spell === 'staticSnare') this.audio.play('boltCast', 1.45, 0.9);
         if (e.entity === me) pad.rumble(RUMBLE.cast);
@@ -1826,7 +1917,8 @@ export class App {
     const at = this.target;
     const r = PLAYER_BODY.radius;
     const seated = p.riding?.state === 'riding';
-    const out: CameraOccluder[] = [{ x: at.x, z: at.z, yaw: 0, halfWidth: r, halfLength: r, top: at.y + (seated ? CAM.riderTop : CAM.footTop) }];
+    // The player is round: a square turned to face the camera, so it is as wide from every side.
+    const out: CameraOccluder[] = [{ x: at.x, z: at.z, yaw: this.rig.yaw, halfWidth: r, halfLength: r, top: at.y + (seated ? CAM.riderTop : CAM.footTop) }];
     const bull = p.riding ? view.get(p.riding.mount) : undefined;
     if (bull) {
       // Seated, the bull stands where the rider is drawn; the sim's own position is a tick ahead of that.
@@ -1897,7 +1989,8 @@ export class App {
 
   private crosshairState(view: ReadonlySimView, lock: number | null): HudCombat['crosshair'] {
     const ray = this.rig.aimRay();
-    if (lock !== null || this.nav.top || !ray) return 'off';
+    // A gun in hand has its own crosshair (the weapon bar's): one reticle on screen, not two.
+    if (lock !== null || this.nav.top || !ray || this.commands.gunLayout) return 'off';
     return view.aimTarget(LOCAL_PLAYER, ray) !== null ? 'enemy' : 'free';
   }
 

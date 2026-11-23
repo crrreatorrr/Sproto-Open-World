@@ -4,6 +4,7 @@
  */
 import { DUNGEON_PORTALS, OVERWORLD_MIX_CAMPS, WEAPON_BOX_SHOPS } from '../packs/overworldMix';
 import { ROOTDEEP_CONTENT } from '../packs/rootdeep';
+import { EXTRA_SHRINE_PLACEMENTS } from '../packs/shrines';
 import { SPROUTVALE_CONTENT, type Placement, type RegionContent } from './sproutvaleContent';
 
 function join<T>(a: readonly T[] | undefined, b: readonly T[] | undefined): T[] {
@@ -25,7 +26,7 @@ const WEAPON_BOX_PLACEMENTS = WEAPON_BOX_SHOPS.map((b) => ({
 
 export const WORLD_CONTENT: RegionContent = {
   npcs: [...join(SPROUTVALE_CONTENT.npcs, ROOTDEEP_CONTENT.npcs), ...WEAPON_BOX_PLACEMENTS],
-  shrines: join(SPROUTVALE_CONTENT.shrines, ROOTDEEP_CONTENT.shrines),
+  shrines: [...join(SPROUTVALE_CONTENT.shrines, ROOTDEEP_CONTENT.shrines), ...EXTRA_SHRINE_PLACEMENTS],
   chests: join(SPROUTVALE_CONTENT.chests, ROOTDEEP_CONTENT.chests),
   mounts: join(SPROUTVALE_CONTENT.mounts, ROOTDEEP_CONTENT.mounts),
   objects: join(SPROUTVALE_CONTENT.objects, ROOTDEEP_CONTENT.objects),

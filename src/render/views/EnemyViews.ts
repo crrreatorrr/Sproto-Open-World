@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { AssetLoader, ModelInstance } from '../../assets/AssetLoader';
 import { MODELS, type ModelEntry } from '../../assets/manifest';
-import type { EnemyDef, EnemyMoveDef } from '../../content/enemies';
+import { enemyStage, type EnemyDef, type EnemyMoveDef } from '../../content/enemies';
 import { TICK_HZ } from '../../content/tuning';
 import type { Entity } from '../../sim/entity';
 import { Animator, ENTRY_FADE } from '../anim/Animator';
@@ -163,7 +163,21 @@ export class BruteView implements EntityView {
     if (a?.kind === 'attack') {
       const mv = this.def.moves.find((m) => m.id === a.move);
       if (mv) {
-        if (anim && mv.clip && anim.has(mv.clip)) {
+        if (mv.charge) {
+          // A rush (the Shooter bosses on these models): braced through the wind-up, then running flat out.
+          if (a.t < mv.windup) {
+            anim?.scrub('walk', 0, 0.2);
+            lean = -0.14 * (a.t / mv.windup);
+          } else if (a.t < mv.windup + mv.active) {
+            anim?.loop(anim.has('run') ? 'run' : 'walk', 1.5);
+            lean = 0.2;
+          } else if (anim?.has('idle')) anim.loop('idle');
+        } else if (mv.noHit) {
+          // A roar has no clip on these rigs: it rears back, shaking.
+          if (anim?.has('idle')) anim.loop('idle', 2.2);
+          const u = Math.min(1, a.t / Math.max(1, mv.windup));
+          lean = a.t < mv.windup + mv.active ? -0.26 * u + 0.03 * Math.sin((a.t / TICK_HZ) * 38) : 0;
+        } else if (anim && mv.clip && anim.has(mv.clip)) {
           const d = anim.duration(mv.clip);
           const c = this.look.contact[mv.clip] ?? 0.5;
           const from = (this.look.from?.[mv.id] ?? 0) * c * d;
@@ -207,6 +221,8 @@ export class BruteView implements EntityView {
     this.lean += (lean - this.lean) * (1 - Math.exp(-14 * dt));
     this.reaction.update(dt);
     this.reaction.apply(this.body, this.lean);
+    // The Shooter's bosses on these models stand bigger each phase.
+    growToStage(this.body, e, this.def, dt, !this.model);
     this.body.position.y = -sink * SINK_DEPTH * this.size;
     this.glow.setOpacity(1 - sink);
     this.root.visible = sink < 1;
@@ -477,11 +493,34 @@ export function modelSize(key: keyof typeof MODELS, def: EnemyDef): number {
   return fit ? def.body.height / fit : 1;
 }
 
-/** The standard enemies' model keys (manifest.ts): M1b's three and M4's veterans and Big Coin. */
-export type HumanoidModel =
-  | 'grunt' | 'slinger' | 'wisp' | 'grunt_vet' | 'slinger_vet'
-  | 'big_coin' | 'robot_shooter' | 'robot_laser'
-  | 'midget_stage3' | 'obama_stage3' | 'sahil_stage3' | 'tinubu_stage3';
+/**
+ * The models `HumanoidEnemyView` draws (manifest.ts): M1b's three, M4's veterans and Big Coin, the
+ * robots, and every stage of Sproto Duel's bosses.
+ */
+export const HUMANOID_MODELS = [
+  'grunt', 'slinger', 'wisp', 'grunt_vet', 'slinger_vet', 'big_coin', 'robot_shooter', 'robot_laser',
+  'midget_stage3', 'obama_stage3', 'sahil_stage1', 'sahil_stage2', 'sahil_stage3', 'tinubu_stage1', 'tinubu_stage2', 'tinubu_stage3',
+  'broccoli_stage1', 'broccoli_stage2', 'broccoli_stage3', 'agent_stage1', 'agent_stage2', 'agent_stage3',
+] as const satisfies readonly (keyof typeof MODELS)[];
+export type HumanoidModel = (typeof HUMANOID_MODELS)[number];
+export const isHumanoidModel = (key: string): key is HumanoidModel => (HUMANOID_MODELS as readonly string[]).includes(key);
+
+/** The stage a staged enemy shows now (0-based): a boss's phase, anyone else's health. */
+export function stageOf(e: Readonly<Entity>, def: EnemyDef): number {
+  const v = e.vitals;
+  return enemyStage(def, e.boss?.phase, v && v.hpMax > 0 ? v.hp / v.hpMax : 1);
+}
+
+/** A stage change grows (or shrinks) the body toward its new size at this rate (1/s). */
+const STAGE_GROW_RATE = 3.5;
+
+/** Ease `body` toward the size of the stage `e` is at; an enemy without stages stays as it is. */
+export function growToStage(body: THREE.Object3D, e: Readonly<Entity>, def: EnemyDef, dt: number, snap = false): void {
+  if (!def.stageScale) return;
+  const want = def.stageScale[stageOf(e, def)] ?? 1;
+  const k = snap ? want : body.scale.x + (want - body.scale.x) * (1 - Math.exp(-STAGE_GROW_RATE * dt));
+  body.scale.setScalar(Math.abs(k - want) < 1e-3 ? want : k);
+}
 
 /** Their idle resting glow: the Hex Wisp is a caster spirit, so it glows purple (plan §4.9). */
 const WISP_EMISSIVE = 0x3a1060;
@@ -506,10 +545,14 @@ export class HumanoidEnemyView implements EntityView {
   private readonly body = new THREE.Group();
   private readonly glow = new BodyGlow();
   private readonly hover: number;
-  private readonly peaks;
+  private peaks;
   private readonly floatGlow: THREE.Sprite | null = null;
   private model: ModelInstance | null = null;
   private animator: Animator | null = null;
+  /** A staged enemy's models (stage 1 first), the stage drawn and the one being fetched (-1: none yet). */
+  private readonly stages: readonly HumanoidModel[] | null;
+  private stage = -1;
+  private wanted = -1;
   private readonly reaction = new HitReaction();
   private lean = 0;
   private time = Math.random() * 10;
@@ -519,7 +562,7 @@ export class HumanoidEnemyView implements EntityView {
   /** A carried pumpkin, worn on the head until a hit knocks it off. Shared mesh, one material. */
   private readonly pumpkin = new THREE.Mesh(pumpkinGeo(), pumpkinMat());
 
-  constructor(assets: AssetLoader, readonly def: EnemyDef, readonly kind: HumanoidModel) {
+  constructor(private readonly assets: AssetLoader, readonly def: EnemyDef, readonly kind: HumanoidModel) {
     this.hover = def.hover ?? 0;
     this.height = def.body.height + this.hover;
     this.size = modelSize(kind, def);
@@ -537,21 +580,44 @@ export class HumanoidEnemyView implements EntityView {
       this.root.add(g);
       this.floatGlow = g;
     }
-    void assets.instance(kind).then((m) => {
-      if (this.disposed) {
+    const staged = def.stageScale && def.stageModels?.every(isHumanoidModel) ? (def.stageModels as readonly HumanoidModel[]) : null;
+    this.stages = staged;
+    // Every stage is fetched up front, so the change in the middle of a fight has nothing to wait for.
+    if (staged) for (const key of staged) void assets.template(key);
+    else this.show(kind, 0);
+  }
+
+  /** Draw `key` (a staged enemy's `stage`): the model before it goes when this one has arrived. */
+  private show(key: HumanoidModel, stage: number): void {
+    this.wanted = stage;
+    void this.assets.instance(key).then((m) => {
+      if (this.disposed || this.wanted !== stage) {
         m.dispose();
         return;
       }
-      fitToBody(m, kind, def);
+      const evolved = !!this.model;
+      this.animator?.dispose();
+      this.glow.release();
+      this.model?.dispose();
+      fitToBody(m, key, this.def);
       this.model = m;
-      this.glow.adopt(m.root, kind === 'wisp' ? WISP_EMISSIVE : undefined);
+      this.stage = stage;
+      this.peaks = CAST_PEAKS[key] ?? LIBRARY_CAST_PEAKS;
+      this.glow.adopt(m.root, key === 'wisp' ? WISP_EMISSIVE : undefined);
       this.body.add(m.root);
       this.animator = new Animator(m.root, m.clips);
+      // The new stage arrives in a flash.
+      if (evolved) this.glow.hit();
     });
   }
 
   get clips(): string[] {
     return this.animator?.clipNames ?? [];
+  }
+
+  /** The stage drawn (0-based; -1 until its model arrives). QA reads this. */
+  get shownStage(): number {
+    return this.stage;
   }
 
   telegraph(_move: EnemyMoveDef | undefined, unblockable: boolean, ticks: number): void {
@@ -572,6 +638,12 @@ export class HumanoidEnemyView implements EntityView {
     this.root.visible = !e.brain?.held;
     this.pumpkin.visible = !!e.brain?.carry && !e.brain.held;
     const a = e.combat?.action ?? null;
+    if (this.stages) {
+      // A dying body keeps the stage it died in (its health is gone, its phase is not).
+      const stage = a?.kind === 'dead' && this.wanted >= 0 ? this.wanted : Math.min(this.stages.length - 1, stageOf(e, this.def));
+      if (stage !== this.wanted) this.show(this.stages[stage], stage);
+      growToStage(this.body, e, this.def, dt, this.stage < 0);
+    }
     const anim = this.animator;
     const frozen = a?.kind === 'frozen';
     let lean = 0;
@@ -585,13 +657,19 @@ export class HumanoidEnemyView implements EntityView {
           const u = (a.t - mv.windup + alpha) / Math.max(1, mv.active);
           lift = Math.sin(Math.min(1, u) * Math.PI) * LEAP_LIFT * mv.leap!.distance;
           anim?.scrub('jump', Math.min(1, u) * anim.duration('jump'), ENTRY_FADE);
+        } else if (anim && mv.charge && mv.clip && anim.has(mv.clip)) {
+          // A rush: crouched on the clip's first frame through the wind-up, then running flat out.
+          if (a.t < mv.windup) anim.scrub(mv.clip, 0, ENTRY_FADE * 1.5);
+          else if (a.t < mv.windup + mv.active) anim.loop(mv.clip, 1.5);
+          else anim.loop('idle');
         } else if (anim && isCastClip(mv.clip) && anim.has(mv.clip)) {
           anim.scrub(mv.clip, castClipTime(this.peaks, mv.clip, a.t, mv.windup, mv.active + mv.recovery), ENTRY_FADE * 1.5);
         } else if (anim && mv.clip && anim.has(mv.clip)) {
           anim.scrub(mv.clip, attackClipTime(mv, a.t, anim.duration(mv.clip), 0.5), ENTRY_FADE * 1.5);
         }
         // Melee moves rear back through the wind-up and lunge into the blow.
-        if (!mv.projectile && !mv.area && !mv.leap) lean = a.t < mv.windup ? -0.12 * (a.t / mv.windup) : 0.16 * Math.max(0, 1 - (a.t - mv.windup) / (mv.active + 10));
+        if (mv.charge) lean = a.t < mv.windup ? -0.1 * (a.t / mv.windup) : a.t < mv.windup + mv.active ? 0.22 : 0;
+        else if (!mv.projectile && !mv.area && !mv.leap) lean = a.t < mv.windup ? -0.12 * (a.t / mv.windup) : 0.16 * Math.max(0, 1 - (a.t - mv.windup) / (mv.active + 10));
         if (a.t >= mv.windup) this.glow.endTelegraph();
       }
     } else {
@@ -772,6 +850,62 @@ export class BulletView implements EntityView {
 
   dispose(): void {
     for (const m of this.mats) m.dispose();
+    this.root.removeFromParent();
+  }
+}
+
+/** The rubber bullet's length in flight (m), and how fast it tumbles (rad/s): both Sproto Shooter's. */
+const RUBBER_BULLET = { length: 0.42, spin: 20, color: 0xffd23a };
+
+/**
+ * The Duck Gun's round: Sproto Shooter's modelled rubber bullet, lobbed nose first and tumbling
+ * about its line of flight. A yellow ball stands in until the model has loaded.
+ */
+export class RubberBulletView implements EntityView {
+  readonly root = new THREE.Group();
+  readonly height = RUBBER_BULLET.length;
+  /** Turns about the line of flight. */
+  private readonly spin = new THREE.Group();
+  private readonly ballMat = new THREE.MeshStandardMaterial({ color: RUBBER_BULLET.color, roughness: 0.6 });
+  private readonly ball: THREE.Mesh;
+  private model: ModelInstance | null = null;
+  private disposed = false;
+
+  constructor(assets: AssetLoader) {
+    this.ball = new THREE.Mesh(spellGeometry().core, this.ballMat);
+    this.ball.scale.setScalar(RUBBER_BULLET.length * 0.4);
+    this.spin.add(this.ball);
+    this.spin.rotation.z = Math.random() * Math.PI * 2;
+    this.root.add(this.spin);
+    void assets.instance('proj_rubber_bullet').then((m) => {
+      if (this.disposed || !m.real) {
+        m.dispose();
+        return;
+      }
+      // Fitted by its length (the source stands on y = 0, nose along +Z), and centred so it tumbles about its middle.
+      const box = new THREE.Box3().setFromObject(m.root);
+      const size = box.getSize(new THREE.Vector3());
+      const k = RUBBER_BULLET.length / Math.max(size.z, 1e-3);
+      const mid = box.getCenter(new THREE.Vector3());
+      m.root.scale.multiplyScalar(k);
+      m.root.position.sub(mid.multiplyScalar(k));
+      m.root.traverse((o) => (o.castShadow = true));
+      this.model = m;
+      this.ball.visible = false;
+      this.spin.add(m.root);
+    });
+  }
+
+  update(e: Readonly<Entity>, alpha: number, dt: number): void {
+    placeEntity(this.root, e, alpha);
+    faceVelocity(this.root, e);
+    this.spin.rotation.z += RUBBER_BULLET.spin * dt;
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.ballMat.dispose();
+    this.model?.dispose();
     this.root.removeFromParent();
   }
 }

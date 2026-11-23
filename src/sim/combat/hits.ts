@@ -11,6 +11,7 @@ import { STATUS } from '../../content/statuses';
 import { affixAffinity, affixElite } from '../systems/affixes';
 import { blockStaminaMul, onRelicParry, rollFrames, tryBriar, tryGuardCounter } from '../systems/relics';
 import { charmOf, staffOf } from '../systems/rpg';
+import { sanctuaryBlocks } from '../systems/sanctuary';
 import { rootedMult } from './powers/snare';
 import { applyStatus } from './statuses';
 import { staffAfterReaction, staffOnHit, staffPoiseMult, staffPushback, staffStaggerBonus } from './staffTraits';
@@ -180,6 +181,8 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
 
   // The Momentum staff's blink can't be touched, and neither can a boss underground or a wave still waiting.
   if (ta?.kind === 'blink' || target.boss?.under || target.brain?.held) return 'dodged';
+  // A shrine's ground is safe: nothing an enemy does lands on a player inside it.
+  if (sanctuaryBlocks(ctx.entities, attacker, target)) return 'dodged';
 
   // Roll and backstep i-frames; a hit early in them is a perfect dodge. Sproto's Stride lengthens a roll.
   const frames = ta?.kind === 'dodge' ? rollFrames(target, ta) : null;

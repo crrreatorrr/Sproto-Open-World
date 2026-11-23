@@ -227,7 +227,9 @@ describe('the gear lock (expansion plan §1.1)', () => {
     w.spawnEnemy('grunt', { x: p.tf.pos.x, y: VILLAGE_Y, z: p.tf.pos.z - 6 }, 0);
     tick1(w, interact());
     expect(prog().atShrine).toBe('shrine_first_light');
-    expect(p.combat!.targetedAt).toBe(w.now - 1);
+    // A shrine is safe ground, so the Grunt never targets you there. Had something just done so:
+    expect(p.combat!.targetedAt).not.toBe(w.now - 1);
+    p.combat!.targetedAt = w.now - 1;
     expect(w.view().gearLocked(0)).toBe(false);
     expect(evs(tick1(w, ui([{ kind: 'equip', item: 'staff_nobu' }])), 'equip').length).toBe(1);
     w.dispose();

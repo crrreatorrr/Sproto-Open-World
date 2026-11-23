@@ -3,15 +3,19 @@
  * the XP bar, the quest tracker's lines, the compass bearings, interact prompts, what a skill rank
  * buys, gear comparisons, spell cooldowns and the merchant's remaining stock. Pure (no DOM, no three.js), so tests/ui covers it.
  */
+import { DUNGEON_LIST } from '../content/dungeons/catalog';
+import type { DungeonShrineDef } from '../content/dungeons/types';
 import { ENEMIES } from '../content/enemies';
 import { ITEMS, type ItemDef, type ItemKind } from '../content/items';
 import { MERCHANTS } from '../content/loot';
 import { STAFF_TRAITS, staffTrait } from '../content/packs/c2';
+import { SHRINE_TITLES } from '../content/packs/shrines';
 import { NPCS } from '../content/npcs';
 import { OBJECTS } from '../content/objects';
 import { LEVEL_CAP, SKILL_EFFECT, xpForLevel, xpToNext, type SkillId } from '../content/progression';
 import { SPELL_BASE, SPELLS, SWAP_MIN_COOLDOWN, type SpellId } from '../content/spells';
 import { TICK_HZ } from '../content/tuning';
+import { REGIONS, regionAt } from '../content/world/regions';
 import { keepsakeForQuest } from '../content/relics';
 import { QUESTS, type Objective, type QuestDef, type QuestOffer, type QuestState } from '../content/quests';
 import type { Progress } from '../sim/entity';
@@ -87,7 +91,20 @@ const titleCase = (words: string) => words.split('_').map((w) => w.charAt(0).toU
 
 /** "shrine_quarry_gate" → "Quarry Gate Shrine". */
 export function shrineLabel(id: string): string {
-  return SHRINE_NAMES[id] ?? `${titleCase(id.replace(/^shrine_/, ''))} Shrine`;
+  return SHRINE_NAMES[id] ?? SHRINE_TITLES[id] ?? `${titleCase(id.replace(/^shrine_/, ''))} Shrine`;
+}
+
+/** Shrines by region, in the regions' own order, each under its region's name ("The Maple Terraces"). */
+export function shrineGroups<T extends { pos: readonly [number, number, number] }>(shrines: readonly T[]): { title: string; shrines: T[] }[] {
+  return REGIONS.map((r) => ({
+    title: r.name.replace(/^the /, 'The '),
+    shrines: shrines.filter((s) => regionAt(s.pos[0], s.pos[2]).id === r.id),
+  })).filter((g) => g.shrines.length > 0);
+}
+
+/** The shrines inside the Campaign Dungeons, one group a dungeon ("L01 · Sproto Landing"). Only god mode travels to them. */
+export function dungeonShrineGroups(): { title: string; shrines: readonly DungeonShrineDef[] }[] {
+  return DUNGEON_LIST.map((d) => ({ title: `${d.id} · ${d.name}`, shrines: d.shrines }));
 }
 
 /**

@@ -113,5 +113,13 @@ export interface CellColliders {
   shapes: ColliderShape[];
 }
 
+/** A rectangle of the world in metres. */
+export interface WorldBounds {
+  minX: number;
+  minZ: number;
+  maxX: number;
+  maxZ: number;
+}
+
 export const cellKey = (cx: number, cz: number): string => `${cx},${cz}`;
 export const cellOf = (x: number, z: number): [number, number] => [Math.floor(x / CELL_SIZE), Math.floor(z / CELL_SIZE)];

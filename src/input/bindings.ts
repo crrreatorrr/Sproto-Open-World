@@ -59,6 +59,18 @@ export const PAD = {
  * and E2E scripts stay intact without key conflicts.
  */
 export const GUN_KEYS = {
+  /**
+   * The layout while a gun is in hand (gun shooting design §3): the left button fires, the right
+   * one steps the zoom, one key swings the gun (tap light, hold for heavy), and spells sit on
+   * letters, because R reloads and the number keys pick weapon slots.
+   */
+  fire: ['Mouse0'],
+  aim: ['Mouse2'],
+  melee: ['KeyQ'],
+  spell1: ['KeyE'],
+  spell2: ['KeyY'],
+  spell3: ['KeyZ'],
+  spell4: ['KeyX'],
   reload: ['KeyR'],
   swapWeapon: ['Tab'],
   grapple: ['KeyG'],
@@ -86,6 +98,11 @@ export const GUN_KEYS = {
  * - `slide` / `dash`: empty by default (handled contextually via `b` / Dodge in sim; rebindable)
  */
 export const GUN_PAD = {
+  /** With a gun in hand: RT fires, LT steps the zoom, RB swings, and LB + a face button casts. */
+  fire: ['rt'] as string[],
+  aim: ['lt'] as string[],
+  melee: ['rb'] as string[],
+  spellModifier: ['lb'] as string[],
   reload: ['x'] as string[],
   swapWeapon: ['right'] as string[],
   grapple: [] as string[],
@@ -120,6 +137,21 @@ export const GAMEPAD = {
     grapple: { strong: 0.22, weak: 0.2, ms: 65 },
   },
 };
+
+/**
+ * Two guns in hand (dual wield), after the early Halo games: a trigger and a bumper per gun.
+ *
+ *   Gamepad: RT fires the right gun, LT the left (two guns never zoom, so LT is free). A tap of RB
+ *   reloads the right gun, a tap of LB the left, and X both. Holding RB swings (a heavy blow);
+ *   holding LB and pressing a face button still casts.
+ *   Mouse: the left button fires the left gun, the right button the right one. R reloads both.
+ *
+ * A bumper counts as a tap when it comes up within `DUAL_TAP` seconds.
+ */
+export const DUAL_TAP = 0.28;
+
+/** Gun in hand: the melee button held this long (s) turns the swing into a heavy one. */
+export const MELEE_HOLD_HEAVY = 0.28;
 
 export const MOUSE = {
   /** Radians per pixel at sensitivity 1. */

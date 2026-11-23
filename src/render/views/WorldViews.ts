@@ -17,10 +17,12 @@ import { BodyGlow } from './BodyGlow';
 import { makeBossView } from './BossViews';
 import { makeBurrowmotherView } from './BurrowmotherView';
 import { DrakeFlyover, makeDrakeView } from './DrakeViews';
+import { EdgeWardenView } from './EdgeWardenView';
 import { BlastOrbView, BoltView,
-  BulletView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, type EntityView } from './EnemyViews';
+  BulletView, BruteView, CoinView, DummyView, FallbackView, HexView, HumanoidEnemyView, isHumanoidModel, type EntityView } from './EnemyViews';
 import { portalShown } from '../portalShown';
 import { ChestView, NpcView, PickupView, PortalView, ShrineView, objectView } from './RpgViews';
+import { RubberBulletView } from './EnemyViews';
 import { TelegraphDecal, type DecalShape } from './TelegraphDecal';
 import { TOTEM_FADE_TICKS } from '../../content/relics';
 import { decalLead, lanternShimmer, oracleEquipped } from '../relicCues';
@@ -32,7 +34,9 @@ import { castsShadow, wantsView } from './viewCull';
 const DECAL_COLOR: Record<DecalShape, number> = { circle: 0xffa23a, jagged: 0xff2a1a };
 
 /** Enemy models outside the critical download: fetched the first time one comes into range. */
-const LAZY_MODELS: ReadonlySet<string> = new Set<ModelKey>(['gatekeeper', 'grunt_vet', 'slinger_vet', 'big_coin', 'robot_shooter', 'robot_laser', 'scrapjaw', 'burrowmother', 'drake']);
+const LAZY_MODELS: ReadonlySet<string> = new Set<ModelKey>(['gatekeeper', 'grunt_vet', 'slinger_vet', 'big_coin', 'robot_shooter', 'robot_laser', 'scrapjaw', 'burrowmother', 'drake',
+  // The first stage of each Duel boss (and the two enemies on them): the later stages are fetched by the view.
+  'sahil_stage1', 'tinubu_stage1', 'broccoli_stage1', 'agent_stage1']);
 
 /** Seconds between status particles on a burning, shocked or chilled enemy. */
 const EMBER_EVERY = 0.07;
@@ -466,6 +470,7 @@ export class WorldViews {
 
   private make(e: Readonly<Entity>): EntityView | null {
     if (LAZY_MODELS.has(e.view.model) && !this.lazyReady(e.view.model as ModelKey)) return null;
+    if (e.warden) return new EdgeWardenView(this.assets, this.fx);
     const bossView = makeBurrowmotherView(e, this.assets, this.fx) ?? makeDrakeView(e, this.assets, this.fx) ?? makeBossView(e, this.assets, this.fx);
     if (bossView) return bossView;
     const pr = e.projectile;
@@ -474,6 +479,7 @@ export class WorldViews {
       // shots by their kind: homing or arcane ones are hexes, the rest coins.
       // A gun's shots (and a Soldier's shooting spells) are bullets, slugs and rockets.
       if (e.view.model === 'bullet' || e.view.model === 'slug' || e.view.model === 'rocket') return new BulletView(e.view.model);
+      if (e.view.model === 'rubber_bullet') return new RubberBulletView(this.assets);
       if (pr?.spell === 'blast' || e.view.model === 'blastOrb') return new BlastOrbView(this.fx, pr?.radius);
       if (pr?.spell || e.view.model === 'bolt') return new BoltView();
       if (pr?.homing || e.view.model === 'hex' || pr?.kind === 'arcane') return new HexView(this.fx);
@@ -506,20 +512,8 @@ export class WorldViews {
         return def ? new BruteView(this.assets, def, e.view.model) : new FallbackView(e);
       case 'dummy':
         return def ? new DummyView(def) : new FallbackView(e);
-      case 'grunt':
-      case 'slinger':
-      case 'wisp':
-      case 'grunt_vet':
-      case 'slinger_vet':
-      case 'big_coin':
-      case 'robot_shooter':
-      case 'robot_laser':
-      case 'midget_stage3':
-      case 'obama_stage3':
-      case 'sahil_stage3':
-      case 'tinubu_stage3':
-        return def ? new HumanoidEnemyView(this.assets, def, e.view.model) : new FallbackView(e);
       default:
+        if (isHumanoidModel(e.view.model)) return def ? new HumanoidEnemyView(this.assets, def, e.view.model) : new FallbackView(e);
         return e.kind === 'enemy' || e.kind === 'boss' ? new FallbackView(e) : null;
     }
   }

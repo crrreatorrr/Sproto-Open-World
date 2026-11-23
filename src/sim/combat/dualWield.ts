@@ -20,13 +20,17 @@ import type { Vec3 } from '../math';
 import type { RngState } from '../rng';
 import {
   SIM_HZ,
+  coolGun,
   executeGunShot,
+  heatGun,
+  heatMults,
   startReload,
   tickReload,
   type GunFireResult,
   type GunRuntimeState,
   type HitboxEnemyInput,
 } from './ballistics';
+import type { WorldRay } from './gunAim';
 
 /** Lateral muzzle offset per hand while dual wielding (metres). */
 export const DUAL_MUZZLE_OFFSET_M = 0.16;
@@ -110,6 +114,10 @@ function startOffhandReload(
 ): boolean {
   const proxy: GunRuntimeState = {
     mag: dual.offhandMag,
+    magSize: dual.offhandMag,
+    reloadTotalTicks: 0,
+    heat: 0,
+    spreadDeg: 0,
     reloadTicks: dual.reloadTicks,
     fireCooldownTicks: dual.fireCooldownTicks,
     shotsFired: 0,
@@ -146,8 +154,19 @@ export interface StepDualWieldFireParams {
   runtime: GunRuntimeState;
   rightGun: GunRef;
   ammo: AmmoReserves;
+  /** One trigger for both guns: they alternate. */
   fireHeld: boolean;
+  /**
+   * A trigger per gun, as in the early Halo games: each hand fires only while its own is held.
+   * When either is given, `fireHeld` is ignored.
+   */
+  fireRight?: boolean;
+  fireLeft?: boolean;
+  /** Reload both guns. */
   reloadPressed?: boolean;
+  /** Reload one hand's gun; the other keeps firing. */
+  reloadRight?: boolean;
+  reloadLeft?: boolean;
   yaw: number;
   origin: Vec3;
   aimDir: Vec3;
@@ -156,6 +175,12 @@ export interface StepDualWieldFireParams {
   playerLevel?: number;
   skillMods?: GunSkillMods;
   worldHitDist?: number;
+  /** World occlusion per ray; replaces `worldHitDist` when given. */
+  worldRay?: WorldRay;
+  /** Each hand's own barrel and line to the crosshair point; replaces the fixed side offset. */
+  handAim?: (hand: DualHand) => { origin: Vec3; aimDir: Vec3 };
+  /** Multiplies the hip spread for movement (moving, airborne). */
+  moveSpreadMult?: number;
   infiniteAmmo?: boolean;
 }
 
@@ -179,7 +204,6 @@ export function stepDualWieldFire(params: StepDualWieldFireParams): DualWieldFir
     runtime,
     rightGun,
     ammo,
-    fireHeld,
     reloadPressed,
     yaw,
     origin,
@@ -189,8 +213,15 @@ export function stepDualWieldFire(params: StepDualWieldFireParams): DualWieldFir
     playerLevel = 1,
     skillMods,
     worldHitDist,
+    worldRay,
+    handAim,
     infiniteAmmo,
   } = params;
+  const perHand = params.fireRight !== undefined || params.fireLeft !== undefined;
+  const wantRight = perHand ? !!params.fireRight : params.fireHeld;
+  const wantLeft = perHand ? !!params.fireLeft : params.fireHeld;
+  const fireHeld = wantRight || wantLeft;
+  coolGun(runtime, fireHeld);
 
   const result: DualWieldFireResult = {
     fired: false,
@@ -240,6 +271,10 @@ export function stepDualWieldFire(params: StepDualWieldFireParams): DualWieldFir
     result.reloadStarted = rStart.started || lStarted;
     return result;
   }
+  // One hand's reload: that gun goes down, the other can keep firing this very tick.
+  if (params.reloadRight) result.rightReloadStarted = startReload(runtime, rightGun, ammo, playerLevel, skillMods, { infiniteAmmo }).started;
+  if (params.reloadLeft) result.leftReloadStarted = startOffhandReload(dual, ammo, playerLevel, skillMods, infiniteAmmo);
+  result.reloadStarted = result.rightReloadStarted || result.leftReloadStarted;
 
   // Tick cooldowns and alternating gap
   if (runtime.fireCooldownTicks > 0) runtime.fireCooldownTicks--;
@@ -253,6 +288,7 @@ export function stepDualWieldFire(params: StepDualWieldFireParams): DualWieldFir
 
   for (const hand of order) {
     const isRight = hand === 'right';
+    if (!(isRight ? wantRight : wantLeft)) continue;
     const gunRef: GunRef = isRight ? rightGun : dual.offhandType;
     const reloading = isRight ? runtime.reloadTicks > 0 : dual.reloadTicks > 0;
     const cd = isRight ? runtime.fireCooldownTicks : dual.fireCooldownTicks;
@@ -287,8 +323,10 @@ export function stepDualWieldFire(params: StepDualWieldFireParams): DualWieldFir
       dual.fireCooldownTicks = Math.max(1, Math.round(SIM_HZ / stats.fireRate));
     }
 
-    const muzzle = dualMuzzleOrigin(origin, yaw, hand);
+    const aimed = handAim?.(hand);
+    const muzzle = aimed?.origin ?? dualMuzzleOrigin(origin, yaw, hand);
     runtime.shotsFired++;
+    heatGun(runtime);
     dual.gapTicks = Math.max(1, Math.round(SIM_HZ / (2 * stats.fireRate)));
     dual.nextHand = isRight ? 'left' : 'right';
 
@@ -297,10 +335,12 @@ export function stepDualWieldFire(params: StepDualWieldFireParams): DualWieldFir
       stats,
       adsActive: false,
       origin: muzzle,
-      aimDir,
+      aimDir: aimed?.aimDir ?? aimDir,
       enemies,
       rng,
       worldHitDist,
+      worldRay,
+      ...heatMults(runtime, params.moveSpreadMult),
       hand,
     });
 

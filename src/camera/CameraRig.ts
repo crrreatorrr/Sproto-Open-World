@@ -3,6 +3,7 @@ import { GAMEPAD, MOUSE } from '../input/bindings';
 import { MOUNT } from '../content/mounts';
 import type { AimRay } from '../sim/commands';
 import type { ReadonlySimView } from '../sim/view';
+import { Eased, smoothstep, trail } from './ease';
 
 /** Tuning, from sproto-duel's camera (pulled back a little for melee: you need to see around you). */
 export const CAM = {
@@ -28,12 +29,15 @@ export const CAM = {
   /** How fast the punch-in of the field of view lets go. */
   fovKickSharpness: 9,
   closeRise: 0.6,
-  jumpRiseSharpness: 5,
-  jumpMaxLag: 0.6,
   /**
-   * Going down, the pivot eases after the feet too (1/s), so steps and slope changes under them
-   * don't reach the picture; in a real fall it never sits more than `dropMaxLead` m above its place.
+   * The pivot's height trails the player's, up and down, so a jump, a landing, a kerb and the bumps
+   * underfoot don't reach the picture at once. It is never more than `jumpMaxLag` m below its place,
+   * nor more than `dropMaxLead` m above it in a fall: room for the tallest step the character takes
+   * in one go (`KCC.autostepHeight`). At these rates a jump leaves it less than `clearMargin`
+   * behind, so the centre of the screen stays over the player's head (tests/camera/smoothness).
    */
+  jumpRiseSharpness: 10,
+  jumpMaxLag: 0.6,
   dropSharpness: 10,
   dropMaxLead: 0.6,
   /** Hard lock (plan §4.1): the pivot sits this far from the player toward the target (0.3 = 70% toward the player). */
@@ -43,8 +47,11 @@ export const CAM = {
    * otherwise slide the pivot 4.5 m out and put the camera inside the player.
    */
   lockPivotMax: 1.6,
-  /** How fast yaw turns to face the target (exponential sharpness). */
-  lockYawSharpness: 7,
+  /** How fast the pivot leans toward a new target, and back when the lock is dropped (spring, 1/s). */
+  lockShiftResponse: 10,
+  /** How fast yaw and pitch turn to face the target (spring, 1/s); pitch is gentler for one overhead. */
+  lockYawResponse: 10,
+  lockAirPitchResponse: 8,
   /** Pitch clamp while locked: −35° to +20°. */
   lockMinPitch: (-35 * Math.PI) / 180,
   lockMaxPitch: (20 * Math.PI) / 180,
@@ -61,16 +68,18 @@ export const CAM = {
   solidMargin: 0.45,
   /**
    * On the bull: the pivot rises with the saddle above the hub-sized bull's (1.27 m at 1×), and the
-   * camera pulls back so the whole beast stays in the picture. Eased at `rideSharpness` (1/s).
+   * camera pulls back so the whole beast stays in the picture. Eased at `rideResponse` (spring, 1/s).
    */
   rideLift: 1.27 * (MOUNT.scale - 1),
   rideDistance: 1 + 0.3 * (MOUNT.scale - 1),
-  rideSharpness: 3,
+  rideResponse: 5,
   /**
    * Flying the bull: with no look input for `flyChaseAfter` s, the camera swings round behind it
-   * and follows its climbs and dives (a share of its pitch, a little above), at `flyChaseSharpness`.
+   * and follows its climbs and dives (a share of its pitch, a little above), at `flyChaseSharpness`,
+   * which it reaches over `flyChaseEase` s.
    */
   flyChaseAfter: 0.6,
+  flyChaseEase: 0.5,
   flyChaseSharpness: 2.5,
   flyChasePitch: 0.55,
   flyChaseAbove: -0.12,
@@ -80,10 +89,14 @@ export const CAM = {
    */
   clearMargin: 0.35,
   /**
-   * While the pivot trails the body (a bump underfoot, the start of a jump) the centre ray may dip
-   * this far into that margin before the pivot is pushed up after the body at once.
+   * The rise lets go as the centre ray moves off a body sideways: all of it over the body, none this
+   * far beside it (m). It is no wider than the shoulder cameras stand off the player
+   * (`otsShoulder` less the body's radius), so a gun's cameras sit at the player's own height.
    */
-  clearSlack: 0.3,
+  clearFeather: 0.2,
+  /** How fast the rise comes on and lets go (spring, 1/s). */
+  clearRiseResponse: 20,
+  clearFallResponse: 8,
   /**
    * How the models are drawn (m), measured in the game on the hub-sized bull (1×): the player's crown
    * on foot (the staff on their back included) and in the saddle, above their feet origin; the Pepe
@@ -112,8 +125,39 @@ export const CAM = {
   fpsSlideHeight: 0.72,
   fpsMinPitch: -1.4,
   fpsMaxPitch: 1.4,
-  /** Exponential damping sharpness (1/s) when blending between camera modes. */
-  modeSharpness: 12,
+  /** How fast the camera moves between modes: distance, shoulder, height and field of view (spring, 1/s). */
+  modeResponse: 18,
+  /**
+   * A wall pulls the camera in at once, less `inSlack` m that it takes at `inResponse` (spring, 1/s):
+   * the lumps of a hedge or a rock face behind the camera are eased over, not stepped over. The
+   * slack is inside the camera's own radius, so the picture never cuts into the wall.
+   */
+  inSlack: 0.1,
+  inResponse: 40,
+  /** How fast it eases back out after a wall pulled it in (1/s), and back over the shoulder or up close. */
+  outResponse: 9.5,
+  sideResponse: 12,
+  /**
+   * A wall coming up behind the camera pulls it in as it comes. Something that blocks the boom all
+   * at once, by `passStep` m or more, would make it jump, and it only has to when its own place is
+   * no place to be (`CameraRig.blockedBy`). Otherwise: what it can still see past, it ignores;
+   * something thin (a tree trunk, a post, up to `passThick` m through between where the camera's
+   * sphere touches it on either side) is let pass between, as in front of a real camera, and if it
+   * is still there after `passGrace` s the camera glides in front of it at `passResponse` (spring,
+   * 1/s); in front of anything thicker it glides at once.
+   */
+  passThick: 1.6,
+  passGrace: 0.3,
+  passResponse: 12,
+  passStep: 0.3,
+  /** Seeing the player means seeing this high up their body (m above the feet). */
+  passSee: 1.1,
+  /** The camera's place is in the clear when nothing is this far over it (m): not underground, not under a roof. */
+  passSky: 6,
+  /** How fast the sprint's wider view comes and goes (spring, 1/s). */
+  sprintFovResponse: 12,
+  /** How fast it rises to keep a locked giant's head in the picture (spring, 1/s). */
+  liftResponse: 8,
 } as const;
 
 export type CameraMode = 'orbit' | 'ots' | 'ads' | 'scope1' | 'scope2' | 'fps';
@@ -141,17 +185,9 @@ export interface CameraSolid {
 }
 
 const damp = (a: number, b: number, sharpness: number, dt: number) => a + (b - a) * (1 - Math.exp(-sharpness * dt));
-/** Damp an angle along the short way round. */
-const dampAngle = (a: number, b: number, sharpness: number, dt: number) => {
-  let d = (b - a) % (Math.PI * 2);
-  if (d > Math.PI) d -= Math.PI * 2;
-  if (d < -Math.PI) d += Math.PI * 2;
-  return a + d * (1 - Math.exp(-sharpness * dt));
-};
-
 /**
  * Third-person / OTS / ADS / scope / first-person camera: raw mouse rotation (no smoothing),
- * smoothed follow, sphere-cast collision against the world through the sim's read-only view
+ * smoothed follow (every move the rig makes on its own is eased: camera/ease.ts), sphere-cast collision against the world through the sim's read-only view
  * (Rapier stays inside the sim), and trauma² shake.
  */
 export class CameraRig {
@@ -163,14 +199,13 @@ export class CameraRig {
   invertY = false;
   /** 0..1; shake = trauma². Decays on its own. */
   trauma = 0;
-  distance: number = CAM.distance;
   /** Giants pull the camera back (EnemyDef.cameraScale): the follow distance's multiplier, eased. */
   distanceScale = 1;
   /** In the saddle (App sets it): lifts the pivot and pulls the camera back, eased. */
   riding = false;
   /** Sliding in FPS / scope mode (App sets it): drops eye height to `CAM.fpsSlideHeight`. */
   sliding = false;
-  private rideNow = 0;
+  private readonly ride = new Eased(0);
   /** Flying the bull (App sets it): its heading and nose pitch, for the chase camera. */
   flight: { yaw: number; pitch: number } | null = null;
   /** Seconds since the player last turned the camera. */
@@ -183,14 +218,30 @@ export class CameraRig {
   private thirdPersonMode: CameraMode = 'orbit';
   private zoomFov: number | undefined = undefined;
   private scaleNow = 1;
-  private lift = 0;
-  private heightNow: number = CAM.height;
-  private desiredShoulder: number = CAM.shoulder;
-  private shoulder: number = CAM.shoulder;
-  private desiredDistance: number = CAM.distance;
-  private rise = 0;
-  private fovNow: number = CAM.fov;
-  private fovBoost = 0;
+  private readonly lift = new Eased(0);
+  private readonly height = new Eased(CAM.height);
+  /** The shoulder offset the mode asks for, and how far a wall pushes it back in. */
+  private readonly shoulderGoal = new Eased(CAM.shoulder);
+  private readonly sidePush = new Eased(0);
+  /** The boom length the mode asks for, and how far a wall pulls it in. */
+  private readonly reach = new Eased(CAM.distance);
+  private readonly boomPull = new Eased(0);
+  /** The boom is blocked short of the camera, which is in the clear; and for how long by something thin (s). */
+  private passing = false;
+  private passT = 0;
+  /** The rise over the shoulder when pulled in close. */
+  private readonly closeUp = new Eased(0);
+  /** The rise that keeps the centre of the screen off the player; `clearFresh` until it is first set. */
+  private readonly clear = new Eased(0);
+  private clearFresh = true;
+  /** The pivot's eased height, before that rise. */
+  private readonly follow = new Eased(0);
+  private readonly lockShiftX = new Eased(0);
+  private readonly lockShiftZ = new Eased(0);
+  private readonly lockYaw = new Eased(0);
+  private readonly lockPitch = new Eased(0);
+  private readonly fovNow = new Eased(CAM.fov);
+  private readonly fovBoost = new Eased(0);
   private time = 0;
   /** Seconds left of a brief push-in (Scrapjaw's parried bite). */
   private pushInT = 0;
@@ -205,10 +256,21 @@ export class CameraRig {
   private readonly right = new THREE.Vector3();
   private readonly tmp = new THREE.Vector3();
   private hasPivot = false;
-  /** The pivot's eased height, before the rise that keeps the centre ray off the player. */
-  private followY = 0;
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
+
+  /** The camera's distance behind the pivot (m). */
+  get distance(): number {
+    return Math.max(0, this.reach.x - this.boomPull.x);
+  }
+
+  private get shoulder(): number {
+    return Math.max(0, this.shoulderGoal.x - this.sidePush.x);
+  }
+
+  private get rise(): number {
+    return Math.max(0, this.closeUp.x);
+  }
 
   get mode(): CameraMode {
     return this._mode;
@@ -279,8 +341,24 @@ export class CameraRig {
     }
   }
 
+  /**
+   * Zoomed in, the same hand movement turns the view less, by the zoom's share of the hip view, so
+   * the picture moves across the screen at the same speed at every zoom.
+   */
+  get lookScale(): number {
+    const m = this._mode;
+    return m === 'ads' || m === 'scope1' || m === 'scope2' ? Math.min(1, this.targetFov() / CAM.otsFov) : 1;
+  }
+
+  /** Turn the view by angles (rad), outside the look settings: aim assist's pull, a shot's recoil. */
+  nudge(dYaw: number, dPitch: number): void {
+    this.yaw += dYaw;
+    this.pitch += dPitch;
+    this.clampPitch();
+  }
+
   rotateMouse(dx: number, dy: number): void {
-    const s = MOUSE.sensitivity * this.mouseScale;
+    const s = MOUSE.sensitivity * this.mouseScale * this.lookScale;
     if (dx !== 0 || dy !== 0) this.sinceLook = 0;
     this.yaw -= dx * s;
     this.pitch -= dy * s * (this.invertY ? -1 : 1);
@@ -296,9 +374,9 @@ export class CameraRig {
     if (Math.abs(x) >= A.threshold) this.padHeldEdge += dt;
     else this.padHeldEdge = 0;
     const ramp = Math.min(1, Math.max(0, (this.padHeldEdge - A.delay) / A.rampTime));
-    const yawSpeed = (G.sensitivity.yaw + A.extraYaw * ramp) * this.padScale;
+    const yawSpeed = (G.sensitivity.yaw + A.extraYaw * ramp) * this.padScale * this.lookScale;
     this.yaw -= x * yawSpeed * dt;
-    this.pitch -= y * G.sensitivity.pitch * this.padScale * dt * (this.invertY ? -1 : 1);
+    this.pitch -= y * G.sensitivity.pitch * this.padScale * this.lookScale * dt * (this.invertY ? -1 : 1);
     this.clampPitch();
   }
 
@@ -317,12 +395,21 @@ export class CameraRig {
   snap(target: THREE.Vector3, yaw: number): void {
     this.yaw = yaw;
     this.pitch = -0.12;
-    this.heightNow = this.targetHeight();
-    this.desiredShoulder = this.shoulder = this.targetShoulder();
-    this.desiredDistance = this.distance = this.targetDistance();
-    this.fovNow = this.targetFov();
-    this.pivot.set(target.x, target.y + this.heightNow, target.z);
-    this.followY = this.pivot.y;
+    this.height.set(this.targetHeight());
+    this.shoulderGoal.set(this.targetShoulder());
+    this.sidePush.set(0);
+    this.reach.set(this.targetDistance());
+    this.boomPull.set(0);
+    this.passing = false;
+    this.passT = 0;
+    this.fovNow.set(this.targetFov());
+    this.lockShiftX.set(0);
+    this.lockShiftZ.set(0);
+    this.lockYaw.v = 0;
+    this.lockPitch.v = 0;
+    this.pivot.set(target.x, target.y + this.height.x, target.z);
+    this.follow.set(this.pivot.y);
+    this.clearFresh = true;
     this.hasPivot = true;
   }
 
@@ -370,24 +457,69 @@ export class CameraRig {
   }
 
   /**
-   * The lowest pivot height at which the centre ray (through the pivot, along `forward`) passes
-   * `clearMargin` over every occluder. Over a body's footprint the ray is lowest at its near edge when
-   * looking up and at its far edge when looking down; behind the camera nothing counts.
+   * The boom is blocked `hit` m behind `from`, well short of where the camera is. Must the camera
+   * jump in front of it? Only when its own place at the end of the boom (`reach` m back) is no place
+   * to be: inside something, under the ground or under a roof. In clear air it never has to jump:
+   *
+   * - `'grazed'`: the camera can still see past it, both along the boom and to the player's body at
+   *   (`bodyX`, `bodyY`, `bodyZ`): the side of a trunk, the crest of a rise. It stays where it is.
+   * - `'thin'`: something up to `passThick` through is between them, or sweeping through the
+   *   camera's place. It is probably crossing (a tree trunk as the player runs by): wait.
+   * - `'thick'`: something that will not pass. Glide in front of it.
+   * - `'solid'`: jump, as before.
    */
-  private clearHeight(): number {
+  private blockedBy(view: ReadonlySimView, from: THREE.Vector3, reach: number, hit: number, bodyX: number, bodyY: number, bodyZ: number): 'grazed' | 'thin' | 'thick' | 'solid' {
+    const r = CAM.collisionRadius;
+    const f = this.forward;
+    // From the camera's place back toward the player: the far side of whatever is in the way.
+    const end = this.desired.copy(from).addScaledVector(f, -reach);
+    const toPlayer = { x: f.x * reach, y: f.y * reach, z: f.z * reach };
+    let back = view.sphereCast(end, toPlayer, r);
+    let kind: 'grazed' | 'thin' | 'thick';
+    if (back && back.distance >= 0.05) {
+      const toBody = { x: bodyX - end.x, y: bodyY - end.y, z: bodyZ - end.z };
+      if (view.sphereCast(end, toPlayer, 0.03) === null && view.sphereCast(end, toBody, 0.03) === null) kind = 'grazed';
+      else kind = reach - hit - back.distance > CAM.passThick ? 'thick' : 'thin';
+    } else {
+      // The camera's place is inside it. Thin, if there is clear air just beyond the thickest a thin thing may be.
+      const far = hit + CAM.passThick;
+      end.copy(from).addScaledVector(f, -far);
+      back = view.sphereCast(end, { x: f.x * far, y: f.y * far, z: f.z * far }, r);
+      if (!back || back.distance < 0.05) return 'solid';
+      kind = 'thin';
+    }
+    // Under the ground or a roof, the far side of a surface is nowhere a camera should be.
+    const over = { x: end.x, y: end.y + CAM.passSky, z: end.z };
+    return view.sphereCast(over, { x: 0, y: -(CAM.passSky - 0.05), z: 0 }, 0.03) === null ? kind : 'solid';
+  }
+
+  /**
+   * How far the pivot must rise above its place (`ty`, where it sits once it has caught up with the
+   * player) for the centre ray, taken `side` m to the pivot's right, to pass `margin` over every
+   * occluder. Over a body's footprint the ray is lowest at its near edge when looking up and at its
+   * far edge when looking down; behind the camera nothing counts. The rise fades out over
+   * `clearFeather` as the ray moves off a body sideways, rather than stopping at its edge.
+   */
+  private riseOver(ty: number, side: number, margin: number): number {
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
     const slope = Math.tan(this.pitch);
     const behind = -this.distance * Math.cos(this.pitch);
-    let need = -Infinity;
+    const px = this.pivot.x + this.right.x * side, pz = this.pivot.z + this.right.z * side;
+    let rise = 0;
     for (const o of this.occluders) {
-      // The flat ray s ↦ pivot + s·f in the box's own axes: along its length (l) and its width (w).
+      // The flat ray s ↦ p + s·f in the box's own axes: along its length (l) and its width (w).
       const lx = Math.sin(o.yaw), lz = Math.cos(o.yaw);
-      const ox = this.pivot.x + this.right.x * this.shoulder - o.x;
-      const oz = this.pivot.z + this.right.z * this.shoulder - o.z;
+      const ox = px - o.x, oz = pz - o.z;
+      const atL = ox * lx + oz * lz, stepL = fx * lx + fz * lz;
+      const atW = ox * lz - oz * lx, stepW = fx * lz - fz * lx;
+      // How much wider the box would have to be, all round, for the ray's line to touch it.
+      const miss = (Math.abs(atL * stepW - atW * stepL) - o.halfLength * Math.abs(stepW) - o.halfWidth * Math.abs(stepL)) / (Math.abs(stepW) + Math.abs(stepL));
+      if (miss >= CAM.clearFeather) continue;
+      const grow = Math.max(0, miss) + 1e-6;
       let s0 = behind, s1 = Infinity;
       for (const [at, step, half] of [
-        [ox * lx + oz * lz, fx * lx + fz * lz, o.halfLength],
-        [ox * lz - oz * lx, fx * lz - fz * lx, o.halfWidth],
+        [atL, stepL, o.halfLength + grow],
+        [atW, stepW, o.halfWidth + grow],
       ] as const) {
         if (Math.abs(step) < 1e-6) {
           if (Math.abs(at) > half) s1 = -Infinity;
@@ -399,9 +531,25 @@ export class CameraRig {
       }
       if (s1 < s0) continue;
       const worst = slope > 0 ? s0 : s1;
-      need = Math.max(need, o.top + CAM.clearMargin - worst * slope);
+      rise = Math.max(rise, (1 - smoothstep(miss / CAM.clearFeather)) * Math.max(0, o.top + margin - worst * slope - ty));
     }
-    return need;
+    return rise;
+  }
+
+  /**
+   * The rise that keeps the centre of the screen off the player and the bull, as a goal for the
+   * spring. Two things ask for it:
+   *
+   * - The camera's place: where the centre ray is meant to pass, it passes `clearMargin` over a body.
+   *   The pivot trails the player, and that lag must not decide this, or the rise would switch on
+   *   and off as they run sideways (WORLD-0005): the ray is taken from where the pivot is heading
+   *   sideways (`sideLag` m to its right). So behind the player the rise is always there, and over
+   *   the shoulder it never is, whichever way they run.
+   * - The ray itself: wherever the lag does carry a body under it (a gun in hand, running toward the
+   *   shoulder side, looking down), the ray must still not meet the body. No margin: just over it.
+   */
+  private clearRise(ty: number, sideLag: number): number {
+    return Math.max(this.riseOver(ty, this.shoulder + sideLag, CAM.clearMargin), this.riseOver(ty, this.shoulder, 0));
   }
 
   addTrauma(amount: number): void {
@@ -436,100 +584,136 @@ export class CameraRig {
     const big = this.solid && this.solid.height >= CAM.solidFrom ? this.solid : null;
     const body = lockOn && !fp ? big : null;
     const tall = body && Math.abs(body.y - target.y) < body.height ? (body.height - CAM.lockTallFrom) * CAM.lockTallLift : 0;
-    this.lift = damp(this.lift, Math.min(CAM.lockTallMax, Math.max(0, tall)), 5, dt);
-    this.rideNow = damp(this.rideNow, this.riding ? 1 : 0, CAM.rideSharpness, dt);
-    this.heightNow = damp(this.heightNow, this.targetHeight(), CAM.modeSharpness, dt);
+    this.lift.to(Math.min(CAM.lockTallMax, Math.max(0, tall)), CAM.liftResponse, dt);
+    this.ride.to(this.riding ? 1 : 0, CAM.rideResponse, dt);
+    this.height.to(this.targetHeight(), CAM.modeResponse, dt);
     this.sinceLook += dt;
     if (this.flight && !lockOn && this.sinceLook > CAM.flyChaseAfter) {
-      const k = 1 - Math.exp(-CAM.flyChaseSharpness * dt);
+      const k = (1 - Math.exp(-CAM.flyChaseSharpness * dt)) * smoothstep((this.sinceLook - CAM.flyChaseAfter) / CAM.flyChaseEase);
       this.yaw += Math.atan2(Math.sin(this.flight.yaw - this.yaw), Math.cos(this.flight.yaw - this.yaw)) * k;
       this.pitch += (this.flight.pitch * CAM.flyChasePitch + CAM.flyChaseAbove - this.pitch) * k;
       this.clampPitch();
     }
-    this.tmp.set(target.x, target.y + this.heightNow + (fp ? 0 : this.lift) + this.rideNow * CAM.rideLift, target.z);
+    // Where the pivot is heading: above the player, leaning toward a locked target.
+    const goal = this.tmp.set(target.x, target.y + this.height.x + this.lift.x + this.ride.x * CAM.rideLift, target.z);
+    let shiftX = 0, shiftZ = 0;
     if (lockOn && !fp) {
       const dx = lockOn.x - target.x, dz = lockOn.z - target.z;
       const flat = Math.max(1e-3, Math.hypot(dx, dz));
       // The pivot leans toward the target, but never into its body.
       const room = body ? Math.max(0, flat - body.radius - CAM.solidMargin) / flat : 1;
       const shift = Math.min(CAM.lockPivot, CAM.lockPivotMax / flat, room);
-      this.tmp.x += dx * shift;
-      this.tmp.z += dz * shift;
-      if (dx * dx + dz * dz > 0.04) this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), CAM.lockYawSharpness, dt);
+      shiftX = dx * shift;
+      shiftZ = dz * shift;
+      this.lockYaw.x = this.yaw;
+      if (dx * dx + dz * dz > 0.04) this.yaw = this.lockYaw.toAngle(Math.atan2(dx, dz), CAM.lockYawResponse, dt);
       // Keep the locked enemy at the centre of the screen, within the lock's pitch range. A target
       // overhead (the Skyfire Drake) lifts the top of that range, so the camera can look up at it.
-      const toTarget = Math.atan2(lockOn.y - this.tmp.y, Math.max(0.5, Math.hypot(lockOn.x - this.tmp.x, lockOn.z - this.tmp.z)));
+      const toTarget = Math.atan2(lockOn.y - goal.y, Math.max(0.5, Math.hypot(lockOn.x - goal.x - shiftX, lockOn.z - goal.z - shiftZ)));
       const up = Math.atan2(lockOn.y - target.y - CAM.height, Math.max(1, Math.hypot(dx, dz))) - CAM.lockAirMargin;
       const air = Math.min(CAM.lockAirMaxPitch, up);
       const hi = Math.max(CAM.lockMaxPitch, air);
-      this.pitch = damp(this.pitch, Math.min(hi, Math.max(CAM.lockMinPitch, toTarget)), air > 0 ? 5 : CAM.lockYawSharpness, dt);
+      this.lockPitch.x = this.pitch;
+      this.pitch = this.lockPitch.to(Math.min(hi, Math.max(CAM.lockMinPitch, toTarget)), air > 0 ? CAM.lockAirPitchResponse : CAM.lockYawResponse, dt);
+    } else if (Math.abs(this.lockYaw.v) + Math.abs(this.lockPitch.v) > 1e-4) {
+      // Let go of mid-turn: the turn runs out instead of stopping dead.
+      const fade = Math.exp(-CAM.lockYawResponse * dt);
+      this.yaw += this.lockYaw.v * dt;
+      this.pitch += this.lockPitch.v * dt;
+      this.lockYaw.v *= fade;
+      this.lockPitch.v *= fade;
+      this.clampPitch();
     }
+    // The lean comes on and lets go on a spring: locking on must not lurch the camera.
+    goal.x += this.lockShiftX.to(shiftX, CAM.lockShiftResponse, dt);
+    goal.z += this.lockShiftZ.to(shiftZ, CAM.lockShiftResponse, dt);
     if (!this.hasPivot) {
-      this.pivot.copy(this.tmp);
-      this.followY = this.tmp.y;
+      this.pivot.copy(goal);
+      this.follow.set(goal.y);
+      this.clearFresh = true;
       this.hasPivot = true;
     }
-    const lastY = this.followY;
-    this.pivot.x = damp(this.pivot.x, this.tmp.x, CAM.followSharpness, dt);
-    this.pivot.z = damp(this.pivot.z, this.tmp.z, CAM.followSharpness, dt);
-    // Rise lazily on a jump (never more than jumpMaxLag behind). Going down it eases as well, a
-    // little faster, and a fall never leaves it more than dropMaxLead above its place.
-    const ty = this.tmp.y;
-    this.followY = ty > lastY
-      ? Math.max(damp(lastY, ty, CAM.jumpRiseSharpness, dt), ty - CAM.jumpMaxLag)
-      : Math.min(damp(lastY, ty, CAM.dropSharpness, dt), ty + CAM.dropMaxLead);
-    this.pivot.y = this.followY;
+    this.pivot.x = damp(this.pivot.x, goal.x, CAM.followSharpness, dt);
+    this.pivot.z = damp(this.pivot.z, goal.z, CAM.followSharpness, dt);
+    // The height trails: lazily up, a little faster down, and never far from its place either way.
+    const ty = goal.y;
+    if (ty > this.follow.x) trail(this.follow, ty, CAM.jumpRiseSharpness, CAM.jumpMaxLag, dt);
+    else trail(this.follow, ty, CAM.dropSharpness, CAM.dropMaxLead, dt);
 
     const cp = Math.cos(this.pitch);
     this.forward.set(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp);
     this.right.set(-Math.cos(this.yaw), 0, Math.sin(this.yaw));
     // Rise far enough that the centre of the screen sees past the player and the bull (3P modes only).
-    // The rise is measured from where the pivot would sit with no lag and added to the eased height,
-    // so it doesn't undo the easing (it used to pin the camera to the feet, bumps and all). Only when
-    // the pivot trails far behind the body does the ray's own floor push it up at once.
-    if (!fp) {
-      const clear = this.clearHeight();
-      this.pivot.y = Math.max(this.followY + Math.max(0, clear - ty), clear - CAM.clearSlack);
-    }
+    // The rise is added to the trailing height, so it doesn't undo the trailing, and it comes on and
+    // lets go on a spring: whatever changes under the centre ray, the camera never steps.
+    const sideLag = (goal.x - this.pivot.x) * this.right.x + (goal.z - this.pivot.z) * this.right.z;
+    const clear = fp ? 0 : this.clearRise(ty, sideLag);
+    if (this.clearFresh) this.clear.set(clear);
+    else this.clear.to(clear, clear > this.clear.x ? CAM.clearRiseResponse : CAM.clearFallResponse, dt);
+    this.clearFresh = false;
+    this.pivot.y = this.follow.x + Math.max(0, this.clear.x);
 
     // Shoulder offset, then pull back along -forward; both legs are sphere casts so the near plane
     // never slices into a wall the camera only just misses.
     const r = CAM.collisionRadius;
-    this.desiredShoulder = damp(this.desiredShoulder, this.targetShoulder(), CAM.modeSharpness, dt);
-    let allowedShoulder = this.desiredShoulder;
-    if (Math.abs(this.desiredShoulder) > 1e-4) {
-      this.desired.copy(this.right).multiplyScalar(this.desiredShoulder);
+    this.shoulderGoal.to(this.targetShoulder(), CAM.modeResponse, dt);
+    const wantShoulder = Math.max(0, this.shoulderGoal.x);
+    let push = 0;
+    if (wantShoulder > 1e-4) {
+      this.desired.copy(this.right).multiplyScalar(wantShoulder);
       const sideHit = view.sphereCast(this.pivot, this.desired, r);
-      if (sideHit) allowedShoulder = Math.max(0, sideHit.distance - 0.02);
+      if (sideHit) push = wantShoulder - Math.max(0, sideHit.distance - 0.02);
     }
-    this.shoulder = allowedShoulder < this.shoulder ? allowedShoulder : damp(this.shoulder, allowedShoulder, 8, dt);
+    // Pushed in at once by a wall, eased back out. With no wall the mode's own easing is all there is.
+    if (push > this.sidePush.x) this.sidePush.set(push);
+    else this.sidePush.to(push, CAM.sideResponse, dt);
     const shoulder = this.tmp.copy(this.pivot).addScaledVector(this.right, this.shoulder);
 
-    this.scaleNow = damp(this.scaleNow, this.distanceScale * (1 + this.rideNow * (CAM.rideDistance - 1)), 3, dt);
+    this.scaleNow = damp(this.scaleNow, this.distanceScale * (1 + this.ride.x * (CAM.rideDistance - 1)), 3, dt);
     if (this.pushInT > 0) this.pushInT = Math.max(0, this.pushInT - dt);
     const baseDist = this.targetDistance();
-    const reach = baseDist > 0 ? baseDist * this.scaleNow * (this.pushInT > 0 ? 0.78 : 1) : 0;
-    this.desiredDistance = damp(this.desiredDistance, reach, CAM.modeSharpness, dt);
-    let maxDist = this.desiredDistance;
-    if (this.desiredDistance > 1e-4) {
-      this.desired.copy(this.forward).multiplyScalar(-this.desiredDistance);
+    this.reach.to(baseDist > 0 ? baseDist * this.scaleNow * (this.pushInT > 0 ? 0.78 : 1) : 0, CAM.modeResponse, dt);
+    const reach = Math.max(0, this.reach.x);
+    let maxDist = reach;
+    let glide = false;
+    let passing = false;
+    if (reach > 1e-4) {
+      this.desired.copy(this.forward).multiplyScalar(-reach);
       const backHit = view.sphereCast(shoulder, this.desired, r);
-      maxDist = this.clearOfSolid(shoulder, backHit ? Math.max(0, backHit.distance - 0.02) : this.desiredDistance);
+      const free = backHit ? Math.max(0, backHit.distance - 0.02) : reach;
+      // Blocked all at once, short of where the camera is (and until it is in front, or the way is clear).
+      const sudden = backHit !== null && reach - free > this.boomPull.x + (this.passing ? 0.002 : CAM.passStep);
+      const by = sudden ? this.blockedBy(view, shoulder, reach, backHit.distance, target.x, target.y + CAM.passSee, target.z) : 'solid';
+      passing = by !== 'solid';
+      this.passT = by === 'thin' ? this.passT + dt : 0;
+      glide = by === 'thick' || this.passT > CAM.passGrace;
+      maxDist = this.clearOfSolid(shoulder, passing && !glide ? reach : free);
     }
-    // Pull in instantly when blocked, ease back out.
-    this.distance = maxDist < this.distance ? maxDist : damp(this.distance, maxDist, 6, dt);
+    this.passing = passing;
+    // Pull in at once when blocked (but for the slack), ease back out. From clear air, glide in front
+    // of what is in the way.
+    const pull = reach - maxDist;
+    if (glide) this.boomPull.to(pull, CAM.passResponse, dt);
+    else if (pull > this.boomPull.x) {
+      this.boomPull.to(pull, CAM.inResponse, dt);
+      if (this.boomPull.x < pull - CAM.inSlack) this.boomPull.set(pull - CAM.inSlack);
+    } else this.boomPull.to(pull, CAM.outResponse, dt);
 
     const cam = this.camera;
     cam.position.copy(shoulder).addScaledVector(this.forward, -this.distance);
     // Pulled in close: rise over the shoulder as far as the space above allows (3P modes only).
-    const closeRef = Math.min(baseDist, 2.2);
+    const closeRef = Math.min(reach, 2.2);
     const close = !fp && closeRef > 0.1 ? Math.max(0, 1 - this.distance / closeRef) : 0;
-    let rise = CAM.closeRise * close * close * (3 - 2 * close);
-    if (rise > 0.01) {
-      const upHit = view.sphereCast(cam.position, { x: 0, y: rise, z: 0 }, r);
-      if (upHit) rise = Math.min(rise, Math.max(0, upHit.distance - 0.02));
+    const closeRise = CAM.closeRise * smoothstep(close);
+    const up = Math.max(closeRise, this.rise);
+    let ceiling = Infinity;
+    if (up > 0.01) {
+      const upHit = view.sphereCast(cam.position, { x: 0, y: up, z: 0 }, r);
+      if (upHit) ceiling = Math.max(0, upHit.distance - 0.02);
     }
-    this.rise = rise < this.rise ? rise : damp(this.rise, rise, 8, dt);
+    // Eased both ways; only a ceiling stops it at once.
+    this.closeUp.to(Math.min(closeRise, ceiling), CAM.sideResponse, dt);
+    if (this.closeUp.x > ceiling) this.closeUp.set(ceiling);
     cam.position.y += this.rise;
     if (cam.position.y < 0.3) cam.position.y = 0.3;
 
@@ -549,10 +733,10 @@ export class CameraRig {
     cam.rotateZ((Math.sin(t * 0.9 + 2.2) + Math.sin(t * 1.9) * 0.5) * shake * CAM.maxShakeRoll);
 
     const zoomed = this._mode === 'ads' || this._mode === 'scope1' || this._mode === 'scope2';
-    this.fovNow = damp(this.fovNow, this.targetFov(), CAM.modeSharpness, dt);
-    this.fovBoost = damp(this.fovBoost, sprinting && !zoomed ? CAM.sprintFovBoost : 0, 8, dt);
+    this.fovNow.to(this.targetFov(), CAM.modeResponse, dt);
+    this.fovBoost.to(sprinting && !zoomed ? CAM.sprintFovBoost : 0, CAM.sprintFovResponse, dt);
     this.fovKick = damp(this.fovKick, 0, CAM.fovKickSharpness, dt);
-    const fov = this.fovNow + this.fovBoost - this.fovKick;
+    const fov = this.fovNow.x + this.fovBoost.x - this.fovKick;
     if (Math.abs(cam.fov - fov) > 0.01) {
       cam.fov = fov;
       cam.updateProjectionMatrix();

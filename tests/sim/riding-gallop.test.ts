@@ -415,6 +415,52 @@ describe('handling at speed', () => {
     w.dispose();
   });
 
+  /** Reverse the stick and count the ticks until the bull runs the other way; no tick may swing its line past the limit. */
+  function reverse(w: SimWorld, p: Entity, mag: number): number {
+    const most = MOUNT.turnRate * DT + 1e-3;
+    let ticks = 0;
+    let last = heading(p);
+    while (!(p.tf.vel.z < 0 && Math.abs(p.tf.vel.x) < 0.05) && ticks < 400) {
+      step(w, command({ move: { x: 0, y: -mag } }));
+      ticks++;
+      expect(Math.hypot(p.tf.vel.x, p.tf.vel.z)).toBeGreaterThan(MOUNT.pivotSpeed); // it never stops to pivot
+      const now = heading(p);
+      expect(Math.abs(Math.atan2(Math.sin(now - last), Math.cos(now - last)))).toBeLessThanOrEqual(most);
+      last = now;
+    }
+    return ticks;
+  }
+
+  // WORLD-0004: the line used to snap round under 3 m/s and whip round at up to 14 rad/s in a hairpin.
+  it('never snaps round: a full reversal is a bounded arc at a walk, a trot and a gallop', async () => {
+    const least = Math.floor(Math.PI / (MOUNT.turnRate * DT)); // 75 ticks, 1.25 s
+    for (const pace of [{ mag: 0.4, gallop: false }, { mag: 1, gallop: false }, { mag: 1, gallop: true }]) {
+      const { w, p } = await saddled();
+      if (pace.gallop) tap(w);
+      drive(w, UP_TO_SPEED, { move: { x: 0, y: pace.mag } });
+      const ticks = reverse(w, p, pace.mag);
+      expect(ticks).toBeGreaterThanOrEqual(least);
+      expect(ticks * DT).toBeLessThan(1.6); // still responsive
+      w.dispose();
+    }
+  });
+
+  it('a quarter turn at a trot is an arc of about 0.6 s, tighter than at a gallop', async () => {
+    const { w, p } = await saddled();
+    drive(w, UP_TO_SPEED);
+    const x0 = p.tf.pos.x;
+    let ticks = 0;
+    while (Math.abs(heading(p) - Math.PI / 2) > 0.02 && ticks < 200) {
+      step(w, command({ move: { x: -1, y: 0 } }));
+      ticks++;
+    }
+    expect(ticks * DT).toBeGreaterThan(0.55);
+    expect(ticks * DT).toBeLessThan(0.75);
+    expect(p.tf.pos.x - x0).toBeGreaterThan(2);
+    expect(p.tf.pos.x - x0).toBeLessThan(5);
+    w.dispose();
+  });
+
   it('the body follows the line it is running', async () => {
     const { w, p } = await saddled();
     tap(w);

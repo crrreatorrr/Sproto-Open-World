@@ -38,7 +38,7 @@ export interface ItemDef {
   blurb: string;
   /** Staff: melee damage and spell power (plan §4.6 table); model key for the view. */
   staff?: { damage: number; spellPower: number; model: string };
-  /** A gun (content/classes.ts): it is held in the staff slot by the gun classes, and Gunfire shoots it. */
+  /** A gun (content/classes.ts): it is held in the staff slot by the gun classes, and its own trigger fires it. */
   gun?: GunDef;
   /** A weapon-slot tool every class can hold (the Brick Phone), not a staff or a gun. */
   anyClass?: boolean;

@@ -96,7 +96,7 @@ export type SimEvent =
   | { type: 'mountCall'; entity: EntityId; mount: EntityId; phase: 'coming' | 'appeared' | 'arrived' | 'failed' }
   | { type: 'interact'; entity: EntityId; object: string; kind: 'shrine' | 'chest' | 'npc' | 'object' | 'portal' }
   /** Travel through a hidden entrance. `portal` is the mouth used; `to` is the mouth arrived at. */
-  | { type: 'portalTravel'; entity: EntityId; portal: string; to: string }
+  | { type: 'portalTravel'; entity: EntityId; portal: string; to: string; /** A dungeon shrine to arrive beside (god mode's phone). */ shrine?: string }
   /** Light attack with the Brick Phone in hand opened it. */
   | { type: 'phoneOpen'; entity: EntityId }
   /** God mode went on or off (testing). */
@@ -127,6 +127,8 @@ export type SimEvent =
   | { type: 'bossImpact'; boss: EntityId; pos: Vec3; pillar: boolean }
   | { type: 'bossDefeated'; boss: EntityId }
   | { type: 'rockLand'; pos: Vec3; radius: number }
+  /** The Edge Warden and the player (`entity`) it came for: it arrived, opened fire, began its burn's warning, or left. */
+  | { type: 'edgeWarden'; entity: EntityId; warden: EntityId; phase: 'appear' | 'strike' | 'burn' | 'leave' }
   | { type: 'gateOpened'; gate: string }
   /**
    * A beat the presentation plays, and that another workstream can hook.
