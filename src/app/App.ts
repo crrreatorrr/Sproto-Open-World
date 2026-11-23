@@ -40,6 +40,9 @@ import { HitFx, type SparkStyle } from '../render/fx/HitFx';
 import { isSoftPowerHit, powerSpark } from '../render/fx/powers';
 import { PortraitStudio } from '../render/PortraitStudio';
 import { Renderer } from '../render/Renderer';
+import { ResolutionGovernor } from '../render/resolutionGovernor';
+import { warmModel } from '../render/warm';
+import { UploadBudget } from '../world/UploadBudget';
 import { getDungeon, getDungeonById } from '../content/dungeons/catalog';
 import type { DungeonId } from '../content/dungeons/types';
 import type { DungeonView } from '../render/dungeon/DungeonView';
@@ -145,6 +148,9 @@ export class App {
   readonly input: Input;
   readonly assets = new AssetLoader();
   readonly renderer: Renderer;
+  /** GPU uploads spread over frames: world cells, prop models and every character model share it. */
+  readonly uploads = new UploadBudget();
+  private readonly resolution = new ResolutionGovernor();
   /** The dialogue panel's render-to-texture speaker portraits. */
   readonly portraits: PortraitStudio;
   readonly rig: CameraRig;
@@ -267,6 +273,8 @@ export class App {
     host.appendChild(canvas);
     this.input = new Input(canvas);
     this.renderer = new Renderer(canvas, this.assets);
+    // No model reaches a view before its textures are up and its shaders are compiled.
+    this.assets.warm = (scene, body) => warmModel(scene, this.uploads, this.renderer, body);
     this.portraits = new PortraitStudio(this.renderer.renderer, this.assets);
     this.world = new WorldViews(this.assets, this.fx);
     this.renderer.scene.add(this.world.root, this.fx.root, this.gunFx.root);
@@ -362,7 +370,8 @@ export class App {
     this.bindWindowEvents(canvas);
     window.addEventListener('resize', () => this.rpgHud.setCompassWidth(compassWidth()));
     this.rpgHud.setCompassWidth(compassWidth());
-    this.stream = MODE === 'world' ? new WorldSession(this.renderer, this.assets, this.settings.grass) : null;
+    this.stream = MODE === 'world' ? new WorldSession(this.renderer, this.assets, this.uploads, this.settings.grass) : null;
+    this.stream?.setQuality(this.settings.quality);
     if (!this.stream) {
       this.renderer.yardLook();
       this.renderer.buildLevel(SANDBOX);
@@ -403,6 +412,7 @@ export class App {
     this.rig.invertY = s.invertY;
     this.input.pad.rumbleEnabled = s.rumble;
     this.stream?.setGrass(s.grass);
+    this.stream?.setQuality(s.quality);
     this.polish.apply(s);
   }
 
@@ -653,6 +663,7 @@ export class App {
       this.rpgHud.clearFeed();
       this.state = 'playing';
       this.stream?.loadFarHorizons();
+      this.stream?.setPlaying(true);
       if (this.groundWait) this.showGroundVeil(entity.tf.pos.x, entity.tf.pos.z);
       else this.panels.hideVeil();
       this.hud.visible = !this.groundWait;
@@ -723,6 +734,7 @@ export class App {
     this.endCardPending = false;
     this.rig.distanceScale = 1;
     this.stream?.detach();
+    this.stream?.setPlaying(false);
     this.groundWait = false;
     this.pendingDrop = null;
     this.panels.hideVeil();
@@ -783,6 +795,10 @@ export class App {
     const frameStart = performance.now();
     const pad = this.input.pad;
     pad.update();
+    // A machine that can't hold the frame rate at full resolution draws at a lower one (and back).
+    if (this.state === 'playing') this.renderer.setResolution(this.resolution.sample(dt * 1000));
+    // This frame's share of queued GPU uploads, before anything draws.
+    this.uploads.run();
     if (this.feedbackHold) {
       this.feedbackFrame();
       return;
@@ -817,6 +833,9 @@ export class App {
     this.startUsed = false;
     this.frameCount++;
     this.portraits.frame(dt, this.nav.top === this.rpgMenus.dialogue);
+    this.renderer.watchFirstDraw = this.state === 'playing' && !this.groundWait;
+    // The camera is where this frame shows it: the props in its view go into their buffers now.
+    this.stream?.present();
     this.renderer.render();
     // Under a menu the cursor is free on purpose: no "click to look around".
     this.hud.update(pad, this.input.locked || this.nav.open, this.state === 'playing' && this.commands.gunLayout, this.commands.dualWield);
@@ -835,6 +854,7 @@ export class App {
       clip: this.clipName || '(locomotion)',
       combat: this.overlay.open ? [...frameDataLines(p, this.sim?.now ?? 0), '', ...targetLines(p?.combat?.lock != null ? this.sim?.get(p.combat.lock) : undefined)] : [],
       frame: fs,
+      firstDraw: this.renderer.firstDraw,
       heapMb: mem ? mem.usedJSHeapSize / 1048576 : null,
       world: this.overlay.open && this.stream ? this.stream.overlayLines(p ? p.tf.pos : null) : [],
     });
@@ -919,7 +939,11 @@ export class App {
 
     const p = sim.playerEntity(LOCAL_PLAYER);
     if (!p) return;
-    if (this.mode === 'world') this.renderer.setCave(isRootdeep(p.tf.pos.x));
+    if (this.mode === 'world') {
+      const cave = isRootdeep(p.tf.pos.x);
+      this.renderer.setCave(cave);
+      this.stream?.setCave(cave);
+    }
     this.autosave(simView, p, dt, held);
     this.syncEquipment(p);
     view.saddleLift = p.riding ? this.world.saddleLift(p.riding.mount) : 0;
@@ -976,6 +1000,7 @@ export class App {
     view.root.visible = !this.rig.isFirstPerson || riding;
     this.rig.riding = riding;
     this.rig.flight = p.riding?.flight ? { yaw: p.tf.yaw, pitch: p.riding.flight.pitch } : null;
+    this.stream?.setFlying(!!p.riding?.flight);
     this.rig.occluders = this.cameraOccluders(simView, p);
     this.rig.update(dt, this.target, simView, p.loco?.sprinting ?? false, this.speakerPoint(simView, p) ?? this.lockPoint(simView, p));
     this.viewmodel.update(dt, Viewmodel.stateFromView(simView, LOCAL_PLAYER, this.rig.mode, activeGun?.itemId ?? null, null, m.x * 0.002, m.y * 0.002));
@@ -1298,7 +1323,7 @@ export class App {
     const w = this.stream;
     const p = this.sim?.playerEntity(LOCAL_PLAYER);
     if (!w || !p) return false;
-    w.frame({ x: p.tf.pos.x, z: p.tf.pos.z, vx: p.tf.vel.x, vz: p.tf.vel.z }, view, view.now);
+    w.frame({ x: p.tf.pos.x, z: p.tf.pos.z, vx: p.tf.vel.x, vz: p.tf.vel.z }, view);
     if (this.pendingDrop) this.dropPending();
     const ground = w.ground(view, p.tf.pos);
     if (ground === 'ready') {
@@ -1991,8 +2016,8 @@ export class App {
     if (w && this.state !== 'playing') {
       const p = this.sim?.playerEntity(LOCAL_PLAYER);
       const start = w.start;
-      if (p) w.frame({ x: p.tf.pos.x, z: p.tf.pos.z, vx: 0, vz: 0 }, this.sim!.view(), this.sim!.now);
-      else if (start) w.frame({ x: start.pos[0], z: start.pos[2], vx: 0, vz: 0 }, null, this.frameCount);
+      if (p) w.frame({ x: p.tf.pos.x, z: p.tf.pos.z, vx: 0, vz: 0 }, this.sim!.view());
+      else if (start) w.frame({ x: start.pos[0], z: start.pos[2], vx: 0, vz: 0 }, null);
     }
     if (this.state === 'paused' || this.state === 'loading') return;
     this.orbit += dt * 0.08;
@@ -2249,6 +2274,7 @@ export class App {
       errorAction: this.panels.focusedAction,
       world: this.stream?.qa() ?? null,
       frameStats: { ...this.renderer.frameStats() },
+      firstDraw: { ...this.renderer.firstDraw },
       gpuMemory: { ...this.renderer.renderer.info.memory },
       heap: (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null,
       wave: this.sim?.view().wave ?? null,

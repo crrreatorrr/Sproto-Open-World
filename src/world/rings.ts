@@ -19,8 +19,58 @@ import type { Priority } from '../assets/RequestQueue';
 export type CellLevel = 'active' | 'visual';
 
 export const RING_ACTIVE = 1;
+/** The fewest rings of ground ever shown (Low quality). An Active cell that drops to this ring keeps its colliders. */
 export const RING_VISUAL = 2;
+/** With the fewest rings, the hysteresis ring. In general it is one past `rings` (see `planRings`). */
 export const RING_KEEP = 3;
+export const CELL_SIZE_M = CELL_SIZE;
+
+/** The graphics qualities, as the streaming policy needs them (render/quality.ts owns the setting). */
+export type ViewQuality = 'low' | 'medium' | 'high';
+
+/**
+ * How many rings of cells are shown around the player's cell, by graphics quality. Colliders stay in
+ * the 3 × 3 whatever this is; the rings past 2 carry coarse ground (`terrainRes`) and only the props
+ * big enough to be seen from there (`propRanges`).
+ */
+export function viewRings(quality: ViewQuality): number {
+  return quality === 'low' ? 2 : quality === 'medium' ? 3 : MAX_VIEW_RINGS;
+}
+
+/** The most rings any quality shows. Instance buffers are sized for it once (world/PropInstancer.ts). */
+export const MAX_VIEW_RINGS = 5;
+
+/** Every prop draw distance is multiplied by this (San Andreas's draw-distance slider). */
+export function viewScale(quality: ViewQuality): number {
+  return quality === 'low' ? 0.8 : quality === 'medium' ? 1 : 1.2;
+}
+
+/**
+ * How far the fog lets you see, as a share of the region's own fog distances (near, far). The fog
+ * closes in on lower qualities so the bare far ground, past where trees and buildings are drawn,
+ * sits deeper in the haze (San Andreas tuned its fog and far clip like lighting; SA14).
+ */
+export function fogReach(quality: ViewQuality): readonly [number, number] {
+  return quality === 'low' ? [0.65, 0.5] : quality === 'medium' ? [0.85, 0.75] : [1, 1];
+}
+
+/** The camera trails the player by up to this far (m): the loaded square is centred on the player's cell. */
+const CAMERA_TRAIL_M = 8;
+
+/**
+ * The distance from the camera out to which ground is certain to be loaded with `rings` rings: the
+ * loaded square's nearest edge when the player stands at the edge of their own cell. Nothing may be
+ * drawn past it, or it would appear out of thin air as its cell loads.
+ */
+export function coverageM(rings: number): number {
+  return rings * CELL_SIZE - CAMERA_TRAIL_M;
+}
+
+/** Terrain resolution (quads along a cell's side) for a cell `dist` rings from the player. */
+export function terrainRes(level: CellLevel, dist: number): 64 | 32 | 16 {
+  if (level === 'active') return 64;
+  return dist <= RING_VISUAL ? 32 : 16;
+}
 /** Prefetch looks this far ahead along the player's velocity (plan §3.2). */
 export const PREFETCH_SECONDS = 4;
 /** Cell fetch retries and their backoff (plan §2.9). */
@@ -61,6 +111,13 @@ export interface RingInput {
   current: ReadonlyMap<string, CellLevel>;
   /** Whether a region manifest has this cell. */
   inRegion(cx: number, cz: number): boolean;
+  /** Rings of cells to show (`viewRings`); 2 when left out. One more ring is kept if already loaded. */
+  rings?: number;
+  /**
+   * Where the camera is and which way it looks on the ground plane (m; `dx, dz` need not be unit
+   * length). Given, cells in front are asked for before cells behind (San Andreas, SA9).
+   */
+  view?: { x: number; z: number; dx: number; dz: number };
 }
 
 export interface CellWant {
@@ -72,6 +129,8 @@ export interface CellWant {
   /** Chebyshev distance to the nearest player cell (Infinity with no players). */
   dist: number;
   anchored: boolean;
+  /** Terrain resolution to build (`terrainRes`). */
+  res: 64 | 32 | 16;
 }
 
 export interface RingPlan {
@@ -91,13 +150,18 @@ export function ringDistance(cell: CellXZ, players: readonly CellXZ[]): number {
   return d;
 }
 
+/** How much being straight ahead of the camera is worth, in rings, when ordering requests. */
+const AHEAD_WEIGHT = 1.1;
+
 export function planRings(input: RingInput): RingPlan {
-  const { players, anchors, current, inRegion } = input;
+  const { players, anchors, current, inRegion, view } = input;
+  const rings = Math.max(RING_VISUAL, input.rings ?? RING_VISUAL);
+  const keepRing = rings + 1;
   const anchored = new Set(anchors.map(([x, z]) => cellKey(x, z)));
   const candidates = new Map<string, CellXZ>();
   for (const [px, pz] of players) {
-    for (let dz = -RING_KEEP; dz <= RING_KEEP; dz++) {
-      for (let dx = -RING_KEEP; dx <= RING_KEEP; dx++) candidates.set(cellKey(px + dx, pz + dz), [px + dx, pz + dz]);
+    for (let dz = -keepRing; dz <= keepRing; dz++) {
+      for (let dx = -keepRing; dx <= keepRing; dx++) candidates.set(cellKey(px + dx, pz + dz), [px + dx, pz + dz]);
     }
   }
   for (const a of anchors) candidates.set(cellKey(a[0], a[1]), a);
@@ -114,13 +178,27 @@ export function planRings(input: RingInput): RingPlan {
     let level: CellLevel | null;
     if (isAnchor || dist <= RING_ACTIVE) level = 'active';
     else if (dist === RING_VISUAL) level = cur === 'active' ? 'active' : 'visual';
-    else if (dist === RING_KEEP) level = cur ? 'visual' : null;
+    else if (dist <= rings) level = 'visual';
+    else if (dist === keepRing) level = cur ? 'visual' : null;
     else level = null;
     if (!level) continue;
     const priority: Priority = isAnchor || dist <= RING_ACTIVE ? 'now' : 'later';
-    want.push({ cx: cell[0], cz: cell[1], key, level, priority, dist, anchored: isAnchor });
+    want.push({ cx: cell[0], cz: cell[1], key, level, priority, dist, anchored: isAnchor, res: terrainRes(level, dist) });
   }
-  want.sort((a, b) => (a.priority === b.priority ? a.dist - b.dist || a.cz - b.cz || a.cx - b.cx : a.priority === 'now' ? -1 : 1));
+  // Needed-now cells nearest first. The rest by distance too, but a cell the camera faces counts as
+  // up to AHEAD_WEIGHT rings nearer and one behind it as that much further.
+  const vl = view ? Math.hypot(view.dx, view.dz) : 0;
+  const order = new Map<string, number>();
+  for (const w of want) {
+    let score = w.dist;
+    if (view && vl > 1e-6 && w.priority === 'later') {
+      const ox = (w.cx + 0.5) * CELL_SIZE - view.x, oz = (w.cz + 0.5) * CELL_SIZE - view.z;
+      const ol = Math.hypot(ox, oz);
+      if (ol > 1e-6) score -= AHEAD_WEIGHT * ((ox * view.dx + oz * view.dz) / (ol * vl));
+    }
+    order.set(w.key, score);
+  }
+  want.sort((a, b) => (a.priority === b.priority ? order.get(a.key)! - order.get(b.key)! || a.dist - b.dist || a.cz - b.cz || a.cx - b.cx : a.priority === 'now' ? -1 : 1));
   const keep = new Set(want.map((w) => w.key));
   const unload = [...current.keys()].filter((k) => !keep.has(k));
   return { want, unload };
@@ -132,6 +210,11 @@ export function planRings(input: RingInput): RingPlan {
  * never the cells already in `skip` (they are loading anyway). Nearest to the path's end last, so
  * the soonest-needed cells queue first.
  */
+/** How far ahead to fetch at this ground speed (m/s): 4 s on foot, further at a gallop or in the air (SA12). */
+export function prefetchSeconds(speed: number): number {
+  return speed <= 8 ? PREFETCH_SECONDS : speed <= 20 ? 6 : 8;
+}
+
 export function prefetchCells(
   pos: { x: number; z: number },
   vel: { x: number; z: number },
@@ -195,22 +278,99 @@ function parseKey(k: string): CellXZ {
 }
 
 /**
- * Prop LOD bucket for a cell (plan §3.4), from the distance (m) between the player and the nearest
- * point of the cell: 0 = LOD0 that casts shadows (≤ 60 m), 1 = LOD0 (≤ 70 m), 2 = LOD1 (≤ 180 m),
- * null = hidden. Visual-ring cells use LOD1 whatever the distance. Cells past the visual ring show
- * only landmarks, which keeps every non-landmark bucket inside the 5 × 5 window that the baked
- * capacities cover.
+ * Prop draw distances (San Andreas gave every model its own; SA6). A prop's size puts it in a class,
+ * and the class says how far its detailed model (LOD0) and its simple one (LOD1) are drawn. Small
+ * things stop early, where nobody can see them any more; big things reach as far as ground is loaded.
+ * The swap between the two models, and the far edge, are faded per prop in the shader over `band`.
  */
-export type PropBucket = 0 | 1 | 2;
-export const LOD0_SHADOW_M = 60;
-export const LOD0_M = 70;
-export const LOD1_M = 180;
+export type PropClass = 'clutter' | 'small' | 'medium' | 'large' | 'landmark';
 
-export function propBucket(meters: number, level: CellLevel, ring: number, landmark: boolean): PropBucket | null {
-  if (ring > RING_VISUAL) return landmark ? 2 : null;
-  if (meters > LOD1_M) return landmark ? 2 : null;
-  if (level === 'visual' || meters > LOD0_M) return 2;
-  return meters > LOD0_SHADOW_M ? 1 : 0;
+/** What the policy needs to know of a prop kind (content/world/format.ts PropKind has it). */
+export interface PropSized {
+  /** Width (the larger of x and z) and height of the model's bounds, in metres. */
+  readonly size?: readonly [number, number];
+  readonly landmark?: boolean;
+}
+
+export interface PropRange {
+  /** The detailed model is drawn out to here (m)... */
+  hd: number;
+  /** ...the simple one from there out to here. */
+  far: number;
+  /**
+   * Width of the swap between the two models, ending at `hd` (m). Kept short: mid-swap a prop is
+   * drawn half by each model, pixel by pixel, which shows as a stipple on a low-resolution screen.
+   */
+  band: number;
+  /** Width of the fade to nothing, ending at `far` (m). */
+  edge: number;
+  /** Whether the prop casts a sun shadow when close. */
+  casts: boolean;
+}
+
+/** LOD0 and LOD1 distances at scale 1, per class (m). Landmarks reach as far as ground is loaded. */
+const CLASS_RANGE: Record<PropClass, readonly [number, number]> = {
+  clutter: [36, 64],
+  small: [44, 110],
+  medium: [60, 180],
+  large: [84, 260],
+  landmark: [120, Infinity],
+};
+
+/** Props shorter than this never cast a shadow (crops, ferns, paving): nobody misses it. */
+const CAST_MIN_HEIGHT_M = 1.5;
+
+const classOf = (s: number): PropClass => (s < 1.6 ? 'clutter' : s < 3.5 ? 'small' : s < 9 ? 'medium' : 'large');
+
+/** The class that sets how far a prop is seen at all: by its height, or half its width if that is more. */
+export function propClass(kind: PropSized): PropClass {
+  if (kind.landmark) return 'landmark';
+  if (!kind.size) return 'medium';
+  return classOf(Math.max(kind.size[1], kind.size[0] * 0.5));
+}
+
+/**
+ * The class that sets how far a prop keeps its detailed model. Width counts for less here: a wide,
+ * flat thing (paving, a crop row) is seen from far off, but its detail is lost long before a tall
+ * thing's is.
+ */
+function detailClass(kind: PropSized): PropClass {
+  if (kind.landmark) return 'landmark';
+  if (!kind.size) return 'medium';
+  return classOf(Math.max(kind.size[1], kind.size[0] * 0.25));
+}
+
+/**
+ * A kind's draw distances at a draw-distance `scale`, never past `coverage` (`coverageM`): a prop
+ * drawn beyond the loaded ground would pop in when its cell arrives instead of fading in.
+ *
+ * Landmarks are the exception: their `far` is Infinity, so they are drawn in every loaded cell. The
+ * horizon mesh carries a stand-in box for each, and it is hidden under loaded cells; a landmark with
+ * a far distance would vanish between that distance and the edge of the loaded square. It dithers in
+ * with its cell instead, as the box dithers out.
+ */
+export function propRanges(kind: PropSized, scale: number, coverage: number): PropRange {
+  const far = kind.landmark ? Infinity : Math.max(1, Math.min(CLASS_RANGE[propClass(kind)][1] * scale, coverage));
+  const hd = Math.min(CLASS_RANGE[detailClass(kind)][0] * scale, Math.min(far, coverage) * 0.6);
+  return { hd, far, band: Math.min(10, hd * 0.2), edge: Math.min(20, far * 0.25), casts: kind.size ? kind.size[1] >= CAST_MIN_HEIGHT_M : true };
+}
+
+/** Props within this distance of the camera are in the shadow-casting set (the shadow box is ±35 m). */
+export const NEAR_SHADOW_M = 46;
+/** The camera this far above the ground draws every prop as its simple model, without shadows (SA11). */
+export const ALOFT_M = 50;
+/** ...and it must come back under this before the detailed models return, so hovering at the line doesn't flicker. */
+export const ALOFT_OFF_M = 40;
+
+/**
+ * Which sets a cell's props of one kind feed, from the nearest and farthest the cell gets to the
+ * camera (m): `near` the detailed, shadow-casting set (chosen per prop inside it), `hd` the detailed
+ * set, `far` the simple one. A cell that straddles the swap distance feeds both and the shader shows
+ * each prop in exactly one.
+ */
+export function propTiers(dmin: number, dmax: number, r: PropRange, aloft = false): { near: boolean; hd: boolean; far: boolean } {
+  if (aloft) return { near: false, hd: false, far: dmin < r.far };
+  return { near: r.casts && dmin < NEAR_SHADOW_M, hd: dmin < r.hd, far: dmin < r.far && dmax > r.hd - r.band };
 }
 
 /** Distance (m) in XZ from a point to the nearest point of a cell's square. */
@@ -219,4 +379,10 @@ export function distanceToCell(x: number, z: number, cx: number, cz: number, cel
   const ddx = Math.max(x0 - x, 0, x - (x0 + cellSize));
   const ddz = Math.max(z0 - z, 0, z - (z0 + cellSize));
   return Math.hypot(ddx, ddz);
+}
+
+/** Distance (m) in XZ from a point to the farthest corner of a cell's square. */
+export function farDistanceToCell(x: number, z: number, cx: number, cz: number, cellSize: number): number {
+  const x0 = cx * cellSize, z0 = cz * cellSize;
+  return Math.hypot(Math.max(Math.abs(x - x0), Math.abs(x - x0 - cellSize)), Math.max(Math.abs(z - z0), Math.abs(z - z0 - cellSize)));
 }

@@ -12,9 +12,17 @@ export interface WorldManifest extends RegionManifest {
   horizons: string[];
 }
 
-/** A public/ path as a URL the page can fetch (the build uses a relative base). */
-export function publicUrl(path: string): string {
-  return import.meta.env.BASE_URL + path.replace(/^\/+/, '');
+/**
+ * A public/ path as a URL the page can fetch (the build uses a relative base). `version` (a region's
+ * `contentHash`) goes on as `?v=`: the file's URL then changes whenever its bake does.
+ */
+export function publicUrl(path: string, version?: string): string {
+  return import.meta.env.BASE_URL + versioned(path.replace(/^\/+/, ''), version);
+}
+
+/** `path?v=version`, or the path alone when there is no version. */
+export function versioned(path: string, version?: string): string {
+  return version ? `${path}?v=${version}` : path;
 }
 
 /**
@@ -102,10 +110,10 @@ export function mergeWorld(all: RegionManifest[], overworld: boolean[]): WorldMa
     ...a,
     origin: [x0, z0],
     size: [x1 - x0, z1 - z0],
-    cells: all.flatMap((m) => m.cells),
+    cells: all.flatMap((m) => (m.contentHash ? m.cells.map((c) => ({ ...c, v: m.contentHash })) : m.cells)),
     props,
     ...(water.length ? { water } : {}),
-    horizons: all.filter((_, i) => overworld[i]).map((m) => m.horizon),
+    horizons: all.filter((_, i) => overworld[i]).map((m) => versioned(m.horizon, m.contentHash)),
   };
 }
 

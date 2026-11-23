@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import type { Priority, RequestQueue, Ticket } from '../assets/RequestQueue';
 import { cellColliders, sampleHeight } from '../content/world/codec';
 import { cellKey, cellOf, type CellColliders, type CellData, type CellEntry } from '../content/world/format';
+import { FarTerrain } from './FarTerrain';
 import { Horizon } from './Horizon';
 import { PropInstancer, type PropHost } from './PropInstancer';
 import { publicUrl, type Region } from './RegionManifest';
-import { RETRY_DELAYS_MS, groundCells, planRings, prefetchCells, withRetry, type CellLevel, type CellXZ } from './rings';
+import { RETRY_DELAYS_MS, groundCells, planRings, prefetchCells, prefetchSeconds, withRetry, type CellLevel, type CellXZ } from './rings';
 import type { TerrainBuilder } from './TerrainBuilder';
 import { TerrainChunk, terrainMaterial } from './TerrainChunk';
 import type { UploadBudget } from './UploadBudget';
@@ -63,6 +64,10 @@ interface Cell {
   failed: boolean;
   heights: Float32Array | null;
   chunk: TerrainChunk | null;
+  /** When this cell's ground first showed (host clock, ms): it dithers in from then. */
+  shownAt: number;
+  /** Terrain resolution this cell should show (world/rings.ts `terrainRes`). */
+  res: 64 | 32 | 16;
   /** Resolution being built in the worker (0: none). */
   building: number;
   colliders: boolean;
@@ -71,12 +76,20 @@ interface Cell {
   gen: number;
 }
 
-/** Raw cell payloads kept after a cell unloads (and prefetched ones): the whole 8 × 8 region fits. */
-const CACHE_CELLS = 72;
+/**
+ * Raw cell payloads kept after a cell unloads (and prefetched ones), about 25 KiB each: enough for
+ * the widest view (13 × 13 cells with its hysteresis ring) and what was just left behind.
+ */
+const CACHE_CELLS = 260;
 /** Worker builds in flight at once. */
 const MAX_BUILDS = 4;
 /** Prefetch only while the shared queue is this short, so it never delays a needed cell. */
 const PREFETCH_QUEUE_LIMIT = 6;
+/** Cells this coarse are far ground: merged per block instead of drawn one by one. */
+const FAR_RES = 16;
+const FAR_BLOCKS_PER_FRAME = 6;
+/** A cell's ground takes this long to dither in over the horizon (ms). */
+export const CELL_FADE_MS = 400;
 
 export interface StreamerCounters {
   /** Cells with terrain showing, and by level. */
@@ -111,12 +124,20 @@ export class CellStreamer {
   readonly horizon: Horizon;
   private readonly terrain = new THREE.Group();
   private readonly material: THREE.MeshStandardMaterial;
+  /** Far cells' coarse ground, drawn a 256 m block at a time (world/FarTerrain.ts). */
+  private readonly farMaterial: THREE.MeshStandardMaterial;
+  private readonly far: FarTerrain;
   private readonly cells = new Map<string, Cell>();
   private readonly cache = new Map<string, Payload>();
   private readonly fetches = new Map<string, Fetch>();
   private sink: CellSink | null = null;
   private maskDirty = true;
-  private tick = 0;
+  /** What the last plan was made from, the cells it wants (in request order), and whether to plan again. */
+  private planKey = '';
+  private planUnsettled = true;
+  private readonly wanted: Cell[] = [];
+  /** Rings of cells shown around the player (world/rings.ts `viewRings`). */
+  private shownRings = 2;
   readonly counters: StreamerCounters = {
     loaded: 0, active: 0, visual: 0, pending: 0, queued: 0, inFlight: 0, fetched: 0, prefetched: 0, unloaded: 0, retries: 0, failed: 0, builds: 0,
     collidersLoaded: 0, collidersUnloaded: 0, cached: 0,
@@ -126,15 +147,17 @@ export class CellStreamer {
     const m = region.manifest;
     this.root.name = 'world';
     this.terrain.name = 'terrain';
-    this.material = terrainMaterial(host.grass, host.rock, m.splatLayers);
-    this.props = new PropInstancer(m.props, host.props);
     this.horizon = new Horizon(m);
+    this.material = terrainMaterial(host.grass, host.rock, m.splatLayers, this.horizon.uniforms);
+    this.farMaterial = terrainMaterial(host.grass, host.rock, m.splatLayers, this.horizon.uniforms, true);
+    this.far = new FarTerrain(this.terrain, this.farMaterial);
+    this.props = new PropInstancer(m.props, host.props);
     this.root.add(this.terrain, this.props.root, this.horizon.root);
   }
 
-  /** The terrain material, for warming its program before the first cell shows. */
-  get terrainMaterial(): THREE.Material {
-    return this.material;
+  /** The terrain materials (a cell's own mesh, and merged far ground), for warming their programs before the first cell shows. */
+  get terrainMaterials(): THREE.Material[] {
+    return [this.material, this.farMaterial];
   }
 
   /** Start sending colliders to a sim (a new SimWorld has none, so every Active cell goes again). */
@@ -149,53 +172,84 @@ export class CellStreamer {
     for (const c of this.cells.values()) c.colliders = false;
   }
 
+  /** How far the world is shown: rings of cells, and the props' draw-distance scale (the graphics quality). */
+  setView(rings: number, scale: number, ahead?: number): void {
+    this.shownRings = rings;
+    this.props.configure(rings, scale, ahead);
+  }
+
   /**
    * One frame of streaming around `focus` (the player, or the title camera's spot). `view` is the
-   * sim's view while playing (anchors), `tick` the sim tick (or a frame count on the title).
+   * sim's view while playing (anchors). `look` is where the camera is and which way it faces on the
+   * ground plane: what is in front of it is asked for first.
    */
-  update(focus: { x: number; z: number; vx: number; vz: number }, view: CellView | null, tick: number): void {
-    this.tick = tick;
+  update(focus: { x: number; z: number; vx: number; vz: number }, view: CellView | null, look?: { x: number; z: number; dx: number; dz: number }): void {
     const cs = this.region.cellSize;
     const players: CellXZ[] = [cellOf(focus.x, focus.z)];
     const anchors = view ? view.cellAnchors() : [];
-    const current = new Map<string, CellLevel>();
-    for (const c of this.cells.values()) current.set(c.key, c.level);
-    const plan = planRings({ players, anchors, current, inRegion: this.region.has });
-
-    for (const k of plan.unload) this.unload(this.cells.get(k)!);
-    for (const w of plan.want) {
-      let c = this.cells.get(w.key);
-      if (!c) {
-        c = this.makeCell(w.cx, w.cz, w.level);
-        this.cells.set(w.key, c);
-      }
-      if (c.level !== w.level) {
+    // The plan only changes when the player crosses into another cell, an anchor moves, the camera
+    // turns to another eighth of the compass or the view setting changes: until then last frame's
+    // stands, and the cells it wants are only moved along.
+    let planKey = `${players[0][0]},${players[0][1]}|${this.shownRings}`;
+    for (const a of anchors) planKey += `|${a[0]},${a[1]}`;
+    if (look) planKey += `|${Math.floor(look.x / cs)},${Math.floor(look.z / cs)},${Math.round(Math.atan2(look.dz, look.dx) / (Math.PI / 4))}`;
+    if (planKey !== this.planKey || this.planUnsettled) {
+      const current = new Map<string, CellLevel>();
+      for (const c of this.cells.values()) current.set(c.key, c.level);
+      const plan = planRings({ players, anchors, current, inRegion: this.region.has, rings: this.shownRings, view: look });
+      // A plan that changed a cell's level may read differently next frame (the hysteresis ring
+      // goes by what is loaded): plan once more, then it has settled.
+      let changed = plan.unload.length > 0;
+      for (const k of plan.unload) this.unload(this.cells.get(k)!);
+      this.wanted.length = 0;
+      for (const w of plan.want) {
+        let c = this.cells.get(w.key);
+        if (!c) {
+          c = this.makeCell(w.cx, w.cz, w.level);
+          this.cells.set(w.key, c);
+          changed = true;
+        }
+        if (c.level !== w.level) changed = true;
         c.level = w.level;
-        if (c.props) this.props.setLevel(c.cx, c.cz, c.level);
+        c.res = w.res;
+        c.anchored = w.anchored;
+        if (c.priority !== w.priority) {
+          c.priority = w.priority;
+          if (w.priority === 'now') this.promote(c.key);
+        }
+        this.wanted.push(c);
       }
-      c.anchored = w.anchored;
-      if (c.priority !== w.priority) {
-        c.priority = w.priority;
-        if (w.priority === 'now') this.promote(c.key);
-      }
+      this.planKey = planKey;
+      this.planUnsettled = changed;
     }
 
-    for (const w of plan.want) this.pump(this.cells.get(w.key)!);
+    for (const c of this.wanted) this.pump(c);
 
-    // Prefetch along the velocity: raw data only, into the cache.
+    // Prefetch along the velocity, further at speed: raw data only, into the cache.
     if (this.host.queue.queued < PREFETCH_QUEUE_LIMIT) {
       const skip = new Set<string>([...this.cells.keys(), ...this.cache.keys(), ...this.fetches.keys()]);
-      for (const [cx, cz] of prefetchCells({ x: focus.x, z: focus.z }, { x: focus.vx, z: focus.vz }, cs, this.region.has, skip)) {
+      const ahead = prefetchSeconds(Math.hypot(focus.vx, focus.vz));
+      for (const [cx, cz] of prefetchCells({ x: focus.x, z: focus.z }, { x: focus.vx, z: focus.vz }, cs, this.region.has, skip, ahead)) {
         if (this.host.queue.queued >= PREFETCH_QUEUE_LIMIT) break;
         this.request(cx, cz, 'later').then(() => this.counters.prefetched++, () => {});
       }
     }
 
-    this.props.update(focus.x, focus.z, cs, tick);
+    // Far ground whose cells came or went is merged again, a few blocks a frame.
+    this.far.flush(FAR_BLOCKS_PER_FRAME);
     if (this.maskDirty) {
+      // While any cell is still fading in, the mask is written again next frame.
       this.maskDirty = false;
-      const shown: [number, number][] = [];
-      for (const c of this.cells.values()) if (c.chunk) shown.push([c.cx, c.cz]);
+      const now = this.host.props.now();
+      const shown: [number, number, number][] = [];
+      for (const c of this.cells.values()) {
+        if (!c.chunk) continue;
+        // Far ground shows once its block has been merged: the fade starts then.
+        if (this.far.has(c.chunk) && !this.far.shown(c.chunk)) c.shownAt = now;
+        const fade = Math.min(1, (now - c.shownAt) / CELL_FADE_MS);
+        if (fade < 1) this.maskDirty = true;
+        shown.push([c.cx, c.cz, fade]);
+      }
       this.horizon.setLoaded(shown);
     }
     this.count();
@@ -205,7 +259,7 @@ export class CellStreamer {
     const key = cellKey(cx, cz);
     return {
       cx, cz, key, entry: this.region.entry(cx, cz)!, level, priority: 'later', anchored: false, data: null, fetching: false, failed: false,
-      heights: null, chunk: null, building: 0, colliders: false, props: false, gen: 0,
+      heights: null, chunk: null, shownAt: 0, res: level === 'active' ? 64 : 32, building: 0, colliders: false, props: false, gen: 0,
     };
   }
 
@@ -218,7 +272,7 @@ export class CellStreamer {
         c.data = cached;
       } else this.fetchFor(c);
     }
-    const res = c.level === 'active' ? 64 : 32;
+    const res = c.res;
     if (c.data && !c.building && c.chunk?.res !== res && this.host.builder.inFlight < MAX_BUILDS) this.build(c, res);
 
     const sink = this.sink;
@@ -234,7 +288,7 @@ export class CellStreamer {
     }
     // Props arrive with the terrain, so nothing floats over the horizon mesh.
     if (c.chunk && c.data && !c.props) {
-      this.props.addCell(c.cx, c.cz, c.data.json, c.level, this.tick);
+      this.props.addCell(c.cx, c.cz, c.data.json);
       c.props = true;
     }
   }
@@ -275,7 +329,7 @@ export class CellStreamer {
       withRetry(
         () => {
           const t = this.host.queue.run(async (signal) => {
-            const r = await fetch(publicUrl(path), { signal });
+            const r = await fetch(publicUrl(path, entry.v), { signal });
             if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
             return read(r);
           }, f.priority);
@@ -321,7 +375,7 @@ export class CellStreamer {
     }
   }
 
-  private build(c: Cell, res: 64 | 32): void {
+  private build(c: Cell, res: 64 | 32 | 16): void {
     c.building = res;
     const gen = c.gen;
     this.counters.builds++;
@@ -334,9 +388,16 @@ export class CellStreamer {
           c.building = 0;
           if (c.gen !== gen) return;
           const chunk = new TerrainChunk(c.cx, c.cz, r.mesh, this.material);
-          c.chunk?.dispose();
+          // A first mesh fades in; a finer or coarser one for the same cell just takes its place.
+          if (!c.chunk) c.shownAt = this.host.props.now();
+          if (c.chunk) {
+            this.far.remove(c.chunk);
+            c.chunk.dispose();
+          }
           c.chunk = chunk;
-          this.terrain.add(chunk.mesh);
+          // Coarse (far) ground goes into its block's mesh; nearer ground is drawn as its own.
+          if (chunk.res === FAR_RES) this.far.add(chunk);
+          else this.terrain.add(chunk.mesh);
           this.maskDirty = true;
         });
       },
@@ -360,6 +421,7 @@ export class CellStreamer {
       for (const t of f.tickets) t.cancel();
     }
     if (c.chunk) {
+      this.far.remove(c.chunk);
       c.chunk.dispose();
       c.chunk = null;
       this.maskDirty = true;
@@ -418,6 +480,7 @@ export class CellStreamer {
   }
 
   dispose(): void {
+    this.wanted.length = 0;
     for (const c of [...this.cells.values()]) this.unload(c);
     for (const f of this.fetches.values()) {
       f.cancelled = true;
@@ -426,8 +489,10 @@ export class CellStreamer {
     this.fetches.clear();
     this.cache.clear();
     this.props.dispose();
+    this.far.dispose();
     this.horizon.dispose();
     this.material.dispose();
+    this.farMaterial.dispose();
     this.root.removeFromParent();
   }
 }

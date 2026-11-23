@@ -29,6 +29,11 @@ export interface PropKind {
    * InstancedMesh is sized once and never resized (plan §3.1).
    */
   capacity: number;
+  /**
+   * The model's size in metres: its width (the larger of x and z) and its height. The client draws
+   * small props a short way and big ones far (world/rings.ts `propRanges`).
+   */
+  size?: [number, number];
 }
 
 export interface CellEntry {
@@ -39,6 +44,8 @@ export interface CellEntry {
   json: string;
   /** Bytes of bin + json, for budgets and the loader's progress. */
   bytes: number;
+  /** Set by the client when it loads the manifest: the region's `contentHash`, for the cell's URLs. */
+  v?: string;
 }
 
 export interface RegionManifest {
@@ -55,6 +62,11 @@ export interface RegionManifest {
   playerStart: { pos: [number, number, number]; yaw: number };
   /** Path under public/ of the always-resident low-detail horizon GLB. */
   horizon: string;
+  /**
+   * A hash of the region's baked cells and horizon. The client adds it to their URLs (`?v=`), so a
+   * host can cache them for good: a new bake gives new URLs.
+   */
+  contentHash?: string;
   /** Splat layer order in the .bin RGBA channels. */
   splatLayers: [string, string, string, string];
   /** World-space fog band and far plane (plan §3.2). */

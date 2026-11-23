@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
     "test:balance": "vitest run --config vitest.balance.config.ts",
+    "test:world": "vitest run --config vitest.world.config.ts",
     "test:e2e": "node tests/e2e/smoke.mjs && node tests/e2e/camps.mjs && node tests/e2e/loading.mjs && node tests/e2e/mount.mjs && node tests/e2e/find-quest.mjs && node tests/e2e/rootdeep.mjs && node tests/e2e/unification.mjs && node tests/e2e/guns.mjs && node tests/e2e/edge-warden.mjs",
     "test:e2e:unification": "node tests/e2e/unification.mjs",
     "test:e2e:camera": "node tests/e2e/camera.mjs",

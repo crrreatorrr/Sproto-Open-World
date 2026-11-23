@@ -41,7 +41,7 @@ export class TerrainBuilder {
     return this.pending.size;
   }
 
-  build(bin: ArrayBuffer, range: { min: number; max: number }, cx: number, cz: number, res: 64 | 32): Promise<BuiltTerrain> {
+  build(bin: ArrayBuffer, range: { min: number; max: number }, cx: number, cz: number, res: 64 | 32 | 16): Promise<BuiltTerrain> {
     const id = this.nextId++;
     const copy = bin.slice(0);
     const job: TerrainJob = { id, bin: copy, range, cx, cz, res };

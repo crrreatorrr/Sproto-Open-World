@@ -17,6 +17,7 @@ import { Document, Logger, NodeIO, getBounds, type Node as GNode } from '@gltf-t
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { meshopt } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { encodeCellBin, decodeCellBin, sampleHeight } from '../src/content/world/codec';
@@ -124,6 +125,7 @@ const smooth = (t: number) => {
 };
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const r2 = (v: number) => Math.round(v * 100) / 100 + 0;
+const r1 = (v: number) => Math.round(v * 10) / 10 + 0;
 const r4 = (v: number) => Math.round(v * 1e4) / 1e4 + 0;
 
 function hash2(ix: number, iz: number, seed: number): number {
@@ -900,8 +902,14 @@ async function bakeRegion(region: string): Promise<{ files: Map<string, Uint8Arr
     }
   }
 
-  const models = [...new Set(Object.values(placeSrc.kinds).filter((k) => k.landmark).map((k) => k.model))].sort();
+  // Bounds of every placed model: the landmarks' impostors are cut from them, and every kind's size
+  // goes in the prop table so the client can give it a draw distance by how big it is.
+  const models = [...new Set([...Object.values(placeSrc.kinds).filter((k) => k.landmark).map((k) => k.model), ...usedKeys.map((key) => placeSrc.kinds[key].model)])].sort();
   const bounds = await readPropBounds(models);
+  for (const key of usedKeys) {
+    const b = bounds.get(placeSrc.kinds[key].model)!;
+    props[key].size = [r1(Math.max(b.max[0] - b.min[0], b.max[2] - b.min[2])), r1(b.max[1] - b.min[1])];
+  }
   const landmarks = instances
     .filter((i) => placeSrc.kinds[i.key].landmark)
     .map((inst) => {
@@ -925,7 +933,13 @@ async function bakeRegion(region: string): Promise<{ files: Map<string, Uint8Arr
     fog: ow?.src.fog ?? terrainSrc.fog ?? { near: 80, far: 180, farPlane: 450 },
   };
   if (t.water.length) manifest.water = t.water;
-  files.set('region.json', json(manifest, true));
+  // One hash over every baked file of the region. The client puts it on the URL of each cell and of
+  // the horizon, so those can be cached for good (vercel.json): a re-bake changes the URL.
+  const hash = createHash('sha256');
+  for (const name of [...files.keys()].sort()) hash.update(name).update(files.get(name)!);
+  manifest.contentHash = hash.digest('hex').slice(0, 12);
+  // Compact: every region's manifest is fetched before the title is usable.
+  files.set('region.json', json(manifest, false));
 
   // Budgets (plan §3.5).
   const stats: string[] = [];

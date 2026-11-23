@@ -7,9 +7,9 @@ import type { Renderer } from '../render/Renderer';
 import { CellStreamer, type CellSink, type CellView } from '../world/CellStreamer';
 import { GrassField } from '../world/GrassField';
 import { loadWorld, propPath, type Region, type WorldManifest } from '../world/RegionManifest';
-import { VEIL_TIMEOUT_MS, withRetry } from '../world/rings';
+import { VEIL_TIMEOUT_MS, viewRings, viewScale, withRetry, type ViewQuality } from '../world/rings';
 import { TerrainBuilder } from '../world/TerrainBuilder';
-import { UploadBudget } from '../world/UploadBudget';
+import { textureBytes, type UploadBudget } from '../world/UploadBudget';
 import { WaterLayer, waterClock } from '../world/Water';
 
 export type GroundState = 'ready' | 'loading' | 'timeout';
@@ -25,7 +25,6 @@ const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms))
 export class WorldSession {
   region: Region | null = null;
   streamer: CellStreamer | null = null;
-  readonly uploads = new UploadBudget();
   private builder: TerrainBuilder | null = null;
   private grass: GrassField | null = null;
   private water: WaterLayer | null = null;
@@ -34,8 +33,49 @@ export class WorldSession {
   private loading: Promise<Region> | null = null;
   /** When the veil went up for missing ground (performance.now ms), or null. */
   private veilSince: number | null = null;
+  private readonly lookDir = new THREE.Vector3();
 
-  constructor(private readonly renderer: Renderer, private readonly assets: AssetLoader, private grassOn = true) {}
+  /** `uploads` is the app's per-frame GPU upload budget; the app runs it once a frame. */
+  constructor(private readonly renderer: Renderer, private readonly assets: AssetLoader, readonly uploads: UploadBudget, private grassOn = true) {}
+
+  private quality: ViewQuality = 'high';
+  private playing = false;
+  private cave = false;
+  private flying = false;
+
+  /** The graphics quality: how many rings of the world are shown, and how far each prop is drawn. */
+  setQuality(quality: ViewQuality): void {
+    this.quality = quality;
+    this.applyView();
+  }
+
+  /**
+   * Behind the title only the nearest two rings stream (the title has a download budget, and Play
+   * needs just the ground under the player). In play the view opens to what the quality allows.
+   */
+  setPlaying(on: boolean): void {
+    this.playing = on;
+    this.applyView();
+  }
+
+  /** In the Rootdeep the cave's own fog ends at 180 m: more rings would load cave nobody can see. */
+  setCave(on: boolean): void {
+    if (on === this.cave) return;
+    this.cave = on;
+    this.applyView();
+  }
+
+  private applyView(): void {
+    const wide = this.playing && !this.cave;
+    // Behind the title: the shortest draw distances, and no model asked for ahead of need.
+    if (this.playing) this.streamer?.setView(wide ? viewRings(this.quality) : viewRings('low'), viewScale(this.quality));
+    else this.streamer?.setView(viewRings('low'), viewScale('low'), 0);
+  }
+
+  /** The player is flying the mount: from high up, props are drawn as their simple models. */
+  setFlying(on: boolean): void {
+    this.flying = on;
+  }
 
   /** The Grass setting. */
   setGrass(on: boolean): void {
@@ -78,20 +118,27 @@ export class WorldSession {
         uploadTexture: (tex) =>
           new Promise<void>((resolve) =>
             this.uploads.texture(() => {
-              this.renderer.renderer.initTexture(tex);
-              resolve();
-            }),
+              // Settle whatever happens: an upload that throws must not leave the prop loading forever.
+              try {
+                this.renderer.renderer.initTexture(tex);
+              } finally {
+                resolve();
+              }
+            }, textureBytes(tex)),
           ),
         compile: (obj) => this.renderer.compile(obj),
         now: () => performance.now(),
       },
     });
     this.streamer = streamer;
+    this.applyView();
     this.renderer.scene.add(streamer.root);
     // Warm the terrain program before the first cell lands (it would compile on its first draw).
-    const probe = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), streamer.terrainMaterial);
-    probe.receiveShadow = true;
-    void this.renderer.compile(probe).finally(() => probe.geometry.dispose());
+    for (const material of streamer.terrainMaterials) {
+      const probe = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+      probe.receiveShadow = true;
+      void this.renderer.compile(probe).finally(() => probe.geometry.dispose());
+    }
     const field = new GrassField(Math.max(0, m.splatLayers.indexOf('grass')), m.props, m.heightRange);
     field.enabled = this.grassOn;
     this.grass = field;
@@ -140,14 +187,33 @@ export class WorldSession {
     return this.region?.manifest.playerStart ?? null;
   }
 
-  /** One frame: spend the upload budget, then stream around `focus`. */
-  frame(focus: { x: number; z: number; vx: number; vz: number }, view: CellView | null, tick: number): void {
+  /**
+   * One frame of streaming around `focus` (the app has already spent this frame's upload budget).
+   * What the camera faces is asked for first.
+   */
+  frame(focus: { x: number; z: number; vx: number; vz: number }, view: CellView | null): void {
     if (!this.streamer) return;
-    this.uploads.run();
     waterClock.value = performance.now() / 1000;
-    this.streamer.update(focus, view, tick);
+    const cam = this.renderer.camera;
+    cam.getWorldDirection(this.lookDir);
+    this.streamer.update(focus, view, { x: cam.position.x, z: cam.position.z, dx: this.lookDir.x, dz: this.lookDir.z });
     this.water?.update(focus.x, focus.z);
     this.grass?.update(focus.x, focus.z, performance.now() / 1000, this.streamer);
+  }
+
+  /**
+   * Just before the draw, with the camera where this frame shows it: the props in view go into
+   * their instance buffers and the fades move on (world/PropInstancer.ts).
+   */
+  present(): void {
+    const s = this.streamer;
+    if (!s) return;
+    const cam = this.renderer.camera;
+    cam.updateMatrixWorld();
+    // Height over the ground only counts in flight: on foot the camera can hang over a cliff's drop.
+    const ground = this.flying ? s.heightAt(cam.position.x, cam.position.z) : null;
+    const aloft = !this.flying ? 0 : ground === null ? null : cam.position.y - ground;
+    s.props.present(cam, performance.now() / 1000, s.region.cellSize, aloft);
   }
 
   attach(sim: CellSink): void {

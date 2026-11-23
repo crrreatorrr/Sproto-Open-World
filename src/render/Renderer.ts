@@ -3,6 +3,7 @@ import type { AssetLoader } from '../assets/AssetLoader';
 import { TEXTURES } from '../assets/manifest';
 import type { LevelDef } from '../content/sandbox';
 import { DAY_HAZE, sunCastsShadow, worldLight } from './caveLook';
+import { snapToShadowTexels } from './shadowSnap';
 
 /** Draw calls and triangles of the last frame, split into the shadow pass and the main pass. */
 export interface FrameStats {
@@ -48,6 +49,20 @@ export class Renderer {
   private readonly caveSky = new THREE.Color(0x000000);
   private readonly sunOffset = new THREE.Vector3(18, 30, 12);
   private readonly stats: FrameStats = { calls: 0, triangles: 0, shadowCalls: 0, shadowTriangles: 0 };
+  /**
+   * Work that happened inside the draw while the player was playing (`watchFirstDraw`): frames in
+   * which a shader program was compiled or a texture first uploaded there, and how many of each.
+   * Every model is warmed before it shows (render/warm.ts), so `programs` should stay 0 in play.
+   * `textures` also counts each new skinned body's bone texture, which is small.
+   */
+  readonly firstDraw = { frames: 0, programs: 0, textures: 0 };
+  watchFirstDraw = false;
+  private readonly kept = new WeakSet<object>();
+  /** The surface fog's near and far, as shares of the region's own (the graphics quality; world/rings.ts `fogReach`). */
+  private fogReach: readonly [number, number] = [1, 1];
+  /** The most device pixels per CSS pixel the graphics quality allows, and the share of it drawn now. */
+  private pixelCap = 2;
+  private resolution = 1;
   private yardSky: THREE.Texture | null = null;
   private daySky: THREE.Texture | null = null;
 
@@ -112,6 +127,31 @@ export class Renderer {
     if (!this.cave) this.applyComposed();
   }
 
+  /** The graphics quality's fog reach on the surface. The cave keeps its own fog. */
+  setFogReach(reach: readonly [number, number]): void {
+    if (reach[0] === this.fogReach[0] && reach[1] === this.fogReach[1]) return;
+    this.fogReach = reach;
+    if (this.daylight || this.cave) this.applyComposed();
+  }
+
+  /** The graphics quality's pixel ratio ceiling. */
+  setPixelCap(cap: number): void {
+    this.pixelCap = cap;
+    this.applyPixels();
+  }
+
+  /** Draw at this share of the quality's resolution (render/resolutionGovernor.ts). */
+  setResolution(scale: number): void {
+    if (scale === this.resolution) return;
+    this.resolution = scale;
+    this.applyPixels();
+  }
+
+  private applyPixels(): void {
+    const ratio = Math.min(window.devicePixelRatio, this.pixelCap) * this.resolution;
+    if (Math.abs(this.renderer.getPixelRatio() - ratio) > 1e-3) this.renderer.setPixelRatio(ratio);
+  }
+
   /** The player is in the Rootdeep. No-op when the boolean has not changed. */
   setCave(on: boolean): void {
     if (on === this.cave) return;
@@ -144,9 +184,10 @@ export class Renderer {
 
   /** Sun, hemisphere, fog and torch from the storm, the cave and the quality, together. */
   private applyComposed(): void {
+    const fog = this.surfaceFog;
     const light = worldLight(
       { storm: this.storm, cave: this.cave, shadows: this.shadowsWanted },
-      this.surfaceFog,
+      { near: fog.near * this.fogReach[0], far: fog.far * this.fogReach[1], farPlane: fog.farPlane },
     );
     if (light.background === 'cave') this.scene.background = this.caveSky;
     else {
@@ -229,10 +270,15 @@ export class Renderer {
     this.levelGroup.clear();
   }
 
-  /** Keep the shadow box centred on the player, and the torch 2 m above their feet. */
+  /**
+   * Keep the shadow box on the player, moved in whole shadow texels so shadow edges hold still
+   * while they walk (render/shadowSnap.ts), and the torch 2 m above their feet.
+   */
   follow(target: THREE.Vector3): void {
-    this.sun.position.copy(target).add(this.sunOffset);
-    this.sun.target.position.copy(target);
+    const box = this.sun.shadow.camera;
+    const at = snapToShadowTexels(target, this.sunOffset, (box.right - box.left) / this.sun.shadow.mapSize.x);
+    this.sun.target.position.set(at.x, at.y, at.z);
+    this.sun.position.copy(this.sun.target.position).add(this.sunOffset);
     this.torch.position.set(target.x, target.y + 2, target.z);
   }
 
@@ -242,10 +288,38 @@ export class Renderer {
   }
 
   render(): void {
+    const info = this.renderer.info;
+    const programs = info.programs?.length ?? 0, textures = info.memory.textures;
     this.renderer.render(this.scene, this.camera);
+    this.keepPrograms();
+    if (this.watchFirstDraw) {
+      const p = (info.programs?.length ?? 0) - programs, t = info.memory.textures - textures;
+      if (p > 0 || t > 0) {
+        this.firstDraw.frames++;
+        this.firstDraw.programs += Math.max(0, p);
+        this.firstDraw.textures += Math.max(0, t);
+      }
+    }
     const r = this.renderer.info.render;
     this.stats.calls = r.calls;
     this.stats.triangles = r.triangles;
+  }
+
+  /**
+   * Keep every compiled shader program for the session. three.js deletes a program when the last
+   * material using it is disposed, so each time the last enemy of a kind left view its program went
+   * with it, and the next one to walk in paid for the compile again, inside a draw. Counting one
+   * extra user on each program stops that. The number of programs is small and bounded (a few dozen).
+   */
+  private keepPrograms(): void {
+    const programs = this.renderer.info.programs;
+    if (!programs) return;
+    for (const program of programs) {
+      if (this.kept.has(program)) continue;
+      this.kept.add(program);
+      const p = program as unknown as { usedTimes?: number };
+      if (typeof p.usedTimes === 'number') p.usedTimes++;
+    }
   }
 
   /** Last frame's draw calls and triangles: `calls` includes the shadow pass (plan §3.5 budget). */

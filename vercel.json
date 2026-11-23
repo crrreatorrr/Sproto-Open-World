@@ -1,0 +1,12 @@
+{
+  "headers": [
+    {
+      "source": "/(.*)world/([^/]+)/cells/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/(.*)world/([^/]+)/horizon.glb",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    }
+  ]
+}

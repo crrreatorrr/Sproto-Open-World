@@ -15,7 +15,18 @@ const LAYERS = ['grass', 'dirt', 'rock', 'path'] as const;
  * `splatLayers` is the manifest's channel order; a permutation matrix maps it onto LAYERS, so the
  * bake can reorder channels without a shader change.
  */
-export function terrainMaterial(grass: THREE.Texture, rock: THREE.Texture, splatLayers: readonly string[]): THREE.MeshStandardMaterial {
+/** The horizon's cell mask (world/Horizon.ts): R is how far each cell's ground has faded in. */
+export interface CellMaskUniforms {
+  horizonMask: { value: THREE.Texture | null };
+  maskOrigin: { value: THREE.Vector2 };
+  maskSize: { value: THREE.Vector2 };
+}
+
+/**
+ * `merged` is the material for far ground drawn a block at a time (world/FarTerrain.ts): there a
+ * vertex says which cell it belongs to (`cellc`), where a cell's own mesh takes it from its place.
+ */
+export function terrainMaterial(grass: THREE.Texture, rock: THREE.Texture, splatLayers: readonly string[], mask?: CellMaskUniforms, merged = false): THREE.MeshStandardMaterial {
   for (const t of [grass, rock]) {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
@@ -39,8 +50,28 @@ export function terrainMaterial(grass: THREE.Texture, rock: THREE.Texture, splat
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform sampler2D tGrass;\nuniform sampler2D tRock;\nvarying vec4 vSplat;\nvarying vec2 vWorldUv;')
       .replace('#include <map_fragment>', SPLAT_GLSL);
+    if (mask) {
+      // A cell that has just loaded dithers in over the horizon mesh. The fade is read once per
+      // cell, at its centre (the mesh sits at the cell's south-west corner), so every pixel of the
+      // cell agrees, and the horizon's shader keeps exactly the pixels this one gives up.
+      Object.assign(shader.uniforms, mask);
+      const centre = merged ? 'cellc' : `modelMatrix[3].xz + ${(CELL_SIZE / 2).toFixed(1)}`;
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\nuniform sampler2D horizonMask;\nuniform vec2 maskOrigin;\nuniform vec2 maskSize;\nvarying float vCellFade;${merged ? '\nattribute vec2 cellc;' : ''}`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>\nvCellFade = texture2D(horizonMask, (${centre} - maskOrigin) / maskSize).r;`);
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying float vCellFade;')
+        .replace(
+          '#include <clipping_planes_fragment>',
+          `#include <clipping_planes_fragment>
+  if (vCellFade < 0.999) {
+    float cellNoise = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+    if (vCellFade <= cellNoise) discard;
+  }`,
+        );
+    }
   };
-  mat.customProgramCacheKey = () => 'terrain-splat-v2';
+  mat.customProgramCacheKey = () => (mask ? (merged ? 'terrain-splat-v3-fade-merged' : 'terrain-splat-v3-fade') : 'terrain-splat-v2');
   return mat;
 }
 
