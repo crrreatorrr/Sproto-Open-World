@@ -214,7 +214,7 @@ export const C6_QUESTS: Record<string, QuestDef> = {
     prereq: [{ questDone: 'q_bait' }, { questDone: 'q_deep_seam' }],
     steps: [
       {
-        id: 'boss', text: 'Bring down the Skyfire Drake over the Orchard. Parry its fireballs back at it, then strike while it glides low.', objectives: [{ kind: 'kill', tag: 'skyfire_drake', count: 1 }], marker: 'drake_arena',
+        id: 'boss', text: 'Bring down the Skyfire Drake over the Orchard (recommended level 13). Lock on, parry its fireballs back at it, then strike while it glides low.', objectives: [{ kind: 'kill', tag: 'skyfire_drake', count: 1 }], marker: 'drake_arena',
         onComplete: [{ setFlag: 'boss.drake.dead' }, { skillPoints: 1 }, { give: 'relic_drakeplume' }],
       },
       { id: 'elder', text: 'Tell Elder Pepe the sky is clear.', objectives: [{ kind: 'talk', npc: 'elder_pepe', node: 'a12_return' }], marker: 'elder_pepe' },

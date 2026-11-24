@@ -465,7 +465,9 @@ is the staff's `damage` × MV.** The Sprout Staff (`damage` 20) is shown here, b
 - **Parry:** ticks 0–9 of the press. Against melee: the attacker staggers for 60 ticks (a boss loses
   35% of its poise), the riposte window opens, the player gains +15 mana, and both get 10 ticks of
   hit-stop. Against a projectile: reflected at 1.5× speed and damage. A missed parry simply
-  becomes a block. A block raised within 20 ticks of the last one gets only a 4-tick parry window.
+  becomes a block. A block raised within 20 ticks of the last one gets only a 4-tick parry window. A parry
+  that lands clears that penalty, so each shot of a volley (the Drake's come 16 ticks apart) can be
+  parried in turn by tapping block.
 
 ### 4.4 Magic: the four starter spells
 
