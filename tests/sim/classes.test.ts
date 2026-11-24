@@ -36,12 +36,15 @@ describe('a new save of each class', () => {
     expect(Object.keys(p.inventory).some((id) => ITEMS[id]?.gun)).toBe(false);
   });
 
-  it('the Soldier holds the Toy MG, carries the other starter guns, and casts the Arcane Bolt like anyone', () => {
+  it('the Soldier holds the Toy MG, carries the other starter guns and a staff to block with, and casts the Arcane Bolt like anyone', () => {
     const p = newProgress(['bolt'], 'soldier');
     expect(p.class).toBe('soldier');
     expect(p.equipment.staff).toBe('gun_mg');
     expect(p.weapons).toEqual(['gun_mg', null, null, null]);
     for (const g of STARTER_GUNS) expect(p.inventory[g], g).toBe(1);
+    // A gun can't block: the Watchtower's parry drill needs a staff.
+    expect(newProgress(['bolt'], 'pepe').inventory.staff_sproto).toBe(1);
+    expect(p.inventory.staff_sproto).toBe(1);
     expect(p.spells).toEqual(['bolt']);
     expect(p.loadout).toEqual(['bolt', null, null, null]);
   });
