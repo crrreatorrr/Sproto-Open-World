@@ -70,11 +70,11 @@ const CSS = `
 }
 .wbh-root.hidden { display: none; }
 
-/* 4-slot weapon bar + ammo cluster (bottom-right) */
+/* 4-slot weapon bar + ammo cluster (bottom-right), above the control prompts (.prompts: up to two rows from 18px) */
 .wbh-cluster {
   position: absolute;
   right: 22px;
-  bottom: 22px;
+  bottom: 78px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
