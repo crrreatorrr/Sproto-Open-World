@@ -24,7 +24,7 @@ a staff. The Raygun, Big Bullets and the Duck Gun come where a Wizard would find
 Might and the Rootcleaver. A gun swings like a staff in melee. This build also clears every browser's
 old save and settings once, on its first load, so everyone starts with the class picker.
 
-You earn XP and levels (cap 15), wear a staff, a robe and a charm, collect loot, and the game saves
+You earn XP and levels (cap 30), wear a staff, a robe and a charm, collect loot, and the game saves
 itself (Continue on the title). **The menu** (Esc or Start) has one tab each for:
 - **Powers:** equip four of the spells you know. A power you swap in starts on cooldown (at least
   3 s), so a swap is never a free reset.
