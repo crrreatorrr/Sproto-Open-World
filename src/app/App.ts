@@ -1033,7 +1033,8 @@ export class App {
   /** Updates the 4-slot weapon bar, ammo readout, and crosshair/scope overlay. */
   private weaponBarFrame(p: Readonly<Entity>, activeGun: FixedGunDef | null, aiming: boolean, inMenu: boolean): void {
     const prog = p.progress;
-    if (!prog || inMenu) {
+    // Fallen: the death screen has the whole view, so the bar goes with the rest of the HUD.
+    if (!prog || inMenu || p.combat?.action?.kind === 'dead') {
       this.weaponBar.setVisible(false);
       return;
     }

@@ -137,7 +137,7 @@ export const QUESTS: Record<string, QuestDef> = {
     kind: 'main',
     prereq: [{ quest: 'q_wake_up', status: 'complete' }],
     steps: [
-      { id: 'orchard', text: 'Go west to the Orchard Fields.', objectives: [{ kind: 'reach', trigger: 'orchard_fields' }], marker: 'orchard_fields' },
+      { id: 'orchard', text: 'Go east to the Orchard Fields.', objectives: [{ kind: 'reach', trigger: 'orchard_fields' }], marker: 'orchard_fields' },
       { id: 'grunts', text: 'Drive off the Grunts in the Orchard.', objectives: [{ kind: 'kill', tag: 'grunt', count: 8 }], marker: 'orchard_fields', onComplete: [{ give: 'totem_field_warden' }] },
       { id: 'farmer', text: 'Tell Farmer Broccoli the fields are clear.', objectives: [{ kind: 'talk', npc: 'farmer_broccoli', node: 'pest_done' }], marker: 'farmer_broccoli' },
     ],
