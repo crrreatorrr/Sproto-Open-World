@@ -750,7 +750,7 @@ export function onKill(ctx: RpgCtx, killer: Entity, dead: Entity): void {
     // Gear is found once: a piece you own doesn't drop again. The roll still happens, so the loot stream stays in step.
     const owned = !ITEMS[it.item]?.stacks && (killer.progress.inventory[it.item] ?? 0) > 0;
     const allowed = !it.when || (it.when === 'spell' && spellKill) || (it.when === 'stagger' && !!dead.brain?.wasStaggered);
-    if (rngNext(ctx.rng) < it.chance && !owned && allowed) ctx.spawnPickup(at(k++), { kind: 'item', item: it.item, amount: 1, life: PICKUP_LIFE });
+    if (rngNext(ctx.rng) < (allowed ? it.chance : it.otherwise ?? 0) && !owned) ctx.spawnPickup(at(k++), { kind: 'item', item: it.item, amount: 1, life: PICKUP_LIFE });
   }
 }
 
