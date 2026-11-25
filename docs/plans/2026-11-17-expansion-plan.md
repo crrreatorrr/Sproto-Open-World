@@ -225,7 +225,8 @@ enemy and touched targeting, lunges, nova and chain ranges. This plan does the f
   - **Phase 1:** smash, slam (ring telegraph), charge into a pillar → stunned.
   - **Phase 2:** "burrow". She sinks (a transform offset with a dust FX, since there's no clip),
     surfaces under a telegraphed decal, then `shoot_loop` spits Burn globs. Mirror Ward reflects
-    them.
+    them. The three globs come 36 ticks apart (a roll is 34), so each can be rolled or parried in
+    turn, after a 40-tick tell when she surfaces.
   - **Phase 3:** faster, plus 2 summoned Grunts.
 - **Size:** 1.5 MB on the region's budget, not critical. Fight 3–8 min, as the slice's boss rule.
 
@@ -296,7 +297,9 @@ Today enemy moves can't apply statuses, so the core affixes are stats only:
 Notes:
 - "Interact ×5" means five interactable objects, each its own objective; that works today.
 - **XP:** the cap is 15 (owner's answer 4). The slice ends around level 7; these quests and their
-  camps are tuned so you reach about 12 at the Burrowmother and 14–15 at the Drake.
+  camps are tuned so you reach about 12 at the Burrowmother and 14–15 at the Drake. A8 opens as
+  soon as Scrapjaw is dead, though, so the main path meets the Burrowmother at about level 8: she is
+  level 8, and her quest step and the Drake's name a recommended level (8 and 13).
 
 ## 5. A better menu (new code, about 2 units)
 

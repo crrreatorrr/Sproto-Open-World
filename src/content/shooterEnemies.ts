@@ -751,7 +751,7 @@ export const SHOOTER_ENEMIES: Record<ShooterEnemyId, ShooterEnemyDef> = {
     stageScale: [0.78, 0.88, 1],
     tags: ['boss', 'wisp', 'sahil', 'shooter_boss'],
     xp: 2100,
-    hp: 5400,
+    hp: 8600,
     poise: 240,
     elite: true,
     body: { radius: 0.72, height: 2.5 },
@@ -759,7 +759,7 @@ export const SHOOTER_ENEMIES: Record<ShooterEnemyId, ShooterEnemyDef> = {
     defense: { physical: 10, arcane: 22 },
     profile: {
       damage: { physical: 'weak', arcane: 'resist' },
-      status: { burn: 'normal', chill: 'resist', shock: 'weak' },
+      status: { burn: 'resist', chill: 'resist', shock: 'weak' },
     },
     level: 26,
     moveSpeed: 4.4,
@@ -814,7 +814,7 @@ export const SHOOTER_ENEMIES: Record<ShooterEnemyId, ShooterEnemyDef> = {
           interval: 5,
           spread: 0.22,
           homing: 1.9,
-          reflectBonus: { hpFrac: 0.08, stagger: 80, poiseFrac: 0.25, homing: 3.0 },
+          reflectBonus: { hpFrac: 0.04, stagger: 80, poiseFrac: 0.25, homing: 3.0 },
         },
       },
       {

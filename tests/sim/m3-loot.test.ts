@@ -72,6 +72,22 @@ describe('kills: XP and drops (plan §5)', () => {
     w.dispose();
   });
 
+  it('a Bramble Colossus always drops a Giant Pumpkin when staggered, and about 35% of the time when not', async () => {
+    const { w, p } = await village();
+    const c = w.spawnEnemy('bramble_colossus', { x: 230, y: VILLAGE_Y, z: 41.5 }, Math.PI);
+    const pumpkins = (staggered: boolean) => {
+      const ctx = rpgCtx(w);
+      c.brain!.wasStaggered = staggered || undefined;
+      for (let i = 0; i < 1000; i++) onKill(ctx, p, c);
+      return ctx.spawned.filter((s) => s.pickup.item === 'giant_pumpkin').length;
+    };
+    expect(pumpkins(true)).toBe(1000);
+    const n = pumpkins(false);
+    expect(n / 1000).toBeGreaterThan(0.3);
+    expect(n / 1000).toBeLessThan(0.4);
+    w.dispose();
+  });
+
   it('a kill by nobody (a status tick with no source, a fall) grants nothing', async () => {
     const { w, prog } = await village();
     const g = w.spawnEnemy('grunt', { x: 230, y: VILLAGE_Y, z: 41.5 }, Math.PI);

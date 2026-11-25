@@ -203,6 +203,8 @@ export function resolveHit(ctx: CombatCtx, attacker: Entity, target: Entity, inf
     // The block's parryTicks already include Coins and the Grip (playerCombat.updateBlock).
     if (ta.t < ta.parryTicks) {
       tv.mana = Math.min(tv.manaMax, tv.mana + BLOCK.parryMana);
+      // A parry that landed was timed, not mashed: the next press gets the whole window again.
+      tc.lastBlockTick = ctx.now - BLOCK.spamWindow;
       addHitstop(target, BLOCK.parryHitstop);
       const stun = !info.projectile && !info.area && attacker.combat ? stunParried(ctx, attacker) : 0;
       if (stun > 0) {

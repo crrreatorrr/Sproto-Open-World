@@ -11,10 +11,16 @@ import { SimWorld } from '../../src/sim/SimWorld';
  * in parallel (it measured 2.8 ms where a dev machine measures 0.6), so there the bound is a
  * generous 6 ms (plan: "generous bound") that still catches a real regression. The number is always
  * printed.
+ *
+ * The time is the test thread's CPU time (`process.threadCpuUsage`), not the wall clock: the full
+ * `npm test` runs files side by side, and on a busy machine the wall clock also counts the time the
+ * test sat waiting for a core. It is taken in 12 blocks of 100 ticks and the bound applies to the median
+ * block, so one block caught by a GC pause or a page fault doesn't decide it, while a sim that got
+ * slower is slower in every block. The wall-clock average is printed beside it.
  */
 const BOUND_MS = process.env.CI ? 6 : 2;
 describe('sim performance', () => {
-  it(`40 active entities average ≤ ${BOUND_MS} ms per tick`, async () => {
+  it(`40 active entities take ≤ ${BOUND_MS} ms per tick (median block)`, async () => {
     await initPhysics();
     const w = new SimWorld({ ...SANDBOX, enemies: [] }, 7);
     w.spawnPlayer(0);
@@ -41,16 +47,30 @@ describe('sim performance', () => {
       p.vitals!.hp = p.vitals!.hpMax;
       p.vitals!.mana = p.vitals!.manaMax;
     }
-    const N = 1200;
-    const t0 = performance.now();
-    for (let t = 120; t < 120 + N; t++) {
-      w.tick(new Map([[0, cmd(t)]]));
-      p.vitals!.hp = p.vitals!.hpMax;
-      p.vitals!.mana = p.vitals!.manaMax;
+    const BLOCKS = 12, BLOCK = 100;
+    const blocks: number[] = [];
+    // This thread's CPU time where Node has it, else the whole process's.
+    const usage = (process as { threadCpuUsage?: () => NodeJS.CpuUsage }).threadCpuUsage ?? process.cpuUsage;
+    const cpuMs = () => {
+      const u = usage.call(process);
+      return (u.user + u.system) / 1000;
+    };
+    const wall0 = performance.now();
+    for (let b = 0, t = 120; b < BLOCKS; b++) {
+      const t0 = cpuMs();
+      for (let i = 0; i < BLOCK; i++, t++) {
+        w.tick(new Map([[0, cmd(t)]]));
+        p.vitals!.hp = p.vitals!.hpMax;
+        p.vitals!.mana = p.vitals!.manaMax;
+      }
+      blocks.push((cpuMs() - t0) / BLOCK);
     }
-    const perTick = (performance.now() - t0) / N;
+    const wall = (performance.now() - wall0) / (BLOCKS * BLOCK);
+    const mean = blocks.reduce((a, b) => a + b, 0) / BLOCKS;
+    const sorted = [...blocks].sort((a, b) => a - b);
+    const perTick = (sorted[BLOCKS / 2 - 1] + sorted[BLOCKS / 2]) / 2;
     const alive = w.entities.filter((e) => e.combat && e.combat.action?.kind !== 'dead').length;
-    console.log(`sim: ${perTick.toFixed(3)} ms/tick with ${w.entities.length} entities (${alive} alive combatants)`);
+    console.log(`sim: ${perTick.toFixed(3)} ms/tick of CPU (median of ${BLOCKS} blocks; mean ${mean.toFixed(3)}, worst ${sorted[BLOCKS - 1].toFixed(3)}; wall clock ${wall.toFixed(3)}) with ${w.entities.length} entities (${alive} alive combatants)`);
     expect(w.entities.filter((e) => e.body).length).toBeGreaterThanOrEqual(30);
     expect(perTick).toBeLessThanOrEqual(BOUND_MS);
     w.dispose();

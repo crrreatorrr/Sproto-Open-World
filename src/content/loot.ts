@@ -10,7 +10,14 @@ import { SHOOTER_LOOT } from './shooterEnemies';
 export interface DropTable {
   sprouts: [number, number];
   heartChance: number;
-  items?: { item: string; chance: number; /** `spell`: only a spell's kill. `stagger`: only a kill while staggered. */ when?: 'spell' | 'stagger' }[];
+  items?: {
+    item: string;
+    chance: number;
+    /** `spell`: only a spell's kill. `stagger`: only a kill while staggered. */
+    when?: 'spell' | 'stagger';
+    /** With `when`: the chance on a kill that doesn't meet it (absent: 0). One roll either way. */
+    otherwise?: number;
+  }[];
 }
 
 export const DROPS: Record<string, DropTable> = {

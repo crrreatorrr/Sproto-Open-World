@@ -26,9 +26,12 @@ const WAKE_FLAG = 'seam.awake';
 
 const melee = { kind: 'physical' } as const;
 
-/** The spit's shots: Burn on a hit, and a parry or a Mirror Ward sends them back to stagger her. */
+/**
+ * The spit's shots: Burn on a hit, and a parry or a Mirror Ward sends them back to stagger her. They
+ * come 36 ticks apart, a roll (34 ticks) and a little more, so each one can be rolled in turn.
+ */
 const GLOB: NonNullable<EnemyMoveDef['projectile']> = {
-  speed: 17, radius: 0.55, range: 30, count: 3, interval: 20, spread: 0.16, model: 'burn_glob',
+  speed: 17, radius: 0.55, range: 30, count: 3, interval: 36, spread: 0.16, model: 'burn_glob',
   status: { id: 'burn', stacks: 1 }, reflectBonus: { hpFrac: 0.03, stagger: 70 },
 };
 /** Her open mouth, while she spits. */
@@ -80,12 +83,12 @@ const MOVES: EnemyMoveDef[] = [
     area: { radius: 5 }, decal: 'jagged', shove: { radius: 6, distance: 3 }, burrow: 'rise', followUp: 'spit_volley',
   },
   {
-    id: 'spit_volley', kind: 'arcane', chainOnly: true, windup: 30, active: 44, recovery: 72, damage: 24, poise: 18, hitbox: { forward: 2.2, up: 3.4, radius: 0.3 },
+    id: 'spit_volley', kind: 'arcane', chainOnly: true, windup: 40, active: 76, recovery: 72, damage: 24, poise: 18, hitbox: { forward: 2.2, up: 3.4, radius: 0.3 },
     range: 40, weight: 0, cooldown: 0, hyperArmor: true, trackUntil: 1, hitstop: 4, clip: 'shoot_start', projectile: GLOB, weakSpots: MOUTH,
   },
   // Keep your distance from her in phase 2 and she spits anyway.
   {
-    id: 'spit_far', kind: 'arcane', phases: [2, 3], windup: 34, active: 44, recovery: 56, damage: 24, poise: 18, hitbox: { forward: 2.2, up: 3.4, radius: 0.3 },
+    id: 'spit_far', kind: 'arcane', phases: [2, 3], windup: 34, active: 76, recovery: 56, damage: 24, poise: 18, hitbox: { forward: 2.2, up: 3.4, radius: 0.3 },
     range: 24, minRange: 10, weight: 2, cooldown: 360, hyperArmor: true, trackUntil: 1, hitstop: 4, clip: 'shoot_start', projectile: GLOB, weakSpots: MOUTH,
   },
   // The roar at each phase change: shoves you back.
@@ -108,7 +111,8 @@ export const BURROWMOTHER: EnemyDef = {
   body: { radius: 2, height: 5 },
   defense: { physical: 26, arcane: 22 },
   profile: { damage: { physical: 'normal', arcane: 'normal' }, status: { burn: 'resist', chill: 'weak', shock: 'normal' } },
-  level: 12,
+  // The main path reaches her at about level 8, straight after Scrapjaw.
+  level: 8,
   moveSpeed: 3.4,
   turnRate: Math.PI * 0.85,
   // Broken: 180 ticks, taking 25% more damage.
@@ -164,6 +168,8 @@ export const C5_NPCS: Record<string, NpcDef> = {
  * sit on A5, A7 and A8 because those open after Scrapjaw, so they can't over-level that fight:
  *   Scrapjaw's gate 1,605 (level 6) → Scrapjaw dead 2,805 → A1–A8 done 9,944 (level 12, the Burrowmother)
  *   → A9, A10, A11 done 14,644 (level 14, the Drake) → A12 done 18,544 (level 15).
+ * A8 opens as soon as Scrapjaw is dead, so a player on the main path meets her at about level 8: her
+ * level is 8, and the quest step says so.
  */
 export const C5_QUESTS: Record<string, QuestDef> = {
   // A5: the shrine network.
@@ -214,7 +220,7 @@ export const C5_QUESTS: Record<string, QuestDef> = {
         onComplete: [{ setFlag: WAKE_FLAG }],
       },
       {
-        id: 'boss', text: 'Defeat the Burrowmother.', objectives: [{ kind: 'kill', tag: 'burrowmother', count: 1 }], marker: 'deep_seam_floor',
+        id: 'boss', text: 'Defeat the Burrowmother (recommended level 8).', objectives: [{ kind: 'kill', tag: 'burrowmother', count: 1 }], marker: 'deep_seam_floor',
         onComplete: [{ setFlag: 'boss.burrowmother.dead' }, { skillPoints: 1 }, { give: 'relic_deepbreath_bellows' }],
       },
     ],

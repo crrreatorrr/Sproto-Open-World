@@ -20,7 +20,8 @@ its bridge, the orchard, Thornwood and the quarry ravine. The village has the fi
 - **Pepe:** a gun and every spell as magic, Gunfire and the Arcane Bolt both.
 
 The gun classes start with the Toy MG, Shotgun, Sniper and Bazooka and pick one on the Gear tab, like
-a staff. The Raygun, Big Bullets and the Duck Gun come where a Wizard would find Moonward, Fighter's
+a staff. They carry the Sprout Staff as well: a gun can't block or parry, so take the staff out for
+the Watchtower's parry drill. The Raygun, Big Bullets and the Duck Gun come where a Wizard would find Moonward, Fighter's
 Might and the Rootcleaver. A gun swings like a staff in melee. This build also clears every browser's
 old save and settings once, on its first load, so everyone starts with the class picker.
 

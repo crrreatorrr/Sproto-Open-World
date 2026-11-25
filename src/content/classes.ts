@@ -35,6 +35,11 @@ export interface ClassPassiveDef {
 
 /** The guns every gun class starts with: Sproto Shooter's regular arsenal. */
 export const STARTER_GUNS = ['gun_mg', 'gun_shotgun', 'gun_sniper', 'gun_bazooka'] as const;
+/**
+ * What a gun class carries besides: the Sprout Staff, since a gun can't block and the Watchtower's
+ * parry drill (on the main path, before any staff is handed out) needs a guard.
+ */
+const GUN_CLASS_ITEMS = [...STARTER_GUNS, 'staff_sproto'] as const;
 
 export const CLASSES: Record<ClassId, ClassDef> = {
   wizard: {
@@ -42,7 +47,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     blurb: 'Staff in hand, spells at the ready. Every shot costs mana.',
   },
   soldier: {
-    id: 'soldier', name: 'Soldier Sproto', weapon: 'gun', model: 'player_soldier', startWeapon: 'gun_mg', startItems: STARTER_GUNS,
+    id: 'soldier', name: 'Soldier Sproto', weapon: 'gun', model: 'player_soldier', startWeapon: 'gun_mg', startItems: GUN_CLASS_ITEMS,
     blurb: 'Guns with real magazines: fire, zoom and reload. Still casts the old powers.',
   },
   pepe_warrior: {
@@ -50,7 +55,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     blurb: 'Vanguard brawler with heavy poise. Wields any weapon.',
   },
   pepe: {
-    id: 'pepe', name: 'Pepe', weapon: 'gun', model: 'player_pepe', startWeapon: 'gun_mg', startItems: STARTER_GUNS,
+    id: 'pepe', name: 'Pepe', weapon: 'gun', model: 'player_pepe', startWeapon: 'gun_mg', startItems: GUN_CLASS_ITEMS,
     blurb: 'Shoots a gun and casts every spell. Why choose?',
   },
 };

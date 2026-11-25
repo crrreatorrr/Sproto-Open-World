@@ -150,7 +150,7 @@ export const QUESTS: Record<string, QuestDef> = {
     kind: 'main',
     prereq: [{ quest: 'q_pest_control', status: 'complete' }],
     steps: [
-      { id: 'parry', text: 'Parry the swinging dummy in the training yard (block just as it hits).', objectives: [{ kind: 'feat', feat: 'parry', count: 1 }], marker: 'training_yard' },
+      { id: 'parry', text: 'Parry the swinging dummy in the training yard (block just as it hits; a gun cannot block, so hold a staff).', objectives: [{ kind: 'feat', feat: 'parry', count: 1 }], marker: 'training_yard' },
       { id: 'hill', text: 'Climb Watchtower Hill.', objectives: [{ kind: 'reach', trigger: 'watchtower_hill' }], marker: 'watchtower_hill' },
       {
         id: 'slingers', text: 'Defeat the Coin Slingers on the hill.', objectives: [{ kind: 'kill', tag: 'slinger', count: 5 }], marker: 'watchtower_hill',

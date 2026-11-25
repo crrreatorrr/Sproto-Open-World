@@ -104,7 +104,8 @@ export function playerCombat(ctx: CombatCtx, commands: CommandMap, physics: Phys
 
 /**
  * The parry window runs from the moment block goes down, even if the guard can't rise yet (a press
- * late in a recovery still counts). Mashing it shortens the window.
+ * late in a recovery still counts). Mashing it shortens the window; a press after a parry is not
+ * mashing (hits.ts forgives it), so each shot of a volley can be parried in turn.
  */
 function noteBlockPress(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
   const c = p.combat!;
@@ -112,6 +113,9 @@ function noteBlockPress(p: Entity, cmd: InputCommand, ctx: CombatCtx): void {
   if (held && !c.blockHeld) {
     c.blockPressTicks = ctx.now - c.lastBlockTick < BLOCK.spamWindow ? BLOCK.spamParryTicks : BLOCK.parryTicks;
     c.lastBlockTick = ctx.now;
+    // Let go and pressed again inside a parry's hit-stop (the next shot of a volley): the guard that
+    // is still up takes the new press's window.
+    if (c.action?.kind === 'block') c.action = { kind: 'block', t: 0, parryTicks: parryWindowTicks(p, c.blockPressTicks) };
   }
   c.blockHeld = held;
 }

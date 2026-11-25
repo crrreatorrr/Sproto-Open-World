@@ -247,7 +247,7 @@ export const C4_DROPS: Record<string, DropTable> = {
   rivet_gunner: { sprouts: [10, 18], heartChance: 0.25, items: [{ item: 'rivet', chance: 0.8 }] },
   lens_warden: { sprouts: [40, 70], heartChance: 1 },
   hollow_giant: { sprouts: [100, 160], heartChance: 1 },
-  bramble_colossus: { sprouts: [60, 90], heartChance: 1, items: [{ item: 'giant_pumpkin', chance: 1, when: 'stagger' }] },
+  bramble_colossus: { sprouts: [60, 90], heartChance: 1, items: [{ item: 'giant_pumpkin', chance: 1, when: 'stagger', otherwise: 0.35 }] },
   bramble_thrall: { sprouts: [6, 10], heartChance: 0.2 },
 };
 
@@ -332,7 +332,7 @@ export const C4_QUESTS: Record<string, QuestDef> = {
     kind: 'side',
     prereq: [{ questDone: 'q_pumpkins' }],
     steps: [
-      { id: 'pumpkins', text: 'Take 3 Giant Pumpkins from the Bramble camps. A Colossus drops one only if you stagger it.', objectives: [{ kind: 'collect', item: 'giant_pumpkin', count: 3, consume: true }], marker: 'bramble_fields' },
+      { id: 'pumpkins', text: 'Take 3 Giant Pumpkins from the Bramble camps. A Colossus always drops one if you stagger it, and sometimes even if you do not.', objectives: [{ kind: 'collect', item: 'giant_pumpkin', count: 3, consume: true }], marker: 'bramble_fields' },
       { id: 'return', text: 'Bring the pumpkins to Farmer Broccoli.', objectives: [{ kind: 'talk', npc: 'farmer_broccoli', node: 'a4_done' }], marker: 'farmer_broccoli' },
     ],
     rewards: [{ learnSpell: spell('vinePull') }, { xp: 300 }, { currency: 40 }],
@@ -539,7 +539,7 @@ export const C4_DIALOGUE_PATCHES: DialoguePatch[] = [
           { text: 'Another time.' },
         ],
       },
-      a4_busy: { speaker: 'Farmer Broccoli', text: 'Bramble camps, far west and far east. The big ones only drop a pumpkin once you stagger them. Fire does them no favours.' },
+      a4_busy: { speaker: 'Farmer Broccoli', text: 'Bramble camps, far west and far east. The big ones always drop a pumpkin once you stagger them. Fire does them no favours.' },
       a4_done: { speaker: 'Farmer Broccoli', text: 'Would you look at the size of them! Here, a vine for your trouble. Pull the small ones to you, and yourself to the big ones.' },
       a4_after: { speaker: 'Farmer Broccoli', text: "Don't plant those in my rows. Once is enough." },
     },
